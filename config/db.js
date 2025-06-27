@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Create connection pool with proper error handling
+// Create connection pool with correct MySQL2 configuration
 const db = mysql.createPool({
     host: process.env.MYSQL_HOST,
     user: process.env.MYSQL_USER,
@@ -11,10 +11,9 @@ const db = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    acquireTimeout: 60000,
-    timeout: 60000,
-    reconnect: true,
-    charset: 'utf8mb4'
+    charset: 'utf8mb4',
+    // Remove invalid options that cause warnings
+    // acquireTimeout, timeout, and reconnect are not valid for mysql2
 });
 
 // Test connection function
