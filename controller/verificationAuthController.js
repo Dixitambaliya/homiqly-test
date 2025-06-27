@@ -2,10 +2,10 @@ const { db } = require("../config/db");
 const verificationQueries = require("../config/adminQueries/verificationQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer")
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const generator = require('generate-password');
 
-const transport = nodemailer.createTransport({
+const transport = nodemailer.createTransporter({
     service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,

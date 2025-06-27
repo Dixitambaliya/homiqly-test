@@ -1,5 +1,5 @@
 const { db } = require("../config/db");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const vendorAuthQueries = require("../config/vendorQueries/vendorAuthQueries")
 const asyncHandler = require("express-async-handler");
@@ -8,7 +8,7 @@ const nodemailer = require("nodemailer");
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 
-const transport = nodemailer.createTransport({
+const transport = nodemailer.createTransporter({
     service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,
