@@ -1,6 +1,6 @@
 const express = require("express")
 const cors = require("cors")
-const { db } = require("./config/db")
+const { db, testConnection } = require("./config/db")
 
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
@@ -60,6 +60,33 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+// Database health check endpoint
+app.get("/api/health/db", async (req, res) => {
+    try {
+        const isConnected = await testConnection();
+        if (isConnected) {
+            res.status(200).json({ 
+                status: "OK", 
+                message: "Database connection successful",
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({ 
+                status: "ERROR", 
+                message: "Database connection failed",
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ 
+            status: "ERROR", 
+            message: "Database connection error",
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -77,18 +104,18 @@ app.use("*", (req, res) => {
     });
 });
 
-async function testConnection() {
-    try {
-        const [rows] = await db.query("SELECT 1")
-        console.log("DB connected");
-    } catch (error) {
-        console.error("Failed to connect", error.message);
-        process.exit(1)
-    }
-}
-
+// Start server with proper database connection check
 app.listen(PORT, async () => {
-    await testConnection()
-    console.log(`🚀 Homiqly Backend Server running on port ${PORT}`);
+    console.log(`🚀 Homiqly Backend Server starting on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
-})
+    console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
+    
+    // Test database connection
+    const isConnected = await testConnection();
+    if (isConnected) {
+        console.log(`✅ Server is ready and database is connected!`);
+    } else {
+        console.log(`⚠️  Server started but database connection failed!`);
+        console.log(`Please check your .env file and database credentials.`);
+    }
+});
