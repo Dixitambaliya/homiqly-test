@@ -1,0 +1,29 @@
+{
+  "name": "homiqly-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^1.41.3",
+    "cors": "^2.8.5",
+    "cron": "^4.3.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-async-handler": "^1.2.0",
+    "firebase-admin": "^13.4.0",
+    "generate-password": "^1.7.1",
+    "imagekit": "^6.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.2",
+    "multer-storage-cloudinary": "^4.0.0",
+    "mysql2": "^3.14.1",
+    "nodemailer": "^7.0.3",
+    "nodemon": "^3.1.10"
+  }
+}
