@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homiqly Vendor Panel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <div class="logo">
+                <h1>Homiqly</h1>
+                <p>Vendor Panel</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn-primary">Login</button>
+            </form>
+            <div class="login-footer">
+                <p>Don't have an account? <a href="#" onclick="showRegisterModal()">Register here</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="dashboard-container" style="display: none;">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>Homiqly</h2>
+                <p>Vendor Panel</p>
+            </div>
+            <ul class="sidebar-menu">
+                <li><a href="#" data-section="dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" data-section="profile"><i class="fas fa-user"></i> Profile</a></li>
+                <li><a href="#" data-section="services"><i class="fas fa-concierge-bell"></i> My Services</a></li>
+                <li><a href="#" data-section="bookings"><i class="fas fa-calendar-check"></i> Bookings</a></li>
+                <li><a href="#" data-section="supply-kits"><i class="fas fa-box"></i> Supply Kits</a></li>
+                <li><a href="#" data-section="payments"><i class="fas fa-credit-card"></i> Payments</a></li>
+                <li><a href="#" data-section="ratings"><i class="fas fa-star"></i> Ratings</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="btn-secondary">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1 id="pageTitle">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="vendorName">Vendor User</span>
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section id="dashboardSection" class="content-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalBookings">0</h3>
+                            <p>Total Bookings</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="pendingBookings">0</h3>
+                            <p>Pending Bookings</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="completedBookings">0</h3>
+                            <p>Completed Bookings</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalEarnings">₹0</h3>
+                            <p>Total Earnings</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <h3>Recent Bookings</h3>
+                        <div id="recentBookings" class="recent-list"></div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h3>Service Performance</h3>
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profileSection" class="content-section">
+                <div class="section-header">
+                    <h2>Vendor Profile</h2>
+                    <button class="btn-primary" onclick="enableProfileEdit()">
+                        <i class="fas fa-edit"></i> Edit Profile
+                    </button>
+                </div>
+                <div class="profile-container">
+                    <form id="profileForm">
+                        <div class="profile-image-section">
+                            <div class="profile-image">
+                                <img id="profileImagePreview" src="https://via.placeholder.com/150" alt="Profile">
+                                <input type="file" id="profileImageInput" name="profileImageVendor" accept="image/*" style="display: none;">
+                                <button type="button" class="image-upload-btn" onclick="document.getElementById('profileImageInput').click()">
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="profile-form-grid">
+                            <div class="form-group">
+                                <label for="vendorNameInput">Name</label>
+                                <input type="text" id="vendorNameInput" name="name" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="vendorEmailInput">Email</label>
+                                <input type="email" id="vendorEmailInput" name="email" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="vendorPhoneInput">Phone</label>
+                                <input type="tel" id="vendorPhoneInput" name="phone" disabled>
+                            </div>
+                            <div class="form-group" id="companyFields" style="display: none;">
+                                <label for="companyAddressInput">Company Address</label>
+                                <textarea id="companyAddressInput" name="companyAddress" rows="3" disabled></textarea>
+                            </div>
+                        </div>
+                        <div class="profile-actions" style="display: none;">
+                            <button type="button" class="btn-secondary" onclick="cancelProfileEdit()">Cancel</button>
+                            <button type="submit" class="btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Services Section -->
+            <section id="servicesSection" class="content-section">
+                <div class="section-header">
+                    <h2>My Services</h2>
+                    <button class="btn-primary" onclick="showAddServiceTypeModal()">
+                        <i class="fas fa-plus"></i> Add Service Type
+                    </button>
+                </div>
+                <div class="services-grid" id="vendorServicesGrid"></div>
+            </section>
+
+            <!-- Bookings Section -->
+            <section id="bookingsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Booking Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshBookings()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="bookingsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Customer</th>
+                                <th>Service</th>
+                                <th>Date & Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Supply Kits Section -->
+            <section id="supply-kitsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Supply Kit Orders</h2>
+                    <button class="btn-primary" onclick="showOrderSupplyKitModal()">
+                        <i class="fas fa-plus"></i> Order Supply Kit
+                    </button>
+                </div>
+                <div class="supply-orders-grid" id="supplyOrdersGrid"></div>
+            </section>
+
+            <!-- Payments Section -->
+            <section id="paymentsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Payment History</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshPayments()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="paymentsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Booking</th>
+                                <th>Amount</th>
+                                <th>Commission</th>
+                                <th>Net Amount</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Ratings Section -->
+            <section id="ratingsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Customer Ratings & Reviews</h2>
+                </div>
+                <div class="ratings-overview">
+                    <div class="rating-summary">
+                        <div class="average-rating">
+                            <h3 id="averageRating">0.0</h3>
+                            <div class="stars" id="averageStars"></div>
+                            <p id="totalReviews">0 reviews</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="reviews-list" id="reviewsList"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modalOverlay" class="modal-overlay">
+        <!-- Register Modal -->
+        <div id="registerModal" class="modal large-modal">
+            <div class="modal-header">
+                <h3>Vendor Registration</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="registerForm" enctype="multipart/form-data">
+                <div class="form-step" id="step1">
+                    <h4>Basic Information</h4>
+                    <div class="form-group">
+                        <label for="vendorType">Vendor Type</label>
+                        <select id="vendorType" name="vendorType" required onchange="toggleVendorFields()">
+                            <option value="">Select Type</option>
+                            <option value="individual">Individual</option>
+                            <option value="company">Company</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Individual Fields -->
+                    <div id="individualFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="individualName">Full Name</label>
+                            <input type="text" id="individualName" name="name">
+                        </div>
+                        <div class="form-group">
+                            <label for="individualPhone">Phone</label>
+                            <input type="tel" id="individualPhone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="individualEmail">Email</label>
+                            <input type="email" id="individualEmail" name="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="individualPassword">Password</label>
+                            <input type="password" id="individualPassword" name="password">
+                        </div>
+                        <div class="form-group">
+                            <label for="resume">Resume (PDF)</label>
+                            <input type="file" id="resume" name="resume" accept=".pdf">
+                        </div>
+                    </div>
+                    
+                    <!-- Company Fields -->
+                    <div id="companyFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="companyName">Company Name</label>
+                            <input type="text" id="companyName" name="companyName">
+                        </div>
+                        <div class="form-group">
+                            <label for="contactPerson">Contact Person</label>
+                            <input type="text" id="contactPerson" name="contactPerson">
+                        </div>
+                        <div class="form-group">
+                            <label for="companyEmail">Company Email</label>
+                            <input type="email" id="companyEmail" name="companyEmail">
+                        </div>
+                        <div class="form-group">
+                            <label for="companyPhone">Company Phone</label>
+                            <input type="tel" id="companyPhone" name="companyPhone">
+                        </div>
+                        <div class="form-group">
+                            <label for="companyAddress">Company Address</label>
+                            <textarea id="companyAddress" name="companyAddress" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="googleBusinessLink">Google Business Profile Link</label>
+                            <input type="url" id="googleBusinessLink" name="googleBusinessProfileLink">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-step" id="step2" style="display: none;">
+                    <h4>Services</h4>
+                    <div id="servicesSelection">
+                        <p>Select the services you want to offer:</p>
+                        <div id="servicesList"></div>
+                    </div>
+                </div>
+                
+                <div class="form-step" id="step3" style="display: none;">
+                    <h4>Confirmation</h4>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="confirmation" name="confirmation" value="true" required>
+                            I confirm that all the information provided is accurate and I agree to the terms and conditions.
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="prevBtn" onclick="previousStep()" style="display: none;">Previous</button>
+                    <button type="button" class="btn-primary" id="nextBtn" onclick="nextStep()">Next</button>
+                    <button type="submit" class="btn-primary" id="submitBtn" style="display: none;">Register</button>
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Add Service Type Modal -->
+        <div id="addServiceTypeModal" class="modal">
+            <div class="modal-header">
+                <h3>Add Service Type</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="addServiceTypeForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="serviceSelect">Service</label>
+                    <select id="serviceSelect" name="serviceId" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="serviceTypeName">Service Type Name</label>
+                    <input type="text" id="serviceTypeName" name="serviceType" required>
+                </div>
+                <div class="form-group">
+                    <label for="serviceTypeMedia">Service Type Image</label>
+                    <input type="file" id="serviceTypeMedia" name="serviceTypeMedia" accept="image/*" required>
+                </div>
+                <div class="form-group">
+                    <label>Packages</label>
+                    <div id="packagesContainer">
+                        <div class="package-item">
+                            <input type="text" placeholder="Package Name" name="packages[0][package_name]" required>
+                            <input type="text" placeholder="Description" name="packages[0][description]">
+                            <input type="number" placeholder="Price" name="packages[0][total_price]" step="0.01" required>
+                            <input type="text" placeholder="Time Required" name="packages[0][total_time]" required>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-secondary" onclick="addPackage()">Add Package</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Service Type</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Order Supply Kit Modal -->
+        <div id="orderSupplyKitModal" class="modal">
+            <div class="modal-header">
+                <h3>Order Supply Kit</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="orderSupplyKitForm">
+                <div class="form-group">
+                    <label for="kitSelect">Supply Kit</label>
+                    <select id="kitSelect" name="kit_id" required onchange="updateKitDetails()"></select>
+                </div>
+                <div id="kitDetails" class="kit-details"></div>
+                <div class="form-group">
+                    <label for="kitQuantity">Quantity</label>
+                    <input type="number" id="kitQuantity" name="quantity_ordered" min="1" value="1" required onchange="calculateTotal()">
+                </div>
+                <div class="total-amount">
+                    <h4>Total Amount: ₹<span id="totalAmount">0</span></h4>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Order Kit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="vendor-script.js"></script>
+</body>
+</html>

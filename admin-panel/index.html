@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homiqly Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <div class="logo">
+                <h1>Homiqly</h1>
+                <p>Admin Panel</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn-primary">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="dashboard-container" style="display: none;">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>Homiqly</h2>
+                <p>Admin Panel</p>
+            </div>
+            <ul class="sidebar-menu">
+                <li><a href="#" data-section="dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" data-section="vendors"><i class="fas fa-users"></i> Vendors</a></li>
+                <li><a href="#" data-section="users"><i class="fas fa-user-friends"></i> Users</a></li>
+                <li><a href="#" data-section="services"><i class="fas fa-concierge-bell"></i> Services</a></li>
+                <li><a href="#" data-section="bookings"><i class="fas fa-calendar-check"></i> Bookings</a></li>
+                <li><a href="#" data-section="contractors"><i class="fas fa-hard-hat"></i> Contractors</a></li>
+                <li><a href="#" data-section="employees"><i class="fas fa-id-badge"></i> Employees</a></li>
+                <li><a href="#" data-section="supply-kits"><i class="fas fa-box"></i> Supply Kits</a></li>
+                <li><a href="#" data-section="payments"><i class="fas fa-credit-card"></i> Payments</a></li>
+                <li><a href="#" data-section="analytics"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+                <li><a href="#" data-section="notifications"><i class="fas fa-bell"></i> Notifications</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button id="logoutBtn" class="btn-secondary">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1 id="pageTitle">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="adminName">Admin User</span>
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section id="dashboardSection" class="content-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalUsers">0</h3>
+                            <p>Total Users</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-store"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalVendors">0</h3>
+                            <p>Total Vendors</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="completedBookings">0</h3>
+                            <p>Completed Bookings</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalRevenue">₹0</h3>
+                            <p>Total Revenue</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Booking Trends</h3>
+                        <canvas id="bookingChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Service Categories</h3>
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vendors Section -->
+            <section id="vendorsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Vendor Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshVendors()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="vendorsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Users Section -->
+            <section id="usersSection" class="content-section">
+                <div class="section-header">
+                    <h2>User Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshUsers()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Services Section -->
+            <section id="servicesSection" class="content-section">
+                <div class="section-header">
+                    <h2>Service Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="showAddServiceModal()">
+                            <i class="fas fa-plus"></i> Add Service
+                        </button>
+                        <button class="btn-secondary" onclick="showAddCategoryModal()">
+                            <i class="fas fa-plus"></i> Add Category
+                        </button>
+                    </div>
+                </div>
+                <div class="services-grid" id="servicesGrid"></div>
+            </section>
+
+            <!-- Service Types Section -->
+            <section id="serviceTypesSection" class="content-section">
+                <div class="section-header">
+                    <h2>Service Type Approvals</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshServiceTypes()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="serviceTypesTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Service Type</th>
+                                <th>Vendor</th>
+                                <th>Service</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Supply Kits Section -->
+            <section id="supply-kitsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Supply Kit Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="showAddSupplyKitModal()">
+                            <i class="fas fa-plus"></i> Add Supply Kit
+                        </button>
+                    </div>
+                </div>
+                <div class="supply-kits-grid" id="supplyKitsGrid"></div>
+            </section>
+
+            <!-- Contractors Section -->
+            <section id="contractorsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Contractor Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="showAddContractorModal()">
+                            <i class="fas fa-plus"></i> Add Contractor
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="contractorsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Company</th>
+                                <th>Contact Person</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Employees Section -->
+            <section id="employeesSection" class="content-section">
+                <div class="section-header">
+                    <h2>Employee Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="showAddEmployeeModal()">
+                            <i class="fas fa-plus"></i> Add Employee
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="employeesTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Department</th>
+                                <th>Position</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Payments Section -->
+            <section id="paymentsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Payment Management</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="refreshPayments()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="paymentsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Provider</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Service</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Analytics Section -->
+            <section id="analyticsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Analytics & Reports</h2>
+                </div>
+                <div class="analytics-grid">
+                    <div class="chart-card">
+                        <h3>Revenue Analytics</h3>
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Vendor Performance</h3>
+                        <canvas id="vendorChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Notifications Section -->
+            <section id="notificationsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Send Notifications</h2>
+                </div>
+                <div class="notification-form">
+                    <form id="notificationForm">
+                        <div class="form-group">
+                            <label for="userType">User Type</label>
+                            <select id="userType" name="userType" required>
+                                <option value="">Select User Type</option>
+                                <option value="users">Users</option>
+                                <option value="vendors">Vendors</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="notificationTitle">Title</label>
+                            <input type="text" id="notificationTitle" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="notificationBody">Message</label>
+                            <textarea id="notificationBody" name="body" rows="4" required></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary">Send Notification</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modalOverlay" class="modal-overlay">
+        <!-- Add Service Modal -->
+        <div id="addServiceModal" class="modal">
+            <div class="modal-header">
+                <h3>Add New Service</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="addServiceForm">
+                <div class="form-group">
+                    <label for="serviceName">Service Name</label>
+                    <input type="text" id="serviceName" name="serviceName" required>
+                </div>
+                <div class="form-group">
+                    <label for="categoryName">Category</label>
+                    <select id="categoryName" name="categoryName" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="serviceDescription">Description</label>
+                    <textarea id="serviceDescription" name="serviceDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="serviceImage">Service Image</label>
+                    <input type="file" id="serviceImage" name="serviceImage" accept="image/*" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Service</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Add Category Modal -->
+        <div id="addCategoryModal" class="modal">
+            <div class="modal-header">
+                <h3>Add New Category</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="addCategoryForm">
+                <div class="form-group">
+                    <label for="newCategoryName">Category Name</label>
+                    <input type="text" id="newCategoryName" name="categoryName" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Category</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Add Supply Kit Modal -->
+        <div id="addSupplyKitModal" class="modal">
+            <div class="modal-header">
+                <h3>Add New Supply Kit</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="addSupplyKitForm">
+                <div class="form-group">
+                    <label for="kitName">Kit Name</label>
+                    <input type="text" id="kitName" name="kit_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="kitDescription">Description</label>
+                    <textarea id="kitDescription" name="kit_description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="kitPrice">Price</label>
+                    <input type="number" id="kitPrice" name="kit_price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="kitCategory">Service Category</label>
+                    <select id="kitCategory" name="service_categories_id" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="kitImage">Kit Image</label>
+                    <input type="file" id="kitImage" name="kit_image" accept="image/*">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Supply Kit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="admin-script.js"></script>
+</body>
+</html>
