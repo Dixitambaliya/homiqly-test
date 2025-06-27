@@ -1,6 +1,6 @@
 const express = require("express")
 const cors = require("cors")
-const { db } = require("./config/db")
+const { db, testConnection } = require("./config/db")
 
 const app = express();
 const PORT = process.env.PORT || 5000
@@ -13,10 +13,12 @@ app.use(cors({
 app.use(express.json())
 
 // Health check endpoint (add this first)
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
+    const dbStatus = await testConnection();
     res.status(200).json({ 
         status: "OK", 
         message: "Homiqly Backend is running",
+        database: dbStatus ? "Connected" : "Disconnected",
         timestamp: new Date().toISOString()
     });
 });
@@ -78,18 +80,17 @@ app.use("*", (req, res) => {
     });
 });
 
-async function testConnection() {
-    try {
-        const [rows] = await db.query("SELECT 1")
-        console.log("✅ Database connected successfully");
-    } catch (error) {
-        console.error("❌ Failed to connect to database:", error.message);
-        process.exit(1)
-    }
-}
-
 app.listen(PORT, async () => {
-    await testConnection()
     console.log(`🚀 Homiqly Backend Server running on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
+    
+    // Test database connection on startup
+    const dbConnected = await testConnection();
+    if (!dbConnected) {
+        console.log('\n📝 To fix database connection:');
+        console.log('1. Install MySQL/MariaDB on your system');
+        console.log('2. Create a database named "homiqly_db"');
+        console.log('3. Update the .env file with your database credentials');
+        console.log('4. Run the SQL schema from supabase/migrations/ folder\n');
+    }
 })
