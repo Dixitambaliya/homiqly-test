@@ -14,6 +14,6 @@ const multiUpload = upload.any();
 router.post('/create', multiUpload, handleUploads, authenticationToken, createContractor);
 router.get('/all', authenticationToken, getAllContractors);
 router.post('/assign', authenticationToken, assignContractorToBooking);
-router.get('/:contractor_id/bookings', authenticationToken, getContractorBookings);
+router.get('/bookings/:contractor_id', authenticationToken, getContractorBookings);
 
 module.exports = router;

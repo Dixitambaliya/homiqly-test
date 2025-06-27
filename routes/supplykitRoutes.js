@@ -15,7 +15,7 @@ const multiUpload = upload.any();
 // Admin routes
 router.post('/create', multiUpload, handleUploads, authenticationToken, createSupplyKit);
 router.get('/all', authenticationToken, getAllSupplyKits);
-router.put('/order/:vendor_kit_id/status', authenticationToken, updateSupplyKitOrderStatus);
+router.put('/order/status/:vendor_kit_id', authenticationToken, updateSupplyKitOrderStatus);
 
 // Vendor routes
 router.post('/order', authenticationToken, orderSupplyKit);

@@ -31,6 +31,15 @@ app.use(cors({
 
 app.use(express.json())
 
+// Health check endpoint (add this first)
+app.get("/api/health", (req, res) => {
+    res.status(200).json({ 
+        status: "OK", 
+        message: "Homiqly Backend is running",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // API Routes
 app.use("/api/user", userAuthRoutes)
 app.use("/api/admin", adminAuthRoutes)
@@ -50,15 +59,6 @@ app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api/rating", ratingRoutes)
-
-// Health check endpoint
-app.get("/api/health", (req, res) => {
-    res.status(200).json({ 
-        status: "OK", 
-        message: "Homiqly Backend is running",
-        timestamp: new Date().toISOString()
-    });
-});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
