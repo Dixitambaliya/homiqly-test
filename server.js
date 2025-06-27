@@ -80,9 +80,9 @@ app.use("*", (req, res) => {
 async function testConnection() {
     try {
         const [rows] = await db.query("SELECT 1")
-        console.log("✅ Database connected successfully");
+        console.log("DB connected");
     } catch (error) {
-        console.error("❌ Failed to connect to database:", error.message);
+        console.error("Failed to connect", error.message);
         process.exit(1)
     }
 }
