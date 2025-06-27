@@ -18,10 +18,10 @@ const multiUpload = upload.any();
 router.get("/service", getServiceCategories)
 router.get("/servicesbycategories", getServiceByCategory)
 router.get("/services/:id/servicetype", getServiceNames)
-router.get("/services/:service_id/vendorservice", getServiceTypesByServiceId);
-router.get("/getallservicetypes", getApprovedServices);
-router.get("/getdata", authenticationToken, getUserData);
-router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData);
-router.put("/insertdata", authenticationToken, addUserData);
+router.get("/services/:service_id/vendorservice", getServiceTypesByServiceId)
+router.get("/getallservicetypes", getApprovedServices)
+router.get("/getdata", authenticationToken, getUserData)
+router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
+router.put("/insertdata", authenticationToken, addUserData)
 
 module.exports = router

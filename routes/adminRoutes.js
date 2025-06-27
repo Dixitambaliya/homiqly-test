@@ -4,8 +4,8 @@ const { getVendor, getAllServiceType, getUsers, updateUserByAdmin } = require(".
 const { authenticationToken } = require("../middleware/authMiddleware")
 
 router.get("/getvendors", authenticationToken, getVendor)
-router.get("/getallservicetype", authenticationToken, getAllServiceType);
-router.get("/getusers", authenticationToken, getUsers);
-router.put("/editusers/:user_id", authenticationToken, updateUserByAdmin);
+router.get("/getallservicetype", authenticationToken, getAllServiceType)
+router.get("/getusers", authenticationToken, getUsers)
+router.put("/editusers/:user_id", authenticationToken, updateUserByAdmin)
 
-module.exports = router;
+module.exports = router
