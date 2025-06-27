@@ -9,6 +9,6 @@ const { authenticationToken } = require('../middleware/authMiddleware');
 
 router.post('/send', authenticationToken, sendNotification);
 router.get('/user', authenticationToken, getUserNotifications);
-router.put('/read/:notification_id', authenticationToken, markNotificationAsRead);
+router.put('/:notification_id/read', authenticationToken, markNotificationAsRead);
 
 module.exports = router;

@@ -2,6 +2,25 @@ const express = require("express")
 const cors = require("cors")
 const { db } = require("./config/db")
 
+const app = express();
+const PORT = process.env.PORT || 5000
+
+// Middleware
+app.use(cors({
+    origin: "*", // allows all origins
+}));
+
+app.use(express.json())
+
+// Health check endpoint (add this first)
+app.get("/api/health", (req, res) => {
+    res.status(200).json({ 
+        status: "OK", 
+        message: "Homiqly Backend is running",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
@@ -21,24 +40,6 @@ const analyticsRoutes = require("./routes/analyticsRoutes")
 const notificationRoutes = require("./routes/notificationRoutes")
 const paymentRoutes = require("./routes/paymentRoutes")
 const ratingRoutes = require("./routes/ratingRoutes")
-
-const app = express();
-const PORT = process.env.PORT || 5000
-
-app.use(cors({
-    origin: "*", // allows all origins
-}));
-
-app.use(express.json())
-
-// Health check endpoint (add this first)
-app.get("/api/health", (req, res) => {
-    res.status(200).json({ 
-        status: "OK", 
-        message: "Homiqly Backend is running",
-        timestamp: new Date().toISOString()
-    });
-});
 
 // API Routes
 app.use("/api/user", userAuthRoutes)
