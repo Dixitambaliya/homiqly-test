@@ -9,7 +9,7 @@ const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 const generateResetCode = () => Math.floor(Math.random() * 1_000_000).toString().padStart(6, '0');
 
-const transport = nodemailer.createTransporter({
+const transport = nodemailer.createTransport({
     service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,

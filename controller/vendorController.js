@@ -445,4 +445,3 @@ const editServiceType = asyncHandler(async (req, res) => {
 
 
 module.exports = { getVendorServices, applyForServiceType, getServiceTypesByVendor, getVendorService, getProfileVendor, updateProfileVendor, editServiceType };
-

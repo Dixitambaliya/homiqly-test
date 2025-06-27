@@ -5,7 +5,7 @@ const nodemailer = require("nodemailer")
 const bcrypt = require("bcryptjs");
 const generator = require('generate-password');
 
-const transport = nodemailer.createTransporter({
+const transport = nodemailer.createTransport({
     service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,
