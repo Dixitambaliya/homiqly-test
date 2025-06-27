@@ -1,27 +1,6 @@
 const express = require("express")
 const cors = require("cors")
-const { db, testConnection } = require("./config/db")
-
-const app = express();
-const PORT = process.env.PORT || 5000
-
-// Middleware
-app.use(cors({
-    origin: "*", // allows all origins
-}));
-
-app.use(express.json())
-
-// Health check endpoint (add this first)
-app.get("/api/health", async (req, res) => {
-    const dbStatus = await testConnection();
-    res.status(200).json({ 
-        status: "OK", 
-        message: "Homiqly Backend is running",
-        database: dbStatus ? "Connected" : "Disconnected",
-        timestamp: new Date().toISOString()
-    });
-});
+const { db } = require("./config/db")
 
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
@@ -43,6 +22,15 @@ const notificationRoutes = require("./routes/notificationRoutes")
 const paymentRoutes = require("./routes/paymentRoutes")
 const ratingRoutes = require("./routes/ratingRoutes")
 
+const app = express();
+const PORT = process.env.PORT || 5000
+
+app.use(cors({
+    origin: "*", // allows all origins
+}));
+
+app.use(express.json())
+
 // API Routes
 app.use("/api/user", userAuthRoutes)
 app.use("/api/admin", adminAuthRoutes)
@@ -63,6 +51,15 @@ app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api/rating", ratingRoutes)
 
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+    res.status(200).json({ 
+        status: "OK", 
+        message: "Homiqly Backend is running",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -80,17 +77,18 @@ app.use("*", (req, res) => {
     });
 });
 
+async function testConnection() {
+    try {
+        const [rows] = await db.query("SELECT 1")
+        console.log("✅ Database connected successfully");
+    } catch (error) {
+        console.error("❌ Failed to connect to database:", error.message);
+        process.exit(1)
+    }
+}
+
 app.listen(PORT, async () => {
+    await testConnection()
     console.log(`🚀 Homiqly Backend Server running on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
-    
-    // Test database connection on startup
-    const dbConnected = await testConnection();
-    if (!dbConnected) {
-        console.log('\n📝 To fix database connection:');
-        console.log('1. Install MySQL/MariaDB on your system');
-        console.log('2. Create a database named "homiqly_db"');
-        console.log('3. Update the .env file with your database credentials');
-        console.log('4. Run the SQL schema from supabase/migrations/ folder\n');
-    }
 })
