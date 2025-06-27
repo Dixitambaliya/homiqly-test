@@ -41,21 +41,8 @@ const getService = asyncHandler(async (req, res) => {
     }
 });
 
-// const getServiceByCategory = asyncHandler(async (req, res) => {
-//     const serviceCategoryId = req.params.id;
-
-//     try {
-//         const [rows] = await db.query(userGetQueries.getCategoriesById, [serviceCategoryId])
-
-//         res.status(200).json({ message: "Categories fetched successfully", rows })
-//     } catch (err) {
-//         console.error("Error fetching categories:", err);
-//         res.status(500).json({ error: "Database error", details: err.message });
-//     }
-// })
-
 const getServiceNames = asyncHandler(async (req, res) => {
-    const service_id = req.params.id;
+    const service_id = req.params.service_id; // Fixed parameter name
 
     try {
         const [rows] = await db.query(userGetQueries.getServiceNames, [service_id]);
