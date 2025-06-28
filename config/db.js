@@ -11,8 +11,6 @@ const db = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0,
     charset: 'utf8mb4',
-    // Remove invalid options that cause warnings
-    // acquireTimeout, timeout, and reconnect are not valid for mysql2
 });
 
 // Test connection function
