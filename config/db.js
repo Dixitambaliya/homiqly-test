@@ -15,21 +15,13 @@ const db = mysql.createPool({
 
 // Test connection function
 async function testConnection() {
-    try {
-        const connection = await db.getConnection();
-        console.log('✅ Database connected successfully');
-        connection.release();
-        return true;
-    } catch (error) {
-        console.error('❌ Database connection failed:', error.message);
-        console.error('Connection details:', {
-            host: process.env.MYSQL_HOST,
-            user: process.env.MYSQL_USER,
-            database: process.env.MYSQL_DATABASE,
-            port: process.env.MYSQL_PORT || 3306
-        });
-        return false;
-    }
+   try {
+    const [rows] = await db.query("SELECT 1");
+    console.log("DB connected", rows);
+  } catch (error) {
+    console.error("Failed to connect", error.message);
+    process.exit(1);
+  }
 }
 
 module.exports = { db, testConnection };
