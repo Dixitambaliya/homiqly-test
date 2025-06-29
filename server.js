@@ -32,13 +32,6 @@ app.use(cors({
 
 app.use(express.json())
 
-// Serve static files for admin and vendor panels
-app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
-app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
-
-// Serve Vite build
-app.use(express.static(path.join(__dirname, 'client/dist')));
-
 // API Routes
 app.use("/api/user", userAuthRoutes)
 app.use("/api/admin", adminAuthRoutes)
@@ -59,10 +52,12 @@ app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api/rating", ratingRoutes)
 
-// Root route - redirect to admin panel
-app.get("/", (req, res) => {
-    res.redirect("/admin");
-});
+// Serve static files for admin and vendor panels (legacy)
+app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
+app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
+
+// Serve Vite build
+app.use(express.static(path.join(__dirname, 'client/dist')));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -72,9 +67,7 @@ app.get("/api/health", (req, res) => {
         timestamp: new Date().toISOString(),
         panels: {
             admin: `http://localhost:${PORT}/admin`,
-            vendor: `http://localhost:${PORT}/vendor`,
-            legacy_admin: `http://localhost:${PORT}/admin-panel`,
-            legacy_vendor: `http://localhost:${PORT}/vendor-panel`
+            vendor: `http://localhost:${PORT}/vendor`
         }
     });
 });
@@ -127,8 +120,6 @@ app.listen(PORT, async () => {
     console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
     console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin`);
     console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor`);
-    console.log(`👨‍💼 Legacy Admin Panel: http://localhost:${PORT}/admin-panel`);
-    console.log(`🏪 Legacy Vendor Panel: http://localhost:${PORT}/vendor-panel`);
     
     // Test database connection
     const isConnected = await testConnection();
