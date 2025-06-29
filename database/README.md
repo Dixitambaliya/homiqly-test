@@ -4,19 +4,13 @@ This directory contains the database schema and fake data for the Homiqly platfo
 
 ## Files
 
-1. **schema_setup.sql** - Complete database schema with all tables
-2. **fake_data.sql** - Comprehensive fake data for testing
+1. **homiqly_setup.sql** - Complete database schema with test data for calendar functionality
 
 ## Setup Instructions
 
-### 1. Create Database Schema
+### Create and Populate Database
 ```bash
-mysql -u your_username -p < database/schema_setup.sql
-```
-
-### 2. Insert Fake Data
-```bash
-mysql -u your_username -p < database/fake_data.sql
+mysql -u your_username -p < database/homiqly_setup.sql
 ```
 
 ## Login Credentials
@@ -37,23 +31,22 @@ mysql -u your_username -p < database/fake_data.sql
 
 ## Database Statistics
 
-After running the fake data script, you'll have:
+After running the setup script, you'll have:
 
-- **10 Users** with complete profiles
-- **10 Vendors** (6 individual, 4 company) with services
-- **20+ Services** across 10 categories
-- **20 Bookings** with varied dates for calendar testing
-- **5 Supply Kits** with inventory
-- **3 Contractors** with services
-- **5 Employees** with tasks and performance data
+- **5 Users** with complete profiles
+- **4 Vendors** (2 individual, 2 company) with services
+- **16+ Services** across 10 categories
+- **25 Bookings** with varied dates for calendar testing
+- **3 Supply Kits** with inventory
 - **Payment records** and **ratings**
 
 ## Calendar Data
 
 The fake data includes bookings spread across:
-- **Past bookings** (last 30 days)
+- **Past bookings** (last 10 days)
 - **Today's bookings** (current date)
 - **Tomorrow's bookings**
+- **This week bookings**
 - **Next week bookings**
 - **Future bookings** (next month)
 - **Cancelled bookings**
@@ -70,29 +63,15 @@ This provides comprehensive data for testing the calendar functionality in both 
 - Service and category management
 - Supply kit management
 - Payment processing
-- Analytics and reporting
 
 ### Vendor Panel
-- Personal dashboard (different for individual vs company)
+- Personal dashboard
 - Booking calendar with vendor-specific bookings
 - Service management
 - Profile management
 - Supply kit ordering
 - Payment history
 - Customer ratings and reviews
-
-### Individual vs Company Vendors
-
-**Individual Vendors** get:
-- Basic stats (Today's bookings, Pending, Approved, This month)
-- Simple service management
-- Personal profile management
-
-**Company Vendors** get:
-- Enhanced stats (Unique customers, Monthly growth)
-- Team management capabilities
-- Company profile management
-- Advanced analytics
 
 ## Testing the Calendar
 
@@ -103,14 +82,11 @@ The calendar includes:
 - **Status management** (Accept/Reject for vendors)
 - **Real-time updates**
 
-## Database Relationships
+## Troubleshooting
 
-The schema includes proper foreign key relationships:
-- Users → Bookings
-- Vendors → Services → Service Types → Packages
-- Bookings → Packages → Package Items
-- Supply Kits → Inventory Management
-- Contractors → Contractor Services
-- Employees → Tasks → Performance
-
-All tables are properly normalized and include appropriate indexes for performance.
+If you encounter login issues:
+1. Check that the server is running (`npm run dev`)
+2. Verify the database connection in `.env` file
+3. Ensure the database has been properly populated
+4. Clear browser cache and local storage
+5. Check browser console for any errors

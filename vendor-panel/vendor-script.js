@@ -88,7 +88,7 @@ async function handleLogin(e) {
             vendorData = {
                 vendor_id: data.vendor_id,
                 vendor_type: data.vendor_type,
-                name: data.name || 'Vendor User'
+                role: data.role
             };
             
             localStorage.setItem('vendorToken', authToken);
@@ -154,8 +154,10 @@ function showDashboard() {
     loginScreen.style.display = 'none';
     dashboard.style.display = 'flex';
     
-    const vendorName = vendorData.name || 'Vendor User';
-    document.getElementById('vendorName').textContent = vendorName;
+    // Load vendor name from profile
+    loadVendorProfile().then(() => {
+        // Name will be set by the profile loading function
+    });
 }
 
 // Data Loading
@@ -270,6 +272,9 @@ async function loadVendorProfile() {
         if (response.ok) {
             const data = await response.json();
             displayVendorProfile(data.profile);
+            
+            // Update vendor name in header
+            document.getElementById('vendorName').textContent = data.profile.name || 'Vendor User';
         }
     } catch (error) {
         console.error('Error loading vendor profile:', error);
@@ -673,8 +678,8 @@ function toggleVendorFields() {
 }
 
 function showStep(step) {
-    document.querySelectorAll('.form-step').forEach(s => s.classList.remove('active'));
-    document.getElementById(`step${step}`).classList.add('active');
+    document.querySelectorAll('.form-step').forEach(s => s.style.display = 'none');
+    document.getElementById(`step${step}`).style.display = 'block';
     
     // Update buttons
     document.getElementById('prevBtn').style.display = step > 1 ? 'block' : 'none';
