@@ -16,12 +16,12 @@ mysql -u your_username -p < database/homiqly_setup.sql
 ## Login Credentials
 
 ### Admin Panel
-- **URL**: `http://localhost:5000/admin-panel`
+- **URL**: `http://localhost:8000/admin-panel`
 - **Email**: `admin@homiqly.com`
 - **Password**: `admin123`
 
 ### Vendor Panel
-- **URL**: `http://localhost:5000/vendor-panel`
+- **URL**: `http://localhost:8000/vendor-panel`
 - **Individual Vendor**: `maya.sharma@vendor.com` / `password123`
 - **Company Vendor**: `contact@beautypro.com` / `password123`
 
@@ -90,3 +90,29 @@ If you encounter login issues:
 3. Ensure the database has been properly populated
 4. Clear browser cache and local storage
 5. Check browser console for any errors
+
+### Common Login Issues
+
+1. **"Invalid credentials" error**:
+   - Make sure you're using the correct email and password
+   - Check if the user exists in the database
+   - Verify the password hash in the database matches `$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi` (for test accounts)
+   - The plain text password for all test accounts is `password123`
+
+2. **"Invalid Password" error**:
+   - This usually means the user exists but the password is incorrect
+   - Try clearing your browser cache and local storage
+   - Verify the password hash in the database
+
+3. **"Your account is pending approval" error**:
+   - This means the vendor account exists but hasn't been approved by an admin
+   - Log in as admin and approve the vendor account
+
+4. **JWT Token issues**:
+   - If you see errors related to JWT in the console, check that your `.env` file has a valid `JWT_SECRET` value
+   - Try logging out and logging back in to get a fresh token
+
+5. **Database connection issues**:
+   - Verify your MySQL connection details in the `.env` file
+   - Make sure the MySQL server is running
+   - Check that the database exists and has been populated with the test data

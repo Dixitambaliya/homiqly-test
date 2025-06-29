@@ -167,7 +167,6 @@ const loginVendor = asyncHandler(async (req, res) => {
     }
 
     try {
-
         let vendorDetails = null;
         let vendorType = null;
 
@@ -197,7 +196,6 @@ const loginVendor = asyncHandler(async (req, res) => {
         );
 
         if (vendorAuthResult.length === 0) {
-            // return res.status(401).json({ error: "Invalid credentials" });
             return res.status(401).json({ error: "Invalid vendor ID" });
         }
 
@@ -208,9 +206,9 @@ const loginVendor = asyncHandler(async (req, res) => {
             return res.status(500).json({ error: "Missing password in database" });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, vendorAuth.password)
+        const isPasswordValid = await bcrypt.compare(password, vendorAuth.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ error: "Invalid Password" })
+            return res.status(401).json({ error: "Invalid Password" });
         }
 
         // ✅ Check authentication status
@@ -244,23 +242,25 @@ const loginVendor = asyncHandler(async (req, res) => {
                 role: "vendor" 
             },
             process.env.JWT_SECRET
-        )
+        );
 
         res.status(200).json({
             message: "Login successful",
             token,
             vendor_id: vendorDetails.vendor_id,
             vendor_type: vendorType,
+            name: vendorDetails.name,
             role: "vendor"
         });
 
     } catch (err) {
+        console.error("Vendor login error:", err);
         res.status(500).json({
             error: "Server error",
             details: err.message
         });
     }
-})
+});
 
 const requestResetVendor = asyncHandler(async (req, res) => {
     const { email } = req.body;

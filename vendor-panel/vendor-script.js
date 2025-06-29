@@ -88,6 +88,7 @@ async function handleLogin(e) {
             vendorData = {
                 vendor_id: data.vendor_id,
                 vendor_type: data.vendor_type,
+                name: data.name || 'Vendor User',
                 role: data.role
             };
             

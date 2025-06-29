@@ -47,7 +47,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
 
     if (!email || !password) {
-        return res.status(400).json({ error: "name and passoword required" });
+        return res.status(400).json({ error: "Email and password required" });
     }
 
     try {
@@ -55,7 +55,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
         const [results] = await db.query(adminAuthQueries.adminLogin, [email])
 
         if (!results || results.length === 0) {
-            return res.status(500).json({ error: "Invalid credential" });
+            return res.status(401).json({ error: "Invalid credentials" });
         }
         const admin = results[0];
 
@@ -85,7 +85,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
             {
                 admin_id: admin.admin_id,
                 name: admin.name,
-                role: admin.role
+                role: admin.role || 'admin'
             },
             process.env.JWT_SECRET
         );
@@ -93,9 +93,11 @@ const loginAdmin = asyncHandler(async (req, res) => {
             message: "Login successful",
             token,
             admin_id: admin.admin_id,
-            role: admin.role
+            name: admin.name,
+            role: admin.role || 'admin'
         });
     } catch (err) {
+        console.error("Admin login error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 })

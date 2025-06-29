@@ -78,6 +78,8 @@ async function handleLogin(e) {
             authToken = data.token;
             localStorage.setItem('adminToken', authToken);
             localStorage.setItem('adminName', data.name || 'Admin User');
+            localStorage.setItem('adminRole', data.role || 'admin');
+            
             showDashboard();
             loadDashboardData();
             showNotification('Login successful!', 'success');
@@ -94,6 +96,7 @@ function handleLogout() {
     authToken = null;
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminName');
+    localStorage.removeItem('adminRole');
     showLogin();
     showNotification('Logged out successfully', 'success');
 }
