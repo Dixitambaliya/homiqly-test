@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVendorAuth } from '../contexts/VendorAuthContext';
 import { toast } from 'react-toastify';
@@ -32,6 +32,12 @@ const Register = () => {
   const [selectedServices, setSelectedServices] = useState([]);
   
   // Load service categories and services
+  useEffect(() => {
+    if (step === 2) {
+      loadServices();
+    }
+  }, [step]);
+  
   const loadServices = async () => {
     try {
       setServiceLoading(true);
@@ -48,7 +54,6 @@ const Register = () => {
   const handleNextStep = () => {
     if (step === 1) {
       if (!validateStep1()) return;
-      loadServices();
     } else if (step === 2) {
       if (!validateStep2()) return;
     }
