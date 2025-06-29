@@ -208,7 +208,7 @@ const loginVendor = asyncHandler(async (req, res) => {
 
         const isPasswordValid = await bcrypt.compare(password, vendorAuth.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ error: "Invalid Password" });
+            return res.status(401).json({ error: "Invalid credentials" });
         }
 
         // ✅ Check authentication status
