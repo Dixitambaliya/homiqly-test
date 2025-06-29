@@ -36,9 +36,8 @@ app.use(express.json())
 app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
 app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
 
-// Serve Vite builds
-app.use('/admin', express.static(path.join(__dirname, 'admin-vite/dist')));
-app.use('/vendor', express.static(path.join(__dirname, 'vendor-vite/dist')));
+// Serve Vite build
+app.use(express.static(path.join(__dirname, 'client/dist')));
 
 // API Routes
 app.use("/api/user", userAuthRoutes)
@@ -63,15 +62,6 @@ app.use("/api/rating", ratingRoutes)
 // Root route - redirect to admin panel
 app.get("/", (req, res) => {
     res.redirect("/admin");
-});
-
-// Serve Vite SPA routes
-app.get('/admin/*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin-vite/dist/index.html'));
-});
-
-app.get('/vendor/*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'vendor-vite/dist/index.html'));
 });
 
 // Health check endpoint
@@ -116,20 +106,17 @@ app.get("/api/health/db", async (req, res) => {
     }
 });
 
+// Serve React app for all other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/dist/index.html'));
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ 
         error: "Something went wrong!",
         message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
-    });
-});
-
-// 404 handler
-app.use("*", (req, res) => {
-    res.status(404).json({ 
-        error: "Route not found",
-        message: `The route ${req.originalUrl} does not exist`
     });
 });
 
