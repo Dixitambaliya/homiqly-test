@@ -5,7 +5,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "admin:dev": "cd admin-vite && npm run dev",
+    "vendor:dev": "cd vendor-vite && npm run dev",
+    "admin:build": "cd admin-vite && npm run build",
+    "vendor:build": "cd vendor-vite && npm run build"
   },
   "author": "",
   "license": "ISC",
