@@ -10,13 +10,11 @@ export default function LoginButton() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      const result = await signIn("google", {
-        redirect: false,
+      await signIn("google", {
         callbackUrl: "/dashboard",
       });
     } catch (error) {
       console.error("Google login error:", error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -25,7 +23,7 @@ export default function LoginButton() {
     <button
       onClick={handleGoogleLogin}
       disabled={isLoading}
-      className="flex items-center justify-center gap-2 border px-4 py-2 rounded-md shadow hover:bg-gray-500 w-full disabled:opacity-50 disabled:cursor-not-allowed"
+      className="flex items-center justify-center gap-2 w-full border border-gray-300 px-4 py-2 rounded-md shadow-sm hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <FcGoogle size={20} />
       <span>{isLoading ? "Loading..." : "Continue with Google"}</span>

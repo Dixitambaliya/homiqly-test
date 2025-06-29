@@ -1,12 +1,65 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import axios from "axios";
 import Link from "next/link";
 
-export default function Home() {
+export default function ServicesPage() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await axios.get(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/servicesbycategories`
+        );
+        setCategories(response.data.services || []);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching services:", err);
+        setError("Failed to load services. Please try again later.");
+        setLoading(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
+          <p className="text-gray-700">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-blue-600">Homiqly</h1>
+            <Link href="/" className="text-2xl font-bold text-blue-600">
+              Homiqly
+            </Link>
           </div>
           <div className="flex items-center space-x-4">
             <Link href="/login" className="text-gray-700 hover:text-blue-600">
@@ -22,80 +75,58 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-grow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center">
-            <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
-              Professional Home Services at Your Doorstep
-            </h2>
-            <p className="mt-5 max-w-xl mx-auto text-xl text-gray-500">
-              Book trusted professionals for all your home service needs - from cleaning and repairs to beauty and personal care.
-            </p>
-            <div className="mt-8 flex justify-center">
-              <Link
-                href="/services"
-                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Explore Services
-              </Link>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Our Services</h1>
+
+        {categories.length === 0 ? (
+          <p className="text-center text-gray-500">No services available at the moment.</p>
+        ) : (
+          <div className="space-y-12">
+            {categories.map((category) => (
+              <div key={category.categoryName} className="space-y-4">
+                <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">
+                  {category.categoryName}
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {category.services.map((service) => (
+                    <Link
+                      key={service.serviceId}
+                      href={`/services/${service.serviceId}`}
+                      className="group"
+                    >
+                      <div className="bg-white overflow-hidden shadow-md rounded-lg transition-all duration-200 hover:shadow-lg">
+                        <div className="h-48 w-full overflow-hidden">
+                          {service.serviceImage ? (
+                            <img
+                              src={service.serviceImage}
+                              alt={service.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-gray-400">No image</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <h3 className="text-lg font-medium text-gray-900 group-hover:text-blue-600">
+                            {service.title}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-500 line-clamp-2">
+                            {service.description || "No description available"}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div className="mt-20">
-            <h3 className="text-2xl font-bold text-center text-gray-900 mb-12">
-              Our Popular Services
-            </h3>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Service Card 1 */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="h-48 w-full overflow-hidden">
-                  <img
-                    src="https://images.pexels.com/photos/3993449/pexels-photo-3993449.jpeg"
-                    alt="Beauty Services"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="px-4 py-5 sm:p-6">
-                  <h4 className="text-lg font-semibold text-gray-900">Beauty Services</h4>
-                  <p className="mt-2 text-sm text-gray-500">Professional makeup, hair styling, and more</p>
-                </div>
-              </div>
-
-              {/* Service Card 2 */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="h-48 w-full overflow-hidden">
-                  <img
-                    src="https://images.pexels.com/photos/8486944/pexels-photo-8486944.jpeg"
-                    alt="Home Maintenance"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="px-4 py-5 sm:p-6">
-                  <h4 className="text-lg font-semibold text-gray-900">Home Maintenance</h4>
-                  <p className="mt-2 text-sm text-gray-500">Plumbing, electrical work, and repairs</p>
-                </div>
-              </div>
-
-              {/* Service Card 3 */}
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="h-48 w-full overflow-hidden">
-                  <img
-                    src="https://images.pexels.com/photos/4239091/pexels-photo-4239091.jpeg"
-                    alt="Cleaning Services"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="px-4 py-5 sm:p-6">
-                  <h4 className="text-lg font-semibold text-gray-900">Cleaning Services</h4>
-                  <p className="mt-2 text-sm text-gray-500">House cleaning, deep cleaning, and more</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </main>
 
-      <footer className="bg-gray-800 text-white">
+      <footer className="bg-gray-800 text-white mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="md:flex md:items-center md:justify-between">
             <div className="flex justify-center md:order-2 space-x-6">

@@ -215,23 +215,66 @@ const loginVendor = asyncHandler(async (req, res) => {
 
     // Step 3: Use vendor_id to fetch password and authentication status
     const [vendorAuthResult] = await db.query(
-      "SELECT password, is_authenticated FROM vendors WHERE vendor_id = ?",
+      "SELECT password, is_authenticated, role FROM vendors WHERE vendor_id = ?",
       [vendorDetails.vendor_id]
     );
 
     if (vendorAuthResult.length === 0) {
-      return res.status(401).json({ error: "Invalid vendor ID" });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const vendorAuth = vendorAuthResult[0];
 
     // Step 4: Validate password
     if (!vendorAuth.password) {
-      return res.status(500).json({ error: "Missing password in database" });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // const isPasswordValid = await bcrypt.compare(password, vendorAuth.password);
-    const isPasswordValid = (await password) === vendorAuth.password;
+    // For plain text password comparison (not recommended for production)
+    if (password === vendorAuth.password) {
+      // ✅ Check authentication status
+      if (vendorAuth.is_authenticated === 0) {
+        return res
+          .status(403)
+          .json({ error: "Your account is pending approval." });
+      } else if (vendorAuth.is_authenticated === 2) {
+        return res.status(403).json({ error: "Your account has been rejected." });
+      }
+
+      // Handle FCM token update
+      if (fcmToken && fcmToken.trim() !== "") {
+        try {
+          await db.query(
+            "UPDATE vendors SET fcmToken = ? WHERE vendor_id = ?",
+            [fcmToken.trim(), vendorDetails.vendor_id]
+          );
+        } catch (err) {
+          console.warn("FCM token update error:", err.message);
+        }
+      }
+
+      const token = jwt.sign(
+        {
+          vendor_id: vendorDetails.vendor_id,
+          name: vendorDetails.name,
+          vendor_type: vendorType,
+          role: vendorAuth.role || "vendor",
+        },
+        process.env.JWT_SECRET
+      );
+
+      return res.status(200).json({
+        message: "Login successful",
+        token,
+        vendor_id: vendorDetails.vendor_id,
+        vendor_type: vendorType,
+        name: vendorDetails.name,
+        role: vendorAuth.role || "vendor",
+      });
+    }
+
+    // For hashed password comparison
+    const isPasswordValid = await bcrypt.compare(password, vendorAuth.password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
@@ -266,7 +309,7 @@ const loginVendor = asyncHandler(async (req, res) => {
         vendor_id: vendorDetails.vendor_id,
         name: vendorDetails.name,
         vendor_type: vendorType,
-        role: "vendor",
+        role: vendorAuth.role || "vendor",
       },
       process.env.JWT_SECRET
     );
@@ -277,7 +320,7 @@ const loginVendor = asyncHandler(async (req, res) => {
       vendor_id: vendorDetails.vendor_id,
       vendor_type: vendorType,
       name: vendorDetails.name,
-      role: "vendor",
+      role: vendorAuth.role || "vendor",
     });
   } catch (err) {
     console.error("Vendor login error:", err);
@@ -474,6 +517,17 @@ const changeVendorPassword = asyncHandler(async (req, res) => {
         .json({ error: "Vendor not found in vendors table" });
     }
 
+    // For plain text password comparison (not recommended for production)
+    if (oldPassword === vendor[0].password) {
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await db.query(vendorAuthQueries.resetVendorPassword, [
+        hashedNewPassword,
+        vendorId,
+      ]);
+      return res.json({ message: "Password changed successfully" });
+    }
+
+    // For hashed password comparison
     const isMatch = await bcrypt.compare(oldPassword, vendor[0].password);
     if (!isMatch) {
       return res.status(401).json({ error: "Old password is incorrect" });
