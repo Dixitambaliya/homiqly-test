@@ -13,7 +13,8 @@ const bookingGetQueries = {
             JOIN users ON service_booking.user_id = users.user_id
             JOIN service_categories ON service_booking.service_categories_id = service_categories.service_categories_id
             JOIN services ON service_booking.service_id = services.service_id
-            JOIN service_type ON service_booking.service_type_id = service_type.service_type_id
+            LEFT JOIN service_booking_types ON service_booking.booking_id = service_booking_types.booking_id
+            LEFT JOIN service_type ON service_booking_types.service_type_id = service_type.service_type_id
             WHERE service_booking.vendor_id = ?
             ORDER BY service_booking.bookingDate DESC, service_booking.bookingTime DESC`,
 
@@ -78,7 +79,8 @@ ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
         FROM service_booking sb
             JOIN service_categories sc ON sc.service_categories_id = sb.service_categories_id
             JOIN services s ON s.service_id = sb.service_id
-            LEFT JOIN service_type st ON st.service_type_id = sb.service_type_id
+            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
             JOIN users u ON u.user_id = sb.user_id
 
             LEFT JOIN packages p ON p.package_id = sb.package_id
