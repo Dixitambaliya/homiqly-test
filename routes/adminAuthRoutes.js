@@ -18,5 +18,3 @@ router.post("/changepassword", changeAdminPassword);
 router.post("/loginupdate", loginUpdateAdmin);
 
 module.exports = router;
-
-
