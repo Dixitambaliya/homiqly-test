@@ -277,7 +277,6 @@ function displayVendors(vendors) {
     tbody.innerHTML = '';
     
     vendors.forEach(vendor => {
-        const row = document.createElement('tr');
         const vendorName = vendor.vendorType === 'individual' ? 
             vendor.individual_name : vendor.company_companyName;
         const vendorEmail = vendor.vendorType === 'individual' ? 
@@ -290,6 +289,7 @@ function displayVendors(vendors) {
         const statusText = vendor.is_authenticated === 1 ? 'Approved' : 
                           vendor.is_authenticated === 2 ? 'Rejected' : 'Pending';
         
+        const row = document.createElement('tr');
         row.innerHTML = `
             <td>${vendor.vendor_id}</td>
             <td>${vendorName || 'N/A'}</td>

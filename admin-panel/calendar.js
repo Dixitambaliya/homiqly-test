@@ -240,7 +240,7 @@ class BookingCalendar {
             
             if (detailed) {
                 html += `
-                    <div class="booking-card ${statusClass}" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.showBookingDetails(${booking.booking_id})">
+                    <div class="booking-card ${statusClass}" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.showBookingDetails(${booking.booking_id || booking.bookingId})">
                         <div class="booking-header">
                             <span class="booking-time">${booking.bookingTime}</span>
                             <span class="booking-status">${this.getStatusText(booking.bookingStatus)}</span>
@@ -256,7 +256,7 @@ class BookingCalendar {
                 html += `
                     <div class="booking-dot ${statusClass}" 
                          title="${booking.serviceName} - ${booking.userName} at ${booking.bookingTime}"
-                         onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.showBookingDetails(${booking.booking_id})">
+                         onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.showBookingDetails(${booking.booking_id || booking.bookingId})">
                     </div>
                 `;
             }
@@ -307,9 +307,10 @@ class BookingCalendar {
 
     getBookingsForDate(date) {
         const dateStr = date.toISOString().split('T')[0];
-        return this.bookings.filter(booking => 
-            booking.bookingDate.split('T')[0] === dateStr
-        );
+        return this.bookings.filter(booking => {
+            const bookingDate = booking.bookingDate || booking.bookingDate;
+            return bookingDate.split('T')[0] === dateStr;
+        });
     }
 
     getBookingsForTimeSlot(timeSlot) {
@@ -317,7 +318,8 @@ class BookingCalendar {
         const hour = timeSlot.getHours();
         
         return this.bookings.filter(booking => {
-            if (booking.bookingDate.split('T')[0] !== dateStr) return false;
+            const bookingDate = booking.bookingDate || booking.bookingDate;
+            if (bookingDate.split('T')[0] !== dateStr) return false;
             
             const bookingHour = parseInt(booking.bookingTime.split(':')[0]);
             return bookingHour === hour;
@@ -405,7 +407,7 @@ class BookingCalendar {
     renderBookingActions(booking) {
         if (this.isAdmin) {
             return `
-                <button class="action-btn view" onclick="window.adminCalendar.viewBookingDetails(${booking.booking_id})">
+                <button class="action-btn view" onclick="window.adminCalendar.viewBookingDetails(${booking.booking_id || booking.bookingId})">
                     View Details
                 </button>
             `;
@@ -413,10 +415,10 @@ class BookingCalendar {
             // Vendor actions
             if (booking.bookingStatus === 0) {
                 return `
-                    <button class="action-btn approve" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id}, 1)">
+                    <button class="action-btn approve" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 1)">
                         Accept
                     </button>
-                    <button class="action-btn reject" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id}, 2)">
+                    <button class="action-btn reject" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 2)">
                         Reject
                     </button>
                 `;
@@ -497,6 +499,11 @@ class BookingCalendar {
     goToToday() {
         this.currentDate = new Date();
         this.render();
+    }
+    
+    viewBookingDetails(bookingId) {
+        // Implement booking details view
+        console.log('View booking details:', bookingId);
     }
 }
 
