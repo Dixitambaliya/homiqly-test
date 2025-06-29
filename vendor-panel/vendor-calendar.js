@@ -3,7 +3,15 @@ class VendorBookingCalendar extends BookingCalendar {
     constructor(containerId, vendorType) {
         super(containerId, { isAdmin: false });
         this.vendorType = vendorType; // 'individual' or 'company'
-        this.vendorStats = {};
+        this.vendorStats = {
+            totalBookings: 0,
+            pendingBookings: 0,
+            approvedBookings: 0,
+            cancelledBookings: 0,
+            todayBookings: 0,
+            thisMonthBookings: 0,
+            upcomingBookings: 0
+        };
         this.init();
     }
 
@@ -27,6 +35,10 @@ class VendorBookingCalendar extends BookingCalendar {
     }
 
     calculateStats() {
+        if (!this.bookings || this.bookings.length === 0) {
+            return;
+        }
+        
         const today = new Date();
         const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -36,9 +48,10 @@ class VendorBookingCalendar extends BookingCalendar {
             pendingBookings: this.bookings.filter(b => b.bookingStatus === 0).length,
             approvedBookings: this.bookings.filter(b => b.bookingStatus === 1).length,
             cancelledBookings: this.bookings.filter(b => b.bookingStatus === 2).length,
-            todayBookings: this.bookings.filter(b => 
-                new Date(b.bookingDate).toDateString() === today.toDateString()
-            ).length,
+            todayBookings: this.bookings.filter(b => {
+                const bookingDate = new Date(b.bookingDate);
+                return bookingDate.toDateString() === today.toDateString();
+            }).length,
             thisMonthBookings: this.bookings.filter(b => {
                 const bookingDate = new Date(b.bookingDate);
                 return bookingDate >= thisMonth && bookingDate < nextMonth;
@@ -60,24 +73,24 @@ class VendorBookingCalendar extends BookingCalendar {
             ${this.renderVendorStats()}
             <div class="calendar-header">
                 <div class="calendar-nav">
-                    <button class="nav-btn" onclick="vendorCalendar.previousPeriod()">
+                    <button class="nav-btn" onclick="window.vendorCalendar.previousPeriod()">
                         <i class="fas fa-chevron-left"></i>
                     </button>
                     <h3 class="calendar-title">${this.getTitle()}</h3>
-                    <button class="nav-btn" onclick="vendorCalendar.nextPeriod()">
+                    <button class="nav-btn" onclick="window.vendorCalendar.nextPeriod()">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
                 <div class="calendar-controls">
                     <div class="view-switcher">
                         <button class="view-btn ${this.viewMode === 'month' ? 'active' : ''}" 
-                                onclick="vendorCalendar.setViewMode('month')">Month</button>
+                                onclick="window.vendorCalendar.setViewMode('month')">Month</button>
                         <button class="view-btn ${this.viewMode === 'week' ? 'active' : ''}" 
-                                onclick="vendorCalendar.setViewMode('week')">Week</button>
+                                onclick="window.vendorCalendar.setViewMode('week')">Week</button>
                         <button class="view-btn ${this.viewMode === 'day' ? 'active' : ''}" 
-                                onclick="vendorCalendar.setViewMode('day')">Day</button>
+                                onclick="window.vendorCalendar.setViewMode('day')">Day</button>
                     </div>
-                    <button class="btn-primary" onclick="vendorCalendar.goToToday()">Today</button>
+                    <button class="btn-primary" onclick="window.vendorCalendar.goToToday()">Today</button>
                     ${this.renderVendorActions()}
                 </div>
             </div>
@@ -87,7 +100,7 @@ class VendorBookingCalendar extends BookingCalendar {
             <div class="booking-details" id="bookingDetails" style="display: none;">
                 <div class="details-header">
                     <h4>Bookings for <span id="selectedDateText"></span></h4>
-                    <button class="close-details" onclick="vendorCalendar.closeDetails()">×</button>
+                    <button class="close-details" onclick="window.vendorCalendar.closeDetails()">×</button>
                 </div>
                 <div class="details-content" id="detailsContent"></div>
             </div>
@@ -164,10 +177,10 @@ class VendorBookingCalendar extends BookingCalendar {
     renderVendorActions() {
         return `
             <div class="vendor-actions">
-                <button class="btn-secondary" onclick="vendorCalendar.setAvailability()">
+                <button class="btn-secondary" onclick="window.vendorCalendar.setAvailability()">
                     <i class="fas fa-calendar-plus"></i> Set Availability
                 </button>
-                <button class="btn-secondary" onclick="vendorCalendar.exportSchedule()">
+                <button class="btn-secondary" onclick="window.vendorCalendar.exportSchedule()">
                     <i class="fas fa-download"></i> Export
                 </button>
             </div>
@@ -177,22 +190,22 @@ class VendorBookingCalendar extends BookingCalendar {
     renderBookingActions(booking) {
         if (booking.bookingStatus === 0) {
             return `
-                <button class="action-btn approve" onclick="vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 1)">
+                <button class="action-btn approve" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 1)">
                     <i class="fas fa-check"></i> Accept
                 </button>
-                <button class="action-btn reject" onclick="vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 2)">
+                <button class="action-btn reject" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 2)">
                     <i class="fas fa-times"></i> Reject
                 </button>
-                <button class="action-btn edit" onclick="vendorCalendar.rescheduleBooking(${booking.booking_id || booking.bookingId})">
+                <button class="action-btn edit" onclick="window.vendorCalendar.rescheduleBooking(${booking.booking_id || booking.bookingId})">
                     <i class="fas fa-edit"></i> Reschedule
                 </button>
             `;
         } else if (booking.bookingStatus === 1) {
             return `
-                <button class="action-btn view" onclick="vendorCalendar.viewBookingDetails(${booking.booking_id || booking.bookingId})">
+                <button class="action-btn view" onclick="window.vendorCalendar.viewBookingDetails(${booking.booking_id || booking.bookingId})">
                     <i class="fas fa-eye"></i> View Details
                 </button>
-                <button class="action-btn edit" onclick="vendorCalendar.addNotes(${booking.booking_id || booking.bookingId})">
+                <button class="action-btn edit" onclick="window.vendorCalendar.addNotes(${booking.booking_id || booking.bookingId})">
                     <i class="fas fa-sticky-note"></i> Add Notes
                 </button>
             `;
@@ -202,7 +215,7 @@ class VendorBookingCalendar extends BookingCalendar {
 
     getUniqueCustomers() {
         if (!this.bookings || !this.bookings.length) return 0;
-        const uniqueCustomers = new Set(this.bookings.map(b => b.user_id));
+        const uniqueCustomers = new Set(this.bookings.map(b => b.user_id || b.userId));
         return uniqueCustomers.size;
     }
 
@@ -269,6 +282,39 @@ class VendorBookingCalendar extends BookingCalendar {
         return [headers, ...rows].map(row => 
             row.map(field => `"${field}"`).join(',')
         ).join('\n');
+    }
+
+    async updateBookingStatus(bookingId, status) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/booking/approveorrejectbooking`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    booking_id: bookingId, 
+                    status: status 
+                })
+            });
+            
+            if (response.ok) {
+                if (typeof showNotification === 'function') {
+                    showNotification(`Booking ${status === 1 ? 'accepted' : 'rejected'} successfully`, 'success');
+                }
+                this.loadBookings(); // Reload bookings
+            } else {
+                const data = await response.json();
+                if (typeof showNotification === 'function') {
+                    showNotification(data.message || 'Operation failed', 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Error updating booking status:', error);
+            if (typeof showNotification === 'function') {
+                showNotification('Network error', 'error');
+            }
+        }
     }
 
     async rescheduleBooking(bookingId) {

@@ -528,15 +528,15 @@ function displayVendorBookings(bookings) {
                           booking.bookingStatus === 2 ? 'Cancelled' : 'Pending';
         
         row.innerHTML = `
-            <td>${booking.bookingId}</td>
+            <td>${booking.bookingId || booking.booking_id}</td>
             <td>${booking.userName}</td>
             <td>${booking.serviceName}</td>
             <td>${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}</td>
             <td><span class="status-badge status-${statusClass}">${statusText}</span></td>
             <td>
                 ${booking.bookingStatus === 0 ? `
-                    <button class="action-btn approve" onclick="updateBookingStatus(${booking.bookingId}, 1)">Accept</button>
-                    <button class="action-btn reject" onclick="updateBookingStatus(${booking.bookingId}, 2)">Reject</button>
+                    <button class="action-btn approve" onclick="updateBookingStatus(${booking.bookingId || booking.booking_id}, 1)">Accept</button>
+                    <button class="action-btn reject" onclick="updateBookingStatus(${booking.bookingId || booking.booking_id}, 2)">Reject</button>
                 ` : ''}
             </td>
         `;
@@ -758,14 +758,14 @@ function toggleVendorFields() {
     const companyFields = document.getElementById('companyFields');
     
     if (vendorType === 'individual') {
-        individualFields.style.display = 'block';
-        companyFields.style.display = 'none';
+        if (individualFields) individualFields.style.display = 'block';
+        if (companyFields) companyFields.style.display = 'none';
     } else if (vendorType === 'company') {
-        individualFields.style.display = 'none';
-        companyFields.style.display = 'block';
+        if (individualFields) individualFields.style.display = 'none';
+        if (companyFields) companyFields.style.display = 'block';
     } else {
-        individualFields.style.display = 'none';
-        companyFields.style.display = 'none';
+        if (individualFields) individualFields.style.display = 'none';
+        if (companyFields) companyFields.style.display = 'none';
     }
 }
 
