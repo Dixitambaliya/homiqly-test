@@ -1,0 +1,2106 @@
+{
+  "info": {
+    "_postman_id": "a8e5f3b2-6c7d-4e5f-9a8b-1c2d3e4f5a6b",
+    "name": "Homiqly API",
+    "description": "API collection for Homiqly - Home Services Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Authentication endpoints for users, vendors, and admins",
+      "item": [
+        {
+          "name": "User Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstname\": \"John\",\n    \"lastname\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+91-9876543210\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "register"]
+            },
+            "description": "Register a new user"
+          },
+          "response": []
+        },
+        {
+          "name": "User Verify Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "verify"]
+            },
+            "description": "Verify OTP code sent to user's email"
+          },
+          "response": []
+        },
+        {
+          "name": "User Set Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/setpassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "setpassword"]
+            },
+            "description": "Set password for newly registered user"
+          },
+          "response": []
+        },
+        {
+          "name": "User Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "login"]
+            },
+            "description": "Login for users"
+          },
+          "response": []
+        },
+        {
+          "name": "User Request Password Reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/requestreset",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "requestreset"]
+            },
+            "description": "Request password reset code"
+          },
+          "response": []
+        },
+        {
+          "name": "User Verify Reset Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/verifyresetcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "verifyresetcode"]
+            },
+            "description": "Verify password reset code"
+          },
+          "response": []
+        },
+        {
+          "name": "User Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{resetToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"password\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/resetpassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "resetpassword"]
+            },
+            "description": "Reset user password with token"
+          },
+          "response": []
+        },
+        {
+          "name": "Vendor Register",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "vendorType",
+                  "value": "individual",
+                  "type": "text",
+                  "description": "individual or company"
+                },
+                {
+                  "key": "name",
+                  "value": "Maya Sharma",
+                  "type": "text",
+                  "description": "For individual vendors"
+                },
+                {
+                  "key": "phone",
+                  "value": "+91-9876543220",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "maya.sharma@vendor.com",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "password123",
+                  "type": "text",
+                  "description": "For individual vendors"
+                },
+                {
+                  "key": "resume",
+                  "type": "file",
+                  "description": "For individual vendors"
+                },
+                {
+                  "key": "companyName",
+                  "value": "BeautyPro Services",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "contactPerson",
+                  "value": "Anjali Verma",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "companyEmail",
+                  "value": "contact@beautypro.com",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "companyPhone",
+                  "value": "+91-9876543222",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "companyAddress",
+                  "value": "123 Beauty Street, Mumbai",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "googleBusinessProfileLink",
+                  "value": "https://business.google.com/beautypro",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "services",
+                  "value": "[{\"serviceCategoryId\":1,\"serviceId\":1,\"serviceLocation\":\"Mumbai, Pune\"},{\"serviceCategoryId\":4,\"serviceId\":12,\"serviceLocation\":\"Mumbai, Thane\"}]",
+                  "type": "text",
+                  "description": "JSON array of services"
+                },
+                {
+                  "key": "confirmation",
+                  "value": "true",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "register"]
+            },
+            "description": "Register a new vendor (individual or company)"
+          },
+          "response": []
+        },
+        {
+          "name": "Vendor Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"maya.sharma@vendor.com\",\n    \"password\": \"password123\",\n    \"fcmToken\": \"optional_fcm_token_for_notifications\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "login"]
+            },
+            "description": "Login for vendors"
+          },
+          "response": []
+        },
+        {
+          "name": "Vendor Request Password Reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"maya.sharma@vendor.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/requestreset",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "requestreset"]
+            },
+            "description": "Request password reset code for vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@homiqly.com\",\n    \"name\": \"Admin User\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "register"]
+            },
+            "description": "Register a new admin user"
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@homiqly.com\",\n    \"password\": \"admin123\",\n    \"fcmToken\": \"optional_fcm_token_for_notifications\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "login"]
+            },
+            "description": "Login for admin users"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "description": "User-related endpoints",
+      "item": [
+        {
+          "name": "Get User Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/getdata",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "getdata"]
+            },
+            "description": "Get user profile data"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Data",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "firstName",
+                  "value": "John",
+                  "type": "text"
+                },
+                {
+                  "key": "lastName",
+                  "value": "Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "john.doe@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+91-9876543210",
+                  "type": "text"
+                },
+                {
+                  "key": "profileImage",
+                  "type": "file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/updatedata",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "updatedata"]
+            },
+            "description": "Update user profile data"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/service",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "service"]
+            },
+            "description": "Get all service categories"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services By Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/servicesbycategories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "servicesbycategories"]
+            },
+            "description": "Get services grouped by categories"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/services/1/servicetype",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "services", "1", "servicetype"]
+            },
+            "description": "Get service types for a specific service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/services/1/vendorservice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "services", "1", "vendorservice"]
+            },
+            "description": "Get vendor services for a specific service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Approved Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/getallservicetypes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "getallservicetypes"]
+            },
+            "description": "Get all approved service types"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Vendor",
+      "description": "Vendor-related endpoints",
+      "item": [
+        {
+          "name": "Get Vendor Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/getprofile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "getprofile"]
+            },
+            "description": "Get vendor profile data"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Vendor Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Maya Sharma",
+                  "type": "text",
+                  "description": "For individual vendors"
+                },
+                {
+                  "key": "email",
+                  "value": "maya.sharma@vendor.com",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+91-9876543220",
+                  "type": "text"
+                },
+                {
+                  "key": "otherInfo",
+                  "value": "Certified makeup artist with 5 years experience",
+                  "type": "text",
+                  "description": "For individual vendors"
+                },
+                {
+                  "key": "profileImageVendor",
+                  "type": "file"
+                },
+                {
+                  "key": "companyAddress",
+                  "value": "123 Beauty Street, Mumbai",
+                  "type": "text",
+                  "description": "For company vendors"
+                },
+                {
+                  "key": "contactPerson",
+                  "value": "Anjali Verma",
+                  "type": "text",
+                  "description": "For company vendors"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/updateprofile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "updateprofile"]
+            },
+            "description": "Update vendor profile"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Services",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/getvendorservice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "getvendorservice"]
+            },
+            "description": "Get all services offered by the vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Service Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/getvendorservicetype",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "getvendorservicetype"]
+            },
+            "description": "Get service types offered by the vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Apply for Service Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "serviceId",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceType",
+                  "value": "Bridal Makeup Package",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceTypeMedia",
+                  "type": "file"
+                },
+                {
+                  "key": "packages",
+                  "value": "[{\"package_name\":\"Basic Bridal Package\",\"description\":\"Basic bridal makeup with base and eyes\",\"total_price\":5000,\"total_time\":\"3 hours\",\"items\":[{\"item_name\":\"Base Makeup\",\"description\":\"Foundation, concealer, powder\",\"price\":2000,\"time_required\":\"1 hour\"},{\"item_name\":\"Eye Makeup\",\"description\":\"Eyeshadow, eyeliner, mascara\",\"price\":2000,\"time_required\":\"1 hour\"},{\"item_name\":\"Lip Makeup\",\"description\":\"Lip color and gloss\",\"price\":1000,\"time_required\":\"30 minutes\"}]}]",
+                  "type": "text"
+                },
+                {
+                  "key": "preferences",
+                  "value": "[{\"preference_value\":\"Morning (9 AM - 12 PM)\"},{\"preference_value\":\"Afternoon (12 PM - 5 PM)\"},{\"preference_value\":\"Evening (5 PM - 8 PM)\"}]",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/applyservicetype",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "applyservicetype"]
+            },
+            "description": "Apply for a new service type"
+          },
+          "response": []
+        },
+        {
+          "name": "Edit Service Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"service_type_id\": 1,\n    \"packages\": [\n        {\n            \"package_id\": 1,\n            \"title\": \"Basic Bridal Package\",\n            \"description\": \"Basic bridal makeup with base and eyes\",\n            \"price\": 5500,\n            \"time_required\": \"3 hours\",\n            \"sub_packages\": [\n                {\n                    \"sub_package_id\": 1,\n                    \"title\": \"Base Makeup\",\n                    \"description\": \"Foundation, concealer, powder\",\n                    \"price\": 2200,\n                    \"time_required\": \"1 hour\"\n                },\n                {\n                    \"sub_package_id\": 2,\n                    \"title\": \"Eye Makeup\",\n                    \"description\": \"Eyeshadow, eyeliner, mascara\",\n                    \"price\": 2200,\n                    \"time_required\": \"1 hour\"\n                },\n                {\n                    \"sub_package_id\": 3,\n                    \"title\": \"Lip Makeup\",\n                    \"description\": \"Lip color and gloss\",\n                    \"price\": 1100,\n                    \"time_required\": \"30 minutes\"\n                }\n            ]\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vendor/editservicetype",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vendor", "editservicetype"]
+            },
+            "description": "Edit an existing service type"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Booking",
+      "description": "Booking-related endpoints",
+      "item": [
+        {
+          "name": "Book Service",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "service_categories_id",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceId",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "service_type_id",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "packages",
+                  "value": "[{\"package_id\":1,\"sub_packages\":[{\"sub_package_id\":1,\"price\":2000},{\"sub_package_id\":2,\"price\":2000},{\"sub_package_id\":3,\"price\":1000}]}]",
+                  "type": "text"
+                },
+                {
+                  "key": "bookingDate",
+                  "value": "2025-01-15",
+                  "type": "text"
+                },
+                {
+                  "key": "bookingTime",
+                  "value": "10:00:00",
+                  "type": "text"
+                },
+                {
+                  "key": "notes",
+                  "value": "Please arrive 15 minutes early",
+                  "type": "text"
+                },
+                {
+                  "key": "preferences",
+                  "value": "[1, 2]",
+                  "type": "text"
+                },
+                {
+                  "key": "bookingMedia",
+                  "type": "file",
+                  "description": "Optional reference image"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/booking/bookservice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "booking", "bookservice"]
+            },
+            "description": "Book a service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/booking/userbookedservices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "booking", "userbookedservices"]
+            },
+            "description": "Get all bookings for the logged-in user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/booking/vendorbookedservices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "booking", "vendorbookedservices"]
+            },
+            "description": "Get all bookings for the logged-in vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve or Reject Booking",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"booking_id\": 1,\n    \"status\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/booking/approveorrejectbooking",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "booking", "approveorrejectbooking"]
+            },
+            "description": "Approve (status=1) or reject (status=2) a booking"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "description": "Shopping cart endpoints",
+      "item": [
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "service_categories_id",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceId",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "service_type_id",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "packages",
+                  "value": "[{\"package_id\":1,\"sub_packages\":[{\"sub_package_id\":1,\"price\":2000},{\"sub_package_id\":2,\"price\":2000},{\"sub_package_id\":3,\"price\":1000}]}]",
+                  "type": "text"
+                },
+                {
+                  "key": "bookingDate",
+                  "value": "2025-01-15",
+                  "type": "text"
+                },
+                {
+                  "key": "bookingTime",
+                  "value": "10:00:00",
+                  "type": "text"
+                },
+                {
+                  "key": "notes",
+                  "value": "Please arrive 15 minutes early",
+                  "type": "text"
+                },
+                {
+                  "key": "preferences",
+                  "value": "[1, 2]",
+                  "type": "text"
+                },
+                {
+                  "key": "bookingMedia",
+                  "type": "file",
+                  "description": "Optional reference image"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/addtocart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "addtocart"]
+            },
+            "description": "Add a service to cart"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/getcart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "getcart"]
+            },
+            "description": "Get user's cart"
+          },
+          "response": []
+        },
+        {
+          "name": "Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/checkout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "checkout"]
+            },
+            "description": "Checkout cart and create booking"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Service",
+      "description": "Service management endpoints",
+      "item": [
+        {
+          "name": "Get Service Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service/getservicecategories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "getservicecategories"]
+            },
+            "description": "Get all service categories"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service/getservices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "getservices"]
+            },
+            "description": "Get all services"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Admin Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service/getadminservices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "getadminservices"]
+            },
+            "description": "Get all services for admin panel"
+          },
+          "response": []
+        },
+        {
+          "name": "Add Service",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "serviceName",
+                  "value": "Makeup Services",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryName",
+                  "value": "Personal Care",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceDescription",
+                  "value": "Professional makeup for weddings, parties, and special occasions",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceImage",
+                  "type": "file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service/addservice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "addservice"]
+            },
+            "description": "Add a new service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Add Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"categoryName\": \"New Category\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service/addcategory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "addcategory"]
+            },
+            "description": "Add a new service category (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Edit Service",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "serviceId",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceName",
+                  "value": "Makeup Services",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryName",
+                  "value": "Personal Care",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceDescription",
+                  "value": "Professional makeup for weddings, parties, and special occasions",
+                  "type": "text"
+                },
+                {
+                  "key": "serviceImage",
+                  "type": "file",
+                  "description": "Optional - only if updating image"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service/editservice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "editservice"]
+            },
+            "description": "Edit an existing service (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"serviceId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service/deleteservice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service", "deleteservice"]
+            },
+            "description": "Delete a service (admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Admin management endpoints",
+      "item": [
+        {
+          "name": "Get Vendors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/getvendors",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "getvendors"]
+            },
+            "description": "Get all vendors (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Service Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/getallservicetype",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "getallservicetype"]
+            },
+            "description": "Get all service types (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/getusers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "getusers"]
+            },
+            "description": "Get all users (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/getbookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "getbookings"]
+            },
+            "description": "Get all bookings (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Edit User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+91-9876543210\",\n    \"is_approved\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/editusers/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "editusers", "1"]
+            },
+            "description": "Edit user details (admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Approval",
+      "description": "Approval-related endpoints",
+      "item": [
+        {
+          "name": "Approve Vendor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"is_authenticated\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/approval/verification/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "approval", "verification", "1"]
+            },
+            "description": "Approve (1) or reject (2) a vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Service Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"is_approved\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/approval/approveservicetype/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "approval", "approveservicetype", "1"]
+            },
+            "description": "Approve (1) or reject (2) a service type"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Supply Kit",
+      "description": "Supply kit management endpoints",
+      "item": [
+        {
+          "name": "Get All Supply Kits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplykit/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supplykit", "all"]
+            },
+            "description": "Get all supply kits"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Supply Kit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "kit_name",
+                  "value": "Beauty Essentials Kit",
+                  "type": "text"
+                },
+                {
+                  "key": "kit_description",
+                  "value": "Complete makeup and beauty tools kit",
+                  "type": "text"
+                },
+                {
+                  "key": "kit_price",
+                  "value": "2500",
+                  "type": "text"
+                },
+                {
+                  "key": "service_categories_id",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "kit_image",
+                  "type": "file"
+                },
+                {
+                  "key": "items",
+                  "value": "[{\"item_name\":\"Foundation Set\",\"item_description\":\"Professional foundation in multiple shades\",\"quantity\":5,\"unit_price\":300},{\"item_name\":\"Makeup Brushes\",\"item_description\":\"Professional makeup brush set\",\"quantity\":1,\"unit_price\":800}]",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/supplykit/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supplykit", "create"]
+            },
+            "description": "Create a new supply kit (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Order Supply Kit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"kit_id\": 1,\n    \"quantity_ordered\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/supplykit/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supplykit", "order"]
+            },
+            "description": "Order a supply kit (vendor only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Supply Kit Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplykit/vendor/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supplykit", "vendor", "orders"]
+            },
+            "description": "Get all supply kit orders for a vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_status\": \"shipped\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/supplykit/order-status/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supplykit", "order-status", "1"]
+            },
+            "description": "Update supply kit order status (admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contractor",
+      "description": "Contractor management endpoints",
+      "item": [
+        {
+          "name": "Create Contractor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "company_name",
+                  "value": "TechFix Solutions",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_person",
+                  "value": "Ramesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "contact@techfix.com",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+91-9876543230",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "123 Tech Street, Bangalore",
+                  "type": "text"
+                },
+                {
+                  "key": "commission_rate",
+                  "value": "25",
+                  "type": "text"
+                },
+                {
+                  "key": "business_license",
+                  "type": "file"
+                },
+                {
+                  "key": "insurance_certificate",
+                  "type": "file"
+                },
+                {
+                  "key": "services",
+                  "value": "[{\"service_id\":10,\"hourly_rate\":800},{\"service_id\":19,\"hourly_rate\":600}]",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/contractor/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contractor", "create"]
+            },
+            "description": "Create a new contractor (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Contractors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/contractor/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contractor", "all"]
+            },
+            "description": "Get all contractors (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Contractor to Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"booking_id\": 1,\n    \"contractor_id\": 1,\n    \"estimated_hours\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/contractor/assign",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contractor", "assign"]
+            },
+            "description": "Assign a contractor to a booking (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Contractor Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/contractor/1/bookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contractor", "1", "bookings"]
+            },
+            "description": "Get all bookings for a contractor (admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employee",
+      "description": "Employee management endpoints",
+      "item": [
+        {
+          "name": "Get All Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "all"]
+            },
+            "description": "Get all employees (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"Amit\",\n    \"last_name\": \"Sharma\",\n    \"email\": \"amit.sharma@homiqly.com\",\n    \"phone\": \"+91-9876543240\",\n    \"employee_type\": \"full_time\",\n    \"department\": \"Operations\",\n    \"position\": \"Operations Manager\",\n    \"salary\": 75000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "create"]
+            },
+            "description": "Create a new employee (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"employee_id\": 2,\n    \"task_title\": \"Handle Customer Complaints\",\n    \"task_description\": \"Resolve pending customer service tickets\",\n    \"priority\": \"high\",\n    \"due_date\": \"2025-01-30\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/assign-task",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "assign-task"]
+            },
+            "description": "Assign a task to an employee (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Employee Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/2/tasks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "2", "tasks"]
+            },
+            "description": "Get all tasks for an employee (admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "description": "Analytics and reporting endpoints",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "dashboard"]
+            },
+            "description": "Get dashboard statistics (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Booking Trends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/booking-trends",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "booking-trends"]
+            },
+            "description": "Get booking trends (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service Category Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "service-categories"]
+            },
+            "description": "Get service category statistics (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/vendor-performance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "vendor-performance"]
+            },
+            "description": "Get vendor performance statistics (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/revenue",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "revenue"]
+            },
+            "description": "Get revenue analytics (admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notification",
+      "description": "Notification management endpoints",
+      "item": [
+        {
+          "name": "Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_type\": \"users\",\n    \"user_ids\": [1, 2, 3],\n    \"title\": \"Special Offer\",\n    \"body\": \"Get 20% off on all beauty services this weekend!\",\n    \"data\": {\n        \"type\": \"promotion\",\n        \"category_id\": 1\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notification/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notification", "send"]
+            },
+            "description": "Send notification to users, vendors, or admins"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notification/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notification", "user"]
+            },
+            "description": "Get notifications for the logged-in user"
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notification/1/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notification", "1", "read"]
+            },
+            "description": "Mark a notification as read"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payment",
+      "description": "Payment management endpoints",
+      "item": [
+        {
+          "name": "Process Vendor Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"booking_id\": 1,\n    \"vendor_id\": 1,\n    \"amount\": 5000,\n    \"commission_rate\": 15\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/vendor/process",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment", "vendor", "process"]
+            },
+            "description": "Process payment for a vendor (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pending Payouts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment", "pending"]
+            },
+            "description": "Get all pending payouts (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Payment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"payment_id\": 1,\n    \"payout_type\": \"vendor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment", "approve"]
+            },
+            "description": "Approve a payment (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Payment History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/vendor/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment", "vendor", "history"]
+            },
+            "description": "Get payment history for a vendor"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rating",
+      "description": "Rating and review endpoints",
+      "item": [
+        {
+          "name": "Add Rating",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"booking_id\": 1,\n    \"vendor_id\": 1,\n    \"rating\": 5,\n    \"review\": \"Excellent service! Very professional and on time.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rating/add",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rating", "add"]
+            },
+            "description": "Add a rating and review for a service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Vendor Ratings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rating/vendor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rating", "vendor"]
+            },
+            "description": "Get ratings for the logged-in vendor"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Ratings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rating/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rating", "all"]
+            },
+            "description": "Get all ratings (admin only)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "your_user_jwt_token",
+      "type": "string"
+    },
+    {
+      "key": "vendorToken",
+      "value": "your_vendor_jwt_token",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "your_admin_jwt_token",
+      "type": "string"
+    },
+    {
+      "key": "resetToken",
+      "value": "password_reset_token",
+      "type": "string"
+    }
+  ]
+}
