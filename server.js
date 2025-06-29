@@ -1,5 +1,6 @@
 const express = require("express")
 const cors = require("cors")
+const path = require("path")
 const { db, testConnection } = require("./config/db")
 
 // Import routes
@@ -31,6 +32,10 @@ app.use(cors({
 
 app.use(express.json())
 
+// Serve static files for admin and vendor panels
+app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
+app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
+
 // API Routes
 app.use("/api/user", userAuthRoutes)
 app.use("/api/admin", adminAuthRoutes)
@@ -51,12 +56,21 @@ app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api/rating", ratingRoutes)
 
+// Root route - redirect to admin panel
+app.get("/", (req, res) => {
+    res.redirect("/admin-panel");
+});
+
 // Health check endpoint
 app.get("/api/health", (req, res) => {
     res.status(200).json({ 
         status: "OK", 
         message: "Homiqly Backend is running",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        panels: {
+            admin: `http://localhost:${PORT}/admin-panel`,
+            vendor: `http://localhost:${PORT}/vendor-panel`
+        }
     });
 });
 
@@ -109,6 +123,8 @@ app.listen(PORT, async () => {
     console.log(`🚀 Homiqly Backend Server starting on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
     console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
+    console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin-panel`);
+    console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor-panel`);
     
     // Test database connection
     const isConnected = await testConnection();
