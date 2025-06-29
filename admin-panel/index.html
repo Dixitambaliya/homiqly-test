@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Homiqly Admin Panel</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="calendar-styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -39,10 +40,10 @@
             </div>
             <ul class="sidebar-menu">
                 <li><a href="#" data-section="dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" data-section="bookings"><i class="fas fa-calendar-alt"></i> Booking Calendar</a></li>
                 <li><a href="#" data-section="vendors"><i class="fas fa-users"></i> Vendors</a></li>
                 <li><a href="#" data-section="users"><i class="fas fa-user-friends"></i> Users</a></li>
                 <li><a href="#" data-section="services"><i class="fas fa-concierge-bell"></i> Services</a></li>
-                <li><a href="#" data-section="bookings"><i class="fas fa-calendar-check"></i> Bookings</a></li>
                 <li><a href="#" data-section="contractors"><i class="fas fa-hard-hat"></i> Contractors</a></li>
                 <li><a href="#" data-section="employees"><i class="fas fa-id-badge"></i> Employees</a></li>
                 <li><a href="#" data-section="supply-kits"><i class="fas fa-box"></i> Supply Kits</a></li>
@@ -121,6 +122,28 @@
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
+
+                <!-- Calendar Integration -->
+                <div class="dashboard-calendar">
+                    <div class="calendar-container">
+                        <div id="adminCalendar"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Booking Calendar Section -->
+            <section id="bookingsSection" class="content-section">
+                <div class="section-header">
+                    <h2>Booking Calendar</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="window.adminCalendar && window.adminCalendar.loadBookings()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="calendar-container">
+                    <div id="adminCalendar"></div>
+                </div>
             </section>
 
             <!-- Vendors Section -->
@@ -192,33 +215,6 @@
                     </div>
                 </div>
                 <div class="services-grid" id="servicesGrid"></div>
-            </section>
-
-            <!-- Service Types Section -->
-            <section id="serviceTypesSection" class="content-section">
-                <div class="section-header">
-                    <h2>Service Type Approvals</h2>
-                    <div class="section-actions">
-                        <button class="btn-primary" onclick="refreshServiceTypes()">
-                            <i class="fas fa-sync"></i> Refresh
-                        </button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table id="serviceTypesTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Service Type</th>
-                                <th>Vendor</th>
-                                <th>Service</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
             </section>
 
             <!-- Supply Kits Section -->
@@ -451,6 +447,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="calendar.js"></script>
     <script src="admin-script.js"></script>
 </body>
 </html>

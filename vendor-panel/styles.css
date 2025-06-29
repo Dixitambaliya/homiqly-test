@@ -950,6 +950,44 @@ table tr:hover {
     margin: 0;
 }
 
+/* Vendor Stats Grid */
+.vendor-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.vendor-stat-card {
+    background: var(--surface);
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.vendor-stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.vendor-stat-card.company-stat {
+    border-left: 4px solid var(--primary-light);
+}
+
+.vendor-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.vendor-actions .btn-secondary {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    width: auto;
+}
+
 /* Loading Spinner */
 .loading {
     display: inline-block;
@@ -1013,6 +1051,10 @@ table tr:hover {
     .large-modal {
         max-width: 95%;
     }
+    
+    .vendor-stats-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Utility Classes */
@@ -1030,3 +1072,27 @@ table tr:hover {
 .justify-between { justify-content: space-between; }
 .gap-1 { gap: 0.5rem; }
 .gap-2 { gap: 1rem; }
+
+/* Status Badge Styles */
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.status-badge.status-approved {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+}
+
+.status-badge.status-pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning);
+}
+
+.status-badge.status-rejected {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error);
+}

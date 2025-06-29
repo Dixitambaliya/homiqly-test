@@ -161,6 +161,9 @@ async function loadDashboardData() {
     // Load charts
     loadBookingTrends();
     loadServiceCategoryStats();
+    
+    // Initialize calendar
+    initializeAdminCalendar();
 }
 
 function updateDashboardStats(stats) {
@@ -172,6 +175,9 @@ function updateDashboardStats(stats) {
 
 async function loadSectionData(section) {
     switch(section) {
+        case 'dashboard':
+            initializeAdminCalendar();
+            break;
         case 'vendors':
             loadVendors();
             break;
@@ -197,6 +203,17 @@ async function loadSectionData(section) {
         case 'analytics':
             loadAnalytics();
             break;
+        case 'bookings':
+            initializeAdminCalendar();
+            break;
+    }
+}
+
+// Calendar Initialization
+function initializeAdminCalendar() {
+    const calendarContainer = document.getElementById('adminCalendar');
+    if (calendarContainer && !window.adminCalendar) {
+        window.adminCalendar = new BookingCalendar('adminCalendar', { isAdmin: true });
     }
 }
 
@@ -585,9 +602,10 @@ async function loadBookingTrends() {
 }
 
 function createBookingChart(trends) {
-    const ctx = document.getElementById('bookingChart').getContext('2d');
+    const ctx = document.getElementById('bookingChart');
+    if (!ctx) return;
     
-    new Chart(ctx, {
+    new Chart(ctx.getContext('2d'), {
         type: 'line',
         data: {
             labels: trends.map(t => new Date(t.booking_date).toLocaleDateString()),
@@ -633,9 +651,10 @@ async function loadServiceCategoryStats() {
 }
 
 function createCategoryChart(stats) {
-    const ctx = document.getElementById('categoryChart').getContext('2d');
+    const ctx = document.getElementById('categoryChart');
+    if (!ctx) return;
     
-    new Chart(ctx, {
+    new Chart(ctx.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: stats.map(s => s.serviceCategory),

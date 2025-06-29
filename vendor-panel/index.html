@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Homiqly Vendor Panel</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../admin-panel/calendar-styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -42,6 +43,7 @@
             </div>
             <ul class="sidebar-menu">
                 <li><a href="#" data-section="dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" data-section="calendar"><i class="fas fa-calendar-alt"></i> Calendar</a></li>
                 <li><a href="#" data-section="profile"><i class="fas fa-user"></i> Profile</a></li>
                 <li><a href="#" data-section="services"><i class="fas fa-concierge-bell"></i> My Services</a></li>
                 <li><a href="#" data-section="bookings"><i class="fas fa-calendar-check"></i> Bookings</a></li>
@@ -119,6 +121,21 @@
                         <h3>Service Performance</h3>
                         <canvas id="performanceChart"></canvas>
                     </div>
+                </div>
+            </section>
+
+            <!-- Calendar Section -->
+            <section id="calendarSection" class="content-section">
+                <div class="section-header">
+                    <h2>Booking Calendar</h2>
+                    <div class="section-actions">
+                        <button class="btn-primary" onclick="vendorCalendar && vendorCalendar.loadBookings()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="calendar-container">
+                    <div id="vendorCalendar"></div>
                 </div>
             </section>
 
@@ -426,9 +443,43 @@
                 </div>
             </form>
         </div>
+
+        <!-- Availability Modal -->
+        <div id="availabilityModal" class="modal">
+            <div class="modal-header">
+                <h3>Set Availability</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="availabilityForm">
+                <div class="form-group">
+                    <label for="availableDate">Date</label>
+                    <input type="date" id="availableDate" name="date" required>
+                </div>
+                <div class="form-group">
+                    <label for="startTime">Start Time</label>
+                    <input type="time" id="startTime" name="start_time" required>
+                </div>
+                <div class="form-group">
+                    <label for="endTime">End Time</label>
+                    <input type="time" id="endTime" name="end_time" required>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isRecurring" name="is_recurring">
+                        Recurring (weekly)
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Set Availability</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../admin-panel/calendar.js"></script>
+    <script src="vendor-calendar.js"></script>
     <script src="vendor-script.js"></script>
 </body>
 </html>

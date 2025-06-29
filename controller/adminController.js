@@ -133,5 +133,42 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+// Get all bookings for admin calendar
+const getBookings = asyncHandler(async (req, res) => {
+    try {
+        const [bookings] = await db.query(`
+            SELECT 
+                sb.booking_id,
+                sb.bookingDate,
+                sb.bookingTime,
+                sb.bookingStatus,
+                sb.notes,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                s.serviceName,
+                sc.serviceCategory,
+                CASE 
+                    WHEN v.vendorType = 'individual' THEN ind.name
+                    WHEN v.vendorType = 'company' THEN comp.companyName
+                END as vendorName
+            FROM service_booking sb
+            JOIN users u ON sb.user_id = u.user_id
+            JOIN services s ON sb.service_id = s.service_id
+            JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+            JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
+            LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
+            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+        `);
 
-module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin };
+        res.status(200).json({
+            message: "Bookings fetched successfully",
+            bookings
+        });
+    } catch (error) {
+        console.error("Error fetching bookings:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+
+module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings };

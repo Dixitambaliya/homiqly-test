@@ -225,6 +225,9 @@ function displayRecentBookings(bookings) {
 
 async function loadSectionData(section) {
     switch(section) {
+        case 'calendar':
+            initializeVendorCalendar();
+            break;
         case 'profile':
             loadVendorProfile();
             break;
@@ -243,6 +246,15 @@ async function loadSectionData(section) {
         case 'ratings':
             loadVendorRatings();
             break;
+    }
+}
+
+// Calendar Initialization
+function initializeVendorCalendar() {
+    const calendarContainer = document.getElementById('vendorCalendar');
+    if (calendarContainer && !window.vendorCalendar) {
+        
+        window.vendorCalendar = new VendorBookingCalendar('vendorCalendar', vendorData.vendor_type);
     }
 }
 
@@ -477,6 +489,10 @@ async function updateBookingStatus(bookingId, status) {
         if (response.ok) {
             showNotification(`Booking ${status === 1 ? 'accepted' : 'rejected'} successfully`, 'success');
             loadVendorBookings();
+            // Refresh calendar if it exists
+            if (window.vendorCalendar) {
+                window.vendorCalendar.loadBookings();
+            }
         } else {
             const data = await response.json();
             showNotification(data.message || 'Operation failed', 'error');
@@ -1049,6 +1065,9 @@ function showNotification(message, type = 'info') {
 // Refresh Functions
 function refreshBookings() {
     loadVendorBookings();
+    if (window.vendorCalendar) {
+        window.vendorCalendar.loadBookings();
+    }
 }
 
 function refreshPayments() {
@@ -1066,6 +1085,44 @@ style.textContent = `
     @keyframes slideOut {
         from { transform: translateX(0); opacity: 1; }
         to { transform: translateX(100%); opacity: 0; }
+    }
+    
+    /* Vendor Stats Grid */
+    .vendor-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .vendor-stat-card {
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.3s ease;
+    }
+    
+    .vendor-stat-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .vendor-stat-card.company-stat {
+        border-left: 4px solid var(--primary-light);
+    }
+    
+    .vendor-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .vendor-actions .btn-secondary {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        width: auto;
     }
 `;
 document.head.appendChild(style);
