@@ -24,10 +24,14 @@ document.addEventListener('DOMContentLoaded', function() {
 // Event Listeners
 function setupEventListeners() {
     // Login form
-    loginForm.addEventListener('submit', handleLogin);
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
     
     // Logout button
-    logoutBtn.addEventListener('click', handleLogout);
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
     
     // Sidebar navigation
     document.querySelectorAll('.sidebar-menu a').forEach(link => {
@@ -40,17 +44,30 @@ function setupEventListeners() {
     });
     
     // Modal overlay click
-    modalOverlay.addEventListener('click', function(e) {
-        if (e.target === modalOverlay) {
-            closeModal();
-        }
-    });
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) {
+                closeModal();
+            }
+        });
+    }
     
     // Form submissions
-    document.getElementById('addServiceForm').addEventListener('submit', handleAddService);
-    document.getElementById('addCategoryForm').addEventListener('submit', handleAddCategory);
-    document.getElementById('addSupplyKitForm').addEventListener('submit', handleAddSupplyKit);
-    document.getElementById('notificationForm').addEventListener('submit', handleSendNotification);
+    if (document.getElementById('addServiceForm')) {
+        document.getElementById('addServiceForm').addEventListener('submit', handleAddService);
+    }
+    
+    if (document.getElementById('addCategoryForm')) {
+        document.getElementById('addCategoryForm').addEventListener('submit', handleAddCategory);
+    }
+    
+    if (document.getElementById('addSupplyKitForm')) {
+        document.getElementById('addSupplyKitForm').addEventListener('submit', handleAddSupplyKit);
+    }
+    
+    if (document.getElementById('notificationForm')) {
+        document.getElementById('notificationForm').addEventListener('submit', handleSendNotification);
+    }
 }
 
 // Authentication
@@ -132,16 +149,19 @@ function handleNavigation(e) {
 
 // Screen Management
 function showLogin() {
-    loginScreen.style.display = 'flex';
-    dashboard.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (dashboard) dashboard.style.display = 'none';
 }
 
 function showDashboard() {
-    loginScreen.style.display = 'none';
-    dashboard.style.display = 'flex';
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (dashboard) dashboard.style.display = 'flex';
     
     const adminName = localStorage.getItem('adminName') || 'Admin User';
-    document.getElementById('adminName').textContent = adminName;
+    const adminNameElement = document.getElementById('adminName');
+    if (adminNameElement) {
+        adminNameElement.textContent = adminName;
+    }
 }
 
 // Data Loading
@@ -170,10 +190,18 @@ async function loadDashboardData() {
 }
 
 function updateDashboardStats(stats) {
-    document.getElementById('totalUsers').textContent = stats.total_users || 0;
-    document.getElementById('totalVendors').textContent = stats.total_vendors || 0;
-    document.getElementById('completedBookings').textContent = stats.completed_bookings || 0;
-    document.getElementById('totalRevenue').textContent = `₹${stats.total_revenue || 0}`;
+    if (document.getElementById('totalUsers')) {
+        document.getElementById('totalUsers').textContent = stats.total_users || 0;
+    }
+    if (document.getElementById('totalVendors')) {
+        document.getElementById('totalVendors').textContent = stats.total_vendors || 0;
+    }
+    if (document.getElementById('completedBookings')) {
+        document.getElementById('completedBookings').textContent = stats.completed_bookings || 0;
+    }
+    if (document.getElementById('totalRevenue')) {
+        document.getElementById('totalRevenue').textContent = `₹${stats.total_revenue || 0}`;
+    }
 }
 
 async function loadSectionData(section) {
@@ -215,8 +243,12 @@ async function loadSectionData(section) {
 // Calendar Initialization
 function initializeAdminCalendar() {
     const calendarContainer = document.getElementById('adminCalendar');
-    if (calendarContainer && !window.adminCalendar) {
-        window.adminCalendar = new BookingCalendar('adminCalendar', { isAdmin: true });
+    if (calendarContainer) {
+        if (!window.adminCalendar) {
+            window.adminCalendar = new BookingCalendar('adminCalendar', { isAdmin: true });
+        } else {
+            window.adminCalendar.loadBookings();
+        }
     }
 }
 
@@ -240,6 +272,8 @@ async function loadVendors() {
 
 function displayVendors(vendors) {
     const tbody = document.querySelector('#vendorsTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     vendors.forEach(vendor => {
@@ -318,6 +352,8 @@ async function loadUsers() {
 
 function displayUsers(users) {
     const tbody = document.querySelector('#usersTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     users.forEach(user => {
@@ -352,6 +388,8 @@ async function loadServices() {
 
 function displayServices(serviceCategories) {
     const grid = document.getElementById('servicesGrid');
+    if (!grid) return;
+    
     grid.innerHTML = '';
     
     serviceCategories.forEach(category => {
@@ -421,6 +459,8 @@ async function loadSupplyKits() {
 
 function displaySupplyKits(supplyKits) {
     const grid = document.getElementById('supplyKitsGrid');
+    if (!grid) return;
+    
     grid.innerHTML = '';
     
     supplyKits.forEach(kit => {
@@ -460,6 +500,8 @@ async function loadContractors() {
 
 function displayContractors(contractors) {
     const tbody = document.querySelector('#contractorsTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     contractors.forEach(contractor => {
@@ -502,6 +544,8 @@ async function loadEmployees() {
 
 function displayEmployees(employees) {
     const tbody = document.querySelector('#employeesTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     employees.forEach(employee => {
@@ -540,6 +584,8 @@ async function loadPayments() {
 
 function displayPayments(payments) {
     const tbody = document.querySelector('#paymentsTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     payments.forEach(payment => {

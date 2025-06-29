@@ -12,6 +12,10 @@ class BookingCalendar {
     }
 
     init() {
+        if (!this.container) {
+            console.error('Calendar container not found:', this.container);
+            return;
+        }
         this.render();
         this.loadBookings();
     }
@@ -20,24 +24,24 @@ class BookingCalendar {
         this.container.innerHTML = `
             <div class="calendar-header">
                 <div class="calendar-nav">
-                    <button class="nav-btn" onclick="calendar.previousPeriod()">
+                    <button class="nav-btn" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.previousPeriod()">
                         <i class="fas fa-chevron-left"></i>
                     </button>
                     <h3 class="calendar-title">${this.getTitle()}</h3>
-                    <button class="nav-btn" onclick="calendar.nextPeriod()">
+                    <button class="nav-btn" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.nextPeriod()">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
                 <div class="calendar-controls">
                     <div class="view-switcher">
                         <button class="view-btn ${this.viewMode === 'month' ? 'active' : ''}" 
-                                onclick="calendar.setViewMode('month')">Month</button>
+                                onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.setViewMode('month')">Month</button>
                         <button class="view-btn ${this.viewMode === 'week' ? 'active' : ''}" 
-                                onclick="calendar.setViewMode('week')">Week</button>
+                                onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.setViewMode('week')">Week</button>
                         <button class="view-btn ${this.viewMode === 'day' ? 'active' : ''}" 
-                                onclick="calendar.setViewMode('day')">Day</button>
+                                onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.setViewMode('day')">Day</button>
                     </div>
-                    <button class="btn-primary" onclick="calendar.goToToday()">Today</button>
+                    <button class="btn-primary" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.goToToday()">Today</button>
                 </div>
             </div>
             <div class="calendar-content">
@@ -46,7 +50,7 @@ class BookingCalendar {
             <div class="booking-details" id="bookingDetails" style="display: none;">
                 <div class="details-header">
                     <h4>Bookings for <span id="selectedDateText"></span></h4>
-                    <button class="close-details" onclick="calendar.closeDetails()">×</button>
+                    <button class="close-details" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.closeDetails()">×</button>
                 </div>
                 <div class="details-content" id="detailsContent"></div>
             </div>
@@ -100,7 +104,7 @@ class BookingCalendar {
                 html += `
                     <div class="calendar-day ${isCurrentMonth ? 'current-month' : 'other-month'} 
                          ${isToday ? 'today' : ''}" 
-                         onclick="calendar.selectDate('${currentDate.toISOString()}')">
+                         onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.selectDate('${currentDate.toISOString()}')">
                         <div class="day-number">${currentDate.getDate()}</div>
                         <div class="day-bookings">
                             ${this.renderDayBookings(dayBookings)}
@@ -153,7 +157,7 @@ class BookingCalendar {
                 const slotBookings = this.getBookingsForTimeSlot(timeSlot);
 
                 html += `
-                    <div class="time-slot-cell" onclick="calendar.selectTimeSlot('${timeSlot.toISOString()}')">
+                    <div class="time-slot-cell" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.selectTimeSlot('${timeSlot.toISOString()}')">
                         ${this.renderTimeSlotBookings(slotBookings)}
                     </div>
                 `;
@@ -236,7 +240,7 @@ class BookingCalendar {
             
             if (detailed) {
                 html += `
-                    <div class="booking-card ${statusClass}" onclick="calendar.showBookingDetails(${booking.booking_id})">
+                    <div class="booking-card ${statusClass}" onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.showBookingDetails(${booking.booking_id})">
                         <div class="booking-header">
                             <span class="booking-time">${booking.bookingTime}</span>
                             <span class="booking-status">${this.getStatusText(booking.bookingStatus)}</span>
@@ -252,7 +256,7 @@ class BookingCalendar {
                 html += `
                     <div class="booking-dot ${statusClass}" 
                          title="${booking.serviceName} - ${booking.userName} at ${booking.bookingTime}"
-                         onclick="calendar.showBookingDetails(${booking.booking_id})">
+                         onclick="window.${this.isAdmin ? 'adminCalendar' : 'vendorCalendar'}.showBookingDetails(${booking.booking_id})">
                     </div>
                 `;
             }
@@ -356,6 +360,11 @@ class BookingCalendar {
         const selectedDateText = document.getElementById('selectedDateText');
         const detailsContent = document.getElementById('detailsContent');
         
+        if (!detailsPanel || !selectedDateText || !detailsContent) {
+            console.error('Booking details elements not found');
+            return;
+        }
+        
         selectedDateText.textContent = date.toLocaleDateString('en', { 
             weekday: 'long', 
             month: 'long', 
@@ -396,7 +405,7 @@ class BookingCalendar {
     renderBookingActions(booking) {
         if (this.isAdmin) {
             return `
-                <button class="action-btn view" onclick="calendar.viewBookingDetails(${booking.booking_id})">
+                <button class="action-btn view" onclick="window.adminCalendar.viewBookingDetails(${booking.booking_id})">
                     View Details
                 </button>
             `;
@@ -404,10 +413,10 @@ class BookingCalendar {
             // Vendor actions
             if (booking.bookingStatus === 0) {
                 return `
-                    <button class="action-btn approve" onclick="calendar.updateBookingStatus(${booking.booking_id}, 1)">
+                    <button class="action-btn approve" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id}, 1)">
                         Accept
                     </button>
-                    <button class="action-btn reject" onclick="calendar.updateBookingStatus(${booking.booking_id}, 2)">
+                    <button class="action-btn reject" onclick="window.vendorCalendar.updateBookingStatus(${booking.booking_id}, 2)">
                         Reject
                     </button>
                 `;
@@ -444,7 +453,10 @@ class BookingCalendar {
     }
 
     closeDetails() {
-        document.getElementById('bookingDetails').style.display = 'none';
+        const detailsPanel = document.getElementById('bookingDetails');
+        if (detailsPanel) {
+            detailsPanel.style.display = 'none';
+        }
     }
 
     setViewMode(mode) {

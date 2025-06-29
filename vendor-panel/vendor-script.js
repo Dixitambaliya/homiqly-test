@@ -30,10 +30,14 @@ document.addEventListener('DOMContentLoaded', function() {
 // Event Listeners
 function setupEventListeners() {
     // Login form
-    loginForm.addEventListener('submit', handleLogin);
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
     
     // Logout button
-    logoutBtn.addEventListener('click', handleLogout);
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
     
     // Sidebar navigation
     document.querySelectorAll('.sidebar-menu a').forEach(link => {
@@ -46,20 +50,40 @@ function setupEventListeners() {
     });
     
     // Modal overlay click
-    modalOverlay.addEventListener('click', function(e) {
-        if (e.target === modalOverlay) {
-            closeModal();
-        }
-    });
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) {
+                closeModal();
+            }
+        });
+    }
     
     // Form submissions
-    document.getElementById('registerForm').addEventListener('submit', handleRegister);
-    document.getElementById('profileForm').addEventListener('submit', handleProfileUpdate);
-    document.getElementById('addServiceTypeForm').addEventListener('submit', handleAddServiceType);
-    document.getElementById('orderSupplyKitForm').addEventListener('submit', handleOrderSupplyKit);
+    const registerForm = document.getElementById('registerForm');
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    const profileForm = document.getElementById('profileForm');
+    if (profileForm) {
+        profileForm.addEventListener('submit', handleProfileUpdate);
+    }
+    
+    const addServiceTypeForm = document.getElementById('addServiceTypeForm');
+    if (addServiceTypeForm) {
+        addServiceTypeForm.addEventListener('submit', handleAddServiceType);
+    }
+    
+    const orderSupplyKitForm = document.getElementById('orderSupplyKitForm');
+    if (orderSupplyKitForm) {
+        orderSupplyKitForm.addEventListener('submit', handleOrderSupplyKit);
+    }
     
     // Profile image preview
-    document.getElementById('profileImageInput').addEventListener('change', previewProfileImage);
+    const profileImageInput = document.getElementById('profileImageInput');
+    if (profileImageInput) {
+        profileImageInput.addEventListener('change', previewProfileImage);
+    }
 }
 
 // Authentication
@@ -137,8 +161,11 @@ function handleNavigation(e) {
     const targetSection = document.getElementById(sectionName + 'Section');
     if (targetSection) {
         targetSection.classList.add('active');
-        document.getElementById('pageTitle').textContent = 
-            sectionName.charAt(0).toUpperCase() + sectionName.slice(1).replace('-', ' ');
+        const pageTitleElement = document.getElementById('pageTitle');
+        if (pageTitleElement) {
+            pageTitleElement.textContent = 
+                sectionName.charAt(0).toUpperCase() + sectionName.slice(1).replace('-', ' ');
+        }
         
         // Load section data
         loadSectionData(sectionName);
@@ -147,13 +174,13 @@ function handleNavigation(e) {
 
 // Screen Management
 function showLogin() {
-    loginScreen.style.display = 'flex';
-    dashboard.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (dashboard) dashboard.style.display = 'none';
 }
 
 function showDashboard() {
-    loginScreen.style.display = 'none';
-    dashboard.style.display = 'flex';
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (dashboard) dashboard.style.display = 'flex';
     
     // Load vendor name from profile
     loadVendorProfile().then(() => {
@@ -189,16 +216,24 @@ function updateDashboardStats(bookings) {
     const pendingBookings = bookings.filter(b => b.bookingStatus === 0).length;
     const completedBookings = bookings.filter(b => b.bookingStatus === 1).length;
     
-    document.getElementById('totalBookings').textContent = totalBookings;
-    document.getElementById('pendingBookings').textContent = pendingBookings;
-    document.getElementById('completedBookings').textContent = completedBookings;
+    const totalBookingsElement = document.getElementById('totalBookings');
+    if (totalBookingsElement) totalBookingsElement.textContent = totalBookings;
+    
+    const pendingBookingsElement = document.getElementById('pendingBookings');
+    if (pendingBookingsElement) pendingBookingsElement.textContent = pendingBookings;
+    
+    const completedBookingsElement = document.getElementById('completedBookings');
+    if (completedBookingsElement) completedBookingsElement.textContent = completedBookings;
     
     // Calculate total earnings (this would need payment data)
-    document.getElementById('totalEarnings').textContent = '₹0';
+    const totalEarningsElement = document.getElementById('totalEarnings');
+    if (totalEarningsElement) totalEarningsElement.textContent = '₹0';
 }
 
 function displayRecentBookings(bookings) {
     const container = document.getElementById('recentBookings');
+    if (!container) return;
+    
     container.innerHTML = '';
     
     if (bookings.length === 0) {
@@ -255,9 +290,12 @@ async function loadSectionData(section) {
 // Calendar Initialization
 function initializeVendorCalendar() {
     const calendarContainer = document.getElementById('vendorCalendar');
-    if (calendarContainer && !window.vendorCalendar) {
-        
-        window.vendorCalendar = new VendorBookingCalendar('vendorCalendar', vendorData.vendor_type);
+    if (calendarContainer) {
+        if (!window.vendorCalendar) {
+            window.vendorCalendar = new VendorBookingCalendar('vendorCalendar', vendorData.vendor_type);
+        } else {
+            window.vendorCalendar.loadBookings();
+        }
     }
 }
 
@@ -275,7 +313,10 @@ async function loadVendorProfile() {
             displayVendorProfile(data.profile);
             
             // Update vendor name in header
-            document.getElementById('vendorName').textContent = data.profile.name || 'Vendor User';
+            const vendorNameElement = document.getElementById('vendorName');
+            if (vendorNameElement) {
+                vendorNameElement.textContent = data.profile.name || 'Vendor User';
+            }
         }
     } catch (error) {
         console.error('Error loading vendor profile:', error);
@@ -283,18 +324,25 @@ async function loadVendorProfile() {
 }
 
 function displayVendorProfile(profile) {
-    document.getElementById('vendorNameInput').value = profile.name || '';
-    document.getElementById('vendorEmailInput').value = profile.email || '';
-    document.getElementById('vendorPhoneInput').value = profile.phone || '';
+    const vendorNameInput = document.getElementById('vendorNameInput');
+    const vendorEmailInput = document.getElementById('vendorEmailInput');
+    const vendorPhoneInput = document.getElementById('vendorPhoneInput');
+    const profileImagePreview = document.getElementById('profileImagePreview');
+    const companyFields = document.getElementById('companyFields');
+    const companyAddressInput = document.getElementById('companyAddressInput');
     
-    if (profile.profileImage) {
-        document.getElementById('profileImagePreview').src = profile.profileImage;
+    if (vendorNameInput) vendorNameInput.value = profile.name || '';
+    if (vendorEmailInput) vendorEmailInput.value = profile.email || '';
+    if (vendorPhoneInput) vendorPhoneInput.value = profile.phone || '';
+    
+    if (profileImagePreview && profile.profileImage) {
+        profileImagePreview.src = profile.profileImage;
     }
     
     // Show company fields if vendor is a company
     if (profile.vendorType === 'company') {
-        document.getElementById('companyFields').style.display = 'block';
-        document.getElementById('companyAddressInput').value = profile.companyAddress || '';
+        if (companyFields) companyFields.style.display = 'block';
+        if (companyAddressInput) companyAddressInput.value = profile.companyAddress || '';
     }
 }
 
@@ -306,8 +354,11 @@ function enableProfileEdit() {
         }
     });
     
-    document.querySelector('.profile-actions').style.display = 'flex';
-    document.querySelector('.section-header button').style.display = 'none';
+    const profileActions = document.querySelector('.profile-actions');
+    if (profileActions) profileActions.style.display = 'flex';
+    
+    const editButton = document.querySelector('.section-header button');
+    if (editButton) editButton.style.display = 'none';
 }
 
 function cancelProfileEdit() {
@@ -318,8 +369,11 @@ function cancelProfileEdit() {
         }
     });
     
-    document.querySelector('.profile-actions').style.display = 'none';
-    document.querySelector('.section-header button').style.display = 'block';
+    const profileActions = document.querySelector('.profile-actions');
+    if (profileActions) profileActions.style.display = 'none';
+    
+    const editButton = document.querySelector('.section-header button');
+    if (editButton) editButton.style.display = 'block';
     
     // Reload profile data
     loadVendorProfile();
@@ -357,7 +411,10 @@ function previewProfileImage(e) {
     if (file) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            document.getElementById('profileImagePreview').src = e.target.result;
+            const profileImagePreview = document.getElementById('profileImagePreview');
+            if (profileImagePreview) {
+                profileImagePreview.src = e.target.result;
+            }
         };
         reader.readAsDataURL(file);
     }
@@ -383,6 +440,8 @@ async function loadVendorServices() {
 
 function displayVendorServices(services) {
     const grid = document.getElementById('vendorServicesGrid');
+    if (!grid) return;
+    
     grid.innerHTML = '';
     
     if (!services || services.length === 0) {
@@ -451,6 +510,8 @@ async function loadVendorBookings() {
 
 function displayVendorBookings(bookings) {
     const tbody = document.querySelector('#bookingsTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     if (!bookings || bookings.length === 0) {
@@ -534,6 +595,8 @@ async function loadVendorSupplyKits() {
 
 function displayVendorSupplyKits(orders) {
     const grid = document.getElementById('supplyOrdersGrid');
+    if (!grid) return;
+    
     grid.innerHTML = '';
     
     if (!orders || orders.length === 0) {
@@ -580,6 +643,8 @@ async function loadVendorPayments() {
 
 function displayVendorPayments(payments) {
     const tbody = document.querySelector('#paymentsTable tbody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
     
     if (!payments || payments.length === 0) {
@@ -625,21 +690,32 @@ async function loadVendorRatings() {
 
 function displayVendorRatings(ratings, averageRating, totalReviews) {
     // Update average rating
-    document.getElementById('averageRating').textContent = averageRating.toFixed(1);
-    document.getElementById('totalReviews').textContent = `${totalReviews} reviews`;
+    const averageRatingElement = document.getElementById('averageRating');
+    if (averageRatingElement) {
+        averageRatingElement.textContent = averageRating.toFixed(1);
+    }
+    
+    const totalReviewsElement = document.getElementById('totalReviews');
+    if (totalReviewsElement) {
+        totalReviewsElement.textContent = `${totalReviews} reviews`;
+    }
     
     // Update stars
     const starsContainer = document.getElementById('averageStars');
-    starsContainer.innerHTML = '';
-    for (let i = 1; i <= 5; i++) {
-        const star = document.createElement('span');
-        star.className = i <= averageRating ? 'star' : 'star empty';
-        star.innerHTML = '★';
-        starsContainer.appendChild(star);
+    if (starsContainer) {
+        starsContainer.innerHTML = '';
+        for (let i = 1; i <= 5; i++) {
+            const star = document.createElement('span');
+            star.className = i <= averageRating ? 'star' : 'star empty';
+            star.innerHTML = '★';
+            starsContainer.appendChild(star);
+        }
     }
     
     // Display reviews
     const reviewsList = document.getElementById('reviewsList');
+    if (!reviewsList) return;
+    
     reviewsList.innerHTML = '';
     
     if (!ratings || ratings.length === 0) {
@@ -695,12 +771,19 @@ function toggleVendorFields() {
 
 function showStep(step) {
     document.querySelectorAll('.form-step').forEach(s => s.style.display = 'none');
-    document.getElementById(`step${step}`).style.display = 'block';
+    const stepElement = document.getElementById(`step${step}`);
+    if (stepElement) {
+        stepElement.style.display = 'block';
+    }
     
     // Update buttons
-    document.getElementById('prevBtn').style.display = step > 1 ? 'block' : 'none';
-    document.getElementById('nextBtn').style.display = step < 3 ? 'block' : 'none';
-    document.getElementById('submitBtn').style.display = step === 3 ? 'block' : 'none';
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (prevBtn) prevBtn.style.display = step > 1 ? 'block' : 'none';
+    if (nextBtn) nextBtn.style.display = step < 3 ? 'block' : 'none';
+    if (submitBtn) submitBtn.style.display = step === 3 ? 'block' : 'none';
 }
 
 function nextStep() {
@@ -717,6 +800,8 @@ function previousStep() {
 
 function validateCurrentStep() {
     const currentStepElement = document.getElementById(`step${currentStep}`);
+    if (!currentStepElement) return true;
+    
     const requiredFields = currentStepElement.querySelectorAll('[required]');
     
     for (let field of requiredFields) {
@@ -751,6 +836,8 @@ async function loadServicesForRegistration() {
 
 function displayServicesForSelection(serviceCategories) {
     const container = document.getElementById('servicesList');
+    if (!container) return;
+    
     container.innerHTML = '';
     
     serviceCategories.forEach(category => {
@@ -785,14 +872,14 @@ function toggleServiceSelection(checkbox) {
     const locationDiv = document.getElementById(`location_${serviceId}`);
     
     if (checkbox.checked) {
-        locationDiv.style.display = 'block';
+        if (locationDiv) locationDiv.style.display = 'block';
         selectedServices.push({
             serviceId: serviceId,
             serviceCategoryId: categoryId,
             serviceLocation: ''
         });
     } else {
-        locationDiv.style.display = 'none';
+        if (locationDiv) locationDiv.style.display = 'none';
         selectedServices = selectedServices.filter(s => s.serviceId !== serviceId);
     }
 }
@@ -887,6 +974,8 @@ async function handleAddServiceType(e) {
 
 function addPackage() {
     const container = document.getElementById('packagesContainer');
+    if (!container) return;
+    
     const packageCount = container.children.length;
     
     const packageItem = document.createElement('div');
@@ -930,6 +1019,8 @@ async function loadAvailableSupplyKits() {
 
 function populateSupplyKitSelect(supplyKits) {
     const select = document.getElementById('kitSelect');
+    if (!select) return;
+    
     select.innerHTML = '<option value="">Select Supply Kit</option>';
     
     supplyKits.forEach(kit => {
@@ -944,6 +1035,8 @@ function populateSupplyKitSelect(supplyKits) {
 
 function updateKitDetails() {
     const select = document.getElementById('kitSelect');
+    if (!select) return;
+    
     const selectedOption = select.options[select.selectedIndex];
     const detailsDiv = document.getElementById('kitDetails');
     
@@ -962,13 +1055,18 @@ function updateKitDetails() {
 
 function calculateTotal() {
     const select = document.getElementById('kitSelect');
-    const quantity = parseInt(document.getElementById('kitQuantity').value) || 0;
+    const quantityInput = document.getElementById('kitQuantity');
+    const totalAmountElement = document.getElementById('totalAmount');
+    
+    if (!select || !quantityInput || !totalAmountElement) return;
+    
+    const quantity = parseInt(quantityInput.value) || 0;
     const selectedOption = select.options[select.selectedIndex];
     
     if (selectedOption.value) {
         const price = parseFloat(selectedOption.dataset.price);
         const total = price * quantity;
-        document.getElementById('totalAmount').textContent = total.toFixed(2);
+        totalAmountElement.textContent = total.toFixed(2);
     }
 }
 
@@ -1009,12 +1107,13 @@ async function handleOrderSupplyKit(e) {
 
 // Modal Management
 function showModal(modalId) {
-    modalOverlay.classList.add('active');
-    document.getElementById(modalId).style.display = 'block';
+    if (modalOverlay) modalOverlay.classList.add('active');
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'block';
 }
 
 function closeModal() {
-    modalOverlay.classList.remove('active');
+    if (modalOverlay) modalOverlay.classList.remove('active');
     document.querySelectorAll('.modal').forEach(modal => {
         modal.style.display = 'none';
     });
@@ -1044,6 +1143,8 @@ async function loadVendorRegisteredServices() {
 
 function populateServiceSelect(services) {
     const select = document.getElementById('serviceSelect');
+    if (!select) return;
+    
     select.innerHTML = '<option value="">Select Service</option>';
     
     if (!services || services.length === 0) {

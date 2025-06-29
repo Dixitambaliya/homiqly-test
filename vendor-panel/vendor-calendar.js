@@ -51,6 +51,11 @@ class VendorBookingCalendar extends BookingCalendar {
     }
 
     render() {
+        if (!this.container) {
+            console.error('Calendar container not found');
+            return;
+        }
+        
         this.container.innerHTML = `
             ${this.renderVendorStats()}
             <div class="calendar-header">
@@ -97,7 +102,7 @@ class VendorBookingCalendar extends BookingCalendar {
                         <i class="fas fa-calendar-day"></i>
                     </div>
                     <div class="stat-info">
-                        <h3>${this.vendorStats.todayBookings}</h3>
+                        <h3>${this.vendorStats.todayBookings || 0}</h3>
                         <p>Today's Bookings</p>
                     </div>
                 </div>
@@ -106,7 +111,7 @@ class VendorBookingCalendar extends BookingCalendar {
                         <i class="fas fa-clock"></i>
                     </div>
                     <div class="stat-info">
-                        <h3>${this.vendorStats.pendingBookings}</h3>
+                        <h3>${this.vendorStats.pendingBookings || 0}</h3>
                         <p>Pending Approval</p>
                     </div>
                 </div>
@@ -115,7 +120,7 @@ class VendorBookingCalendar extends BookingCalendar {
                         <i class="fas fa-check-circle"></i>
                     </div>
                     <div class="stat-info">
-                        <h3>${this.vendorStats.approvedBookings}</h3>
+                        <h3>${this.vendorStats.approvedBookings || 0}</h3>
                         <p>Approved</p>
                     </div>
                 </div>
@@ -124,7 +129,7 @@ class VendorBookingCalendar extends BookingCalendar {
                         <i class="fas fa-calendar-alt"></i>
                     </div>
                     <div class="stat-info">
-                        <h3>${this.vendorStats.thisMonthBookings}</h3>
+                        <h3>${this.vendorStats.thisMonthBookings || 0}</h3>
                         <p>This Month</p>
                     </div>
                 </div>
@@ -172,22 +177,22 @@ class VendorBookingCalendar extends BookingCalendar {
     renderBookingActions(booking) {
         if (booking.bookingStatus === 0) {
             return `
-                <button class="action-btn approve" onclick="vendorCalendar.updateBookingStatus(${booking.booking_id}, 1)">
+                <button class="action-btn approve" onclick="vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 1)">
                     <i class="fas fa-check"></i> Accept
                 </button>
-                <button class="action-btn reject" onclick="vendorCalendar.updateBookingStatus(${booking.booking_id}, 2)">
+                <button class="action-btn reject" onclick="vendorCalendar.updateBookingStatus(${booking.booking_id || booking.bookingId}, 2)">
                     <i class="fas fa-times"></i> Reject
                 </button>
-                <button class="action-btn edit" onclick="vendorCalendar.rescheduleBooking(${booking.booking_id})">
+                <button class="action-btn edit" onclick="vendorCalendar.rescheduleBooking(${booking.booking_id || booking.bookingId})">
                     <i class="fas fa-edit"></i> Reschedule
                 </button>
             `;
         } else if (booking.bookingStatus === 1) {
             return `
-                <button class="action-btn view" onclick="vendorCalendar.viewBookingDetails(${booking.booking_id})">
+                <button class="action-btn view" onclick="vendorCalendar.viewBookingDetails(${booking.booking_id || booking.bookingId})">
                     <i class="fas fa-eye"></i> View Details
                 </button>
-                <button class="action-btn edit" onclick="vendorCalendar.addNotes(${booking.booking_id})">
+                <button class="action-btn edit" onclick="vendorCalendar.addNotes(${booking.booking_id || booking.bookingId})">
                     <i class="fas fa-sticky-note"></i> Add Notes
                 </button>
             `;
@@ -196,11 +201,14 @@ class VendorBookingCalendar extends BookingCalendar {
     }
 
     getUniqueCustomers() {
+        if (!this.bookings || !this.bookings.length) return 0;
         const uniqueCustomers = new Set(this.bookings.map(b => b.user_id));
         return uniqueCustomers.size;
     }
 
     getMonthlyGrowth() {
+        if (!this.bookings || !this.bookings.length) return 0;
+        
         const thisMonth = new Date();
         const lastMonth = new Date(thisMonth.getFullYear(), thisMonth.getMonth() - 1, 1);
         const thisMonthEnd = new Date(thisMonth.getFullYear(), thisMonth.getMonth() + 1, 1);
@@ -222,7 +230,11 @@ class VendorBookingCalendar extends BookingCalendar {
 
     async setAvailability() {
         // Show availability setting modal
-        showModal('availabilityModal');
+        if (typeof showModal === 'function') {
+            showModal('availabilityModal');
+        } else {
+            console.error('showModal function not found');
+        }
     }
 
     async exportSchedule() {
@@ -237,7 +249,9 @@ class VendorBookingCalendar extends BookingCalendar {
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error exporting schedule:', error);
-            showNotification('Failed to export schedule', 'error');
+            if (typeof showNotification === 'function') {
+                showNotification('Failed to export schedule', 'error');
+            }
         }
     }
 
@@ -259,14 +273,25 @@ class VendorBookingCalendar extends BookingCalendar {
 
     async rescheduleBooking(bookingId) {
         // Show reschedule modal
-        showNotification('Reschedule functionality coming soon', 'info');
+        if (typeof showNotification === 'function') {
+            showNotification('Reschedule functionality coming soon', 'info');
+        }
     }
 
     async addNotes(bookingId) {
         const notes = prompt('Add notes for this booking:');
         if (notes) {
             // API call to add notes
-            showNotification('Notes added successfully', 'success');
+            if (typeof showNotification === 'function') {
+                showNotification('Notes added successfully', 'success');
+            }
+        }
+    }
+    
+    async viewBookingDetails(bookingId) {
+        // View booking details
+        if (typeof showNotification === 'function') {
+            showNotification('Viewing booking details', 'info');
         }
     }
 }
