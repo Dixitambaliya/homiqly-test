@@ -385,7 +385,7 @@ function displayVendorServices(services) {
     const grid = document.getElementById('vendorServicesGrid');
     grid.innerHTML = '';
     
-    if (services.length === 0) {
+    if (!services || services.length === 0) {
         grid.innerHTML = '<p class="text-center">No services found. Add your first service type!</p>';
         return;
     }
@@ -452,6 +452,11 @@ async function loadVendorBookings() {
 function displayVendorBookings(bookings) {
     const tbody = document.querySelector('#bookingsTable tbody');
     tbody.innerHTML = '';
+    
+    if (!bookings || bookings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">No bookings found</td></tr>';
+        return;
+    }
     
     bookings.forEach(booking => {
         const row = document.createElement('tr');
@@ -531,7 +536,7 @@ function displayVendorSupplyKits(orders) {
     const grid = document.getElementById('supplyOrdersGrid');
     grid.innerHTML = '';
     
-    if (orders.length === 0) {
+    if (!orders || orders.length === 0) {
         grid.innerHTML = '<p class="text-center">No supply kit orders found.</p>';
         return;
     }
@@ -576,6 +581,11 @@ async function loadVendorPayments() {
 function displayVendorPayments(payments) {
     const tbody = document.querySelector('#paymentsTable tbody');
     tbody.innerHTML = '';
+    
+    if (!payments || payments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No payment records found</td></tr>';
+        return;
+    }
     
     payments.forEach(payment => {
         const row = document.createElement('tr');
@@ -631,6 +641,11 @@ function displayVendorRatings(ratings, averageRating, totalReviews) {
     // Display reviews
     const reviewsList = document.getElementById('reviewsList');
     reviewsList.innerHTML = '';
+    
+    if (!ratings || ratings.length === 0) {
+        reviewsList.innerHTML = '<p class="text-center">No reviews yet</p>';
+        return;
+    }
     
     ratings.forEach(rating => {
         const card = document.createElement('div');
@@ -802,14 +817,14 @@ async function handleRegister(e) {
             body: formData
         });
         
+        const data = await response.json();
+        
         if (response.ok) {
-            const data = await response.json();
             showNotification('Registration successful! Please wait for admin approval.', 'success');
             closeModal();
             e.target.reset();
             selectedServices = [];
         } else {
-            const data = await response.json();
             showNotification(data.error || 'Registration failed', 'error');
         }
     } catch (error) {
@@ -1030,6 +1045,11 @@ async function loadVendorRegisteredServices() {
 function populateServiceSelect(services) {
     const select = document.getElementById('serviceSelect');
     select.innerHTML = '<option value="">Select Service</option>';
+    
+    if (!services || services.length === 0) {
+        select.innerHTML += '<option value="" disabled>No services available</option>';
+        return;
+    }
     
     services.forEach(service => {
         const option = document.createElement('option');

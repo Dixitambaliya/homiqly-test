@@ -29,6 +29,7 @@
             </form>
             <div class="login-footer">
                 <p>Don't have an account? <a href="#" onclick="showRegisterModal()">Register here</a></p>
+                <p><a href="#" onclick="showForgotPasswordModal()">Forgot password?</a></p>
             </div>
         </div>
     </div>
@@ -380,6 +381,66 @@
             </form>
         </div>
 
+        <!-- Forgot Password Modal -->
+        <div id="forgotPasswordModal" class="modal">
+            <div class="modal-header">
+                <h3>Reset Password</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="forgotPasswordForm">
+                <div class="form-group">
+                    <label for="resetEmail">Email</label>
+                    <input type="email" id="resetEmail" name="email" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Send Reset Code</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Verify Code Modal -->
+        <div id="verifyCodeModal" class="modal">
+            <div class="modal-header">
+                <h3>Verify Reset Code</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="verifyCodeForm">
+                <input type="hidden" id="verifyEmail" name="email">
+                <div class="form-group">
+                    <label for="resetCode">Enter Reset Code</label>
+                    <input type="text" id="resetCode" name="resetCode" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Verify Code</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- New Password Modal -->
+        <div id="newPasswordModal" class="modal">
+            <div class="modal-header">
+                <h3>Set New Password</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="newPasswordForm">
+                <input type="hidden" id="resetToken" name="token">
+                <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <input type="password" id="newPassword" name="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmNewPassword">Confirm New Password</label>
+                    <input type="password" id="confirmNewPassword" name="confirmNewPassword" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Reset Password</button>
+                </div>
+            </form>
+        </div>
+
         <!-- Add Service Type Modal -->
         <div id="addServiceTypeModal" class="modal">
             <div class="modal-header">
@@ -481,5 +542,123 @@
     <script src="../admin-panel/calendar.js"></script>
     <script src="vendor-calendar.js"></script>
     <script src="vendor-script.js"></script>
+    <script>
+        // Password reset functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Forgot password form
+            const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+            if (forgotPasswordForm) {
+                forgotPasswordForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const email = document.getElementById('resetEmail').value;
+                    
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/vendor/requestreset`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ email })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            showNotification('Reset code sent to your email', 'success');
+                            closeModal();
+                            
+                            // Prepare verify code modal
+                            document.getElementById('verifyEmail').value = email;
+                            showModal('verifyCodeModal');
+                        } else {
+                            showNotification(data.error || 'Failed to send reset code', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Reset request error:', error);
+                        showNotification('Network error', 'error');
+                    }
+                });
+            }
+            
+            // Verify code form
+            const verifyCodeForm = document.getElementById('verifyCodeForm');
+            if (verifyCodeForm) {
+                verifyCodeForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const email = document.getElementById('verifyEmail').value;
+                    const resetCode = document.getElementById('resetCode').value;
+                    
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/vendor/verifyresetcode`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ email, resetCode })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            showNotification('Code verified successfully', 'success');
+                            closeModal();
+                            
+                            // Prepare new password modal
+                            document.getElementById('resetToken').value = data.token;
+                            showModal('newPasswordModal');
+                        } else {
+                            showNotification(data.error || 'Invalid code', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Code verification error:', error);
+                        showNotification('Network error', 'error');
+                    }
+                });
+            }
+            
+            // New password form
+            const newPasswordForm = document.getElementById('newPasswordForm');
+            if (newPasswordForm) {
+                newPasswordForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const token = document.getElementById('resetToken').value;
+                    const newPassword = document.getElementById('newPassword').value;
+                    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+                    
+                    if (newPassword !== confirmNewPassword) {
+                        showNotification('Passwords do not match', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/vendor/resetpassword`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ newPassword })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            showNotification('Password reset successfully', 'success');
+                            closeModal();
+                        } else {
+                            showNotification(data.error || 'Failed to reset password', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Password reset error:', error);
+                        showNotification('Network error', 'error');
+                    }
+                });
+            }
+        });
+
+        function showForgotPasswordModal() {
+            showModal('forgotPasswordModal');
+        }
+    </script>
 </body>
 </html>

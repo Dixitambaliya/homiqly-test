@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const vendorAuthQueries = require("../config/vendorQueries/vendorAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
+const admin = require("../config/firebaseConfig");
 
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -63,6 +64,9 @@ const registerVendor = async (req, res) => {
     ]);
     const vendor_id = vendorRes.insertId;
 
+    // Check if files were uploaded
+    console.log("Uploaded files:", req.uploadedFiles);
+
     // Upload documents
     if (vendorType.toLowerCase() === "company") {
       await conn.query(vendorAuthQueries.insertCompanyDetails, [
@@ -76,12 +80,11 @@ const registerVendor = async (req, res) => {
       ]);
     } else if (vendorType.toLowerCase() === "individual") {
       const resume = req.uploadedFiles?.resume?.[0]?.url || null;
-      // console.log("Uploaded files:", req.files);
-
-      if (!resume) {
+      
+      if (!resume && req.files && req.files.some(f => f.fieldname === 'resume')) {
         return res
           .status(400)
-          .json({ error: "Resume upload failed or missing." });
+          .json({ error: "Resume upload failed. Please try again." });
       }
 
       await conn.query(vendorAuthQueries.insertIndividualDetails, [
@@ -162,6 +165,33 @@ const registerVendor = async (req, res) => {
     }
 
     await conn.commit();
+    
+    // Send notification to admins
+    try {
+      const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
+      if (adminEmails.length > 0) {
+        const emailAddresses = adminEmails.map(row => row.email);
+        await transport.sendMail({
+          from: process.env.EMAIL_USER || "noreply@homiqly.com",
+          to: emailAddresses,
+          subject: "New Vendor Registration",
+          html: `
+            <h2>New Vendor Registration</h2>
+            <p>A new vendor has registered and is pending approval:</p>
+            <ul>
+              <li><strong>Vendor Type:</strong> ${vendorType}</li>
+              <li><strong>Name:</strong> ${vendorType === 'individual' ? name : companyName}</li>
+              <li><strong>Email:</strong> ${vendorType === 'individual' ? email : companyEmail}</li>
+            </ul>
+            <p>Please review and approve in the admin panel.</p>
+          `
+        });
+      }
+    } catch (emailError) {
+      console.error("Failed to send admin notification:", emailError);
+      // Don't fail the registration if email fails
+    }
+    
     res
       .status(201)
       .json({ message: "Vendor registered successfully", vendor_id });
