@@ -292,7 +292,8 @@ function initializeVendorCalendar() {
     const calendarContainer = document.getElementById('vendorCalendar');
     if (calendarContainer) {
         if (!window.vendorCalendar) {
-            window.vendorCalendar = new VendorBookingCalendar('vendorCalendar', vendorData.vendor_type);
+            window.vendorCalendar = new VendorBookingCalendar('vendorCalendar', { vendorType: vendorData.vendor_type });
+            window.vendorCalendar.loadBookings();
         } else {
             window.vendorCalendar.loadBookings();
         }

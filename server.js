@@ -36,6 +36,10 @@ app.use(express.json())
 app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
 app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
 
+// Serve Vite builds
+app.use('/admin', express.static(path.join(__dirname, 'admin-vite/dist')));
+app.use('/vendor', express.static(path.join(__dirname, 'vendor-vite/dist')));
+
 // API Routes
 app.use("/api/user", userAuthRoutes)
 app.use("/api/admin", adminAuthRoutes)
@@ -58,7 +62,16 @@ app.use("/api/rating", ratingRoutes)
 
 // Root route - redirect to admin panel
 app.get("/", (req, res) => {
-    res.redirect("/admin-panel");
+    res.redirect("/admin");
+});
+
+// Serve Vite SPA routes
+app.get('/admin/*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin-vite/dist/index.html'));
+});
+
+app.get('/vendor/*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'vendor-vite/dist/index.html'));
 });
 
 // Health check endpoint
@@ -68,8 +81,10 @@ app.get("/api/health", (req, res) => {
         message: "Homiqly Backend is running",
         timestamp: new Date().toISOString(),
         panels: {
-            admin: `http://localhost:${PORT}/admin-panel`,
-            vendor: `http://localhost:${PORT}/vendor-panel`
+            admin: `http://localhost:${PORT}/admin`,
+            vendor: `http://localhost:${PORT}/vendor`,
+            legacy_admin: `http://localhost:${PORT}/admin-panel`,
+            legacy_vendor: `http://localhost:${PORT}/vendor-panel`
         }
     });
 });
@@ -123,8 +138,10 @@ app.listen(PORT, async () => {
     console.log(`🚀 Homiqly Backend Server starting on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
     console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
-    console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin-panel`);
-    console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor-panel`);
+    console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin`);
+    console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor`);
+    console.log(`👨‍💼 Legacy Admin Panel: http://localhost:${PORT}/admin-panel`);
+    console.log(`🏪 Legacy Vendor Panel: http://localhost:${PORT}/vendor-panel`);
     
     // Test database connection
     const isConnected = await testConnection();

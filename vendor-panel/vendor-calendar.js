@@ -1,8 +1,8 @@
 // Vendor-specific calendar functionality
 class VendorBookingCalendar extends BookingCalendar {
-    constructor(containerId, vendorType) {
-        super(containerId, { isAdmin: false });
-        this.vendorType = vendorType; // 'individual' or 'company'
+    constructor(containerId, options = {}) {
+        super(containerId, { isAdmin: false, viewMode: options.viewMode || 'month' });
+        this.vendorType = options.vendorType || 'individual';
         this.vendorStats = {
             totalBookings: 0,
             pendingBookings: 0,
@@ -12,7 +12,6 @@ class VendorBookingCalendar extends BookingCalendar {
             thisMonthBookings: 0,
             upcomingBookings: 0
         };
-        this.init();
     }
 
     async loadBookings() {
@@ -28,6 +27,8 @@ class VendorBookingCalendar extends BookingCalendar {
                 this.bookings = data.bookings || [];
                 this.calculateStats();
                 this.render();
+            } else {
+                console.error('Failed to load bookings:', response.status);
             }
         } catch (error) {
             console.error('Error loading vendor bookings:', error);
@@ -40,6 +41,8 @@ class VendorBookingCalendar extends BookingCalendar {
         }
         
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
         const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
@@ -50,7 +53,8 @@ class VendorBookingCalendar extends BookingCalendar {
             cancelledBookings: this.bookings.filter(b => b.bookingStatus === 2).length,
             todayBookings: this.bookings.filter(b => {
                 const bookingDate = new Date(b.bookingDate);
-                return bookingDate.toDateString() === today.toDateString();
+                bookingDate.setHours(0, 0, 0, 0);
+                return bookingDate.getTime() === today.getTime();
             }).length,
             thisMonthBookings: this.bookings.filter(b => {
                 const bookingDate = new Date(b.bookingDate);
@@ -58,7 +62,7 @@ class VendorBookingCalendar extends BookingCalendar {
             }).length,
             upcomingBookings: this.bookings.filter(b => {
                 const bookingDate = new Date(b.bookingDate);
-                return bookingDate > today && b.bookingStatus === 1;
+                return bookingDate > today && b.bookingStatus === 0;
             }).length
         };
     }
@@ -145,30 +149,6 @@ class VendorBookingCalendar extends BookingCalendar {
                         <h3>${this.vendorStats.thisMonthBookings || 0}</h3>
                         <p>This Month</p>
                     </div>
-                </div>
-                ${this.vendorType === 'company' ? this.renderCompanyStats() : ''}
-            </div>
-        `;
-    }
-
-    renderCompanyStats() {
-        return `
-            <div class="vendor-stat-card company-stat">
-                <div class="stat-icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>${this.getUniqueCustomers()}</h3>
-                    <p>Unique Customers</p>
-                </div>
-            </div>
-            <div class="vendor-stat-card company-stat">
-                <div class="stat-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <div class="stat-info">
-                    <h3>${this.getMonthlyGrowth()}%</h3>
-                    <p>Monthly Growth</p>
                 </div>
             </div>
         `;
