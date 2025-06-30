@@ -57,7 +57,7 @@ const Login = () => {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary-light"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
               placeholder="vendor@example.com"
             />
           </div>
@@ -79,7 +79,7 @@ const Login = () => {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary-light"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
               placeholder="••••••••"
             />
           </div>
@@ -91,7 +91,7 @@ const Login = () => {
               id="remember-me"
               name="remember-me"
               type="checkbox"
-              className="h-4 w-4 text-primary-light focus:ring-primary-light border-gray-300 rounded"
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
             />
             <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
               Remember me
@@ -99,7 +99,7 @@ const Login = () => {
           </div>
 
           <div className="text-sm">
-            <Link to="/vendor/forgot-password" className="font-medium text-primary-light hover:text-primary-dark">
+            <Link to="/vendor/forgot-password" className="font-medium text-primary hover:text-primary-dark">
               Forgot your password?
             </Link>
           </div>
@@ -109,7 +109,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-primary-dark to-primary-light hover:from-primary-light hover:to-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light disabled:opacity-50"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-primary-dark to-primary hover:from-primary hover:to-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
           >
             {loading ? (
               <>
@@ -126,7 +126,7 @@ const Login = () => {
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
           Don't have an account?{' '}
-          <Link to="/vendor/register" className="font-medium text-primary-light hover:text-primary-dark">
+          <Link to="/vendor/register" className="font-medium text-primary hover:text-primary-dark">
             Register here
           </Link>
         </p>

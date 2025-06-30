@@ -171,27 +171,27 @@ const Register = () => {
     <div>
       <div className="mb-6">
         <div className="flex items-center justify-between">
-          <div className={`flex-1 ${step >= 1 ? 'text-primary-light' : 'text-gray-300'}`}>
+          <div className={`flex-1 ${step >= 1 ? 'text-primary' : 'text-gray-300'}`}>
             <div className="flex items-center">
-              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 1 ? 'border-primary-light bg-primary-light text-white' : 'border-gray-300'}`}>
+              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 1 ? 'border-primary bg-primary text-white' : 'border-gray-300'}`}>
                 1
               </div>
               <span className="ml-2 text-sm font-medium">Basic Info</span>
             </div>
           </div>
-          <div className={`h-1 flex-1 mx-2 ${step >= 2 ? 'bg-primary-light' : 'bg-gray-200'}`}></div>
-          <div className={`flex-1 ${step >= 2 ? 'text-primary-light' : 'text-gray-300'}`}>
+          <div className={`h-1 flex-1 mx-2 ${step >= 2 ? 'bg-primary' : 'bg-gray-200'}`}></div>
+          <div className={`flex-1 ${step >= 2 ? 'text-primary' : 'text-gray-300'}`}>
             <div className="flex items-center">
-              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 2 ? 'border-primary-light bg-primary-light text-white' : 'border-gray-300'}`}>
+              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 2 ? 'border-primary bg-primary text-white' : 'border-gray-300'}`}>
                 2
               </div>
               <span className="ml-2 text-sm font-medium">Services</span>
             </div>
           </div>
-          <div className={`h-1 flex-1 mx-2 ${step >= 3 ? 'bg-primary-light' : 'bg-gray-200'}`}></div>
-          <div className={`flex-1 ${step >= 3 ? 'text-primary-light' : 'text-gray-300'}`}>
+          <div className={`h-1 flex-1 mx-2 ${step >= 3 ? 'bg-primary' : 'bg-gray-200'}`}></div>
+          <div className={`flex-1 ${step >= 3 ? 'text-primary' : 'text-gray-300'}`}>
             <div className="flex items-center">
-              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 3 ? 'border-primary-light bg-primary-light text-white' : 'border-gray-300'}`}>
+              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 3 ? 'border-primary bg-primary text-white' : 'border-gray-300'}`}>
                 3
               </div>
               <span className="ml-2 text-sm font-medium">Confirm</span>
@@ -212,7 +212,7 @@ const Register = () => {
                 id="vendorType"
                 value={vendorType}
                 onChange={(e) => setVendorType(e.target.value)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-primary-light focus:border-primary-light rounded-md"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-primary focus:border-primary rounded-md"
               >
                 <option value="">Select Vendor Type</option>
                 <option value="individual">Individual</option>
@@ -235,7 +235,7 @@ const Register = () => {
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                       placeholder="John Doe"
                     />
                   </div>
@@ -254,7 +254,7 @@ const Register = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                       placeholder="john@example.com"
                     />
                   </div>
@@ -273,7 +273,7 @@ const Register = () => {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                       placeholder="+91 9876543210"
                     />
                   </div>
@@ -292,7 +292,7 @@ const Register = () => {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                       placeholder="••••••••"
                     />
                   </div>
@@ -307,7 +307,7 @@ const Register = () => {
                     type="file"
                     accept=".pdf"
                     onChange={(e) => setResume(e.target.files[0])}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                   />
                 </div>
               </>
@@ -324,7 +324,7 @@ const Register = () => {
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="ABC Company"
                   />
                 </div>
@@ -338,7 +338,7 @@ const Register = () => {
                     type="text"
                     value={contactPerson}
                     onChange={(e) => setContactPerson(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="John Doe"
                   />
                 </div>
@@ -352,7 +352,7 @@ const Register = () => {
                     type="email"
                     value={companyEmail}
                     onChange={(e) => setCompanyEmail(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="info@company.com"
                   />
                 </div>
@@ -366,7 +366,7 @@ const Register = () => {
                     type="tel"
                     value={companyPhone}
                     onChange={(e) => setCompanyPhone(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="+91 9876543210"
                   />
                 </div>
@@ -380,7 +380,7 @@ const Register = () => {
                     rows="3"
                     value={companyAddress}
                     onChange={(e) => setCompanyAddress(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="123 Business Street, City, State, Zip"
                   ></textarea>
                 </div>
@@ -394,7 +394,7 @@ const Register = () => {
                     type="url"
                     value={googleBusinessLink}
                     onChange={(e) => setGoogleBusinessLink(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="https://business.google.com/..."
                   />
                 </div>
@@ -405,7 +405,7 @@ const Register = () => {
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-light hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light"
+                className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
               >
                 Next
                 <FiChevronRight className="ml-2" />
@@ -421,7 +421,7 @@ const Register = () => {
           
           {serviceLoading ? (
             <div className="flex justify-center py-8">
-              <FiLoader className="animate-spin h-8 w-8 text-primary-light" />
+              <FiLoader className="animate-spin h-8 w-8 text-primary" />
             </div>
           ) : (
             <div className="space-y-6">
@@ -442,7 +442,7 @@ const Register = () => {
                                 id={`service_${service.serviceId}`}
                                 checked={isSelected}
                                 onChange={() => toggleService(service.serviceId, category.serviceCategoryId)}
-                                className="h-4 w-4 text-primary-light focus:ring-primary-light border-gray-300 rounded"
+                                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                               />
                               <label htmlFor={`service_${service.serviceId}`} className="ml-2 text-sm text-gray-700">
                                 {service.title}
@@ -460,7 +460,7 @@ const Register = () => {
                                   value={selectedServices.find(s => s.serviceId === service.serviceId)?.serviceLocation || ''}
                                   onChange={(e) => updateServiceLocation(service.serviceId, e.target.value)}
                                   placeholder="e.g., Mumbai, Delhi, Bangalore"
-                                  className="mt-1 block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                                  className="mt-1 block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                                 />
                               </div>
                             )}
@@ -476,7 +476,7 @@ const Register = () => {
                 <button
                   type="button"
                   onClick={handlePrevStep}
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light"
+                  className="flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                 >
                   <FiChevronLeft className="mr-2" />
                   Previous
@@ -484,7 +484,7 @@ const Register = () => {
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-light hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light"
+                  className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                 >
                   Next
                   <FiChevronRight className="ml-2" />
@@ -551,7 +551,7 @@ const Register = () => {
                 name="terms"
                 type="checkbox"
                 required
-                className="h-4 w-4 text-primary-light focus:ring-primary-light border-gray-300 rounded"
+                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
               />
               <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
                 I confirm that all the information provided is accurate and I agree to the terms and conditions.
@@ -563,7 +563,7 @@ const Register = () => {
             <button
               type="button"
               onClick={handlePrevStep}
-              className="flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light"
+              className="flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
             >
               <FiChevronLeft className="mr-2" />
               Previous
@@ -572,7 +572,7 @@ const Register = () => {
               type="button"
               onClick={handleSubmit}
               disabled={loading}
-              className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-light hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light disabled:opacity-50"
+              className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
             >
               {loading ? (
                 <>
@@ -590,7 +590,7 @@ const Register = () => {
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
           Already have an account?{' '}
-          <Link to="/vendor/login" className="font-medium text-primary-light hover:text-primary-dark">
+          <Link to="/vendor/login" className="font-medium text-primary hover:text-primary-dark">
             Login here
           </Link>
         </p>

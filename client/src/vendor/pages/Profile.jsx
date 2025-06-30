@@ -161,7 +161,7 @@ const Profile = () => {
           className={`flex items-center px-4 py-2 rounded-md ${
             editing 
               ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-              : 'bg-primary-light text-white hover:bg-primary-dark'
+              : 'bg-primary text-white hover:bg-primary-dark'
           }`}
         >
           {editing ? (
@@ -183,7 +183,7 @@ const Profile = () => {
               {/* Profile Image Section */}
               <div className="flex flex-col items-center space-y-4">
                 <div className="relative">
-                  <div className="h-40 w-40 rounded-full overflow-hidden border-4 border-primary-light">
+                  <div className="h-40 w-40 rounded-full overflow-hidden border-4 border-primary">
                     <img 
                       src={imagePreview || 'https://via.placeholder.com/150?text=No+Image'} 
                       alt="Profile" 
@@ -193,7 +193,7 @@ const Profile = () => {
                   {editing && (
                     <label 
                       htmlFor="profile-image" 
-                      className="absolute bottom-0 right-0 bg-primary-light text-white p-2 rounded-full cursor-pointer hover:bg-primary-dark"
+                      className="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary-dark"
                     >
                       <FiEdit className="h-5 w-5" />
                       <input 
@@ -229,7 +229,7 @@ const Profile = () => {
                           name="name"
                           value={formData.name}
                           onChange={handleInputChange}
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                         />
                       </div>
                     ) : (
@@ -254,7 +254,7 @@ const Profile = () => {
                           name="email"
                           value={formData.email}
                           onChange={handleInputChange}
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                         />
                       </div>
                     ) : (
@@ -279,7 +279,7 @@ const Profile = () => {
                           name="phone"
                           value={formData.phone}
                           onChange={handleInputChange}
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                         />
                       </div>
                     ) : (
@@ -307,7 +307,7 @@ const Profile = () => {
                               name="contactPerson"
                               value={formData.contactPerson}
                               onChange={handleInputChange}
-                              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                             />
                           </div>
                         ) : (
@@ -332,7 +332,7 @@ const Profile = () => {
                               value={formData.companyAddress}
                               onChange={handleInputChange}
                               rows="3"
-                              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                             ></textarea>
                           </div>
                         ) : (
@@ -353,7 +353,7 @@ const Profile = () => {
                             name="googleBusinessProfileLink"
                             value={formData.googleBusinessProfileLink}
                             onChange={handleInputChange}
-                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                           />
                         ) : (
                           <div>
@@ -362,7 +362,7 @@ const Profile = () => {
                                 href={profile.googleBusinessProfileLink} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-primary-light hover:text-primary-dark"
+                                className="text-primary hover:text-primary-dark"
                               >
                                 {profile.googleBusinessProfileLink}
                               </a>
@@ -387,7 +387,7 @@ const Profile = () => {
                           value={formData.otherInfo}
                           onChange={handleInputChange}
                           rows="3"
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
                         ></textarea>
                       ) : (
                         <p className="text-gray-800">{profile?.otherInfo || 'Not provided'}</p>
@@ -401,7 +401,7 @@ const Profile = () => {
                     <button
                       type="submit"
                       disabled={updating}
-                      className="flex items-center px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-light disabled:opacity-50"
+                      className="flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
                     >
                       {updating ? (
                         <>
@@ -462,7 +462,7 @@ const Profile = () => {
                     href={profile.resume} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-primary-light hover:text-primary-dark"
+                    className="text-primary hover:text-primary-dark"
                   >
                     View Resume
                   </a>

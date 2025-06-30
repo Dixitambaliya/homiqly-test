@@ -37,7 +37,7 @@ const DashboardLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-background">
       {/* Sidebar for desktop */}
       <aside 
         className={`bg-gradient-to-b from-primary-dark to-secondary-dark text-white fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
@@ -121,7 +121,7 @@ const DashboardLayout = () => {
                       to={item.path}
                       className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
                         location.pathname === item.path
-                          ? 'bg-primary-light text-white'
+                          ? 'bg-primary text-white'
                           : 'text-gray-700 hover:bg-gray-100'
                       }`}
                       onClick={() => setMobileMenuOpen(false)}

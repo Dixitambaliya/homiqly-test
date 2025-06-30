@@ -3,25 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --primary-dark: #1e3a8a;
-  --primary-light: #3b82f6;
-  --secondary-dark: #1e40af;
-  --secondary-light: #60a5fa;
-  --accent: #dbeafe;
-  --background: #f8fafc;
-  --surface: #ffffff;
+  --primary-dark: #0F4C5C;
+  --primary: #3BACB6;
+  --primary-light: #5ADBFF;
+  --secondary-dark: #0A3A47;
+  --secondary: #2A8D9C;
+  --secondary-light: #7EEAFD;
+  --accent: #E0FBFC;
+  --background: #F0F7F8;
+  --surface: #FFFFFF;
   --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --border: #e5e7eb;
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow: 0 4px 6px -1px rgba(15, 76, 92, 0.1);
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  @apply bg-gray-100 text-gray-900;
+  @apply bg-background text-gray-900;
 }
 
 /* Custom scrollbar */
@@ -65,7 +67,7 @@ body {
 }
 
 .calendar-header {
-  @apply bg-gradient-to-r from-primary-dark to-primary-light text-white p-6 flex justify-between items-center flex-wrap gap-4;
+  @apply bg-gradient-to-r from-primary-dark to-primary text-white p-6 flex justify-between items-center flex-wrap gap-4;
 }
 
 .calendar-nav {
@@ -140,7 +142,7 @@ body {
 }
 
 .calendar-day.today {
-  @apply bg-blue-50 border-2 border-primary-light;
+  @apply bg-blue-50 border-2 border-primary;
 }
 
 .day-number {
@@ -152,7 +154,7 @@ body {
 }
 
 .booking-item {
-  @apply bg-primary-light text-white py-0.5 px-1.5 rounded text-xs flex justify-between items-center cursor-pointer transition-all;
+  @apply bg-primary text-white py-0.5 px-1.5 rounded text-xs flex justify-between items-center cursor-pointer transition-all;
 }
 
 .booking-item:hover {
