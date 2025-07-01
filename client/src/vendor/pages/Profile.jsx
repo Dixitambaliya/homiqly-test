@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave, FiX } from 'react-icons/fi';
 import { useVendorAuth } from '../contexts/VendorAuthContext';
 import { Card } from '../../shared/components/Card';
 import { Button } from '../../shared/components/Button';
@@ -277,13 +277,13 @@ const Profile = () => {
 
       {/* Account Information */}
       <Card title="Account Information">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <p className="text-sm font-medium text-gray-500">Account Type</p>
-            <p className="mt-1 text-gray-800 capitalize">{profile?.vendorType || 'Vendor'}</p>
+            <h4 className="text-sm font-medium text-gray-500 mb-1">Account Type</h4>
+            <p className="text-gray-900 capitalize">{profile?.vendorType || 'Vendor'}</p>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">Account Status</p>
+            <h4 className="text-sm font-medium text-gray-500 mb-1">Account Status</h4>
             <p className="mt-1">
               <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 Active
@@ -291,8 +291,8 @@ const Profile = () => {
             </p>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">Member Since</p>
-            <p className="mt-1 text-gray-800">
+            <h4 className="text-sm font-medium text-gray-500 mb-1">Member Since</h4>
+            <p className="text-gray-800">
               {profile?.created_at 
                 ? new Date(profile.created_at).toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -304,7 +304,7 @@ const Profile = () => {
           </div>
           {profile?.vendorType === 'individual' && profile?.resume && (
             <div>
-              <p className="text-sm font-medium text-gray-500">Resume</p>
+              <h4 className="text-sm font-medium text-gray-500 mb-1">Resume</h4>
               <p className="mt-1">
                 <a 
                   href={profile.resume} 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave, FiX } from 'react-icons/fi';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { Card } from '../../shared/components/Card';
 import { Button } from '../../shared/components/Button';
