@@ -76,7 +76,7 @@ const DashboardLayout = () => {
     <div className="flex h-screen bg-background">
       {/* Sidebar for desktop */}
       <aside
-        className={`bg-gradient-to-b from-primary-dark to-secondary-dark text-white fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+        className={`bg-background text-text-primary fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -86,16 +86,16 @@ const DashboardLayout = () => {
             <p className="text-sm opacity-80">Vendor Panel</p>
           </div>
 
-          <nav className="flex-1 py-4 overflow-y-auto">
+          <nav className="flex-1 py-4 px-2 overflow-y-auto">
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.path}>
                   <Link
                     to={item.path}
-                    className={`flex items-center px-6 py-3 text-sm font-medium border-l-4 ${
+                    className={`flex items-center px-6 py-3 text-sm font-medium border-1 rounded-md ${
                       location.pathname === item.path
-                        ? "border-secondary-light bg-white/10 text-white"
-                        : "border-transparent text-white/80 hover:bg-white/5 hover:text-white"
+                        ? "bg-primary-light/15 text-primary"
+                        : "border-transparent text-text-muted hover:bg-backgroundTertiary/50 hover:text-text-primary"
                     }`}
                   >
                     <span className="mr-3">{item.icon}</span>
