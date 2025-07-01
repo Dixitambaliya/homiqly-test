@@ -42,7 +42,9 @@ const Register = () => {
     try {
       setServiceLoading(true);
       const response = await axios.get('/api/user/servicesbycategories');
+      console.log('Loaded services:', response.data);
       setServiceCategories(response.data.services || []);
+      console.log('Service categories:', response.data.services);
       setServiceLoading(false);
     } catch (error) {
       console.error('Error loading services:', error);
@@ -96,6 +98,8 @@ const Register = () => {
   };
   
   const toggleService = (serviceId, categoryId) => {
+      console.log('Toggling:', { serviceId, categoryId });
+
     const exists = selectedServices.some(s => s.serviceId === serviceId);
     
     if (exists) {
@@ -146,6 +150,7 @@ const Register = () => {
       formData.append('googleBusinessProfileLink', googleBusinessLink);
     }
     
+    console.log('Submitting registration with data:', selectedServices);
     formData.append('services', JSON.stringify(selectedServices));
     
     setLoading(true);
@@ -441,7 +446,7 @@ const Register = () => {
                                 type="checkbox"
                                 id={`service_${service.serviceId}`}
                                 checked={isSelected}
-                                onChange={() => toggleService(service.serviceId, category.serviceCategoryId)}
+                                onChange={() => toggleService(service.serviceId, service.serviceCategoryId)}
                                 className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                               />
                               <label htmlFor={`service_${service.serviceId}`} className="ml-2 text-sm text-gray-700">
@@ -494,7 +499,7 @@ const Register = () => {
           )}
         </div>
       )}
-
+ 
       {step === 3 && (
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-6">Confirm Registration</h2>
