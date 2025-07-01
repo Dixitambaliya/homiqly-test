@@ -1,2 +1,0 @@
-./cloud.exe --url "http://localhost:3000"
-./cloud.exe --url "http://localhost:4000"
