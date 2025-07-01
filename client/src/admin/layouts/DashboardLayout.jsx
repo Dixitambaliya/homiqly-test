@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
-import { FiMenu, FiX, FiLogOut, FiUser } from 'react-icons/fi';
+import { FiMenu, FiX } from 'react-icons/fi';
 import { 
   FiHome, FiUsers, FiUserCheck, FiShoppingBag, FiCalendar, 
   FiBox, FiTool, FiUserPlus, FiCreditCard, FiBarChart2, FiBell 
 } from 'react-icons/fi';
+import { HeaderMenu } from '../../shared/components/Header';
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useAdminAuth();
@@ -72,16 +73,6 @@ const DashboardLayout = () => {
               ))}
             </ul>
           </nav>
-          
-          <div className="p-4 border-t border-white/10">
-            <button
-              onClick={handleLogout}
-              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-white/10 rounded-md hover:bg-white/20"
-            >
-              <FiLogOut className="w-4 h-4 mr-2" />
-              Logout
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -106,12 +97,13 @@ const DashboardLayout = () => {
               <h1 className="ml-4 text-xl font-semibold text-gray-800">{getPageTitle()}</h1>
             </div>
             
-            <div className="flex items-center">
-              <div className="flex items-center text-gray-600">
-                <span className="mr-2">{currentUser?.name || 'Admin User'}</span>
-                <FiUser className="w-5 h-5" />
-              </div>
-            </div>
+            <HeaderMenu
+              userName={currentUser?.name || 'Admin User'}
+              userRole={currentUser?.role || 'admin'}
+              onLogout={handleLogout}
+              profilePath="/admin/profile"
+              settingsPath="/admin/settings"
+            />
           </div>
           
           {/* Mobile menu */}

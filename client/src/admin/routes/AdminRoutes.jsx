@@ -19,6 +19,8 @@ import Employees from "../pages/Employees";
 import Payments from "../pages/Payments";
 import Analytics from "../pages/Analytics";
 import Notifications from "../pages/Notifications";
+import Profile from "../pages/Profile";
+import Settings from "../pages/Settings";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -81,6 +83,8 @@ const AdminRoutes = () => {
         <Route path="payments" element={<Payments />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
 
       {/* 404 Route */}

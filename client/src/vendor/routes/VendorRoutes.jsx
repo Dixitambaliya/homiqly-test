@@ -17,6 +17,7 @@ import Calendar from "../pages/Calendar";
 import SupplyKits from "../pages/SupplyKits";
 import Payments from "../pages/Payments";
 import Ratings from "../pages/Ratings";
+import Settings from "../pages/Settings";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -82,6 +83,7 @@ const VendorRoutes = () => {
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="payments" element={<Payments />} />
         <Route path="ratings" element={<Ratings />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
 
       {/* 404 Route */}
