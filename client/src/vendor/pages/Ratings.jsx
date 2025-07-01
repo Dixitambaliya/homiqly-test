@@ -99,7 +99,7 @@ const Ratings = () => {
         <div className="flex flex-col md:flex-row">
           <div className="flex-1 flex flex-col items-center justify-center p-4 border-b md:border-b-0 md:border-r border-gray-200">
             <div className="text-5xl font-bold text-primary-dark mb-2">
-              {stats.average_rating.toFixed(1)}
+              {stats.average_rating ? (typeof stats.average_rating === 'number' ? stats.average_rating.toFixed(1) : stats.average_rating) : '0.0'}
             </div>
             <div className="flex text-2xl text-yellow-400 mb-2">
               {renderStars(Math.round(stats.average_rating))}
