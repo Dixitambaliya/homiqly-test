@@ -183,7 +183,7 @@ const Profile = () => {
               {/* Profile Image Section */}
               <div className="flex flex-col items-center space-y-4">
                 <div className="relative">
-                  <div className="h-40 w-40 rounded-full overflow-hidden border-4 border-primary">
+                  <div className="h-40 w-40 rounded-full overflow-hidden border-2 border-primary">
                     <img 
                       src={imagePreview || 'https://via.placeholder.com/150?text=No+Image'} 
                       alt="Profile" 
@@ -193,7 +193,7 @@ const Profile = () => {
                   {editing && (
                     <label 
                       htmlFor="profile-image" 
-                      className="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary-dark"
+                      className="absolute bottom-0 right-3 bg-primary text-white p-1.5 rounded-full cursor-pointer hover:bg-primary-dark"
                     >
                       <FiEdit className="h-5 w-5" />
                       <input 
