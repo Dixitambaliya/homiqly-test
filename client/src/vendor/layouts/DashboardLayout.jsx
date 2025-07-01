@@ -150,7 +150,10 @@ const DashboardLayout = () => {
                 <span className="mr-2">
                   {currentUser?.name || "Vendor User"}
                 </span>
-                <FiUser className="w-5 h-5" />
+                <FiUser
+                  onClick={() => navigate("/vendor/profile")}
+                  className="w-5 h-5 cursor-pointer hover:text-primary-dark transition-colors duration-200"
+                />
               </div>
             </div>
           </div>
