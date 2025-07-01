@@ -102,7 +102,6 @@ const getVendorServices = asyncHandler(async (req, res) => {
     }
 });
 
-
 const applyForServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -384,7 +383,7 @@ const editServiceType = asyncHandler(async (req, res) => {
 
     const { vendor_id } = req.user;
     const { service_type_id, packages } = req.body;
-    
+
     try {
         if (!service_type_id || !packages || !Array.isArray(packages)) {
             throw new Error("Service Type ID and packages array are required.");

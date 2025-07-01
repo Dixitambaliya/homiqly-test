@@ -86,7 +86,7 @@ LEFT JOIN service_categories
 GROUP BY vendors.vendor_id`,
 
 
-getAllServiceTypes: `
+    getAllServiceTypes: `
     SELECT
         st.service_type_id,
         st.serviceTypeName,

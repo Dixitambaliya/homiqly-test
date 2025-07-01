@@ -42,99 +42,59 @@ const userGetQueries = {
 
     getServiceNames: `
     SELECT
-    service_type.service_type_id,
-    services.serviceName,
-    service_type.serviceTypeName,
-    service_type.is_approved,
-    service_type.serviceTypeMedia,
-    services.serviceDescription
+    st.service_type_id,
+    st.serviceTypeName,
+    st.serviceTypeMedia,
+    st.is_approved,
 
-        FROM service_type
-        JOIN vendors ON service_type.vendor_id = vendors.vendor_id
-        JOIN services ON service_type.service_id = services.service_id
+    s.service_id,
+    s.service_categories_id,
+    s.serviceName,
+    s.serviceDescription,
 
-        LEFT JOIN individual_details ON individual_details.vendor_id = vendors.vendor_id
-        LEFT JOIN individual_services ON individual_services.vendor_id = vendors.vendor_id
-        AND individual_services.service_id = service_type.service_id
+    v.vendor_id,
+    v.vendorType,
 
-        LEFT JOIN company_details ON company_details.vendor_id = vendors.vendor_id
-        LEFT JOIN company_services ON company_services.vendor_id = vendors.vendor_id
-        AND company_services.service_id = service_type.service_id
+    CASE WHEN v.vendorType = 'individual' THEN ind.id END AS id,
+    CASE WHEN v.vendorType = 'individual' THEN ind.name END AS name,
+    CASE WHEN v.vendorType = 'individual' THEN ind.phone END AS phone,
+    CASE WHEN v.vendorType = 'individual' THEN ind.email END AS email,
 
-        WHERE service_type.service_id = ?
-        AND service_type.is_approved = 1
+    CASE WHEN v.vendorType = 'company' THEN comp.id END AS company_id,
+    CASE WHEN v.vendorType = 'company' THEN comp.companyName END AS companyName,
+    CASE WHEN v.vendorType = 'company' THEN comp.contactPerson END AS contactPerson,
+    CASE WHEN v.vendorType = 'company' THEN comp.companyEmail END AS companyEmail,
+    CASE WHEN v.vendorType = 'company' THEN comp.companyPhone END AS companyPhone,
 
-        GROUP BY service_type.service_type_id
+    IFNULL(ratingStats.average_rating, 0) AS average_rating,
+    IFNULL(ratingStats.total_reviews, 0) AS total_reviews,
 
-        ORDER BY service_type.service_type_id DESC`,
-
-    getApprovedServices: `
-    SELECT
-      st.service_type_id,
-      st.serviceTypeName,
-      st.serviceTypeMedia,
-      st.is_approved,
-
-      s.service_id,
-      s.service_categories_id,
-      s.serviceName,
-      s.serviceDescription,
-
-        v.vendor_id,
-        v.vendorType,
-
-        CASE WHEN v.vendorType = 'individual' THEN ind.id END AS id,
-        CASE WHEN v.vendorType = 'individual' THEN ind.name END AS name,
-        CASE WHEN v.vendorType = 'individual' THEN ind.phone END AS phone,
-        CASE WHEN v.vendorType = 'individual' THEN ind.email END AS email,
-
-        CASE WHEN v.vendorType = 'company' THEN comp.id END AS company_id,
-        CASE WHEN v.vendorType = 'company' THEN comp.companyName END AS companyName,
-        CASE WHEN v.vendorType = 'company' THEN comp.contactPerson END AS contactPerson,
-        CASE WHEN v.vendorType = 'company' THEN comp.companyEmail END AS companyEmail,
-        CASE WHEN v.vendorType = 'company' THEN comp.companyPhone END AS companyPhone,
-
-      COALESCE((
+    COALESCE((
         SELECT CONCAT('[', GROUP_CONCAT(
-          JSON_OBJECT(
-            'addon_id', a.addon_id,
-            'title', a.title,
-            'description', a.description,
-            'price', a.price,
-            'time_required', a.time_required,
-            'frequency', a.frequency
-          )
-        ), ']')
-        FROM addons a
-        WHERE a.service_type_id = st.service_type_id
-      ), '[]') AS addons,
-
-      COALESCE((
-        SELECT CONCAT('[', GROUP_CONCAT(
-          JSON_OBJECT(
+        JSON_OBJECT(
             'package_id', p.package_id,
-            'title', p.package_name,
+            'title', p.packageName,
             'description', p.description,
-            'price', p.total_price,
-            'time_required', p.total_time,
+            'price', p.totalPrice,
+            'time_required', p.totalTime,
             'sub_packages', IFNULL((
-              SELECT CONCAT('[', GROUP_CONCAT(
+            SELECT CONCAT('[', GROUP_CONCAT(
                 JSON_OBJECT(
-                  'sub_package_id', pi.item_id,
-                  'title', pi.item_name,
-                  'description', pi.description,
-                  'price', pi.price,
-                  'time_required', pi.time_required
+                'sub_package_id', pi.item_id,
+                'title', pi.itemName,
+                'description', pi.description,
+                'price', pi.price,
+                'time_required', pi.timeRequired
                 )
-              ), ']')
-              FROM package_items pi
-              WHERE pi.package_id = p.package_id
+            ), ']')
+            FROM package_items pi
+            WHERE pi.package_id = p.package_id
             ), '[]')
-          )
+        )
         ), ']')
         FROM packages p
         WHERE p.service_type_id = st.service_type_id
-      ), '[]') AS packages
+    ), '[]') AS packages
 
     FROM service_type st
     LEFT JOIN vendors v ON st.vendor_id = v.vendor_id
@@ -142,7 +102,16 @@ const userGetQueries = {
     LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
     LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
 
-    WHERE is_approved = 1
+    LEFT JOIN (
+    SELECT
+        service_id,
+        ROUND(AVG(rating), 1) AS average_rating,
+        COUNT(*) AS total_reviews
+    FROM ratings
+    GROUP BY service_id
+    ) AS ratingStats ON s.service_id = ratingStats.service_id
+
+    WHERE st.is_approved = 1
     ORDER BY st.service_type_id DESC`,
 
 

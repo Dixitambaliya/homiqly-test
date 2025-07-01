@@ -61,8 +61,8 @@ app.use(express.static(path.join(__dirname, 'client/dist')));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-    res.status(200).json({ 
-        status: "OK", 
+    res.status(200).json({
+        status: "OK",
         message: "Homiqly Backend is running",
         timestamp: new Date().toISOString(),
         panels: {
@@ -77,21 +77,21 @@ app.get("/api/health/db", async (req, res) => {
     try {
         const isConnected = await testConnection();
         if (isConnected) {
-            res.status(200).json({ 
-                status: "OK", 
+            res.status(200).json({
+                status: "OK",
                 message: "Database connection successful",
                 timestamp: new Date().toISOString()
             });
         } else {
-            res.status(500).json({ 
-                status: "ERROR", 
+            res.status(500).json({
+                status: "ERROR",
                 message: "Database connection failed",
                 timestamp: new Date().toISOString()
             });
         }
     } catch (error) {
-        res.status(500).json({ 
-            status: "ERROR", 
+        res.status(500).json({
+            status: "ERROR",
             message: "Database connection error",
             error: error.message,
             timestamp: new Date().toISOString()
@@ -101,13 +101,13 @@ app.get("/api/health/db", async (req, res) => {
 
 // Serve React app for all other routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client/dist/index.html'));
+    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ 
+    res.status(500).json({
         error: "Something went wrong!",
         message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
     });
@@ -120,7 +120,7 @@ app.listen(PORT, async () => {
     console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
     console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin`);
     console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor`);
-    
+
     // Test database connection
     const isConnected = await testConnection();
     if (isConnected) {

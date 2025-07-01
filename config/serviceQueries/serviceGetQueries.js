@@ -17,7 +17,10 @@ const serviceGetQueries = {
                                 serviceCategory,
                                 service_categories_id
                                     FROM service_categories`,
+
     getCities: `SELECT * FROM service_city ORDER BY serviceCityName ASC`,
+
+    getAllServices:`SELECT * FROM services WHERE service_id = ?`
 
 }
 

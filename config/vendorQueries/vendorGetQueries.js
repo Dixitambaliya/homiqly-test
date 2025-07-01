@@ -77,6 +77,7 @@ ORDER BY service_type.service_type_id, packages.package_id, package_items.item_i
         COALESCE(individual_details.email, company_details.companyEmail) AS email,
         COALESCE(individual_details.phone, company_details.companyPhone) AS phone,
         COALESCE(individual_details.profileImage, company_details.profileImage) AS profileImage,
+        COALESCE(individual_details.otherInfo) AS otherInfo,
         COALESCE(company_details.googleBusinessProfileLink) AS googleBusinessProfileLink,
         COALESCE(company_details.companyAddress) AS companyAddress,
         COALESCE(company_details.contactPerson) AS contactPerson,

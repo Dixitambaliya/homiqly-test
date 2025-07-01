@@ -18,43 +18,34 @@ const upload = multer({ storage, fileFilter });
 
 // Upload file to Firebase
 const uploadToFirebase = async (fileBuffer, originalname, folder) => {
-    try {
-        const fileName = `${folder}/${uuidv4()}_${originalname}`;
-        const file = bucket.file(fileName);
+    const fileName = `${folder}/${uuidv4()}_${originalname}`;
+    const file = bucket.file(fileName);
 
-        await file.save(fileBuffer, {
-            metadata: {
-                contentType: file.mimetype,
-            },
-        });
+    await file.save(fileBuffer, {
+        metadata: {
+            contentType: file.mimetype,
+        },
+    });
 
-        // Make file publicly accessible
-        await file.makePublic();
+    // Make file publicly accessible
+    await file.makePublic();
 
-        return {
-            url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
-            fileName,
-        };
-    } catch (error) {
-        console.error("Firebase upload error:", error);
-        throw new Error(`Firebase upload failed: ${error.message}`);
-    }
+    return {
+        url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
+        fileName,
+    };
 };
 
 // Handle uploads to Firebase
 const handleUploads = async (req, res, next) => {
     try {
-        if (!req.files || req.files.length === 0) {
-            // No files to upload, continue to next middleware
-            req.uploadedFiles = {};
-            return next();
-        }
-
+        const files = req.files || [];
         const folderBase = "vendor_uploads";
+
         req.uploadedFiles = {};
 
         // Group files by fieldname manually (because multer.any() gives flat array)
-        for (const file of req.files) {
+        for (const file of files) {
             const fieldName = file.fieldname;
 
             if (!req.uploadedFiles[fieldName]) {
@@ -62,31 +53,22 @@ const handleUploads = async (req, res, next) => {
             }
 
             let folder = `${folderBase}/misc`;
-            if (fieldName === "serviceTypeMedia") folder = `${folderBase}/services`;
+            if (fieldName === "serviceMedia") folder = `${folderBase}/services`;
             if (fieldName === "resume") folder = `${folderBase}/resume`;
             if (fieldName.startsWith("profileImage")) folder = `${folderBase}/profileImage`;
             if (fieldName === "bookingMedia") folder = `${folderBase}/bookingMedia`;
 
-            try {
-                const uploaded = await uploadToFirebase(file.buffer, file.originalname, folder);
-                req.uploadedFiles[fieldName].push(uploaded);
-            } catch (uploadError) {
-                console.error(`Error uploading ${fieldName}:`, uploadError);
-                // Continue with other files even if one fails
-                req.uploadedFiles[fieldName].push({
-                    url: null,
-                    fileName: null,
-                    error: uploadError.message
-                });
-            }
+            const uploaded = await uploadToFirebase(file.buffer, file.originalname, folder);
+            req.uploadedFiles[fieldName].push(uploaded);
         }
 
         next();
     } catch (err) {
-        console.error("File upload error:", err);
-        res.status(500).json({ error: "File upload failed", message: err.message });
+        console.error("Firebase Upload Error:", err);
+        res.status(500).json({ error: "Firebase upload failed", message: err.message });
     }
 };
+
 
 module.exports = {
     upload,

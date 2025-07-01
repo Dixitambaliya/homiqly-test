@@ -77,7 +77,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         const cart_id = insertCart.insertId;
 
-        // Insert packages & items
+        // Insert packages & sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -89,15 +89,17 @@ const addToCartService = asyncHandler(async (req, res) => {
             );
 
             for (const item of sub_packages) {
-                if (!item.sub_package_id || item.price == null) {
+                const { sub_package_id, price, quantity = 1 } = item;
+
+                if (!sub_package_id || price == null) {
                     throw new Error("Each sub_package must include sub_package_id and price.");
                 }
 
                 await connection.query(
                     `INSERT INTO cart_package_items
-                        (cart_id, sub_package_id, price, package_id, item_id)
-                     VALUES (?, ?, ?, ?, ?)`,
-                    [cart_id, item.sub_package_id, item.price, package_id, item.sub_package_id]
+                        (cart_id, sub_package_id, price, package_id, item_id, quantity)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
         }
@@ -129,6 +131,8 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
+
+
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -155,7 +159,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 packages.totalTime,
                 packages.packageMedia
              FROM cart_packages
-             LEFT JOIN packages ON cart_packages.package_id = packages.package_id
+             JOIN packages ON cart_packages.package_id = packages.package_id
              WHERE cart_packages.cart_id = ?`,
             [cart_id]
         );
@@ -166,10 +170,11 @@ const getUserCart = asyncHandler(async (req, res) => {
                 cart_package_items.sub_package_id AS item_id,
                 package_items.itemName,
                 cart_package_items.price,
+                cart_package_items.quantity,
                 package_items.timeRequired,
                 package_items.package_id
              FROM cart_package_items
-             LEFT JOIN package_items ON cart_package_items.sub_package_id = package_items.item_id
+             JOIN package_items ON cart_package_items.sub_package_id = package_items.item_id
              WHERE cart_package_items.cart_id = ?`,
             [cart_id]
         );
@@ -182,7 +187,6 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sub_packages: subPackagesForThisPackage    // ✅ RENAMED
             };
         });
-
 
         // Fetch preferences linked to the cart
         const [cartPreferences] = await db.query(
