@@ -102,39 +102,59 @@ const getVendorServices = asyncHandler(async (req, res) => {
     }
 });
 
+const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
+    const { service_id } = req.params;
+
+    if (!service_id) {
+        return res.status(400).json({ message: "service_id is required." });
+    }
+
+    const [types] = await db.query(
+        `SELECT service_type_id, serviceTypeName, serviceTypeMedia
+         FROM service_type
+         WHERE service_id = ?`,
+        [service_id]
+    );
+
+    res.status(200).json({
+        message: "Service types fetched successfully.",
+        service_id,
+        service_types: types
+    });
+});
+
 const applyForServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     const { vendor_id, vendor_type } = req.user;
-    const { service_category_id, service_id, service_type_id, packages, preferences } = req.body;
+    const { serviceCategoryId, serviceId, service_type_id, packages, preferences } = req.body;
 
     try {
-        if (!service_category_id || !service_id || !service_type_id || !packages) {
+        if (!serviceCategoryId || !serviceId || !service_type_id || !packages) {
             throw new Error("Service Category ID, Service ID, Service Type ID, and packages are required.");
         }
 
-        // 1. Validate that service category, service, and service type all exist and match
+        // Step 1: Validate admin-defined mapping exists
         const [checkRows] = await connection.query(`
             SELECT sc.service_categories_id, s.service_id, st.service_type_id
             FROM service_categories sc
             JOIN services s ON s.service_categories_id = sc.service_categories_id
             JOIN service_type st ON st.service_id = s.service_id
             WHERE sc.service_categories_id = ? AND s.service_id = ? AND st.service_type_id = ?
-        `, [service_category_id, service_id, service_type_id]);
+        `, [serviceCategoryId, serviceId, service_type_id]);
 
         if (checkRows.length === 0) {
-            throw new Error("Invalid combination of service category, service, and service type.");
+            throw new Error("Invalid combination of category, service, and service type.");
         }
 
-        // 2. Auto-insert service to vendor mapping if not already present
+        // Step 2: Auto-insert vendor's service mapping
         const serviceInsertQuery = vendor_type === "individual"
             ? "INSERT IGNORE INTO individual_services (vendor_id, service_id) VALUES (?, ?)"
             : "INSERT IGNORE INTO company_services (vendor_id, service_id) VALUES (?, ?)";
+        await connection.query(serviceInsertQuery, [vendor_id, serviceId]);
 
-        await connection.query(serviceInsertQuery, [vendor_id, service_id]);
-
-        // 3. Parse and insert packages and items
+        // Step 3: Parse packages
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -147,7 +167,8 @@ const applyForServiceType = asyncHandler(async (req, res) => {
             const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
             const [pkgResult] = await connection.query(`
-                INSERT INTO packages (service_type_id, vendor_id, packageName, description, totalPrice, totalTime, packageMedia)
+                INSERT INTO packages
+                (service_type_id, vendor_id, packageName, description, totalPrice, totalTime, packageMedia)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             `, [
                 service_type_id,
@@ -170,11 +191,19 @@ const applyForServiceType = asyncHandler(async (req, res) => {
                     INSERT INTO package_items
                     (package_id, vendor_id, itemName, itemMedia, description, price, timeRequired)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                `, [package_id, vendor_id, item.item_name, itemMedia, item.description, item.price, item.time_required]);
+                `, [
+                    package_id,
+                    vendor_id,
+                    item.item_name,
+                    itemMedia,
+                    item.description,
+                    item.price,
+                    item.time_required
+                ]);
             }
         }
 
-        // 4. Optional preferences
+        // Step 4: Optional preferences
         if (preferences) {
             const parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
 
@@ -184,10 +213,10 @@ const applyForServiceType = asyncHandler(async (req, res) => {
                         throw new Error("Each preference must have a 'preference_value'.");
                     }
 
-                    await connection.query(
-                        "INSERT INTO booking_preferences (package_id, preferenceValue) VALUES (?, ?)",
-                        [package_id, pref.preference_value.trim()]
-                    );
+                    await connection.query(`
+                        INSERT INTO booking_preferences (package_id, preferenceValue)
+                        VALUES (?, ?)
+                    `, [package_id, pref.preference_value.trim()]);
                 }
             }
         }
@@ -207,7 +236,6 @@ const applyForServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-    
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
@@ -396,5 +424,63 @@ const editServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+const deletePackage = asyncHandler(async (req, res) => {
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-module.exports = { getVendorServices, applyForServiceType, getServiceTypesByVendor, getVendorService, getProfileVendor, updateProfileVendor, editServiceType };
+    const { vendor_id } = req.user;
+    const { package_id } = req.params;
+
+    try {
+        // Step 1: Check if the package exists and belongs to the vendor
+        const [packageRows] = await connection.query(
+            `SELECT package_id FROM packages WHERE package_id = ? AND vendor_id = ?`,
+            [package_id, vendor_id]
+        );
+
+        if (packageRows.length === 0) {
+            throw new Error("Package not found or not authorized.");
+        }
+
+        // Step 2: Delete booking preferences (if any)
+        await connection.query(
+            `DELETE FROM booking_preferences WHERE package_id = ?`,
+            [package_id]
+        );
+
+        // Step 3: Delete package items (if any)
+        await connection.query(
+            `DELETE FROM package_items WHERE package_id = ? AND vendor_id = ?`,
+            [package_id, vendor_id]
+        );
+
+        // Step 4: Delete the package itself
+        await connection.query(
+            `DELETE FROM packages WHERE package_id = ? AND vendor_id = ?`,
+            [package_id, vendor_id]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({ message: "Package and related data deleted successfully." });
+
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Error deleting package:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+module.exports = {
+    getVendorServices,
+    applyForServiceType,
+    getServiceTypesByVendor,
+    getVendorService,
+    getProfileVendor,
+    updateProfileVendor,
+    editServiceType,
+    getServiceTypesByServiceId,
+    deletePackage
+};
