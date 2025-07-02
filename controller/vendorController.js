@@ -107,26 +107,25 @@ const applyForServiceType = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     const { vendor_id, vendor_type } = req.user;
-    const { service_type_id, packages, preferences } = req.body;
+    const { service_category_id, service_id, service_type_id, packages, preferences } = req.body;
 
     try {
-        if (!service_type_id || !packages) {
-            throw new Error("Service Type ID and packages are required.");
+        if (!service_category_id || !service_id || !service_type_id || !packages) {
+            throw new Error("Service Category ID, Service ID, Service Type ID, and packages are required.");
         }
 
-        // 1. Validate selected service_type exists and is admin-defined and approved
-        const [serviceTypeRow] = await connection.query(`
-            SELECT st.service_type_id, st.serviceTypeName, st.service_id, s.serviceName
-            FROM service_type st
-            JOIN services s ON st.service_id = s.service_id
-            WHERE st.service_type_id = ? AND st.is_approved = 1
-        `, [service_type_id]);
+        // 1. Validate that service category, service, and service type all exist and match
+        const [checkRows] = await connection.query(`
+            SELECT sc.service_categories_id, s.service_id, st.service_type_id
+            FROM service_categories sc
+            JOIN services s ON s.service_categories_id = sc.service_categories_id
+            JOIN service_type st ON st.service_id = s.service_id
+            WHERE sc.service_categories_id = ? AND s.service_id = ? AND st.service_type_id = ?
+        `, [service_category_id, service_id, service_type_id]);
 
-        if (serviceTypeRow.length === 0) {
-            throw new Error("Selected service type does not exist or is not approved.");
+        if (checkRows.length === 0) {
+            throw new Error("Invalid combination of service category, service, and service type.");
         }
-
-        const { service_id, serviceName, serviceTypeName } = serviceTypeRow[0];
 
         // 2. Auto-insert service to vendor mapping if not already present
         const serviceInsertQuery = vendor_type === "individual"
@@ -135,7 +134,7 @@ const applyForServiceType = asyncHandler(async (req, res) => {
 
         await connection.query(serviceInsertQuery, [vendor_id, service_id]);
 
-        // 3. Insert packages and sub-items
+        // 3. Parse and insert packages and items
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -175,7 +174,7 @@ const applyForServiceType = asyncHandler(async (req, res) => {
             }
         }
 
-        // 4. Insert preferences
+        // 4. Optional preferences
         if (preferences) {
             const parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
 
@@ -208,6 +207,7 @@ const applyForServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+    
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;

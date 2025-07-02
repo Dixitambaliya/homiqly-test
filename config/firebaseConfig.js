@@ -4,7 +4,7 @@ var serviceAccount = require("../homiqly-cbc23-firebase-adminsdk-fbsvc-4863447c2
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: "gs://homiqly-cbc23.firebasestorage.app",
+    storageBucket: "homiqly-cbc23.appspot.com",
 });
 
 module.exports = admin;
