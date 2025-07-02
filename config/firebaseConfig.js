@@ -1,6 +1,6 @@
 var admin = require("firebase-admin");
 
-var serviceAccount = require("../homiqly-cbc23-firebase-adminsdk-fbsvc-dc73e1702a.json");
+var serviceAccount = require("../homiqly-cbc23-firebase-adminsdk-fbsvc-4863447c27.json");
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),

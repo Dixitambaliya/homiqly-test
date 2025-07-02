@@ -107,52 +107,35 @@ const applyForServiceType = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     const { vendor_id, vendor_type } = req.user;
-    const {
-        serviceId,
-        serviceType,
-        packages,
-        preferences // optional
-    } = req.body;
-
-    const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
+    const { service_type_id, packages, preferences } = req.body;
 
     try {
-        if (!serviceId || !serviceType || !packages || !serviceTypeMedia) {
-            throw new Error("All required fields (except preferences) must be provided including at least one package and image.");
+        if (!service_type_id || !packages) {
+            throw new Error("Service Type ID and packages are required.");
         }
 
-        const checkServiceQuery = vendor_type === "individual"
-            ? "SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?"
-            : "SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = ?";
+        // 1. Validate selected service_type exists and is admin-defined and approved
+        const [serviceTypeRow] = await connection.query(`
+            SELECT st.service_type_id, st.serviceTypeName, st.service_id, s.serviceName
+            FROM service_type st
+            JOIN services s ON st.service_id = s.service_id
+            WHERE st.service_type_id = ? AND st.is_approved = 1
+        `, [service_type_id]);
 
-        const [checkRows] = await connection.query(checkServiceQuery, [vendor_id, serviceId]);
-        if (checkRows.length === 0) {
-            throw new Error("Vendor has not registered this service.");
+        if (serviceTypeRow.length === 0) {
+            throw new Error("Selected service type does not exist or is not approved.");
         }
 
-        const [vendorRow] = await db.query(
-            vendor_type === "individual"
-                ? "SELECT name AS vendorName FROM individual_details WHERE vendor_id = ?"
-                : "SELECT companyName AS vendorName FROM company_details WHERE vendor_id = ?",
-            [vendor_id]
-        );
-        const vendorName = vendorRow[0]?.vendorName || "";
+        const { service_id, serviceName, serviceTypeName } = serviceTypeRow[0];
 
-        const [serviceInfo] = await db.query("SELECT serviceName FROM services WHERE service_id = ?", [serviceId]);
-        const serviceName = serviceInfo[0]?.serviceName || "Unknown Service";
+        // 2. Auto-insert service to vendor mapping if not already present
+        const serviceInsertQuery = vendor_type === "individual"
+            ? "INSERT IGNORE INTO individual_services (vendor_id, service_id) VALUES (?, ?)"
+            : "INSERT IGNORE INTO company_services (vendor_id, service_id) VALUES (?, ?)";
 
-        const [existing] = await connection.query(vendorPostQueries.checkServiceType, [serviceId, serviceType.trim()]);
-        if (existing.length > 0) throw new Error("Service type already exists for this service");
+        await connection.query(serviceInsertQuery, [vendor_id, service_id]);
 
-        const [insertResult] = await connection.query(vendorPostQueries.insertServiceType, [
-            serviceId,
-            vendor_id,
-            serviceType.trim(),
-            serviceTypeMedia,
-            0
-        ]);
-        const service_type_id = insertResult.insertId;
-
+        // 3. Insert packages and sub-items
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -164,41 +147,48 @@ const applyForServiceType = asyncHandler(async (req, res) => {
             const pkg = parsedPackages[i];
             const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
-            const [pkgResult] = await connection.query(
-                "INSERT INTO packages (service_type_id, vendor_id, packageName, description, totalPrice, totalTime, packageMedia) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [service_type_id, vendor_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
-            );
+            const [pkgResult] = await connection.query(`
+                INSERT INTO packages (service_type_id, vendor_id, packageName, description, totalPrice, totalTime, packageMedia)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                service_type_id,
+                vendor_id,
+                pkg.package_name,
+                pkg.description,
+                pkg.total_price,
+                pkg.total_time,
+                media
+            ]);
 
             const package_id = pkgResult.insertId;
             insertedPackages.push(package_id);
 
             for (let itemIndex = 0; itemIndex < (pkg.items || []).length; itemIndex++) {
                 const item = pkg.items[itemIndex];
-
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${i}`]?.[0]?.url || null;
 
-                await connection.query(
-                    "INSERT INTO package_items (package_id, vendor_id, itemName, itemMedia, description, price, timeRequired) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    [package_id, vendor_id, item.item_name, itemMedia, item.description, item.price, item.time_required]
-                );
+                await connection.query(`
+                    INSERT INTO package_items
+                    (package_id, vendor_id, itemName, itemMedia, description, price, timeRequired)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `, [package_id, vendor_id, item.item_name, itemMedia, item.description, item.price, item.time_required]);
             }
         }
 
+        // 4. Insert preferences
         if (preferences) {
             const parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
 
-            if (Array.isArray(parsedPreferences) && parsedPreferences.length > 0) {
-                for (const package_id of insertedPackages) {
-                    for (const pref of parsedPreferences) {
-                        if (!pref.preference_value) {
-                            throw new Error("Each preference must have a 'preference_value'.");
-                        }
-
-                        await connection.query(
-                            "INSERT INTO booking_preferences (package_id, preferenceValue) VALUES (?, ?)",
-                            [package_id, pref.preference_value.trim()]
-                        );
+            for (const package_id of insertedPackages) {
+                for (const pref of parsedPreferences) {
+                    if (!pref.preference_value) {
+                        throw new Error("Each preference must have a 'preference_value'.");
                     }
+
+                    await connection.query(
+                        "INSERT INTO booking_preferences (package_id, preferenceValue) VALUES (?, ?)",
+                        [package_id, pref.preference_value.trim()]
+                    );
                 }
             }
         }
@@ -206,51 +196,15 @@ const applyForServiceType = asyncHandler(async (req, res) => {
         await connection.commit();
         connection.release();
 
-        // Notify admins
-        const [adminEmailRows] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
-        const adminEmails = adminEmailRows.map(row => row.email);
-        const packageHtml = parsedPackages.map(p => `<li>${p.package_name} - ₹${p.total_price} (${p.total_time})</li>`).join("");
-
-        if (adminEmails.length > 0) {
-            await transport.sendMail({
-                from: process.env.EMAIL_USER,
-                to: adminEmails,
-                subject: "New Service Type Submitted by Vendor",
-                html: `
-                    <p>A new service type has been submitted by a vendor and is pending approval:</p>
-                    <ul>
-                        <li><strong>Vendor ID:</strong> ${vendor_id}</li>
-                        <li><strong>Vendor Name:</strong> ${vendorName}</li>
-                        <li><strong>Service:</strong> ${serviceName}</li>
-                        <li><strong>Service Type:</strong> ${serviceType}</li>
-                    </ul>
-                    <h4>Packages:</h4><ul>${packageHtml}</ul>
-                    <p>Please review and approve it in the admin panel.</p>`
-            });
-        }
-
-        const [adminFCMTokens] = await db.query("SELECT fcmToken FROM admin WHERE fcmToken IS NOT NULL");
-        const tokens = adminFCMTokens.map(row => row.fcmToken).filter(Boolean);
-
-        if (tokens.length > 0) {
-            await admin.messaging().sendEachForMulticast({
-                notification: {
-                    title: "New Service Type Submitted",
-                    body: `${serviceName} → ${serviceType} (by ${vendorName})`
-                },
-                tokens
-            });
-        }
-
         res.status(201).json({
-            message: "Service type and vendor details submitted successfully and pending approval.",
+            message: "Packages submitted successfully under selected service type.",
             service_type_id
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Error applying for service type:", err);
+        console.error("Error submitting vendor packages:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
