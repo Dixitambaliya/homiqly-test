@@ -429,60 +429,58 @@ const deletePackage = asyncHandler(async (req, res) => {
 });
 
 const getPackagesForVendor = asyncHandler(async (req, res) => {
-    const { serviceCategoryId, serviceId, service_type_id } = req.query;
+    const { service_id } = req.query;
 
-    if (!serviceCategoryId || !serviceId || !service_type_id) {
+    if (!service_id) {
         return res.status(400).json({
-            error: "serviceCategoryId, serviceId, and service_type_id are required."
+            error: "service_id is required."
         });
     }
 
     try {
-        // Step 1: Validate combination exists
-        const [mapping] = await db.query(`
-            SELECT sc.service_categories_id, s.service_id, st.service_type_id
-            FROM service_categories sc
-            JOIN services s ON s.service_categories_id = sc.service_categories_id
-            JOIN service_type st ON st.service_id = s.service_id
-            WHERE sc.service_categories_id = ? AND s.service_id = ? AND st.service_type_id = ?
-        `, [serviceCategoryId, serviceId, service_type_id]);
+        // Step 1: Get all service_type_ids under this service
+        const [types] = await db.query(
+            `SELECT service_type_id FROM service_type WHERE service_id = ?`,
+            [service_id]
+        );
 
-        if (mapping.length === 0) {
-            return res.status(404).json({
-                error: "Invalid service category/service/type combination."
-            });
+        if (types.length === 0) {
+            return res.status(404).json({ error: "No service types found for the given service_id." });
         }
 
-        // Step 2: Fetch all packages for that service type
+        const serviceTypeIds = types.map(row => row.service_type_id);
+
+        // Step 2: Fetch all packages for these service_type_ids
         const [packages] = await db.query(`
             SELECT
                 p.package_id,
+                p.service_type_id,
+                st.serviceTypeName,
                 p.packageName,
                 p.description,
                 p.totalPrice,
                 p.totalTime,
                 p.packageMedia
             FROM packages p
-            WHERE p.service_type_id = ?
-        `, [service_type_id]);
+            JOIN service_type st ON p.service_type_id = st.service_type_id
+            WHERE p.service_type_id IN (?)
+        `, [serviceTypeIds]);
 
-        // Step 3: Attach items and preferences
+        // Step 3: Attach subPackages (items) and preferences
         for (const pkg of packages) {
-            // Fetch items
-            const [items] = await db.query(`
+            const [subPackages] = await db.query(`
                 SELECT item_id, itemName, description, price, timeRequired, itemMedia
                 FROM package_items
                 WHERE package_id = ?
             `, [pkg.package_id]);
 
-            // Fetch preferences
             const [preferences] = await db.query(`
                 SELECT preference_id, preferenceValue
                 FROM booking_preferences
                 WHERE package_id = ?
             `, [pkg.package_id]);
 
-            pkg.items = items;
+            pkg.subPackages = subPackages;
             pkg.preferences = preferences;
         }
 
@@ -496,6 +494,8 @@ const getPackagesForVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: error.message });
     }
 });
+
+
 
 module.exports = {
     getVendorServices,

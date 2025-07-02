@@ -174,30 +174,26 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
     try {
         const {
-            serviceCategoryId,
             serviceId,
-            service_type_id,
+            serviceTypeName,
             packages,
             preferences
         } = req.body;
 
-        if (!serviceCategoryId || !serviceId || !service_type_id || !packages) {
-            throw new Error("Missing required fields: serviceCategoryId, serviceId, service_type_id, and packages.");
+        if (!serviceId || !serviceTypeName || !packages) {
+            throw new Error("Missing required fields: serviceId, service_type_name, and packages.");
         }
+        
+        const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
+        // Insert into service_type table
+        const [stResult] = await connection.query(`
+            INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+            VALUES (?, ?, ?)
+        `, [serviceId, serviceTypeName, serviceTypeMedia || null]);
 
-        // Validate admin mapping
-        const [check] = await connection.query(`
-            SELECT sc.service_categories_id, s.service_id, st.service_type_id
-            FROM service_categories sc
-            JOIN services s ON s.service_categories_id = sc.service_categories_id
-            JOIN service_type st ON st.service_id = s.service_id
-            WHERE sc.service_categories_id = ? AND s.service_id = ? AND st.service_type_id = ?
-        `, [serviceCategoryId, serviceId, service_type_id]);
+        const service_type_id = stResult.insertId;
 
-        if (check.length === 0) {
-            throw new Error("Invalid service mapping provided.");
-        }
-
+        // Parse packages
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -215,8 +211,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             const package_id = pkgResult.insertId;
 
-            for (let j = 0; j < (pkg.items || []).length; j++) {
-                const item = pkg.items[j];
+            for (let j = 0; j < (pkg.subPackages || []).length; j++) {
+                const sub = pkg.subPackages[j];
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${j}`]?.[0]?.url || null;
 
                 await connection.query(`
@@ -225,10 +221,10 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                     VALUES (?, ?, ?, ?, ?, ?)
                 `, [
                     package_id,
-                    item.item_name,
-                    item.description,
-                    item.price,
-                    item.time_required,
+                    sub.item_name,
+                    sub.description,
+                    sub.price,
+                    sub.time_required,
                     itemMedia
                 ]);
             }
@@ -250,7 +246,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "All packages created successfully by admin"
+            message: "Service type and packages created successfully by admin",
+            service_type_id
         });
 
     } catch (err) {
@@ -260,6 +257,5 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin };
