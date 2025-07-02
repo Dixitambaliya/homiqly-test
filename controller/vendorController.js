@@ -429,51 +429,38 @@ const deletePackage = asyncHandler(async (req, res) => {
 });
 
 const getPackagesForVendor = asyncHandler(async (req, res) => {
-    const { service_id } = req.query;
+    const { service_type_id } = req.query;
 
-    if (!service_id) {
+    if (!service_type_id) {
         return res.status(400).json({
-            error: "service_id is required."
+            error: "service_type_id is required."
         });
     }
 
     try {
-        // Step 1: Get all service_type_ids under this service
-        const [types] = await db.query(
-            `SELECT service_type_id FROM service_type WHERE service_id = ?`,
-            [service_id]
-        );
-
-        if (types.length === 0) {
-            return res.status(404).json({ error: "No service types found for the given service_id." });
-        }
-
-        const serviceTypeIds = types.map(row => row.service_type_id);
-
-        // Step 2: Fetch all packages for these service_type_ids
+        // Step 1: Fetch all packages for the given service_type_id
         const [packages] = await db.query(`
             SELECT
                 p.package_id,
-                p.service_type_id,
-                st.serviceTypeName,
                 p.packageName,
                 p.description,
                 p.totalPrice,
                 p.totalTime,
                 p.packageMedia
             FROM packages p
-            JOIN service_type st ON p.service_type_id = st.service_type_id
-            WHERE p.service_type_id IN (?)
-        `, [serviceTypeIds]);
+            WHERE p.service_type_id = ?
+        `, [service_type_id]);
 
-        // Step 3: Attach subPackages (items) and preferences
+        // Step 2: Attach subPackages (formerly items) and preferences
         for (const pkg of packages) {
+            // Fetch subPackages
             const [subPackages] = await db.query(`
                 SELECT item_id, itemName, description, price, timeRequired, itemMedia
                 FROM package_items
                 WHERE package_id = ?
             `, [pkg.package_id]);
 
+            // Fetch preferences
             const [preferences] = await db.query(`
                 SELECT preference_id, preferenceValue
                 FROM booking_preferences
@@ -494,7 +481,6 @@ const getPackagesForVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: error.message });
     }
 });
-
 
 
 module.exports = {
