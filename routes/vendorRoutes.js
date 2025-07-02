@@ -3,14 +3,15 @@ const router = express.Router()
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
 const { getVendorServices,
-    applyForServiceType,
+    vendorSelectOrAddPackage,
     getServiceTypesByVendor,
     getVendorService,
     getProfileVendor,
     updateProfileVendor,
     getServiceTypesByServiceId,
     deletePackage,
-    editServiceType
+    editServiceType,
+    getPackagesForVendor
 } = require("../controller/vendorController")
 
 const multiUpload = upload.any();
@@ -21,10 +22,11 @@ router.get("/vendorservice", authenticationToken, getVendorService);
 router.get("/getprofile", authenticationToken, getProfileVendor);
 
 router.get("/getservicetypes/:service_id", authenticationToken, getServiceTypesByServiceId);
+router.get("/getpackages", authenticationToken, getPackagesForVendor)
 
 router.delete("/deletepackages/:package_id", authenticationToken, deletePackage);
 
-router.post("/applyservicetype", authenticationToken, multiUpload, handleUploads, applyForServiceType)
+router.post("/applyservicetype", authenticationToken, multiUpload, handleUploads, vendorSelectOrAddPackage)
 router.put("/editservicetype", authenticationToken, editServiceType)
 router.put("/updateprofile", authenticationToken, multiUpload, handleUploads, updateProfileVendor);
 

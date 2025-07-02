@@ -40,7 +40,6 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllServiceType = asyncHandler(async (req, res) => {
 
     try {
@@ -82,7 +81,6 @@ const getAllServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getUsers = asyncHandler(async (req, res) => {
     try {
@@ -137,7 +135,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
 const getBookings = asyncHandler(async (req, res) => {
     try {
         const [bookings] = await db.query(`
-            SELECT 
+            SELECT
                 sb.booking_id,
                 sb.bookingDate,
                 sb.bookingTime,
@@ -146,7 +144,7 @@ const getBookings = asyncHandler(async (req, res) => {
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
                 s.serviceName,
                 sc.serviceCategory,
-                CASE 
+                CASE
                     WHEN v.vendorType = 'individual' THEN ind.name
                     WHEN v.vendorType = 'company' THEN comp.companyName
                 END as vendorName
@@ -170,5 +168,98 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+const createPackageByAdmin = asyncHandler(async (req, res) => {
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings };
+    try {
+        const {
+            serviceCategoryId,
+            serviceId,
+            service_type_id,
+            packages,
+            preferences
+        } = req.body;
+
+        if (!serviceCategoryId || !serviceId || !service_type_id || !packages) {
+            throw new Error("Missing required fields: serviceCategoryId, serviceId, service_type_id, and packages.");
+        }
+
+        // Validate admin mapping
+        const [check] = await connection.query(`
+            SELECT sc.service_categories_id, s.service_id, st.service_type_id
+            FROM service_categories sc
+            JOIN services s ON s.service_categories_id = sc.service_categories_id
+            JOIN service_type st ON st.service_id = s.service_id
+            WHERE sc.service_categories_id = ? AND s.service_id = ? AND st.service_type_id = ?
+        `, [serviceCategoryId, serviceId, service_type_id]);
+
+        if (check.length === 0) {
+            throw new Error("Invalid service mapping provided.");
+        }
+
+        const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
+            throw new Error("At least one package is required.");
+        }
+
+        for (let i = 0; i < parsedPackages.length; i++) {
+            const pkg = parsedPackages[i];
+            const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
+
+            const [pkgResult] = await connection.query(`
+                INSERT INTO packages
+                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `, [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]);
+
+            const package_id = pkgResult.insertId;
+
+            for (let j = 0; j < (pkg.items || []).length; j++) {
+                const item = pkg.items[j];
+                const itemMedia = req.uploadedFiles?.[`itemMedia_${j}`]?.[0]?.url || null;
+
+                await connection.query(`
+                    INSERT INTO package_items
+                    (package_id, itemName, description, price, timeRequired, itemMedia)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [
+                    package_id,
+                    item.item_name,
+                    item.description,
+                    item.price,
+                    item.time_required,
+                    itemMedia
+                ]);
+            }
+
+            // Optional preferences
+            if (preferences) {
+                const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
+                for (const pref of parsedPrefs) {
+                    if (!pref.preference_value) continue;
+                    await connection.query(`
+                        INSERT INTO booking_preferences (package_id, preferenceValue)
+                        VALUES (?, ?)
+                    `, [package_id, pref.preference_value.trim()]);
+                }
+            }
+        }
+
+        await connection.commit();
+        connection.release();
+
+        res.status(201).json({
+            message: "All packages created successfully by admin"
+        });
+
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Admin package creation error:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
+module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin };
