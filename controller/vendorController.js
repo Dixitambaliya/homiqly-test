@@ -123,73 +123,54 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
-const vendorSelectOrAddPackage = asyncHandler(async (req, res) => {
+const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
-    const { vendor_id } = req.user;
-    const { selected_package_ids, new_packages } = req.body;
-
     try {
-        // Step 1: Map selected admin-defined packages
-        if (Array.isArray(selected_package_ids)) {
-            for (const pkgId of selected_package_ids) {
-                await connection.query(`
-                    INSERT IGNORE INTO vendor_packages (vendor_id, package_id)
-                    VALUES (?, ?)
-                `, [vendor_id, pkgId]);
-            }
+        const vendor_id = req.user.vendor_id;
+        const { packageIds } = req.body;
+
+        if (!Array.isArray(packageIds) || packageIds.length === 0) {
+            throw new Error("At least one package ID must be provided.");
         }
 
-        // Step 2: Add custom vendor-created packages (optional)
-        if (Array.isArray(new_packages)) {
-            for (let i = 0; i < new_packages.length; i++) {
-                const pkg = new_packages[i];
-                const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
+        // Optional: Prevent duplicate inserts
+        const [existing] = await connection.query(
+            `SELECT package_id FROM vendor_packages WHERE vendor_id = ?`,
+            [vendor_id]
+        );
 
-                const [pkgResult] = await connection.query(`
-                    INSERT INTO packages
-                    (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `, [
-                    pkg.service_type_id,
-                    pkg.packageName,
-                    pkg.description,
-                    pkg.totalPrice,
-                    pkg.totalTime,
-                    media
-                ]);
+        const existingPackageIds = new Set(existing.map(p => p.package_id));
+        const newPackageIds = packageIds.filter(id => !existingPackageIds.has(id));
 
-                const newPackageId = pkgResult.insertId;
+        if (newPackageIds.length === 0) {
+            return res.status(400).json({ message: "All selected packages are already applied." });
+        }
 
-                for (const item of pkg.items || []) {
-                    await connection.query(`
-                        INSERT INTO package_items
-                        (package_id, itemName, description, price, timeRequired)
-                        VALUES (?, ?, ?, ?, ?)
-                    `, [newPackageId, item.itemName, item.description, item.price, item.timeRequired]);
-                }
-
-                // Map vendor to this custom package
-                await connection.query(`
-                    INSERT INTO vendor_packages (vendor_id, package_id)
-                    VALUES (?, ?)
-                `, [vendor_id, newPackageId]);
-            }
+        for (const package_id of newPackageIds) {
+            await connection.query(
+                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                [vendor_id, package_id]
+            );
         }
 
         await connection.commit();
         connection.release();
 
-        res.status(200).json({ message: "Packages selected/added successfully" });
+        res.status(200).json({
+            message: "Packages successfully applied to vendor",
+            applied: newPackageIds
+        });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Vendor package select/add error:", err);
+        console.error("Apply vendor packages error:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
@@ -427,63 +408,234 @@ const deletePackage = asyncHandler(async (req, res) => {
     }
 });
 
-const getPackagesForVendor = asyncHandler(async (req, res) => {
-    const { service_type_id } = req.query;
+const getAvailablePackagesForVendor = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
 
-    if (!service_type_id) {
-        return res.status(400).json({
-            error: "service_type_id is required."
-        });
-    }
+    const {
+        service_categories_id,
+        service_id,
+        service_type_id
+    } = req.query; // Filter via query params
 
     try {
-        // Step 1: Fetch all packages for the given service_type_id
-        const [packages] = await db.query(`
-            SELECT
-                p.package_id,
-                p.packageName,
-                p.description,
-                p.totalPrice,
-                p.totalTime,
-                p.packageMedia
-            FROM packages p
-            WHERE p.service_type_id = ?
-        `, [service_type_id]);
+        const conditions = [];
+        const params = [vendor_id];
 
-        // Step 2: Attach subPackages (formerly items) and preferences
-        for (const pkg of packages) {
-            // Fetch subPackages
-            const [subPackages] = await db.query(`
-                SELECT item_id, itemName, description, price, timeRequired, itemMedia
-                FROM package_items
-                WHERE package_id = ?
-            `, [pkg.package_id]);
-
-            // Fetch preferences
-            const [preferences] = await db.query(`
-                SELECT preference_id, preferenceValue
-                FROM booking_preferences
-                WHERE package_id = ?
-            `, [pkg.package_id]);
-
-            pkg.subPackages = subPackages;
-            pkg.preferences = preferences;
+        if (service_categories_id) {
+            conditions.push("sc.service_categories_id = ?");
+            params.push(service_categories_id);
+        }
+        if (service_id) {
+            conditions.push("s.service_id = ?");
+            params.push(service_id);
+        }
+        if (service_type_id) {
+            conditions.push("st.service_type_id = ?");
+            params.push(service_type_id);
         }
 
-        res.status(200).json({
-            message: "Packages fetched successfully",
-            packages
+        const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        const [rows] = await db.query(`
+        SELECT
+          sc.service_categories_id,
+          sc.serviceCategory,
+
+          s.service_id,
+          s.serviceName,
+
+          st.service_type_id,
+          st.serviceTypeName,
+          st.serviceTypeMedia,
+
+          COALESCE((
+            SELECT CONCAT('[', GROUP_CONCAT(
+              JSON_OBJECT(
+                'package_id', p.package_id,
+                'packageName', p.packageName,
+                'packageMedia', p.packageMedia,
+                'description', p.description,
+                'totalPrice', p.totalPrice,
+                'totalTime', p.totalTime,
+                'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
+                'subPackages', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'sub_package_id', pi.item_id,
+                      'itemName', pi.itemName,
+                      'itemMedia', pi.itemMedia,
+                      'description', pi.description,
+                      'price', pi.price,
+                      'timeRequired', pi.timeRequired
+                    )
+                  ), ']')
+                  FROM package_items pi
+                  WHERE pi.package_id = p.package_id
+                ), '[]'),
+                'preferences', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'preference_id', bp.preference_id,
+                      'preference_value', bp.preferenceValue
+                    )
+                  ), ']')
+                  FROM booking_preferences bp
+                  WHERE bp.package_id = p.package_id
+                ), '[]')
+              )
+            ), ']')
+            FROM packages p
+            LEFT JOIN vendor_packages vp ON vp.package_id = p.package_id AND vp.vendor_id = ?
+            WHERE p.service_type_id = st.service_type_id
+          ), '[]') AS packages
+
+        FROM service_categories sc
+        JOIN services s ON s.service_categories_id = sc.service_categories_id
+        JOIN service_type st ON st.service_id = s.service_id
+
+        ${whereClause}
+
+        GROUP BY st.service_type_id
+        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+      `, params);
+
+        const parsed = rows.map(row => {
+            let packages = [];
+            try {
+                packages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    subPackages: typeof pkg.subPackages === 'string'
+                        ? JSON.parse(pkg.subPackages || '[]')
+                        : (pkg.subPackages || []),
+                    preferences: typeof pkg.preferences === 'string'
+                        ? JSON.parse(pkg.preferences || '[]')
+                        : (pkg.preferences || [])
+                }));
+            } catch (e) {
+                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, e.message);
+            }
+
+            return {
+                ...row,
+                packages
+            };
         });
 
-    } catch (error) {
-        console.error("Error fetching vendor packages:", error);
-        res.status(500).json({ error: "Database error", details: error.message });
+        res.status(200).json({
+            message: "packages",
+            data: parsed
+        });
+
+    } catch (err) {
+        console.error("Vendor package fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch vendor packages", details: err.message });
     }
 });
 
+const getAllPackagesForVendor = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    try {
+        const [rows] = await db.query(`
+        SELECT
+          sc.service_categories_id,
+          sc.serviceCategory,
+
+          s.service_id,
+          s.serviceName,
+
+          st.service_type_id,
+          st.serviceTypeName,
+          st.serviceTypeMedia,
+
+          -- Packages grouped per service_type
+          COALESCE((
+            SELECT CONCAT('[', GROUP_CONCAT(
+              JSON_OBJECT(
+                'package_id', p.package_id,
+                'packageName', p.packageName,
+                'packageMedia', p.packageMedia,
+                'description', p.description,
+                'totalPrice', p.totalPrice,
+                'totalTime', p.totalTime,
+                'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
+                'subPackages', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'sub_package_id', pi.item_id,
+                      'itemName', pi.itemName,
+                      'itemMedia', pi.itemMedia,
+                      'description', pi.description,
+                      'price', pi.price,
+                      'timeRequired', pi.timeRequired
+                    )
+                  ), ']')
+                  FROM package_items pi
+                  WHERE pi.package_id = p.package_id
+                ), '[]'),
+                'preferences', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'preference_id', bp.preference_id,
+                      'preference_value', bp.preferenceValue
+                    )
+                  ), ']')
+                  FROM booking_preferences bp
+                  WHERE bp.package_id = p.package_id
+                ), '[]')
+              )
+            ), ']')
+            FROM packages p
+            LEFT JOIN vendor_packages vp ON vp.package_id = p.package_id AND vp.vendor_id = ?
+            WHERE p.service_type_id = st.service_type_id
+          ), '[]') AS packages
+
+        FROM service_categories sc
+        JOIN services s ON s.service_categories_id = sc.service_categories_id
+        JOIN service_type st ON st.service_id = s.service_id
+
+        GROUP BY st.service_type_id
+        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+      `, [vendor_id]);
+
+        // Final parsing of nested packages
+        const parsed = rows.map(row => {
+            let packages = [];
+            try {
+                packages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    subPackages: typeof pkg.subPackages === 'string'
+                        ? JSON.parse(pkg.subPackages || '[]')
+                        : (pkg.subPackages || []),
+                    preferences: typeof pkg.preferences === 'string'
+                        ? JSON.parse(pkg.preferences || '[]')
+                        : (pkg.preferences || [])
+                }));
+            } catch (e) {
+                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, e.message);
+            }
+
+            return {
+                ...row,
+                packages
+            };
+        });
+
+        res.status(200).json({
+            message: "packages",
+            data: parsed
+        });
+
+    } catch (err) {
+        console.error("Vendor package fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch vendor packages", details: err.message });
+    }
+});
+
+
 module.exports = {
     getVendorServices,
-    vendorSelectOrAddPackage,
+    applyPackagesToVendor,
     getServiceTypesByVendor,
     getVendorService,
     getProfileVendor,
@@ -491,5 +643,6 @@ module.exports = {
     editServiceType,
     getServiceTypesByServiceId,
     deletePackage,
-    getPackagesForVendor
+    getAvailablePackagesForVendor,
+    getAllPackagesForVendor
 };

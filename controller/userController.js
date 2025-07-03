@@ -42,30 +42,36 @@ const getService = asyncHandler(async (req, res) => {
 });
 
 const getServiceNames = asyncHandler(async (req, res) => {
-    const service_id = req.params.service_id; // Fixed parameter name
+    const { service_categories_id } = req.params;
+
+    if (!service_categories_id) {
+        return res.status(400).json({ message: "Service category ID is required" });
+    }
 
     try {
-        const [rows] = await db.query(userGetQueries.getServiceNames, [service_id]);
+        const [services] = await db.query(`
+            SELECT
+                s.service_id,
+                s.serviceName,
+                s.serviceDescription,
+                s.serviceImage,
+                s.service_categories_id,
+                sc.serviceCategory
+            FROM services s
+            JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+            WHERE s.service_categories_id = ?
+        `, [service_categories_id]);
 
-        const parsedRows = rows.map((row) => {
-            return {
-                service_type_id: row.service_type_id,
-                serviceName: row.serviceName,
-                serviceTypeName: row.serviceTypeName,
-                is_approved: row.is_approved,
-                serviceTypeMedia: row.serviceTypeMedia,
-                serviceDescription: row.serviceDescription
-            };
+        return res.status(200).json({
+            message: "Admin services fetched successfully by category",
+            services
         });
-
-        res.status(200).json({
-            message: "Services fetched successfully",
-            rows: parsedRows
-        });
-
     } catch (err) {
-        console.error("Error fetching service types:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+        console.error("Error fetching admin services by category:", err);
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
     }
 });
 
@@ -106,11 +112,12 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id;
 
     try {
-      const [rows] = await db.query(`
+        const [rows] = await db.query(`
         SELECT
           st.service_type_id,
           st.serviceTypeName,
@@ -200,52 +207,50 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
         ORDER BY st.service_type_id DESC;
       `, [service_id]);
 
-      const cleanedRows = rows.map(row => {
-        let parsedPackages = [];
-        let parsedPreferences = [];
+        const cleanedRows = rows.map(row => {
+            let parsedPackages = [];
+            let parsedPreferences = [];
 
-        try {
-          parsedPackages = JSON.parse(row.packages || '[]').map(pkg => ({
-            ...pkg,
-            sub_packages: typeof pkg.sub_packages === 'string'
-              ? JSON.parse(pkg.sub_packages || '[]')
-              : (pkg.sub_packages || [])
-          }));
-        } catch (err) {
-          console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, err.message);
-        }
+            try {
+                parsedPackages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    sub_packages: typeof pkg.sub_packages === 'string'
+                        ? JSON.parse(pkg.sub_packages || '[]')
+                        : (pkg.sub_packages || [])
+                }));
+            } catch (err) {
+                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, err.message);
+            }
 
-        try {
-          parsedPreferences = JSON.parse(row.preferences || '[]');
-        } catch (err) {
-          console.warn(`Failed to parse preferences for service_type_id ${row.service_type_id}:`, err.message);
-        }
+            try {
+                parsedPreferences = JSON.parse(row.preferences || '[]');
+            } catch (err) {
+                console.warn(`Failed to parse preferences for service_type_id ${row.service_type_id}:`, err.message);
+            }
 
-        const cleanedRow = Object.fromEntries(
-          Object.entries(row).filter(([key, val]) =>
-            val !== null && val !== undefined && !['packages', 'preferences'].includes(key)
-          )
-        );
+            const cleanedRow = Object.fromEntries(
+                Object.entries(row).filter(([key, val]) =>
+                    val !== null && val !== undefined && !['packages', 'preferences'].includes(key)
+                )
+            );
 
-        return {
-          ...cleanedRow,
-          packages: parsedPackages,
-          preferences: parsedPreferences
-        };
-      });
+            return {
+                ...cleanedRow,
+                packages: parsedPackages,
+                preferences: parsedPreferences
+            };
+        });
 
-      res.status(200).json({
-        message: "Service types fetched successfully",
-        rows: cleanedRows
-      });
+        res.status(200).json({
+            message: "Service types fetched successfully",
+            rows: cleanedRows
+        });
 
     } catch (err) {
-      console.error("Error fetching service types by service_id:", err);
-      res.status(500).json({ error: "Database error", details: err.message });
+        console.error("Error fetching service types by service_id:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
     }
-  });
-
-
+});
 
 const getApprovedServices = asyncHandler(async (req, res) => {
 
@@ -347,7 +352,6 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, phone, address, state, postalcode } = req.body;
@@ -375,7 +379,6 @@ const addUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 module.exports = {
     getServiceCategories,

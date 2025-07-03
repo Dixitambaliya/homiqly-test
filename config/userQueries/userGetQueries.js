@@ -45,8 +45,7 @@ const userGetQueries = {
     st.service_type_id,
     st.serviceTypeName,
     st.serviceTypeMedia,
-    st.is_approved,
-
+    
     s.service_id,
     s.service_categories_id,
     s.serviceName,
@@ -111,7 +110,7 @@ const userGetQueries = {
     GROUP BY service_id
     ) AS ratingStats ON s.service_id = ratingStats.service_id
 
-    WHERE st.is_approved = 1
+    WHERE st.service_id = ?
     ORDER BY st.service_type_id DESC`,
 
 
