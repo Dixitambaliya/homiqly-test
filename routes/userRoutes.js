@@ -22,13 +22,13 @@ router.get("/servicesbycategories", getServiceByCategory)
 router.get("/services/:service_id/servicetype", getServiceNames)
 router.get("/services/:service_id/allservicetypes", getServiceTypesByServiceId)
 
-router.get("/getallpackges", authenticationToken, getServicestypes)
+router.get("/getallpackges", getServicestypes)
 
-router.get("/getdata", authenticationToken, getUserData)
+router.get("/getdata", getUserData)
 
-router.get("/getpackagedetails/:vendor_id", authenticationToken, getVendorPackagesDetailed)
+router.get("/getpackagedetails/:vendor_id", getVendorPackagesDetailed)
 
-router.get("/services/:service_type_id/packages", authenticationToken, getPackagesByServiceTypeId)
+router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
 router.put("/insertdata", authenticationToken, addUserData)
 
