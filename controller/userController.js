@@ -85,8 +85,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
@@ -125,173 +123,51 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
 });
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
-    const service_id = req.params.service_id;
+    const service_id = req.params
+
+    if (!service_id) {
+        return res.status(400).json({ message: "Service ID is required." });
+    }
 
     try {
         const [rows] = await db.query(`
-        SELECT
-          st.service_type_id,
-          st.serviceTypeName,
-          st.serviceTypeMedia,
-          st.service_id,
-
-          v.vendor_id,
-          v.vendorType,
-
-          ind.id AS individual_id,
-          ind.name AS individual_name,
-          ind.phone AS individual_phone,
-          ind.email AS individual_email,
-
-          comp.id AS company_id,
-          comp.companyName,
-          comp.contactPerson,
-          comp.companyEmail,
-          comp.companyPhone,
-
-          IFNULL(serviceRatingStats.average_rating, 0) AS service_average_rating,
-          IFNULL(serviceRatingStats.total_reviews, 0) AS service_total_reviews,
-
-          COALESCE((
-            SELECT CONCAT('[', GROUP_CONCAT(
-              JSON_OBJECT(
-                'package_id', p.package_id,
-                'title', p.packageName,
-                'package_media', p.packageMedia,
-                'description', p.description,
-                'price', p.totalPrice,
-                'time_required', p.totalTime,
-                'average_rating', IFNULL(packageRatingStats.average_rating, 0),
-                'total_reviews', IFNULL(packageRatingStats.total_reviews, 0),
-                'sub_packages', IFNULL((
-                  SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                      'sub_package_id', pi.item_id,
-                      'title', pi.itemName,
-                      'item_media', pi.itemMedia,
-                      'description', pi.description,
-                      'price', pi.price,
-                      'time_required', pi.timeRequired
-                    )
-                  ), ']')
-                  FROM package_items pi
-                  WHERE pi.package_id = p.package_id
-                ), '[]')
-              )
-            ), ']')
-            FROM packages p
-            LEFT JOIN (
-              SELECT package_id, ROUND(AVG(rating), 1) AS average_rating, COUNT(*) AS total_reviews
-              FROM ratings
-              WHERE package_id IS NOT NULL
-              GROUP BY package_id
-            ) AS packageRatingStats ON p.package_id = packageRatingStats.package_id
-            WHERE p.service_type_id = st.service_type_id
-          ), '[]') AS packages,
-
-          COALESCE((
-            SELECT CONCAT('[', GROUP_CONCAT(
-              JSON_OBJECT(
-                'preference_id', bp.preference_id,
-                'preference_value', bp.preferenceValue
-              )
-            ), ']')
-            FROM booking_preferences bp
-            JOIN packages p ON p.package_id = bp.package_id
-            WHERE p.service_type_id = st.service_type_id
-          ), '[]') AS preferences
-
-        FROM service_type st
-        LEFT JOIN vendors v ON st.vendor_id = v.vendor_id
-        LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
-        LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
-
-        LEFT JOIN (
-          SELECT service_type_id, ROUND(AVG(rating), 1) AS average_rating, COUNT(*) AS total_reviews
-          FROM ratings
-          WHERE service_type_id IS NOT NULL AND package_id IS NULL
-          GROUP BY service_type_id
-        ) AS serviceRatingStats ON st.service_type_id = serviceRatingStats.service_type_id
-
-        WHERE st.service_id = ?
-        ORDER BY st.service_type_id DESC;
-      `, [service_id]);
-
-        const cleanedRows = rows.map(row => {
-            let parsedPackages = [];
-            let parsedPreferences = [];
-
-            try {
-                parsedPackages = JSON.parse(row.packages || '[]').map(pkg => ({
-                    ...pkg,
-                    sub_packages: typeof pkg.sub_packages === 'string'
-                        ? JSON.parse(pkg.sub_packages || '[]')
-                        : (pkg.sub_packages || [])
-                }));
-            } catch (err) {
-                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, err.message);
-            }
-
-            try {
-                parsedPreferences = JSON.parse(row.preferences || '[]');
-            } catch (err) {
-                console.warn(`Failed to parse preferences for service_type_id ${row.service_type_id}:`, err.message);
-            }
-
-            const cleanedRow = Object.fromEntries(
-                Object.entries(row).filter(([key, val]) =>
-                    val !== null && val !== undefined && !['packages', 'preferences'].includes(key)
-                )
-            );
-
-            return {
-                ...cleanedRow,
-                packages: parsedPackages,
-                preferences: parsedPreferences
-            };
-        });
+            SELECT
+                service_type_id,
+                service_id,
+                serviceTypeName,
+                serviceTypeMedia,
+                created_at
+            FROM service_type
+            WHERE service_id = ?
+            ORDER BY service_type_id DESC
+        `, [service_id]);
 
         res.status(200).json({
             message: "Service types fetched successfully",
-            rows: cleanedRows
+            rows
         });
 
     } catch (err) {
         console.error("Error fetching service types by service_id:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+        res.status(500).json({
+            error: "Database error",
+            details: err.message
+        });
     }
 });
 
-
-
-const getApprovedServices = asyncHandler(async (req, res) => {
-
+const getServicestypes = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getServiceNames);
 
         const cleanedRows = rows.map(row => {
-            // Parse JSON fields
-            const packages = JSON.parse(row.packages || '[]');
-
-            const parsedPackages = packages.map(pkg => ({
-                ...pkg,
-                sub_packages: typeof pkg.sub_packages === 'string'
-                    ? JSON.parse(pkg.sub_packages)
-                    : pkg.sub_packages
-            }));
-
-            // Filter out null fields
             const cleanedRow = {};
             for (const key in row) {
                 if (row[key] !== null) {
                     cleanedRow[key] = row[key];
                 }
             }
-
-            return {
-                ...cleanedRow,
-                packages: parsedPackages
-            };
+            return cleanedRow;
         });
 
         res.status(200).json({
@@ -393,15 +269,151 @@ const addUserData = asyncHandler(async (req, res) => {
     }
 });
 
+const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
+    const { service_type_id } = req.params;
+
+    if (!service_type_id) {
+        return res.status(400).json({ message: "Service Type ID is required." });
+    }
+
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                st.service_type_id,
+                st.serviceTypeName,
+                st.serviceTypeMedia,
+
+                CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                        'package_id', p.package_id,
+                        'title', p.packageName,
+                        'description', p.description,
+                        'price', p.totalPrice,
+                        'time_required', p.totalTime,
+                        'package_media', p.packageMedia,
+                        'vendor_id', vp.vendor_id
+                    )
+                ), ']') AS packages
+
+            FROM service_type st
+            INNER JOIN packages p ON p.service_type_id = st.service_type_id
+            INNER JOIN vendor_packages vp ON vp.package_id = p.package_id
+
+            WHERE st.service_type_id = ?
+            GROUP BY st.service_type_id
+        `, [service_type_id]);
+
+        // If no rows found, don't return empty result
+        if (!rows.length) {
+            return res.status(404).json({ message: "No vendor-registered packages found for this service type." });
+        }
+
+        const result = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            serviceTypeName: row.serviceTypeName,
+            serviceTypeMedia: row.serviceTypeMedia,
+            packages: JSON.parse(row.packages || '[]')
+        }));
+
+        res.status(200).json({
+            message: "Packages by service type fetched successfully",
+            result
+        });
+
+    } catch (err) {
+        console.error("Error fetching packages by service_type_id:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
+const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
+    const { vendor_id } = req.params;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Vendor ID is required" });
+    }
+
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                vp.vendor_packages_id,
+                vp.vendor_id,
+                p.package_id,
+                p.packageName,
+                p.description,
+                p.totalPrice,
+                p.totalTime,
+                p.packageMedia,
+
+                -- Sub-packages (items)
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'sub_package_id', pi.item_id,
+                            'title', pi.itemName,
+                            'description', pi.description,
+                            'price', pi.price,
+                            'time_required', pi.timeRequired,
+                            'item_media', pi.itemMedia
+                        )
+                    ), ']')
+                    FROM package_items pi
+                    WHERE pi.package_id = p.package_id
+                ), '[]') AS sub_packages,
+
+                -- Preferences
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'preference_id', bp.preference_id,
+                            'preference_value', bp.preferenceValue
+                        )
+                    ), ']')
+                    FROM booking_preferences bp
+                    WHERE bp.package_id = p.package_id
+                ), '[]') AS preferences
+
+            FROM vendor_packages vp
+            INNER JOIN packages p ON vp.package_id = p.package_id
+            WHERE vp.vendor_id = ?
+            ORDER BY vp.vendor_packages_id DESC
+        `, [vendor_id]);
+
+        const data = rows.map(row => ({
+            vendor_packages_id: row.vendor_packages_id,
+            vendor_id: row.vendor_id,
+            package_id: row.package_id,
+            packageName: row.packageName,
+            description: row.description,
+            totalPrice: row.totalPrice,
+            totalTime: row.totalTime,
+            packageMedia: row.packageMedia,
+            sub_packages: JSON.parse(row.sub_packages || '[]'),
+            preferences: JSON.parse(row.preferences || '[]')
+        }));
+
+        res.status(200).json({
+            message: "Vendor packages fetched successfully",
+            packages: data
+        });
+    } catch (err) {
+        console.error("Error fetching vendor packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
 
 module.exports = {
     getServiceCategories,
     getServiceByCategory,
     getServiceNames,
     getService,
-    getApprovedServices,
+    getServicestypes,
     getServiceTypesByServiceId,
     getUserData,
     updateUserData,
-    addUserData
+    addUserData,
+    getPackagesByServiceTypeId,
+    getVendorPackagesDetailed
+
 }

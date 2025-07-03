@@ -40,63 +40,16 @@ const userGetQueries = {
                         serviceDescription
                         FROM services WHERE service_categories_id = ?`,
 
-                        getServiceNames: `
-                        SELECT
-                            st.service_type_id,
-                            st.serviceTypeName,
-                            st.serviceTypeMedia,
-                            st.created_at,
-
-                            s.service_id,
-                            s.service_categories_id,
-                            s.serviceName,
-                            s.serviceDescription,
-
-                            IFNULL(ratingStats.average_rating, 0) AS average_rating,
-                            IFNULL(ratingStats.total_reviews, 0) AS total_reviews,
-
-                            COALESCE((
-                                SELECT CONCAT('[', GROUP_CONCAT(
-                                    JSON_OBJECT(
-                                        'package_id', p.package_id,
-                                        'title', p.packageName,
-                                        'description', p.description,
-                                        'price', p.totalPrice,
-                                        'time_required', p.totalTime,
-                                        'sub_packages', IFNULL((
-                                            SELECT CONCAT('[', GROUP_CONCAT(
-                                                JSON_OBJECT(
-                                                    'sub_package_id', pi.item_id,
-                                                    'title', pi.itemName,
-                                                    'description', pi.description,
-                                                    'price', pi.price,
-                                                    'time_required', pi.timeRequired
-                                                )
-                                            ), ']')
-                                            FROM package_items pi
-                                            WHERE pi.package_id = p.package_id
-                                        ), '[]')
-                                    )
-                                ), ']')
-                                FROM packages p
-                                WHERE p.service_type_id = st.service_type_id
-                            ), '[]') AS packages
-
-                        FROM service_type st
-                        LEFT JOIN services s ON st.service_id = s.service_id
-
-                        LEFT JOIN (
-                            SELECT
-                                service_id,
-                                ROUND(AVG(rating), 1) AS average_rating,
-                                COUNT(*) AS total_reviews
-                            FROM ratings
-                            GROUP BY service_id
-                        ) AS ratingStats ON s.service_id = ratingStats.service_id
-
-                        WHERE st.service_id = ?
-                        ORDER BY st.service_type_id DESC`
-
+    getServiceNames: `
+   SELECT
+    st.service_type_id,
+    st.service_id,
+    st.serviceTypeName,
+    st.serviceTypeMedia,
+    st.created_at
+FROM service_type st
+WHERE st.is_approved = 1
+ORDER BY st.service_type_id DESC`,
 
 
 }
