@@ -28,10 +28,8 @@ const bookService = asyncHandler(async (req, res) => {
     let parsedPackages = [];
     let parsedPreferences = [];
 
-    // Parse packages
     try {
         parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
-
         if (!Array.isArray(parsedPackages)) {
             return res.status(400).json({ message: "'packages' must be a valid array of objects." });
         }
@@ -39,10 +37,8 @@ const bookService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
     }
 
-    // Parse preferences
     try {
         parsedPreferences = typeof preferences === 'string' ? JSON.parse(preferences) : preferences;
-
         if (parsedPreferences && !Array.isArray(parsedPreferences)) {
             return res.status(400).json({ message: "'preferences' must be a valid array." });
         }
@@ -51,7 +47,6 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // Check for duplicate booking
         const [existingBooking] = await db.query(bookingPostQueries.checkUserBookingSlot, [
             user_id,
             serviceId,
@@ -63,7 +58,6 @@ const bookService = asyncHandler(async (req, res) => {
             return res.status(409).json({ message: "You already booked this service for the selected slot." });
         }
 
-        // Get vendor_id by service_type_id
         const [vendorResult] = await db.query(bookingGetQueries.getVendorByServiceTypeId, [service_type_id]);
 
         if (!vendorResult.length) {
@@ -72,7 +66,6 @@ const bookService = asyncHandler(async (req, res) => {
 
         const vendor_id = vendorResult[0].vendor_id;
 
-        // Check vendor availability
         const [availability] = await db.query(bookingPostQueries.checkVendorAvailability, [
             vendor_id,
             bookingDate,
@@ -83,7 +76,6 @@ const bookService = asyncHandler(async (req, res) => {
             return res.status(409).json({ message: "Vendor is not available at this time slot." });
         }
 
-        // Insert main booking
         const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
             service_categories_id,
             serviceId,
@@ -91,27 +83,22 @@ const bookService = asyncHandler(async (req, res) => {
             user_id,
             bookingDate,
             bookingTime,
-            0, // bookingStatus: pending
+            0,
             notes || null,
             bookingMedia || null
         ]);
 
         const booking_id = insertBooking.insertId;
 
-        // Insert service_type_id into service_booking_types
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // Insert packages and sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
-            if (!package_id) {
-                console.warn("Skipping invalid package with missing package_id", pkg);
-                continue;
-            }
+            if (!package_id) continue;
 
             await db.query(
                 "INSERT INTO service_booking_packages (booking_id, package_id) VALUES (?, ?)",
@@ -119,19 +106,19 @@ const bookService = asyncHandler(async (req, res) => {
             );
 
             for (const item of sub_packages) {
-                if (!item.sub_package_id || item.price == null) {
-                    console.warn("Skipping invalid sub_package", item);
-                    continue;
-                }
+                if (!item.sub_package_id || item.price == null) continue;
+
+                const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0
+                    ? item.quantity
+                    : 1;
 
                 await db.query(
-                    "INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price) VALUES (?, ?, ?)",
-                    [booking_id, item.sub_package_id, item.price]
+                    "INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?)",
+                    [booking_id, item.sub_package_id, item.price, quantity]
                 );
             }
         }
 
-        // Insert preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;

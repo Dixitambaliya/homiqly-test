@@ -191,7 +191,6 @@ const vendorSelectOrAddPackage = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
 
@@ -481,7 +480,6 @@ const getPackagesForVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: error.message });
     }
 });
-
 
 module.exports = {
     getVendorServices,
