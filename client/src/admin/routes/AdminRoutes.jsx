@@ -21,6 +21,7 @@ import Analytics from "../pages/Analytics";
 import Notifications from "../pages/Notifications";
 import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
+import Packages from "../pages/Packages";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -76,6 +77,7 @@ const AdminRoutes = () => {
         <Route path="vendors" element={<Vendors />} />
         <Route path="users" element={<Users />} />
         <Route path="services" element={<Services />} />
+        <Route path="packages" element={<Packages />} />
         <Route path="bookings" element={<Bookings />} />
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="contractors" element={<Contractors />} />

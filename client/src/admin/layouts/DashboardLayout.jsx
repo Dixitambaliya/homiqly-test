@@ -25,6 +25,7 @@ const DashboardLayout = () => {
     { path: '/admin/vendors', name: 'Vendors', icon: <FiUserCheck className="w-5 h-5" /> },
     { path: '/admin/users', name: 'Users', icon: <FiUsers className="w-5 h-5" /> },
     { path: '/admin/services', name: 'Services', icon: <FiShoppingBag className="w-5 h-5" /> },
+    { path: '/admin/packages', name: 'Packages', icon: <FiShoppingBag className="w-5 h-5" /> },
     { path: '/admin/bookings', name: 'Bookings', icon: <FiCalendar className="w-5 h-5" /> },
     { path: '/admin/supply-kits', name: 'Supply Kits', icon: <FiBox className="w-5 h-5" /> },
     { path: '/admin/contractors', name: 'Contractors', icon: <FiTool className="w-5 h-5" /> },

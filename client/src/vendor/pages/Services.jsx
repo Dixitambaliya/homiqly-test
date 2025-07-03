@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { FiPlus } from "react-icons/fi";
-import { Card } from "../../shared/components/Card";
 import { Button } from "../../shared/components/Button";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import PackagesTable from "../components/Tables/PackagesTable";
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -22,11 +22,10 @@ const Services = () => {
     try {
       setLoading(true);
       const response = await axios.get("/api/vendor/getvendorservice");
-      console.log("Vendor Services Response:", response.data);
+      console.log("Fetched Services:", response.data.services);
       setServices(response.data.services || []);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching vendor services:", error);
       setError("Failed to load services");
       setLoading(false);
     }
@@ -35,24 +34,30 @@ const Services = () => {
   const handleAddServiceType = async (formData) => {
     try {
       setSubmitting(true);
-      
-      const response = await axios.post("/api/vendor/applyservicetype", formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+      const response = await axios.post(
+        "/api/vendor/applyservicetype",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
         }
-      });
-      
+      );
       if (response.status === 200 || response.status === 201) {
         toast.success("Service type submitted for approval");
         setShowAddModal(false);
-        fetchVendorServices(); // Refresh the list
+        fetchVendorServices();
       }
     } catch (error) {
-      console.error("Error submitting service type:", error);
-      toast.error(error.response?.data?.message || "Failed to submit service type");
+      toast.error(
+        error.response?.data?.message || "Failed to submit service type"
+      );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEdit = (pkg) => {
+    // You can open a modal here or navigate
+    console.log("Edit Package:", pkg);
   };
 
   if (loading) {
@@ -85,82 +90,20 @@ const Services = () => {
       </div>
 
       {services.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map((service) => {
-            const statusClass = service.is_approved === 1 ? 'bg-green-100 text-green-800' : 
-                              service.is_approved === 2 ? 'bg-red-100 text-red-800' : 
-                              'bg-yellow-100 text-yellow-800';
-            const statusText = service.is_approved === 1 ? 'Approved' : 
-                              service.is_approved === 2 ? 'Rejected' : 
-                              'Pending';
-            
-            return (
-              <Card 
-                key={service.service_type_id}
-                className="overflow-hidden"
-              >
-                {service.serviceTypeMedia && (
-                  <img 
-                    src={service.serviceTypeMedia} 
-                    alt={service.serviceType} 
-                    className="w-full h-48 object-cover -mt-6 -mx-6 mb-4"
-                  />
-                )}
-                
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-semibold">{service.serviceType}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusClass}`}>
-                    {statusText}
-                  </span>
-                </div>
-                
-                <span className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-xs font-medium mb-3">
-                  {service.categoryName}
-                </span>
-                
-                <p className="text-gray-600 mb-4">
-                  <strong>Service:</strong> {service.serviceName}
-                </p>
-                
-                {service.serviceLocation && (
-                  <p className="text-gray-600 mb-4">
-                    <strong>Location:</strong> {service.serviceLocation}
-                  </p>
-                )}
-                
-                {service.packages && service.packages.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Packages:</h4>
-                    <div className="space-y-2">
-                      {service.packages.map((pkg, index) => (
-                        <div key={index} className="bg-gray-50 p-3 rounded-md">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{pkg.title}</span>
-                            <span className="text-green-600">₹{pkg.price}</span>
-                          </div>
-                          {pkg.description && (
-                            <p className="text-gray-600 text-sm mt-1">{pkg.description}</p>
-                          )}
-                          <p className="text-gray-500 text-xs mt-1">Duration: {pkg.time_required}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+        <PackagesTable
+          services={services}
+          onEdit={handleEdit}
+          fetchData={fetchVendorServices}
+        />
       ) : (
-        <Card className="text-center py-8">
-          <p className="text-gray-600 mb-4">You haven't added any services yet.</p>
-          <Button
-            onClick={() => setShowAddModal(true)}
-            variant="primary"
-          >
+        <div className="text-center py-8 border rounded-md">
+          <p className="text-gray-600 mb-4">
+            You haven't added any services yet.
+          </p>
+          <Button onClick={() => setShowAddModal(true)} variant="primary">
             Add Your First Service
           </Button>
-        </Card>
+        </div>
       )}
 
       <AddServiceTypeModal
