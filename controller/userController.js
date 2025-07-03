@@ -42,38 +42,49 @@ const getService = asyncHandler(async (req, res) => {
 });
 
 const getServiceNames = asyncHandler(async (req, res) => {
-    const { service_categories_id } = req.params;
-
-    if (!service_categories_id) {
-        return res.status(400).json({ message: "Service category ID is required" });
-    }
+    const service_id = req.params.service_id;
 
     try {
-        const [services] = await db.query(`
-            SELECT
-                s.service_id,
-                s.serviceName,
-                s.serviceDescription,
-                s.serviceImage,
-                s.service_categories_id,
-                sc.serviceCategory
-            FROM services s
-            JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-            WHERE s.service_categories_id = ?
-        `, [service_categories_id]);
+        const [rows] = await db.query(userGetQueries.getServiceNames, [service_id]);
 
-        return res.status(200).json({
-            message: "Admin services fetched successfully by category",
-            services
+        const parsedRows = rows.map((row) => {
+            let parsedPackages = [];
+            try {
+                parsedPackages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    sub_packages: typeof pkg.sub_packages === 'string'
+                        ? JSON.parse(pkg.sub_packages || '[]')
+                        : (pkg.sub_packages || [])
+                }));
+            } catch (e) {
+                console.warn(`Failed to parse packages for service_type_id ${row.service_type_id}`, e.message);
+            }
+
+            return {
+                service_type_id: row.service_type_id,
+                serviceName: row.serviceName,
+                serviceTypeName: row.serviceTypeName,
+                serviceTypeMedia: row.serviceTypeMedia,
+                serviceDescription: row.serviceDescription,
+                is_approved: row.is_approved,
+                created_at: row.created_at,
+                average_rating: row.average_rating,
+                total_reviews: row.total_reviews,
+                packages: parsedPackages
+            };
         });
+
+        res.status(200).json({
+            message: "Admin service types fetched successfully",
+            rows: parsedRows
+        });
+
     } catch (err) {
-        console.error("Error fetching admin services by category:", err);
-        return res.status(500).json({
-            message: "Internal server error",
-            error: err.message
-        });
+        console.error("Error fetching service types:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 const getServiceByCategory = asyncHandler(async (req, res) => {
@@ -122,7 +133,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
           st.service_type_id,
           st.serviceTypeName,
           st.serviceTypeMedia,
-          st.is_approved,
           st.service_id,
 
           v.vendor_id,
@@ -203,7 +213,7 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
           GROUP BY service_type_id
         ) AS serviceRatingStats ON st.service_type_id = serviceRatingStats.service_type_id
 
-        WHERE st.service_id = ? AND st.is_approved = 1
+        WHERE st.service_id = ?
         ORDER BY st.service_type_id DESC;
       `, [service_id]);
 
@@ -251,6 +261,8 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const getApprovedServices = asyncHandler(async (req, res) => {
 
@@ -352,6 +364,7 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, phone, address, state, postalcode } = req.body;
@@ -379,6 +392,7 @@ const addUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 module.exports = {
     getServiceCategories,
