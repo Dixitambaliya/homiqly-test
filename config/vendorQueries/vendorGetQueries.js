@@ -6,7 +6,6 @@ SELECT
     vendors.vendorType,
 
     service_type.service_type_id,
-    service_type.is_approved,
     service_type.serviceTypeName,
     service_type.serviceTypeMedia,
 

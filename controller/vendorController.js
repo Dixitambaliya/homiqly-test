@@ -35,7 +35,6 @@ const getVendorServices = asyncHandler(async (req, res) => {
             if (!servicesMap.has(serviceTypeId)) {
                 servicesMap.set(serviceTypeId, {
                     service_type_id: serviceTypeId,
-                    is_approved: row.is_approved,
                     serviceType: row.serviceTypeName,
                     serviceTypeMedia: row.serviceTypeMedia,
                     serviceId: row.serviceId,
