@@ -1,6 +1,6 @@
 import React from "react";
 
-const LoadingSpinner = ({ size = "md", color = "primary" }) => {
+const LoadingSpinner = ({ size = "md", color = "primary", fullscreen = false }) => {
   const sizeClasses = {
     sm: "h-4 w-4 border-2",
     md: "h-8 w-8 border-2",
@@ -15,7 +15,11 @@ const LoadingSpinner = ({ size = "md", color = "primary" }) => {
   };
 
   return (
-    <div className="flex justify-center items-center">
+    <div
+      className={`flex justify-center items-center ${
+        fullscreen ? "fixed inset-0 z-50 bg-white/60" : ""
+      }`}
+    >
       <div
         className={`animate-spin rounded-full ${sizeClasses[size]} border-t-transparent ${colorClasses[color]}`}
       ></div>
