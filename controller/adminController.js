@@ -183,7 +183,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         if (!serviceId || !serviceTypeName || !packages) {
             throw new Error("Missing required fields: serviceId, service_type_name, and packages.");
         }
-        
+
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
         // Insert into service_type table
         const [stResult] = await connection.query(`
@@ -258,4 +258,78 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin };
+const getAdminCreatedPackages = asyncHandler(async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                st.service_type_id,
+                st.service_id,
+                st.serviceTypeName,
+                st.serviceTypeMedia,
+
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'package_id', p.package_id,
+                            'title', p.packageName,
+                            'description', p.description,
+                            'price', p.totalPrice,
+                            'time_required', p.totalTime,
+                            'package_media', p.packageMedia,
+                            'sub_packages', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'sub_package_id', pi.item_id,
+                                        'title', pi.itemName,
+                                        'description', pi.description,
+                                        'price', pi.price,
+                                        'time_required', pi.timeRequired,
+                                        'item_media', pi.itemMedia
+                                    )
+                                ), ']')
+                                FROM package_items pi
+                                WHERE pi.package_id = p.package_id
+                            ), '[]'),
+                            'preferences', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'preference_id', bp.preference_id,
+                                        'preference_value', bp.preferenceValue
+                                    )
+                                ), ']')
+                                FROM booking_preferences bp
+                                WHERE bp.package_id = p.package_id
+                            ), '[]')
+                        )
+                    ), ']')
+                    FROM packages p
+                    WHERE p.service_type_id = st.service_type_id
+                ), '[]') AS packages
+
+            FROM service_type st
+            ORDER BY st.service_type_id DESC
+        `);
+
+        const result = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            service_id: row.service_id,
+            serviceTypeName: row.serviceTypeName,
+            serviceTypeMedia: row.serviceTypeMedia,
+            packages: JSON.parse(row.packages || '[]').map(pkg => ({
+                ...pkg,
+                sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
+                preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
+            }))
+        }));
+
+        res.status(200).json({
+            message: "Admin-created packages fetched successfully",
+            result
+        });
+    } catch (err) {
+        console.error("Error fetching admin-created packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin,getAdminCreatedPackages };
