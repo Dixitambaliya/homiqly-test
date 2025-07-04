@@ -234,6 +234,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error", details: err.message });
     }
 })
+
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -266,7 +267,6 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                  WHERE vendor_id = ?`,
                 [profileImageVendor, name, dob, email, phone, otherInfo, vendor_id]
             );
-
         } else if (vendor_type === "company") {
             // Get current image if no new image uploaded
             if (!profileImageVendor) {
@@ -279,9 +279,9 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, companyName = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                 SET profileImage = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
+                [profileImageVendor, name, dob, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
             );
         } else {
             return res.status(400).json({ message: "Invalid vendor type" });
@@ -293,7 +293,6 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
