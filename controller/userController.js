@@ -327,7 +327,6 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
     const { vendor_id } = req.params;
 

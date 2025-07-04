@@ -5,6 +5,7 @@ const vendorAuthQueries = require("../config/vendorQueries/vendorAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
+const Mail = require("nodemailer/lib/mailer");
 
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -122,7 +123,7 @@ const registerVendor = async (req, res) => {
                     .status(400)
                     .json({ error: `Missing serviceCategoryId or serviceId in service` });
             }
-                
+
             if (!processedCategories.has(serviceCategoryId)) {
                 const [categoryExists] = await db.query(
                     vendorAuthQueries.checkCategoryExits,
@@ -245,6 +246,7 @@ const loginVendor = asyncHandler(async (req, res) => {
         let vendorDetails = null;
         let vendorType = null;
 
+        // Try logging in as individual
         const [individualResult] = await db.query(
             vendorAuthQueries.vendorLoginIndividual,
             [email]
@@ -254,7 +256,7 @@ const loginVendor = asyncHandler(async (req, res) => {
             vendorDetails = individualResult[0];
             vendorType = "individual";
         } else {
-            // Step 2: Look for the vendor in company_details table
+            // Try company vendor
             const [companyResult] = await db.query(
                 vendorAuthQueries.vendorLoginCompany,
                 [email]
@@ -270,7 +272,6 @@ const loginVendor = asyncHandler(async (req, res) => {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
-        // Step 3: Use vendor_id to fetch password and authentication status
         const [vendorAuthResult] = await db.query(
             "SELECT password, is_authenticated, role FROM vendors WHERE vendor_id = ?",
             [vendorDetails.vendor_id]
@@ -282,90 +283,49 @@ const loginVendor = asyncHandler(async (req, res) => {
 
         const vendorAuth = vendorAuthResult[0];
 
-        // Step 4: Validate password
         if (!vendorAuth.password) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
-        // For plain text password comparison (not recommended for production)
+        // Check plain password OR hashed
+        let isPasswordValid = false;
+
         if (password === vendorAuth.password) {
-            // ✅ Check authentication status
-            if (vendorAuth.is_authenticated === 0) {
-                return res
-                    .status(403)
-                    .json({ error: "Your account is pending approval." });
-            } else if (vendorAuth.is_authenticated === 2) {
-                return res.status(403).json({ error: "Your account has been rejected." });
-            }
-
-            // Handle FCM token update
-            if (fcmToken && fcmToken.trim() !== "") {
-                try {
-                    await db.query(
-                        "UPDATE vendors SET fcmToken = ? WHERE vendor_id = ?",
-                        [fcmToken.trim(), vendorDetails.vendor_id]
-                    );
-                } catch (err) {
-                    console.warn("FCM token update error:", err.message);
-                }
-            }
-
-            const token = jwt.sign(
-                {
-                    vendor_id: vendorDetails.vendor_id,
-                    name: vendorDetails.name,
-                    vendor_type: vendorType,
-                    role: vendorAuth.role || "vendor",
-                },
-                process.env.JWT_SECRET
-            );
-
-            return res.status(200).json({
-                message: "Login successful",
-                token,
-                vendor_id: vendorDetails.vendor_id,
-                vendor_type: vendorType,
-                name: vendorDetails.name,
-                role: vendorAuth.role || "vendor",
-            });
+            isPasswordValid = true;
+        } else {
+            isPasswordValid = await bcrypt.compare(password, vendorAuth.password);
         }
 
-        // For hashed password comparison
-        const isPasswordValid = await bcrypt.compare(password, vendorAuth.password);
         if (!isPasswordValid) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
-        // ✅ Check authentication status
+        // Check auth status
         if (vendorAuth.is_authenticated === 0) {
-            return res
-                .status(403)
-                .json({ error: "Your account is pending approval." });
+            return res.status(403).json({ error: "Your account is pending approval." });
         } else if (vendorAuth.is_authenticated === 2) {
             return res.status(403).json({ error: "Your account has been rejected." });
         }
 
+        // Save FCM token if present
         if (fcmToken && fcmToken.trim() !== "") {
             try {
-                // Save FCM token based on vendor_id in the vendors table
-                const result = await db.query(
+                await db.query(
                     "UPDATE vendors SET fcmToken = ? WHERE vendor_id = ?",
                     [fcmToken.trim(), vendorDetails.vendor_id]
                 );
-
-                if (result.affectedRows === 0) {
-                    console.warn("FCM token update had no effect. Check vendor ID.");
-                }
             } catch (err) {
-                console.error("FCM token update error:", err.message);
+                console.warn("FCM token update error:", err.message);
             }
         }
 
+        // ✅ Build token payload with correct email
         const token = jwt.sign(
             {
                 vendor_id: vendorDetails.vendor_id,
                 name: vendorDetails.name,
                 vendor_type: vendorType,
+                email: vendorDetails.email,
                 role: vendorAuth.role || "vendor",
             },
             process.env.JWT_SECRET

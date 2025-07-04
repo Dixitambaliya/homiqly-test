@@ -46,9 +46,9 @@ const vendorAuthQueries = {
                                             serviceLocation
                                             ) VALUES (?, ?, ?)`,
 
-    vendorLoginIndividual: `SELECT vendor_id, name FROM individual_details WHERE email = ?`,
+    vendorLoginIndividual: `SELECT vendor_id, name , email FROM individual_details WHERE email = ?`,
 
-    vendorLoginCompany: `SELECT vendor_id, companyName AS name FROM company_details WHERE companyEmail = ?`,
+    vendorLoginCompany: `SELECT vendor_id, companyName AS name , companyEmail AS email FROM company_details WHERE companyEmail = ?`,
 
     vendorCompanyEmail: 'SELECT companyEmail AS email FROM company_details WHERE companyEmail = ?',
 

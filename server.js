@@ -22,6 +22,7 @@ const analyticsRoutes = require("./routes/analyticsRoutes")
 const notificationRoutes = require("./routes/notificationRoutes")
 const paymentRoutes = require("./routes/paymentRoutes")
 const ratingRoutes = require("./routes/ratingRoutes")
+const emailRoutes = require("./routes/emailRoutes")
 
 const app = express();
 const PORT = process.env.PORT || 8000
@@ -51,6 +52,7 @@ app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api/rating", ratingRoutes)
+app.use("/api",emailRoutes)
 
 // // Serve static files for admin and vendor panels (legacy)
 // app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));

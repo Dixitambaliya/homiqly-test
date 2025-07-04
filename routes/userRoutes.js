@@ -29,7 +29,7 @@ router.get("/getdata", getUserData)
 router.get("/getpackagedetails/:vendor_id", getVendorPackagesDetailed)
 
 router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
-
+    
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
 router.put("/insertdata", authenticationToken, addUserData)
 
