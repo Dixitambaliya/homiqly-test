@@ -130,7 +130,6 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 // Get all bookings for admin calendar
 const getBookings = asyncHandler(async (req, res) => {
     try {
@@ -332,4 +331,43 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin,getAdminCreatedPackages };
+const assignPackageToVendor = asyncHandler(async (req, res) => {
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        const { vendor_id, package_ids } = req.body;
+
+        if (!vendor_id || !package_ids || !Array.isArray(package_ids) || package_ids.length === 0) {
+            return res.status(400).json({ message: "vendor_id and package_ids[] are required." });
+        }
+
+        for (const package_id of package_ids) {
+            // Avoid duplicate assignment
+            const [existing] = await connection.query(
+                `SELECT * FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
+                [vendor_id, package_id]
+            );
+
+            if (existing.length === 0) {
+                await connection.query(
+                    `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                    [vendor_id, package_id]
+                );
+            }
+        }
+
+        await connection.commit();
+        connection.release();
+
+        res.status(201).json({ message: "Packages assigned to vendor successfully." });
+
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Error assigning packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin,getAdminCreatedPackages ,assignPackageToVendor};

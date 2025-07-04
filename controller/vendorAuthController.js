@@ -122,7 +122,7 @@ const registerVendor = async (req, res) => {
                     .status(400)
                     .json({ error: `Missing serviceCategoryId or serviceId in service` });
             }
-
+                
             if (!processedCategories.has(serviceCategoryId)) {
                 const [categoryExists] = await db.query(
                     vendorAuthQueries.checkCategoryExits,

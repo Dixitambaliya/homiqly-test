@@ -171,7 +171,6 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
 
@@ -235,7 +234,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error", details: err.message });
     }
 })
-
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -245,7 +243,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         otherInfo,
         googleBusinessProfileLink,
         companyAddress,
-        contactPerson
+        contactPerson,
+        dob
     } = req.body;
 
     let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
@@ -263,10 +262,11 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `UPDATE individual_details
-                 SET profileImage = ?, name = ?, email = ?, phone = ?, otherInfo = ?
+                 SET profileImage = ?, name = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, email, phone, otherInfo, vendor_id]
+                [profileImageVendor, name, dob, email, phone, otherInfo, vendor_id]
             );
+
         } else if (vendor_type === "company") {
             // Get current image if no new image uploaded
             if (!profileImageVendor) {
@@ -293,6 +293,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
