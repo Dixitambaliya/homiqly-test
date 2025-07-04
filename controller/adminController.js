@@ -260,60 +260,74 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT
-                st.service_type_id,
-                st.service_id,
-                st.serviceTypeName,
-                st.serviceTypeMedia,
+        SELECT
+            st.service_type_id,
+            st.serviceTypeName,
+            st.serviceTypeMedia,
 
-                COALESCE((
-                    SELECT CONCAT('[', GROUP_CONCAT(
-                        JSON_OBJECT(
-                            'package_id', p.package_id,
-                            'title', p.packageName,
-                            'description', p.description,
-                            'price', p.totalPrice,
-                            'time_required', p.totalTime,
-                            'package_media', p.packageMedia,
-                            'sub_packages', IFNULL((
-                                SELECT CONCAT('[', GROUP_CONCAT(
-                                    JSON_OBJECT(
-                                        'sub_package_id', pi.item_id,
-                                        'title', pi.itemName,
-                                        'description', pi.description,
-                                        'price', pi.price,
-                                        'time_required', pi.timeRequired,
-                                        'item_media', pi.itemMedia
-                                    )
-                                ), ']')
-                                FROM package_items pi
-                                WHERE pi.package_id = p.package_id
-                            ), '[]'),
-                            'preferences', IFNULL((
-                                SELECT CONCAT('[', GROUP_CONCAT(
-                                    JSON_OBJECT(
-                                        'preference_id', bp.preference_id,
-                                        'preference_value', bp.preferenceValue
-                                    )
-                                ), ']')
-                                FROM booking_preferences bp
-                                WHERE bp.package_id = p.package_id
-                            ), '[]')
-                        )
-                    ), ']')
-                    FROM packages p
-                    WHERE p.service_type_id = st.service_type_id
-                ), '[]') AS packages
+            s.service_id,
+            s.serviceName,
 
-            FROM service_type st
-            ORDER BY st.service_type_id DESC
-        `);
+            sc.service_categories_id,
+            sc.serviceCategory,
+
+            COALESCE((
+                SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                        'package_id', p.package_id,
+                        'title', p.packageName,
+                        'description', p.description,
+                        'price', p.totalPrice,
+                        'time_required', p.totalTime,
+                        'package_media', p.packageMedia,
+                        'sub_packages', IFNULL((
+                            SELECT CONCAT('[', GROUP_CONCAT(
+                                JSON_OBJECT(
+                                    'sub_package_id', pi.item_id,
+                                    'title', pi.itemName,
+                                    'description', pi.description,
+                                    'price', pi.price,
+                                    'time_required', pi.timeRequired,
+                                    'item_media', pi.itemMedia
+                                )
+                            ), ']')
+                            FROM package_items pi
+                            WHERE pi.package_id = p.package_id
+                        ), '[]'),
+                        'preferences', IFNULL((
+                            SELECT CONCAT('[', GROUP_CONCAT(
+                                JSON_OBJECT(
+                                    'preference_id', bp.preference_id,
+                                    'preference_value', bp.preferenceValue
+                                )
+                            ), ']')
+                            FROM booking_preferences bp
+                            WHERE bp.package_id = p.package_id
+                        ), '[]')
+                    )
+                ), ']')
+                FROM packages p
+                WHERE p.service_type_id = st.service_type_id
+            ), '[]') AS packages
+
+        FROM service_type st
+        JOIN services s ON s.service_id = st.service_id
+        JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+
+        ORDER BY st.service_type_id DESC
+      `);
 
         const result = rows.map(row => ({
             service_type_id: row.service_type_id,
+            service_type_name: row.serviceTypeName,
+            service_type_media: row.serviceTypeMedia,
+
             service_id: row.service_id,
-            serviceTypeName: row.serviceTypeName,
-            serviceTypeMedia: row.serviceTypeMedia,
+            service_name: row.serviceName,
+
+            service_category_id: row.service_categories_id,
+            service_category_name: row.serviceCategory,
+
             packages: JSON.parse(row.packages || '[]').map(pkg => ({
                 ...pkg,
                 sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
@@ -370,4 +384,4 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin,getAdminCreatedPackages ,assignPackageToVendor};
+module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin, getAdminCreatedPackages, assignPackageToVendor };

@@ -415,5 +415,4 @@ module.exports = {
     addUserData,
     getPackagesByServiceTypeId,
     getVendorPackagesDetailed
-
-}
+}   
