@@ -289,6 +289,7 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                         'title', p.packageName,
                         'description', p.description,
                         'price', p.totalPrice,
+                        'price'
                         'time_required', p.totalTime,
                         'package_media', p.packageMedia,
                         'vendor_id', vp.vendor_id

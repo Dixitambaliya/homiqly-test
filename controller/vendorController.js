@@ -245,7 +245,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         googleBusinessProfileLink,
         companyAddress,
         contactPerson,
-        dob
+        dob,
+        address
     } = req.body;
 
     let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
@@ -263,9 +264,9 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `UPDATE individual_details
-                 SET profileImage = ?, name = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
+                 SET profileImage = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, dob, email, phone, otherInfo, vendor_id]
+                [profileImageVendor, name, address, dob, email, phone, otherInfo, vendor_id]
             );
         } else if (vendor_type === "company") {
             // Get current image if no new image uploaded
@@ -279,9 +280,9 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                 SET profileImage = ?, companyName = ?, address = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, dob, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
+                [profileImageVendor, name, address, dob, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
             );
         } else {
             return res.status(400).json({ message: "Invalid vendor type" });
