@@ -245,7 +245,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         googleBusinessProfileLink,
         companyAddress,
         contactPerson,
-        dob,
+        birthDate,
         address
     } = req.body;
 
@@ -266,7 +266,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                 `UPDATE individual_details
                  SET profileImage = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, address, dob, email, phone, otherInfo, vendor_id]
+                [profileImageVendor, name, address, birthDate, email, phone, otherInfo, vendor_id]
             );
         } else if (vendor_type === "company") {
             // Get current image if no new image uploaded
@@ -282,7 +282,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                 `UPDATE company_details
                  SET profileImage = ?, companyName = ?, address = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, address, dob, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
+                [profileImageVendor, name, address, birthDate, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
             );
         } else {
             return res.status(400).json({ message: "Invalid vendor type" });
@@ -632,7 +632,6 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Failed to fetch vendor packages", details: err.message });
     }
 });
-
 
 module.exports = {
     getVendorServices,

@@ -24,9 +24,10 @@ router.get("/vendorservice", authenticationToken, getVendorService);
 
 router.get("/getprofile", authenticationToken, getProfileVendor);
 router.get("/getservicetypes/:service_id", authenticationToken, getServiceTypesByServiceId);
-router.get("/getpackages", authenticationToken, getAvailablePackagesForVendor)
-router.get("/getallpackages", authenticationToken, getAllPackagesForVendor)
 
+router.get("/getpackages", authenticationToken, getAvailablePackagesForVendor)
+
+router.get("/getallpackages", authenticationToken, getAllPackagesForVendor)
 router.delete("/deletepackages/:package_id", authenticationToken, deletePackage);
 
 router.post("/applyservice", authenticationToken, applyPackagesToVendor)
