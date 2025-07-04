@@ -18,6 +18,7 @@ import SupplyKits from "../pages/SupplyKits";
 import Payments from "../pages/Payments";
 import Ratings from "../pages/Ratings";
 import Settings from "../pages/Settings";
+import SupportForm from "../pages/SupportForm";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -84,6 +85,7 @@ const VendorRoutes = () => {
         <Route path="payments" element={<Payments />} />
         <Route path="ratings" element={<Ratings />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="support" element={<SupportForm />} />
       </Route>
 
       {/* 404 Route */}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
-import { FiMenu, FiX } from "react-icons/fi";
+import { FiHelpCircle, FiMenu, FiX } from "react-icons/fi";
 import {
   FiHome,
   FiCalendar,
@@ -65,6 +65,11 @@ const DashboardLayout = () => {
       path: "/vendor/ratings",
       name: "Ratings",
       icon: <FiStar className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/support",
+      name: "Support",
+      icon: <FiHelpCircle className="w-5 h-5" />,
     },
   ];
 
@@ -138,8 +143,8 @@ const DashboardLayout = () => {
             </div>
 
             <HeaderMenu
-              userName={currentUser?.name || 'Vendor User'}
-              userRole={currentUser?.vendor_type || 'vendor'}
+              userName={currentUser?.name || "Vendor User"}
+              userRole={currentUser?.vendor_type || "vendor"}
               onLogout={handleLogout}
               profilePath="/vendor/profile"
               settingsPath="/vendor/settings"

@@ -1,12 +1,24 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave, FiX } from 'react-icons/fi';
-import { useVendorAuth } from '../contexts/VendorAuthContext';
-import { Card } from '../../shared/components/Card';
-import { Button } from '../../shared/components/Button';
-import { FormInput, FormTextarea, FormFileInput } from '../../shared/components/Form';
-import LoadingSpinner from '../../shared/components/LoadingSpinner';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import {
+  FiUser,
+  FiMail,
+  FiPhone,
+  FiMapPin,
+  FiEdit,
+  FiSave,
+  FiX,
+} from "react-icons/fi";
+import { useVendorAuth } from "../contexts/VendorAuthContext";
+import { Card } from "../../shared/components/Card";
+import { Button } from "../../shared/components/Button";
+import {
+  FormInput,
+  FormTextarea,
+  FormFileInput,
+} from "../../shared/components/Form";
+import LoadingSpinner from "../../shared/components/LoadingSpinner";
 
 const Profile = () => {
   const { currentUser } = useVendorAuth();
@@ -15,13 +27,14 @@ const Profile = () => {
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    companyAddress: '',
-    contactPerson: '',
-    googleBusinessProfileLink: '',
-    otherInfo: ''
+    name: "",
+    email: "",
+    phone: "",
+    companyAddress: "",
+    contactPerson: "",
+    googleBusinessProfileLink: "",
+    otherInfo: "",
+    birthDate: "", // <-- Add this
   });
   const [profileImage, setProfileImage] = useState(null);
 
@@ -32,26 +45,32 @@ const Profile = () => {
   const fetchVendorProfile = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/vendor/getprofile');
-      
+      const response = await axios.get("/api/vendor/getprofile");
+
       if (response.data && response.data.profile) {
+        console.log("Profile data fetched:", response.data.profile);
         const profileData = response.data.profile;
         setProfile(profileData);
-        
+
         // Initialize form data
         setFormData({
-          name: profileData.name || '',
-          email: profileData.email || '',
-          phone: profileData.phone || '',
-          companyAddress: profileData.companyAddress || '',
-          contactPerson: profileData.contactPerson || '',
-          googleBusinessProfileLink: profileData.googleBusinessProfileLink || '',
-          otherInfo: profileData.otherInfo || ''
+          name: profileData.name || "",
+          email: profileData.email || "",
+          phone: profileData.phone || "",
+          address: profileData.address || "",
+          companyAddress: profileData.companyAddress || "",
+          contactPerson: profileData.contactPerson || "",
+          googleBusinessProfileLink:
+            profileData.googleBusinessProfileLink || "",
+          otherInfo: profileData.otherInfo || "",
+          birthDate: profileData.birthDate
+            ? profileData.birthDate.slice(0, 10)
+            : "",
         });
       }
     } catch (error) {
-      console.error('Error fetching vendor profile:', error);
-      toast.error('Failed to load profile data');
+      console.error("Error fetching vendor profile:", error);
+      toast.error("Failed to load profile data");
     } finally {
       setLoading(false);
     }
@@ -59,9 +78,9 @@ const Profile = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -73,38 +92,42 @@ const Profile = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       setUpdating(true);
-      
+
       const formDataToSend = new FormData();
-      
+
       // Append text fields
-      Object.keys(formData).forEach(key => {
+      Object.keys(formData).forEach((key) => {
         if (formData[key]) {
           formDataToSend.append(key, formData[key]);
         }
       });
-      
+
       // Append image if selected
       if (profileImage) {
-        formDataToSend.append('profileImageVendor', profileImage);
+        formDataToSend.append("profileImageVendor", profileImage);
       }
-      
-      const response = await axios.put('/api/vendor/updateprofile', formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+
+      const response = await axios.put(
+        "/api/vendor/updateprofile",
+        formDataToSend,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         }
-      });
-      
+      );
+
       if (response.status === 200) {
-        toast.success('Profile updated successfully');
+        toast.success("Profile updated successfully");
         setEditing(false);
         fetchVendorProfile(); // Refresh profile data
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
-      toast.error(error.response?.data?.message || 'Failed to update profile');
+      console.error("Error updating profile:", error);
+      toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
       setUpdating(false);
     }
@@ -152,9 +175,12 @@ const Profile = () => {
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
                 <div className="h-40 w-40 rounded-full overflow-hidden border-2 border-primary">
-                  <img 
-                    src={profile?.profileImage || 'https://via.placeholder.com/150?text=No+Image'} 
-                    alt="Profile" 
+                  <img
+                    src={
+                      profile?.profileImage ||
+                      "https://via.placeholder.com/150?text=No+Image"
+                    }
+                    alt="Profile"
                     className="h-full w-full object-cover"
                   />
                 </div>
@@ -169,8 +195,12 @@ const Profile = () => {
                 )}
               </div>
               <div className="text-center">
-                <h3 className="text-xl font-semibold">{profile?.name || 'Vendor Name'}</h3>
-                <p className="text-gray-500 capitalize">{profile?.vendorType || 'Vendor'}</p>
+                <h3 className="text-xl font-semibold">
+                  {profile?.name || "Vendor Name"}
+                </h3>
+                <p className="text-gray-500 capitalize">
+                  {profile?.vendorType || "Vendor"}
+                </p>
               </div>
             </div>
 
@@ -178,7 +208,11 @@ const Profile = () => {
             <div className="flex-1 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormInput
-                  label={profile?.vendorType === 'company' ? 'Company Name' : 'Full Name'}
+                  label={
+                    profile?.vendorType === "company"
+                      ? "Company Name"
+                      : "Full Name"
+                  }
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
@@ -205,9 +239,18 @@ const Profile = () => {
                   disabled={!editing}
                   icon={<FiPhone className="h-5 w-5 text-gray-400" />}
                 />
+                <FormInput
+                  label="Address"
+                  name="address"
+                  type="text"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  disabled={!editing}
+                  icon={<FiMapPin className="h-5 w-5 text-gray-400" />}
+                />
 
                 {/* Company-specific fields */}
-                {profile?.vendorType === 'company' && (
+                {profile?.vendorType === "company" && (
                   <>
                     <FormInput
                       label="Contact Person"
@@ -243,7 +286,7 @@ const Profile = () => {
                 )}
 
                 {/* Individual-specific fields */}
-                {profile?.vendorType === 'individual' && (
+                {profile?.vendorType === "individual" && (
                   <div className="md:col-span-2">
                     <FormTextarea
                       label="Other Information"
@@ -252,6 +295,14 @@ const Profile = () => {
                       onChange={handleInputChange}
                       disabled={!editing}
                       rows={3}
+                    />
+                    <FormInput
+                      label="Date of Birth"
+                      name="birthDate"
+                      type="date"
+                      value={formData.birthDate}
+                      onChange={handleInputChange}
+                      disabled={!editing}
                     />
                   </div>
                 )}
@@ -279,11 +330,17 @@ const Profile = () => {
       <Card title="Account Information">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Account Type</h4>
-            <p className="text-gray-900 capitalize">{profile?.vendorType || 'Vendor'}</p>
+            <h4 className="text-sm font-medium text-gray-500 mb-1">
+              Account Type
+            </h4>
+            <p className="text-gray-900 capitalize">
+              {profile?.vendorType || "Vendor"}
+            </p>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Account Status</h4>
+            <h4 className="text-sm font-medium text-gray-500 mb-1">
+              Account Status
+            </h4>
             <p className="mt-1">
               <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 Active
@@ -291,24 +348,26 @@ const Profile = () => {
             </p>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Member Since</h4>
+            <h4 className="text-sm font-medium text-gray-500 mb-1">
+              Member Since
+            </h4>
             <p className="text-gray-800">
-              {profile?.created_at 
-                ? new Date(profile.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
+              {profile?.created_at
+                ? new Date(profile.created_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
                   })
-                : 'Not available'}
+                : "Not available"}
             </p>
           </div>
-          {profile?.vendorType === 'individual' && profile?.resume && (
+          {profile?.vendorType === "individual" && profile?.resume && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-1">Resume</h4>
               <p className="mt-1">
-                <a 
-                  href={profile.resume} 
-                  target="_blank" 
+                <a
+                  href={profile.resume}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:text-primary-dark"
                 >
