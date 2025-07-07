@@ -281,8 +281,6 @@ const getUserBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { booking_id, status } = req.body;
