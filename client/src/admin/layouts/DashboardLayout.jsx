@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
-import { FiMenu, FiX } from 'react-icons/fi';
+import { FiHelpCircle, FiMenu, FiX } from 'react-icons/fi';
 import { 
   FiHome, FiUsers, FiUserCheck, FiShoppingBag, FiCalendar, 
   FiBox, FiTool, FiUserPlus, FiCreditCard, FiBarChart2, FiBell 
@@ -33,6 +33,7 @@ const DashboardLayout = () => {
     { path: '/admin/payments', name: 'Payments', icon: <FiCreditCard className="w-5 h-5" /> },
     { path: '/admin/analytics', name: 'Analytics', icon: <FiBarChart2 className="w-5 h-5" /> },
     { path: '/admin/notifications', name: 'Notifications', icon: <FiBell className="w-5 h-5" /> },
+    { path: '/admin/tickets', name: 'Support Tickets', icon: <FiHelpCirclew className="w-5 h-5" /> },  
   ];
 
   const getPageTitle = () => {

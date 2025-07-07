@@ -22,6 +22,7 @@ import Notifications from "../pages/Notifications";
 import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
 import Packages from "../pages/Packages";
+import Tickets from "../pages/Tickets";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -87,6 +88,7 @@ const AdminRoutes = () => {
         <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="tickets" element={<Tickets />} />
       </Route>
 
       {/* 404 Route */}

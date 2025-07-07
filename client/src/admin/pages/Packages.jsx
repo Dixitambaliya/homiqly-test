@@ -3,6 +3,7 @@ import { Button } from "../../shared/components/Button";
 import { FiPlus } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import axios from "axios";
+import LoadingSpinner from "../../shared/components/LoadingSpinner";
 
 const Packages = () => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -55,7 +56,9 @@ const Packages = () => {
       </div>
 
       {loading ? (
-        <p>Loading packages...</p>
+        <div>
+          <LoadingSpinner />
+        </div>
       ) : (
         Object.entries(groupedPackages).map(([categoryName, services]) => (
           <div key={categoryName} className="mb-10">
