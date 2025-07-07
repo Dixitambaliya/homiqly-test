@@ -129,9 +129,9 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         }
 
         // Step 2: Fetch certificates
-        const [certificates] = await db.query(vendorGetQueries.getCertificate, [vendor_id]);
+        const [certificatesRaw] = await db.query(vendorGetQueries.getCertificate, [vendor_id]);
 
-        // Step 3: Remove nulls from profile data
+        // Step 3: Clean profile data (remove nulls)
         const profile = {};
         for (const key in rows[0]) {
             if (rows[0][key] !== null) {
@@ -139,13 +139,16 @@ const getProfileVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        // Step 4: Attach certificates
-        if (certificates && certificates.length > 0) {
-            profile.certificateName = certificates[0].certificateName;
-            profile.certificateFile = certificates[0].certificateFile;
-        }
+        // Step 4: Filter certificate fields
+        const certificates = (certificatesRaw || []).map(cert => ({
+            certificateName: cert.certificateName,
+            certificateFile: cert.certificateFile
+        }));
 
-        // Step 5: Send response
+        // Step 5: Attach cleaned certificates
+        profile.certificates = certificates;
+
+        // Step 6: Send response
         res.status(200).json({
             message: "Vendor profile fetched successfully",
             profile
@@ -159,6 +162,8 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
