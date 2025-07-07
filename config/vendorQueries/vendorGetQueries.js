@@ -1,6 +1,6 @@
 const vendorGetQueries = {
 
-        getVendorService: `
+    getVendorService: `
     SELECT
         vendors.vendor_id,
         vendors.vendorType,
@@ -86,7 +86,11 @@ const vendorGetQueries = {
     FROM vendors
     LEFT JOIN individual_details ON vendors.vendor_id = individual_details.vendor_id
     LEFT JOIN company_details ON vendors.vendor_id = company_details.vendor_id
-    WHERE vendors.vendor_id = ?`
+    WHERE vendors.vendor_id = ?`,
+
+    getCertificate: `SELECT certificate_id, certificateName, certificateFile, created_at
+            FROM certificates
+            WHERE vendor_id = ?`
 }
 
 module.exports = vendorGetQueries;
