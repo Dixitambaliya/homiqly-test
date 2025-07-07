@@ -21,7 +21,7 @@ const sendMessageToAdmins = asyncHandler(async (req, res) => {
     try {
         // Step 1: Insert into support_tickets table
         await db.query(`
-            INSERT INTO support_tickets (user_email, sender_name, subject, message)
+            INSERT INTO support_tickets (user_email, user_name, subject, message)
             VALUES (?, ?, ?, ?)
         `, [senderEmail, name, subject, message]);
 
