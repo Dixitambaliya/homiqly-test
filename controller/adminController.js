@@ -384,4 +384,192 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getVendor, getAllServiceType, getUsers, updateUserByAdmin, getBookings, createPackageByAdmin, getAdminCreatedPackages, assignPackageToVendor };
+const editPackageByAdmin = asyncHandler(async (req, res) => {
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        const {
+            service_type_id,
+            serviceTypeName,
+            serviceId,
+            packages,
+            preferences
+        } = req.body;
+
+        if (!service_type_id || !serviceId || !serviceTypeName || !packages) {
+            throw new Error("Missing required fields: service_type_id, serviceId, serviceTypeName, packages.");
+        }
+
+        // Fetch current serviceTypeMedia if not newly uploaded
+        let serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
+        if (!serviceTypeMedia) {
+            const [existingServiceType] = await connection.query(
+                `SELECT serviceTypeMedia FROM service_type WHERE service_type_id = ?`,
+                [service_type_id]
+            );
+            serviceTypeMedia = existingServiceType[0]?.serviceTypeMedia || null;
+        }
+
+        // Update service_type
+        await connection.query(`
+            UPDATE service_type
+            SET service_id = ?, serviceTypeName = ?, serviceTypeMedia = ?
+            WHERE service_type_id = ?
+        `, [serviceId, serviceTypeName, serviceTypeMedia, service_type_id]);
+
+        const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+
+        for (let i = 0; i < parsedPackages.length; i++) {
+            const pkg = parsedPackages[i];
+            let package_id = pkg.package_id;
+            let packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
+
+            // Preserve old package media if not updated
+            if (!packageMedia && package_id) {
+                const [oldPkg] = await connection.query(
+                    `SELECT packageMedia FROM packages WHERE package_id = ?`,
+                    [package_id]
+                );
+                packageMedia = oldPkg[0]?.packageMedia || null;
+            }
+
+            if (package_id) {
+                await connection.query(`
+                    UPDATE packages
+                    SET packageName = ?, description = ?, totalPrice = ?, totalTime = ?, packageMedia = ?
+                    WHERE package_id = ? AND service_type_id = ?
+                `, [pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, packageMedia, package_id, service_type_id]);
+            } else {
+                const [newPkg] = await connection.query(`
+                    INSERT INTO packages (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, packageMedia]);
+                package_id = newPkg.insertId;
+            }
+
+            // Handle sub-packages (update if ID exists, insert if not)
+            const submittedItemIds = [];
+            for (let j = 0; j < (pkg.subPackages || []).length; j++) {
+                const sub = pkg.subPackages[j];
+                let itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+
+                if (sub.sub_package_id) {
+                    // Preserve media if not uploaded
+                    if (!itemMedia) {
+                        const [oldItem] = await connection.query(
+                            `SELECT itemMedia FROM package_items WHERE item_id = ?`,
+                            [sub.sub_package_id]
+                        );
+                        itemMedia = oldItem[0]?.itemMedia || null;
+                    }
+
+                    await connection.query(`
+                        UPDATE package_items
+                        SET itemName = ?, description = ?, price = ?, timeRequired = ?, itemMedia = ?
+                        WHERE item_id = ? AND package_id = ?
+                    `, [sub.item_name, sub.description, sub.price, sub.time_required, itemMedia, sub.sub_package_id, package_id]);
+
+                    submittedItemIds.push(sub.sub_package_id);
+                } else {
+                    const [newItem] = await connection.query(`
+                        INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    `, [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]);
+
+                    submittedItemIds.push(newItem.insertId);
+                }
+            }
+
+            // Delete removed sub-packages
+            if (submittedItemIds.length > 0) {
+                await connection.query(`
+                    DELETE FROM package_items
+                    WHERE package_id = ? AND item_id NOT IN (?)
+                `, [package_id, submittedItemIds]);
+            } else {
+                await connection.query(`DELETE FROM package_items WHERE package_id = ?`, [package_id]);
+            }
+
+            // Handle preferences
+            await connection.query(`DELETE FROM booking_preferences WHERE package_id = ?`, [package_id]);
+
+            const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
+            for (const pref of parsedPrefs) {
+                if (!pref.preference_value) continue;
+                await connection.query(`
+                    INSERT INTO booking_preferences (package_id, preferenceValue)
+                    VALUES (?, ?)
+                `, [package_id, pref.preference_value.trim()]);
+            }
+        }
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({
+            message: "Service type and packages updated successfully",
+            service_type_id
+        });
+
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Admin package update error:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+const deletePackageByAdmin = asyncHandler(async (req, res) => {
+    const { package_id } = req.params;
+
+    if (!package_id) {
+        return res.status(400).json({ error: "Missing required parameter: package_id" });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        const [exists] = await connection.query(
+            `SELECT package_id FROM packages WHERE package_id = ?`,
+            [package_id]
+        );
+
+        if (exists.length === 0) {
+            throw new Error("Package not found.");
+        }
+
+        // Single delete - CASCADE takes care of the rest
+        await connection.query(
+            `DELETE FROM packages WHERE package_id = ?`,
+            [package_id]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({
+            message: `Package (ID: ${package_id}) and related data deleted successfully.`,
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error("Delete package error:", error);
+        res.status(500).json({ error: "Database error", details: error.message });
+    }
+});
+
+module.exports = {
+    getVendor,
+    getAllServiceType,
+    getUsers,
+    updateUserByAdmin,
+    getBookings,
+    createPackageByAdmin,
+    getAdminCreatedPackages,
+    assignPackageToVendor,
+    editPackageByAdmin,
+    deletePackageByAdmin
+};

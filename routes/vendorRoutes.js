@@ -2,7 +2,8 @@ const express = require("express")
 const router = express.Router()
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
-const { getVendorServices,
+const {
+    getVendorAssignedPackages,
     applyPackagesToVendor,
     getServiceTypesByVendor,
     getVendorService,
@@ -17,9 +18,9 @@ const { getVendorServices,
 
 const multiUpload = upload.any();
 
-router.get("/getvendorservice", authenticationToken, getVendorServices)
-router.get("/getvendorservicetype", authenticationToken, getServiceTypesByVendor);
+router.get("/getvendorservice", authenticationToken, getVendorAssignedPackages)
 
+router.get("/getvendorservicetype", authenticationToken, getServiceTypesByVendor);
 router.get("/vendorservice", authenticationToken, getVendorService);
 
 router.get("/getprofile", authenticationToken, getProfileVendor);

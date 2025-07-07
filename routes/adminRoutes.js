@@ -7,7 +7,9 @@ const { getVendor,
     getBookings,
     createPackageByAdmin,
     getAdminCreatedPackages,
-    assignPackageToVendor
+    assignPackageToVendor,
+    editPackageByAdmin,
+    deletePackageByAdmin
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -19,9 +21,14 @@ router.get("/getallservicetype", authenticationToken, getAllServiceType)
 router.get("/getusers", authenticationToken, getUsers)
 router.get("/getbookings", authenticationToken, getBookings)
 router.put("/editusers/:user_id", authenticationToken, updateUserByAdmin)
+router.put("/editpackage", authenticationToken, multiUpload, handleUploads, editPackageByAdmin)
+
 router.post("/addpackages", authenticationToken, multiUpload, handleUploads, createPackageByAdmin)
 
-router.post("/assignpackage",assignPackageToVendor)
+router.post("/assignpackage", assignPackageToVendor)
+
+router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
 
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
+
 module.exports = router

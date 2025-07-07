@@ -13,94 +13,6 @@ const transport = nodemailer.createTransport({
     },
 });
 
-const getVendorServices = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id;
-
-    try {
-        const [rows] = await db.query(vendorGetQueries.getVendorService, [vendor_id]);
-
-        if (!rows.length) {
-            return res.status(404).json({ message: "No services found for this vendor." });
-        }
-
-        const servicesMap = new Map();
-
-        for (const row of rows) {
-            const serviceTypeId = row.service_type_id;
-            const packageId = row.package_id;
-            const itemId = row.item_id;
-            const preferenceValue = row.preferenceValue;
-
-            // 1. Create service
-            if (!servicesMap.has(serviceTypeId)) {
-                servicesMap.set(serviceTypeId, {
-                    service_type_id: serviceTypeId,
-                    serviceType: row.serviceTypeName,
-                    serviceTypeMedia: row.serviceTypeMedia,
-                    serviceId: row.serviceId,
-                    serviceName: row.serviceName,
-                    category_id: row.category_id,
-                    categoryName: row.categoryName,
-                    serviceLocation: row.serviceLocation,
-                    serviceDescription: row.serviceDescription,
-                    packages: []
-                });
-            }
-
-            const serviceEntry = servicesMap.get(serviceTypeId);
-
-            // 2. Create or find package
-            let packageEntry = serviceEntry.packages.find(p => p.package_id === packageId);
-            if (!packageEntry && packageId) {
-                packageEntry = {
-                    package_id: packageId,
-                    title: row.packageName,
-                    description: row.packageDescription,
-                    price: parseFloat(row.totalPrice),
-                    time_required: row.totalTime,
-                    package_media: row.packageMedia,
-                    sub_packages: [],
-                    preferences: []
-                };
-                serviceEntry.packages.push(packageEntry);
-            }
-
-            // 3. Add item if exists
-            if (packageEntry && itemId) {
-                const existingItem = packageEntry.sub_packages.find(i => i.sub_package_id === itemId);
-                if (!existingItem) {
-                    packageEntry.sub_packages.push({
-                        sub_package_id: itemId,
-                        title: row.itemName,
-                        description: row.itemDescription,
-                        item_images: row.itemMedia,
-                        price: parseFloat(row.itemPrice),
-                        time_required: row.timeRequired
-                    });
-                }
-            }
-
-            // 4. Add preference if exists
-            if (packageEntry && preferenceValue) {
-                if (!packageEntry.preferences.includes(preferenceValue)) {
-                    packageEntry.preferences.push(preferenceValue);
-                }
-            }
-        }
-
-        const services = Array.from(servicesMap.values());
-
-        return res.status(200).json({
-            vendor_id,
-            services
-        });
-
-    } catch (error) {
-        console.error("Error fetching vendor services:", error);
-        return res.status(500).json({ message: "Database error", error: error.message });
-    }
-});
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const { service_id } = req.params;
 
@@ -248,7 +160,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -317,7 +228,6 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -657,8 +567,106 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
     }
 });
 
+const getVendorAssignedPackages = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                st.service_type_id,
+                st.serviceTypeName,
+                st.serviceTypeMedia,
+
+                s.service_id,
+                s.serviceName,
+
+                sc.service_categories_id,
+                sc.serviceCategory,
+
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'package_id', p.package_id,
+                            'title', p.packageName,
+                            'description', p.description,
+                            'price', p.totalPrice,
+                            'time_required', p.totalTime,
+                            'package_media', p.packageMedia,
+                            'sub_packages', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'sub_package_id', pi.item_id,
+                                        'title', pi.itemName,
+                                        'description', pi.description,
+                                        'price', pi.price,
+                                        'time_required', pi.timeRequired,
+                                        'item_media', pi.itemMedia
+                                    )
+                                ), ']')
+                                FROM package_items pi
+                                WHERE pi.package_id = p.package_id
+                            ), '[]'),
+                            'preferences', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'preference_id', bp.preference_id,
+                                        'preference_value', bp.preferenceValue
+                                    )
+                                ), ']')
+                                FROM booking_preferences bp
+                                WHERE bp.package_id = p.package_id
+                            ), '[]')
+                        )
+                    ), ']')
+                    FROM packages p
+                    JOIN vendor_packages vp ON vp.package_id = p.package_id
+                    WHERE p.service_type_id = st.service_type_id AND vp.vendor_id = ?
+                ), '[]') AS packages
+
+            FROM service_type st
+            JOIN services s ON s.service_id = st.service_id
+            JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+
+            WHERE EXISTS (
+                SELECT 1 FROM vendor_packages vp
+                JOIN packages p ON p.package_id = vp.package_id
+                WHERE p.service_type_id = st.service_type_id AND vp.vendor_id = ?
+            )
+
+            ORDER BY st.service_type_id DESC
+        `, [vendor_id, vendor_id]);
+
+        const result = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            service_type_name: row.serviceTypeName,
+            service_type_media: row.serviceTypeMedia,
+
+            service_id: row.service_id,
+            service_name: row.serviceName,
+
+            service_category_id: row.service_categories_id,
+            service_category_name: row.serviceCategory,
+
+            packages: JSON.parse(row.packages || '[]').map(pkg => ({
+                ...pkg,
+                sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
+                preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
+            }))
+        }));
+
+        res.status(200).json({
+            message: "Vendor's assigned/applied packages fetched successfully",
+            result
+        });
+    } catch (err) {
+        console.error("Error fetching vendor packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
 module.exports = {
-    getVendorServices,
+    getVendorAssignedPackages,
     applyPackagesToVendor,
     getServiceTypesByVendor,
     getVendorService,
