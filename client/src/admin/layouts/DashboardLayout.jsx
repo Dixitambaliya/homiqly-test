@@ -33,7 +33,7 @@ const DashboardLayout = () => {
     { path: '/admin/payments', name: 'Payments', icon: <FiCreditCard className="w-5 h-5" /> },
     { path: '/admin/analytics', name: 'Analytics', icon: <FiBarChart2 className="w-5 h-5" /> },
     { path: '/admin/notifications', name: 'Notifications', icon: <FiBell className="w-5 h-5" /> },
-    { path: '/admin/tickets', name: 'Support Tickets', icon: <FiHelpCirclew className="w-5 h-5" /> },  
+    { path: '/admin/tickets', name: 'Support Tickets', icon: <FiHelpCircle className="w-5 h-5" /> },  
   ];
 
   const getPageTitle = () => {
