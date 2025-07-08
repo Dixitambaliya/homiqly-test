@@ -88,18 +88,6 @@ const Packages = () => {
                     </p>
                     {service.packages.map((pkg) => (
                       <div key={pkg.package_id} className="mt-4 border-t pt-4">
-                        <div className="flex justify-end mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedPackage(pkg);
-                              setShowEditModal(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                        </div>
                         <img
                           src={pkg.package_media}
                           alt={pkg.title}
@@ -129,7 +117,9 @@ const Packages = () => {
                                       className="w-10 h-10 object-cover rounded"
                                     />
                                     <div>
-                                      <p className="font-medium">{sub.item_name}</p>
+                                      <p className="font-medium">
+                                        {sub.item_name}
+                                      </p>
                                       <p className="text-xs">
                                         ₹{sub.price} | {sub.time_required}
                                       </p>
@@ -159,6 +149,19 @@ const Packages = () => {
                             </ul>
                           </div>
                         )}
+
+                        <div className="flex justify-end mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedPackage(pkg);
+                              setShowEditModal(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

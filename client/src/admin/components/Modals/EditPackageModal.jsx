@@ -184,6 +184,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData }) => {
         <FormInput
           label="Total Price (Auto)"
           type="number"
+          disabled
           value={totalPrice}
           readOnly
         />
