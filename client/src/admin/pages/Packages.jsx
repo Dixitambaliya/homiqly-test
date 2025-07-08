@@ -4,11 +4,14 @@ import { FiPlus } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import axios from "axios";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import EditPackageModal from "../components/Modals/EditPackageModal";
 
 const Packages = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [groupedPackages, setGroupedPackages] = useState({});
   const [loading, setLoading] = useState(true);
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -85,6 +88,18 @@ const Packages = () => {
                     </p>
                     {service.packages.map((pkg) => (
                       <div key={pkg.package_id} className="mt-4 border-t pt-4">
+                        <div className="flex justify-end mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedPackage(pkg);
+                              setShowEditModal(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
                         <img
                           src={pkg.package_media}
                           alt={pkg.title}
@@ -114,7 +129,7 @@ const Packages = () => {
                                       className="w-10 h-10 object-cover rounded"
                                     />
                                     <div>
-                                      <p className="font-medium">{sub.title}</p>
+                                      <p className="font-medium">{sub.item_name}</p>
                                       <p className="text-xs">
                                         ₹{sub.price} | {sub.time_required}
                                       </p>
@@ -157,6 +172,15 @@ const Packages = () => {
       <AddServiceTypeModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
+      />
+
+      <EditPackageModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedPackage(null);
+        }}
+        packageData={selectedPackage}
       />
     </div>
   );
