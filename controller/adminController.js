@@ -284,7 +284,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             SELECT CONCAT('[', GROUP_CONCAT(
                                 JSON_OBJECT(
                                     'sub_package_id', pi.item_id,
-                                    'title', pi.itemName,
+                                    'item_name', pi.itemName,
                                     'description', pi.description,
                                     'price', pi.price,
                                     'time_required', pi.timeRequired,
