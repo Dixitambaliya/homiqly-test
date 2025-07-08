@@ -391,9 +391,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
     try {
         const { packages, preferences } = req.body;
 
-        if (!packages) {
-            throw new Error("Missing required field: packages");
-        }
+        if (!packages) throw new Error("Missing required field: packages");
 
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
 
@@ -403,43 +401,54 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             if (!package_id) continue;
 
-            // Update package media if uploaded
-            let packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
-            if (!packageMedia) {
-                const [oldPkg] = await connection.query(`SELECT packageMedia FROM packages WHERE package_id = ?`, [package_id]);
-                packageMedia = oldPkg[0]?.packageMedia || null;
-            }
+            // Get existing package values
+            const [existingPackage] = await connection.query(`SELECT * FROM packages WHERE package_id = ?`, [package_id]);
+            if (!existingPackage.length) continue;
+            const existing = existingPackage[0];
 
-            // ✅ Update package
+            // Merge with provided values
+            const packageName = pkg.package_name ?? existing.packageName;
+            const description = pkg.description ?? existing.description;
+            const totalPrice = pkg.total_price ?? existing.totalPrice;
+            const totalTime = pkg.total_time ?? existing.totalTime;
+
+            let packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || existing.packageMedia;
+
+            // ✅ Update package with merged values
             await connection.query(`
                 UPDATE packages
                 SET packageName = ?, description = ?, totalPrice = ?, totalTime = ?, packageMedia = ?
                 WHERE package_id = ?
-            `, [pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, packageMedia, package_id]);
+            `, [packageName, description, totalPrice, totalTime, packageMedia, package_id]);
 
-            // Handle sub-packages
+            // Process sub-packages
             const submittedItemIds = [];
             for (let j = 0; j < (pkg.subPackages || []).length; j++) {
                 const sub = pkg.subPackages[j];
-                let itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+                const sub_id = sub.sub_package_id;
 
-                if (sub.sub_package_id) {
-                    if (!itemMedia) {
-                        const [oldItem] = await connection.query(
-                            `SELECT itemMedia FROM package_items WHERE item_id = ?`,
-                            [sub.sub_package_id]
-                        );
-                        itemMedia = oldItem[0]?.itemMedia || null;
-                    }
+                if (sub_id) {
+                    // Get existing item
+                    const [oldItem] = await connection.query(`SELECT * FROM package_items WHERE item_id = ?`, [sub_id]);
+                    if (!oldItem.length) continue;
+                    const old = oldItem[0];
+
+                    const itemName = sub.item_name ?? old.itemName;
+                    const itemDesc = sub.description ?? old.description;
+                    const price = sub.price ?? old.price;
+                    const timeRequired = sub.time_required ?? old.timeRequired;
+                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
 
                     await connection.query(`
                         UPDATE package_items
                         SET itemName = ?, description = ?, price = ?, timeRequired = ?, itemMedia = ?
                         WHERE item_id = ? AND package_id = ?
-                    `, [sub.item_name, sub.description, sub.price, sub.time_required, itemMedia, sub.sub_package_id, package_id]);
+                    `, [itemName, itemDesc, price, timeRequired, itemMedia, sub_id, package_id]);
 
-                    submittedItemIds.push(sub.sub_package_id);
+                    submittedItemIds.push(sub_id);
                 } else {
+                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+
                     const [newItem] = await connection.query(`
                         INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
                         VALUES (?, ?, ?, ?, ?, ?)
@@ -459,7 +468,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 await connection.query(`DELETE FROM package_items WHERE package_id = ?`, [package_id]);
             }
 
-            // Handle preferences
+            // Replace preferences
             await connection.query(`DELETE FROM booking_preferences WHERE package_id = ?`, [package_id]);
 
             const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
@@ -474,7 +483,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
         await connection.commit();
         connection.release();
-
         res.status(200).json({ message: "Packages updated successfully" });
 
     } catch (err) {
@@ -484,7 +492,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
