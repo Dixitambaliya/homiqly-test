@@ -4,7 +4,9 @@ const {
     processVendorPayment,
     getVendorPayments,
     getPendingPayouts,
-    approvePayment
+    approvePayment,
+    registerStripeForVendor,
+    handleStripeWebhook
 } = require('../controller/paymentController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 
@@ -12,6 +14,8 @@ const { authenticationToken } = require('../middleware/authMiddleware');
 router.post('/vendor/process', authenticationToken, processVendorPayment);
 router.get('/pending', authenticationToken, getPendingPayouts);
 router.put('/approve', authenticationToken, approvePayment);
+router.post('/registeraccount', authenticationToken, registerStripeForVendor);
+router.post('/webhookstripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 // Vendor routes
 router.get('/vendor/history', authenticationToken, getVendorPayments);
