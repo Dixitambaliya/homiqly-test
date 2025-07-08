@@ -9,7 +9,8 @@ const { getVendor,
     getAdminCreatedPackages,
     assignPackageToVendor,
     editPackageByAdmin,
-    deletePackageByAdmin
+    deletePackageByAdmin,
+    toggleManualAssignment
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -22,13 +23,11 @@ router.get("/getusers", authenticationToken, getUsers)
 router.get("/getbookings", authenticationToken, getBookings)
 router.put("/editusers/:user_id", authenticationToken, updateUserByAdmin)
 router.put("/editpackage", authenticationToken, multiUpload, handleUploads, editPackageByAdmin)
-
 router.post("/addpackages", authenticationToken, multiUpload, handleUploads, createPackageByAdmin)
-
 router.post("/assignpackage", assignPackageToVendor)
-
 router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
-
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
+
+router.post("/togglechange", authenticationToken, toggleManualAssignment)
 
 module.exports = router

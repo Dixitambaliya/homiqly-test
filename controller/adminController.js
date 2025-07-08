@@ -389,73 +389,41 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const {
-            service_type_id,
-            serviceTypeName,
-            serviceId,
-            packages,
-            preferences
-        } = req.body;
+        const { packages, preferences } = req.body;
 
-        if (!service_type_id || !serviceId || !serviceTypeName || !packages) {
-            throw new Error("Missing required fields: service_type_id, serviceId, serviceTypeName, packages.");
+        if (!packages) {
+            throw new Error("Missing required field: packages");
         }
-
-        // Fetch current serviceTypeMedia if not newly uploaded
-        let serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
-        if (!serviceTypeMedia) {
-            const [existingServiceType] = await connection.query(
-                `SELECT serviceTypeMedia FROM service_type WHERE service_type_id = ?`,
-                [service_type_id]
-            );
-            serviceTypeMedia = existingServiceType[0]?.serviceTypeMedia || null;
-        }
-
-        // Update service_type
-        await connection.query(`
-            UPDATE service_type
-            SET service_id = ?, serviceTypeName = ?, serviceTypeMedia = ?
-            WHERE service_type_id = ?
-        `, [serviceId, serviceTypeName, serviceTypeMedia, service_type_id]);
 
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
 
         for (let i = 0; i < parsedPackages.length; i++) {
             const pkg = parsedPackages[i];
-            let package_id = pkg.package_id;
-            let packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
+            const package_id = pkg.package_id;
 
-            // Preserve old package media if not updated
-            if (!packageMedia && package_id) {
-                const [oldPkg] = await connection.query(
-                    `SELECT packageMedia FROM packages WHERE package_id = ?`,
-                    [package_id]
-                );
+            if (!package_id) continue;
+
+            // Update package media if uploaded
+            let packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
+            if (!packageMedia) {
+                const [oldPkg] = await connection.query(`SELECT packageMedia FROM packages WHERE package_id = ?`, [package_id]);
                 packageMedia = oldPkg[0]?.packageMedia || null;
             }
 
-            if (package_id) {
-                await connection.query(`
-                    UPDATE packages
-                    SET packageName = ?, description = ?, totalPrice = ?, totalTime = ?, packageMedia = ?
-                    WHERE package_id = ? AND service_type_id = ?
-                `, [pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, packageMedia, package_id, service_type_id]);
-            } else {
-                const [newPkg] = await connection.query(`
-                    INSERT INTO packages (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `, [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, packageMedia]);
-                package_id = newPkg.insertId;
-            }
+            // ✅ Update package
+            await connection.query(`
+                UPDATE packages
+                SET packageName = ?, description = ?, totalPrice = ?, totalTime = ?, packageMedia = ?
+                WHERE package_id = ?
+            `, [pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, packageMedia, package_id]);
 
-            // Handle sub-packages (update if ID exists, insert if not)
+            // Handle sub-packages
             const submittedItemIds = [];
             for (let j = 0; j < (pkg.subPackages || []).length; j++) {
                 const sub = pkg.subPackages[j];
                 let itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
 
                 if (sub.sub_package_id) {
-                    // Preserve media if not uploaded
                     if (!itemMedia) {
                         const [oldItem] = await connection.query(
                             `SELECT itemMedia FROM package_items WHERE item_id = ?`,
@@ -507,10 +475,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         await connection.commit();
         connection.release();
 
-        res.status(200).json({
-            message: "Service type and packages updated successfully",
-            service_type_id
-        });
+        res.status(200).json({ message: "Packages updated successfully" });
 
     } catch (err) {
         await connection.rollback();
@@ -519,6 +484,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
@@ -561,6 +527,44 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+const toggleManualAssignment = asyncHandler(async (req, res) => {
+    const { enable } = req.body
+
+    if (typeof enable !== "boolean") {
+        return res.status(400).json({ message: "Please send 'enable' as boolean true or false" });
+    }
+
+    try {
+        await db.query(
+            `UPDATE system_settings SET manual_assignment_enabled = ? WHERE id = 1`,
+            [enable]
+        );
+
+        res.status(200).json({
+            message: `Manual assignment mode has been ${enable ? "enabled" : "disabled"}`,
+            manual_assignment_enabled: enable
+        });
+    } catch (err) {
+        console.error("Toggle error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+const getManualAssignmentStatus = asyncHandler(async (req, res) => {
+    try {
+        const [result] = await db.query(
+            `SELECT manual_assignment_enabled FROM system_settings WHERE id = 1`
+        );
+
+        res.status(200).json({
+            manual_assignment_enabled: result[0]?.manual_assignment_enabled || false
+        });
+    } catch (err) {
+        console.error("Fetch error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
 module.exports = {
     getVendor,
     getAllServiceType,
@@ -571,5 +575,8 @@ module.exports = {
     getAdminCreatedPackages,
     assignPackageToVendor,
     editPackageByAdmin,
-    deletePackageByAdmin
+    deletePackageByAdmin,
+    deletePackageByAdmin,
+    toggleManualAssignment,
+    getManualAssignmentStatus
 };
