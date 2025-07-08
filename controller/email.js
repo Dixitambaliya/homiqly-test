@@ -68,13 +68,30 @@ const getAllSupportTickets = asyncHandler(async (req, res) => {
     }
 });
 
-const readTicket = asyncHandler(async (req, res) => {
-    try {
-        const [readTicket] = await db.query(`DELETE * FROM support_tickets WHERE ticket_id = ?`)
-    } catch (err) {
+const deleteTicket = asyncHandler(async (req, res) => {
+    const { ticket_id } = req.params;
 
+    if (!ticket_id) {
+        return res.status(400).json({ message: "Ticket ID is required" });
     }
-})
+
+    try {
+        const [result] = await db.query(
+            `DELETE FROM support_tickets WHERE ticket_id = ?`,
+            [ticket_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Ticket not found" });
+        }
+
+        res.status(200).json({ message: "Ticket deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting ticket:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
 
 
-module.exports = { sendMessageToAdmins, getAllSupportTickets };
+
+module.exports = { sendMessageToAdmins, getAllSupportTickets, deleteTicket };
