@@ -61,7 +61,11 @@ WHERE sb.user_id = ?
 ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
 
     getVendorByServiceTypeId: `
-    SELECT vendor_id FROM service_type WHERE service_type_id = ?`,
+    SELECT vendor_id FROM vendor_packages
+    WHERE package_id IN (
+        SELECT package_id FROM packages WHERE service_type_id = ?
+    )
+    LIMIT 1`,
 
     getBookingDetail: `
     SELECT

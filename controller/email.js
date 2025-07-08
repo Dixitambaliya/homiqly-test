@@ -68,5 +68,13 @@ const getAllSupportTickets = asyncHandler(async (req, res) => {
     }
 });
 
+const readTicket = asyncHandler(async (req, res) => {
+    try {
+        const [readTicket] = await db.query(`DELETE * FROM support_tickets WHERE ticket_id = ?`)
+    } catch (err) {
+
+    }
+})
+
 
 module.exports = { sendMessageToAdmins, getAllSupportTickets };

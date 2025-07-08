@@ -31,7 +31,7 @@ const bookService = asyncHandler(async (req, res) => {
     try {
         parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages)) {
-            return res.status(400).json({ message: "'packages' must be a valid array of objects." });
+            return res.status(400).json({ message: "'packages' must be a valid array." });
         }
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
@@ -47,35 +47,50 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [existingBooking] = await db.query(bookingPostQueries.checkUserBookingSlot, [
-            user_id,
-            serviceId,
-            bookingDate,
-            bookingTime
-        ]);
-
+        // Check if user already booked this slot
+        const [existingBooking] = await db.query(
+            bookingPostQueries.checkUserBookingSlot,
+            [user_id, serviceId, bookingDate, bookingTime]
+        );
         if (existingBooking.length > 0) {
             return res.status(409).json({ message: "You already booked this service for the selected slot." });
         }
 
-        const [vendorResult] = await db.query(bookingGetQueries.getVendorByServiceTypeId, [service_type_id]);
-
+        // Get vendor from service_type
+        const [vendorResult] = await db.query(
+            bookingGetQueries.getVendorByServiceTypeId,
+            [service_type_id]
+        );
         if (!vendorResult.length) {
-            return res.status(400).json({ message: "Could not find vendor for the selected service type." });
+            return res.status(400).json({ message: "Vendor not found for selected service type." });
         }
 
         const vendor_id = vendorResult[0].vendor_id;
 
-        const [availability] = await db.query(bookingPostQueries.checkVendorAvailability, [
-            vendor_id,
-            bookingDate,
-            bookingTime
-        ]);
-
+        // Check vendor availability
+        const [availability] = await db.query(
+            bookingPostQueries.checkVendorAvailability,
+            [vendor_id, bookingDate, bookingTime]
+        );
         if (availability.length > 0) {
             return res.status(409).json({ message: "Vendor is not available at this time slot." });
         }
 
+        // Validate packages against vendor_packages
+        for (const pkg of parsedPackages) {
+            const { package_id } = pkg;
+            if (!package_id) continue;
+
+            const [assigned] = await db.query(
+                `SELECT * FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
+                [vendor_id, package_id]
+            );
+            if (assigned.length === 0) {
+                return res.status(400).json({ message: `Package ID ${package_id} is not assigned to this vendor.` });
+            }
+        }
+
+        // Insert booking
         const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
             service_categories_id,
             serviceId,
@@ -87,18 +102,17 @@ const bookService = asyncHandler(async (req, res) => {
             notes || null,
             bookingMedia || null
         ]);
-
         const booking_id = insertBooking.insertId;
 
+        // Link service_type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
+        // Link packages and items
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
-
-            if (!package_id) continue;
 
             await db.query(
                 "INSERT INTO service_booking_packages (booking_id, package_id) VALUES (?, ?)",
@@ -119,6 +133,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
+        // Link preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -133,6 +148,7 @@ const bookService = asyncHandler(async (req, res) => {
             message: "Booking successfully created",
             booking_id
         });
+
     } catch (err) {
         console.error("Booking error:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
