@@ -13,7 +13,8 @@ const {
     deletePackage,
     editServiceType,
     getAvailablePackagesForVendor,
-    getAllPackagesForVendor
+    getAllPackagesForVendor,
+    addRatingToPackages
 } = require("../controller/vendorController")
 
 const multiUpload = upload.any();
@@ -30,8 +31,11 @@ router.get("/getpackages", authenticationToken, getAvailablePackagesForVendor)
 
 router.get("/getallpackages", authenticationToken, getAllPackagesForVendor)
 router.delete("/deletepackages/:package_id", authenticationToken, deletePackage);
-
 router.post("/applyservice", authenticationToken, applyPackagesToVendor)
+
+
+router.post("/packagerating", authenticationToken, addRatingToPackages)
+
 
 router.put("/editservicetype", authenticationToken, editServiceType)
 router.put("/updateprofile", authenticationToken, multiUpload, handleUploads, updateProfileVendor);

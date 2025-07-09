@@ -123,7 +123,6 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addRatingToPackages = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { vendor_id, service_id, package_id, rating, review } = req.body;
@@ -166,8 +165,6 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
-
 
 module.exports = {
     getVendorRatings,

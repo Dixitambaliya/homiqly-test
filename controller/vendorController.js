@@ -634,6 +634,12 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
                             'price', p.totalPrice,
                             'time_required', p.totalTime,
                             'package_media', p.packageMedia,
+
+                            -- ✅ Vendor Rating
+                            'vendor_rating', IFNULL(r.rating, NULL),
+                            'vendor_review', IFNULL(r.review, NULL),
+
+                            -- ✅ Sub-packages
                             'sub_packages', IFNULL((
                                 SELECT CONCAT('[', GROUP_CONCAT(
                                     JSON_OBJECT(
@@ -648,6 +654,8 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
                                 FROM package_items pi
                                 WHERE pi.package_id = p.package_id
                             ), '[]'),
+
+                            -- ✅ Preferences
                             'preferences', IFNULL((
                                 SELECT CONCAT('[', GROUP_CONCAT(
                                     JSON_OBJECT(
@@ -662,6 +670,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
                     ), ']')
                     FROM packages p
                     JOIN vendor_packages vp ON vp.package_id = p.package_id
+                    LEFT JOIN ratings r ON r.package_id = p.package_id AND r.vendor_id = vp.vendor_id
                     WHERE p.service_type_id = st.service_type_id AND vp.vendor_id = ?
                 ), '[]') AS packages
 
@@ -697,7 +706,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         }));
 
         res.status(200).json({
-            message: "Vendor's assigned/applied packages fetched successfully",
+            message: "Vendor's assigned/applied packages with ratings fetched successfully",
             result
         });
     } catch (err) {
@@ -706,6 +715,58 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     }
 });
 
+const addRatingToPackages = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const { service_id, package_id, rating, review } = req.body;
+
+    if (!vendor_id || !package_id || !rating) {
+        return res.status(400).json({
+            message: "Vendor ID from token, Package ID, and Rating are required"
+        });
+    }
+
+    if (rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    try {
+        const [assigned] = await db.query(`
+            SELECT vendor_packages_id FROM vendor_packages
+            WHERE vendor_id = ? AND package_id = ?
+        `, [vendor_id, package_id]);
+
+        if (assigned.length === 0) {
+            return res.status(403).json({ message: "This package is not assigned to you." });
+        }
+
+        // ✅ Check for duplicate rating
+        const [existing] = await db.query(`
+            SELECT rating_id FROM ratings
+            WHERE vendor_id = ? AND package_id = ?
+        `, [vendor_id, package_id]);
+
+        if (existing.length > 0) {
+            return res.status(400).json({ message: "You have already rated this package." });
+        }
+
+        await db.query(`
+            INSERT INTO ratings (vendor_id, service_id, package_id, rating, review)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            vendor_id,
+            service_id || null,
+            package_id,
+            rating,
+            review || null
+        ]);
+
+        res.status(201).json({ message: "Rating submitted successfully by vendor." });
+
+    } catch (error) {
+        console.error("Error submitting vendor package rating:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
 
 module.exports = {
     getVendorAssignedPackages,
@@ -718,5 +779,6 @@ module.exports = {
     getServiceTypesByServiceId,
     deletePackage,
     getAvailablePackagesForVendor,
-    getAllPackagesForVendor
+    getAllPackagesForVendor,
+    addRatingToPackages
 };
