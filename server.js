@@ -28,7 +28,7 @@ const app = express();
 const PORT = process.env.PORT || 8000
 
 app.use(cors({
-    origin: "*", // allows all origins
+    origin: "*",
 }));
 
 app.use(express.json())

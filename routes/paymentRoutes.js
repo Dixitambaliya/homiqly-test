@@ -14,7 +14,7 @@ const { authenticationToken } = require('../middleware/authMiddleware');
 router.post('/vendor/process', authenticationToken, processVendorPayment);
 router.get('/pending', authenticationToken, getPendingPayouts);
 router.put('/approve', authenticationToken, approvePayment);
-router.post('/registeraccount', authenticationToken, registerStripeForVendor);
+router.post('/registeraccount', registerStripeForVendor);
 router.post('/webhookstripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 // Vendor routes

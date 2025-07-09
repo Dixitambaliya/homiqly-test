@@ -40,38 +40,77 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
 
     try {
         const vendor_id = req.user.vendor_id;
-        const { packageIds } = req.body;
+        const { selectedPackages } = req.body;
 
-        if (!Array.isArray(packageIds) || packageIds.length === 0) {
-            throw new Error("At least one package ID must be provided.");
+        if (!Array.isArray(selectedPackages) || selectedPackages.length === 0) {
+            throw new Error("At least one package with sub-packages must be provided.");
         }
 
-        // Optional: Prevent duplicate inserts
-        const [existing] = await connection.query(
-            `SELECT package_id FROM vendor_packages WHERE vendor_id = ?`,
-            [vendor_id]
-        );
+        for (const pkg of selectedPackages) {
+            const { package_id, selected_items, selected_preferences } = pkg;
 
-        const existingPackageIds = new Set(existing.map(p => p.package_id));
-        const newPackageIds = packageIds.filter(id => !existingPackageIds.has(id));
+            if (!package_id || !Array.isArray(selected_items)) {
+                throw new Error("Each package must include package_id and selected_items array.");
+            }
 
-        if (newPackageIds.length === 0) {
-            return res.status(400).json({ message: "All selected packages are already applied." });
-        }
+            // ✅ Check if package exists
+            const [packageExists] = await connection.query(
+                `SELECT package_id FROM packages WHERE package_id = ?`,
+                [package_id]
+            );
+            if (packageExists.length === 0) {
+                throw new Error(`Package ID ${package_id} does not exist`);
+            }
 
-        for (const package_id of newPackageIds) {
+            // ✅ Insert vendor-package relation
             await connection.query(
-                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                `INSERT IGNORE INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
+
+            // ✅ Check and insert each sub-package (item)
+            for (const item_id of selected_items) {
+                const [itemExists] = await connection.query(
+                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
+                    [item_id, package_id]
+                );
+                if (itemExists.length === 0) {
+                    throw new Error(`Item ID ${item_id} does not belong to Package ID ${package_id}`);
+                }
+
+                await connection.query(
+                    `INSERT IGNORE INTO vendor_package_items (vendor_id, package_id, package_item_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, item_id]
+                );
+            }
+
+            // ✅ Check and insert each preference (if any)
+            if (Array.isArray(selected_preferences)) {
+                for (const preference_id of selected_preferences) {
+                    const [preferenceExists] = await connection.query(
+                        `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
+                        [preference_id, package_id]
+                    );
+                    if (preferenceExists.length === 0) {
+                        throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}`);
+                    }
+
+                    await connection.query(
+                        `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
+                         VALUES (?, ?, ?)`,
+                        [vendor_id, package_id, preference_id]
+                    );
+                }
+            }
         }
 
         await connection.commit();
         connection.release();
 
         res.status(200).json({
-            message: "Packages successfully applied to vendor",
-            applied: newPackageIds
+            message: "Packages, items, and preferences successfully applied to vendor",
+            applied: selectedPackages
         });
 
     } catch (err) {
@@ -162,8 +201,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;

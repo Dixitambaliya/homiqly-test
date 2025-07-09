@@ -346,7 +346,6 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                 p.totalTime,
                 p.packageMedia,
 
-                -- Sub-packages (items)
                 COALESCE((
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
@@ -359,10 +358,10 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                         )
                     ), ']')
                     FROM package_items pi
-                    WHERE pi.package_id = p.package_id
+                    INNER JOIN vendor_package_items vpi ON vpi.package_item_id = pi.item_id
+                    WHERE vpi.vendor_id = vp.vendor_id AND vpi.package_id = p.package_id
                 ), '[]') AS sub_packages,
 
-                -- Preferences
                 COALESCE((
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
@@ -371,7 +370,8 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                         )
                     ), ']')
                     FROM booking_preferences bp
-                    WHERE bp.package_id = p.package_id
+                    INNER JOIN vendor_package_preferences vpp ON vpp.preference_id = bp.preference_id
+                    WHERE vpp.vendor_id = vp.vendor_id AND vpp.package_id = p.package_id
                 ), '[]') AS preferences
 
             FROM vendor_packages vp
@@ -415,4 +415,4 @@ module.exports = {
     addUserData,
     getPackagesByServiceTypeId,
     getVendorPackagesDetailed
-}   
+}
