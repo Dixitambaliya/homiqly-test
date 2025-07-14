@@ -23,7 +23,7 @@ const bookService = asyncHandler(async (req, res) => {
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
 
-    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime ) {
+    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime) {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -49,11 +49,13 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ 1. Verify payment with Stripe
-        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        // ✅ 1. [Optional] Verify payment with Stripe if paymentIntentId is provided
+        if (paymentIntentId) {
+            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
-        if (!paymentIntent || paymentIntent.status !== "succeeded") {
-            return res.status(402).json({ message: "Payment was not successful or is incomplete." });
+            if (!paymentIntent || paymentIntent.status !== "succeeded") {
+                return res.status(402).json({ message: "Payment was not successful or is incomplete." });
+            }
         }
 
         // ✅ 2. Check if user already booked this slot
@@ -85,7 +87,7 @@ const bookService = asyncHandler(async (req, res) => {
             return res.status(409).json({ message: "Vendor is not available at this time slot." });
         }
 
-        // ✅ 5. Validate packages against vendor_packages
+        // ✅ 5. Validate packages
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
@@ -99,7 +101,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 6. Insert booking (make sure your DB supports payment_intent_id)
+        // ✅ 6. Insert booking
         const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
             service_categories_id,
             serviceId,
@@ -110,17 +112,17 @@ const bookService = asyncHandler(async (req, res) => {
             0,
             notes || null,
             bookingMedia || null,
-            paymentIntentId
+            paymentIntentId || null
         ]);
         const booking_id = insertBooking.insertId;
 
-        // ✅ 7. Link service_type
+        // ✅ 7. Link service type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // ✅ 8. Link packages and sub-packages
+        // ✅ 8. Packages and sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -143,7 +145,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 9. Link preferences
+        // ✅ 9. Preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -154,11 +156,13 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ 10. Update payment intent status in DB
-        await db.query(
-            `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
-            [paymentIntentId]
-        );
+        // ✅ 10. Update payment status in DB if paid
+        if (paymentIntentId) {
+            await db.query(
+                `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
+                [paymentIntentId]
+            );
+        }
 
         res.status(200).json({
             message: "Booking successfully created",
@@ -170,6 +174,7 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 const getVendorBookings = asyncHandler(async (req, res) => {
