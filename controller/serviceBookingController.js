@@ -23,7 +23,7 @@ const bookService = asyncHandler(async (req, res) => {
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
 
-    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime || !paymentIntentId) {
+    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime ) {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
