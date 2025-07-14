@@ -1,5 +1,6 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
@@ -16,12 +17,13 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate,
         bookingTime,
         notes,
-        preferences
+        preferences,
+        paymentIntentId
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
 
-    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime) {
+    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime || !paymentIntentId) {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -47,7 +49,14 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // Check if user already booked this slot
+        // ✅ 1. Verify payment with Stripe
+        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+        if (!paymentIntent || paymentIntent.status !== "succeeded") {
+            return res.status(402).json({ message: "Payment was not successful or is incomplete." });
+        }
+
+        // ✅ 2. Check if user already booked this slot
         const [existingBooking] = await db.query(
             bookingPostQueries.checkUserBookingSlot,
             [user_id, serviceId, bookingDate, bookingTime]
@@ -56,7 +65,7 @@ const bookService = asyncHandler(async (req, res) => {
             return res.status(409).json({ message: "You already booked this service for the selected slot." });
         }
 
-        // Get vendor from service_type
+        // ✅ 3. Get vendor from service_type
         const [vendorResult] = await db.query(
             bookingGetQueries.getVendorByServiceTypeId,
             [service_type_id]
@@ -67,7 +76,7 @@ const bookService = asyncHandler(async (req, res) => {
 
         const vendor_id = vendorResult[0].vendor_id;
 
-        // Check vendor availability
+        // ✅ 4. Check vendor availability
         const [availability] = await db.query(
             bookingPostQueries.checkVendorAvailability,
             [vendor_id, bookingDate, bookingTime]
@@ -76,7 +85,7 @@ const bookService = asyncHandler(async (req, res) => {
             return res.status(409).json({ message: "Vendor is not available at this time slot." });
         }
 
-        // Validate packages against vendor_packages
+        // ✅ 5. Validate packages against vendor_packages
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
@@ -90,7 +99,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // Insert booking
+        // ✅ 6. Insert booking (make sure your DB supports payment_intent_id)
         const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
             service_categories_id,
             serviceId,
@@ -100,17 +109,18 @@ const bookService = asyncHandler(async (req, res) => {
             bookingTime,
             0,
             notes || null,
-            bookingMedia || null
+            bookingMedia || null,
+            paymentIntentId
         ]);
         const booking_id = insertBooking.insertId;
 
-        // Link service_type
+        // ✅ 7. Link service_type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // Link packages and items
+        // ✅ 8. Link packages and sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -133,7 +143,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // Link preferences
+        // ✅ 9. Link preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -143,6 +153,12 @@ const bookService = asyncHandler(async (req, res) => {
                 [booking_id, preference_id]
             );
         }
+
+        // ✅ 10. Update payment intent status in DB
+        await db.query(
+            `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
+            [paymentIntentId]
+        );
 
         res.status(200).json({
             message: "Booking successfully created",
@@ -155,16 +171,35 @@ const bookService = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        const [bookings] = await db.query(bookingGetQueries.getVendorBookings, [vendor_id]);
+        const [bookings] = await db.query(`
+            SELECT
+                sb.*,
+                s.serviceName,
+                sc.serviceCategory,
+                st.serviceTypeName,
+                p.status AS payment_status,
+                p.amount AS payment_amount,
+                p.currency AS payment_currency
+            FROM service_booking sb
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            WHERE sb.vendor_id = ?
+            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+        `, [vendor_id]);
 
         res.status(200).json({
             message: "Vendor bookings fetched successfully",
             bookings
         });
+
     } catch (error) {
         console.error("Error fetching vendor bookings:", error);
         res.status(500).json({
@@ -174,112 +209,110 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // Step 1: Get all bookings for the user
         const [userBookings] = await db.query(`
             SELECT
-                service_booking.booking_id,
-                service_booking.bookingDate,
-                service_booking.bookingTime,
-                service_booking.bookingStatus,
-                service_booking.notes,
-                service_booking.bookingMedia,
+                sb.booking_id,
+                sb.bookingDate,
+                sb.bookingTime,
+                sb.bookingStatus,
+                sb.notes,
+                sb.bookingMedia,
+                sb.payment_intent_id,
 
-                service_categories.serviceCategory,
-                services.serviceName,
+                sc.serviceCategory,
+                s.serviceName,
 
-                service_type.serviceTypeName,
-                service_type.serviceTypeMedia,
-                service_type.is_approved,
+                st.serviceTypeName,
+                st.serviceTypeMedia,
 
-                vendors.vendor_id,
-                vendors.vendorType,
+                v.vendor_id,
+                v.vendorType,
 
-                individual_details.id AS individual_id,
-                individual_details.name AS individual_name,
-                individual_details.phone AS individual_phone,
-                individual_details.email AS individual_email,
+                idet.id AS individual_id,
+                idet.name AS individual_name,
+                idet.phone AS individual_phone,
+                idet.email AS individual_email,
 
-                company_details.id AS company_id,
-                company_details.companyName AS company_name,
-                company_details.contactPerson AS company_contact_person,
-                company_details.companyEmail AS company_email,
-                company_details.companyPhone AS company_phone
+                cdet.id AS company_id,
+                cdet.companyName AS company_name,
+                cdet.contactPerson AS company_contact_person,
+                cdet.companyEmail AS company_email,
+                cdet.companyPhone AS company_phone,
 
-            FROM service_booking
-            LEFT JOIN service_categories ON service_booking.service_categories_id = service_categories.service_categories_id
-            LEFT JOIN services ON service_booking.service_id = services.service_id
-            LEFT JOIN service_booking_types ON service_booking.booking_id = service_booking_types.booking_id
-            LEFT JOIN service_type ON service_booking_types.service_type_id = service_type.service_type_id
-            LEFT JOIN vendors ON service_booking.vendor_id = vendors.vendor_id
-            LEFT JOIN individual_details ON vendors.vendor_id = individual_details.vendor_id
-            LEFT JOIN company_details ON vendors.vendor_id = company_details.vendor_id
-            WHERE service_booking.user_id = ?
-            ORDER BY service_booking.bookingDate DESC, service_booking.bookingTime DESC
+                p.status AS payment_status,
+                p.amount AS payment_amount,
+                p.currency AS payment_currency
+
+            FROM service_booking sb
+            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            WHERE sb.user_id = ?
+            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `, [user_id]);
 
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            // Fetch packages
+            // Packages
             const [bookingPackages] = await db.query(`
                 SELECT
-                    packages.package_id,
-                    packages.packageName,
-                    packages.totalPrice,
-                    packages.totalTime,
-                    packages.packageMedia
-                FROM service_booking_packages
-                JOIN packages ON service_booking_packages.package_id = packages.package_id
-                WHERE service_booking_packages.booking_id = ?
+                    p.package_id,
+                    p.packageName,
+                    p.totalPrice,
+                    p.totalTime,
+                    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?
             `, [bookingId]);
 
-            // Fetch package items
+            // Items
             const [packageItems] = await db.query(`
                 SELECT
-                    service_booking_sub_packages.sub_package_id AS item_id,
-                    package_items.itemName,
-                    service_booking_sub_packages.price,
-                    package_items.itemMedia,
-                    package_items.timeRequired,
-                    package_items.package_id
-                FROM service_booking_sub_packages
-                LEFT JOIN package_items ON service_booking_sub_packages.sub_package_id = package_items.item_id
-                WHERE service_booking_sub_packages.booking_id = ?
+                    sbsp.sub_package_id AS item_id,
+                    pi.itemName,
+                    sbsp.price,
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?
             `, [bookingId]);
 
-            // Group items under each package
-            const groupedPackages = bookingPackages.map(packageData => {
-                const itemsForThisPackage = packageItems.filter(item => item.package_id === packageData.package_id);
-                return {
-                    ...packageData,
-                    items: itemsForThisPackage
-                };
+            const groupedPackages = bookingPackages.map(pkg => {
+                const items = packageItems.filter(item => item.package_id === pkg.package_id);
+                return { ...pkg, items };
             });
 
-            // Fetch preferences
+            // Preferences
             const [bookingPreferences] = await db.query(`
                 SELECT
-                    service_preferences.preference_id,
-                    booking_preferences.preferenceValue
-                FROM service_preferences
-                JOIN booking_preferences ON service_preferences.preference_id = booking_preferences.preference_id
-                WHERE service_preferences.booking_id = ?
+                    sp.preference_id,
+                    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?
             `, [bookingId]);
 
-            // Attach nested and extra data
             booking.packages = groupedPackages;
-            booking.package_items = packageItems; // top-level array
+            booking.package_items = packageItems;
             booking.preferences = bookingPreferences;
 
-            // Remove null values from booking object
+            // Clean nulls
             Object.keys(booking).forEach(key => {
-                if (booking[key] === null) {
-                    delete booking[key];
-                }
+                if (booking[key] === null) delete booking[key];
             });
         }
 
@@ -296,6 +329,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -331,8 +365,6 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
-
 
 
 module.exports = { bookService, getVendorBookings, getUserBookings, approveOrRejectBooking };

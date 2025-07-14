@@ -11,15 +11,16 @@ const bookingPostQueries = {
     insertBooking: `
    INSERT INTO service_booking (
     service_categories_id,
-    service_id,
     vendor_id,
+    service_id,
     user_id,
     bookingDate,
     bookingTime,
     bookingStatus,
     notes,
-    bookingMedia
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    bookingMedia,
+    payment_intent_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 
 
     insertPackageBooking: `INSERT INTO
