@@ -125,12 +125,10 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
 
 const addRatingToPackages = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { vendor_id, service_id, package_id, rating, review } = req.body;
+    const { package_id, rating, review } = req.body;
 
-    if (!vendor_id || !package_id || !rating) {
-        return res.status(400).json({
-            message: "Vendor ID, package ID, and rating are required"
-        });
+    if (!package_id || !rating) {
+        return res.status(400).json({ message: "Package ID and rating are required" });
     }
 
     if (rating < 1 || rating > 5) {
@@ -138,6 +136,18 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
     }
 
     try {
+        // Check if user has booked this package
+        const [booked] = await db.query(`
+            SELECT 1 FROM service_booking_packages sbp
+            JOIN service_booking sb ON sb.booking_id = sbp.booking_id
+            WHERE sb.user_id = ? AND sbp.package_id = ?
+        `, [user_id, package_id]);
+
+        if (booked.length === 0) {
+            return res.status(403).json({ message: "You can only rate packages you've booked." });
+        }
+
+        // Prevent duplicate rating
         const [existing] = await db.query(`
             SELECT rating_id FROM ratings
             WHERE user_id = ? AND package_id = ?
@@ -147,17 +157,11 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "You have already rated this package." });
         }
 
+        // Insert the rating (no vendor or service_id)
         await db.query(`
-            INSERT INTO ratings (user_id, vendor_id, service_id, package_id, rating, review, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-        `, [
-            user_id,
-            vendor_id,
-            service_id || null,
-            package_id,
-            rating,
-            review
-        ]);
+            INSERT INTO ratings (user_id, package_id, rating, review, created_at)
+            VALUES (?, ?, ?, ?, NOW())
+        `, [user_id, package_id, rating, review]);
 
         res.status(201).json({ message: "Rating for package submitted successfully" });
     } catch (error) {
@@ -165,6 +169,8 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
 
 module.exports = {
     getVendorRatings,

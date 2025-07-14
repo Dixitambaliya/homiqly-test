@@ -345,6 +345,20 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                 p.totalTime,
                 p.packageMedia,
 
+                -- Ratings
+                IFNULL((
+                    SELECT ROUND(AVG(r.rating), 1)
+                    FROM ratings r
+                    WHERE r.package_id = p.package_id
+                ), 0) AS averageRating,
+
+                IFNULL((
+                    SELECT COUNT(r.rating_id)
+                    FROM ratings r
+                    WHERE r.package_id = p.package_id
+                ), 0) AS totalReviews,
+
+                -- Sub-packages
                 COALESCE((
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
@@ -361,6 +375,7 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                     WHERE vpi.vendor_id = vp.vendor_id AND vpi.package_id = p.package_id
                 ), '[]') AS sub_packages,
 
+                -- Preferences
                 COALESCE((
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
@@ -388,6 +403,8 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
             totalPrice: row.totalPrice,
             totalTime: row.totalTime,
             packageMedia: row.packageMedia,
+            averageRating: row.averageRating,
+            totalReviews: row.totalReviews,
             sub_packages: JSON.parse(row.sub_packages || '[]'),
             preferences: JSON.parse(row.preferences || '[]')
         }));
