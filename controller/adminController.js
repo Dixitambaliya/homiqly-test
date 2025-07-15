@@ -100,373 +100,416 @@ const getUsers = asyncHandler(async (req, res) => {
 });
 
 const updateUserByAdmin = asyncHandler(async (req, res) => {
-  const { user_id } = req.params;
-  const { firstName, lastName, email, phone, is_approved } = req.body;
+    const { user_id } = req.params;
+    const { firstName, lastName, email, phone, is_approved } = req.body;
 
-  try {
-    // Check if user exists
-    const [userRows] = await db.query(adminPutQueries.getUserById, [user_id]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
+    try {
+        // Check if user exists
+        const [userRows] = await db.query(adminPutQueries.getUserById, [user_id]);
+        if (userRows.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const existing = userRows[0];
+
+        const updatedFirstName = firstName?.trim() || existing.firstName;
+        const updatedLastName = lastName?.trim() || existing.lastName;
+        const updatedEmail = email?.trim() || existing.email;
+        const updatedPhone = phone?.trim() || existing.phone;
+        const updatedApproval =
+            typeof is_approved === "number" ? is_approved : existing.is_approved;
+
+        await db.query(adminPutQueries.updateUserById, [
+            updatedFirstName,
+            updatedLastName,
+            updatedEmail,
+            updatedPhone,
+            updatedApproval,
+            user_id,
+        ]);
+
+        res.status(200).json({ message: "User updated successfully" });
+    } catch (err) {
+        console.error("Error updating user by admin:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
     }
-
-    const existing = userRows[0];
-
-    const updatedFirstName = firstName?.trim() || existing.firstName;
-    const updatedLastName = lastName?.trim() || existing.lastName;
-    const updatedEmail = email?.trim() || existing.email;
-    const updatedPhone = phone?.trim() || existing.phone;
-    const updatedApproval =
-      typeof is_approved === "number" ? is_approved : existing.is_approved;
-
-    await db.query(adminPutQueries.updateUserById, [
-      updatedFirstName,
-      updatedLastName,
-      updatedEmail,
-      updatedPhone,
-      updatedApproval,
-      user_id,
-    ]);
-
-    res.status(200).json({ message: "User updated successfully" });
-  } catch (err) {
-    console.error("Error updating user by admin:", err);
-    res.status(500).json({ message: "Internal server error", error: err.message });
-  }
 });
 // Get all bookings for admin calendar
 const getBookings = asyncHandler(async (req, res) => {
-  try {
-    const [bookings] = await db.query(adminGetQueries.getAllBookings);
+    try {
+        const [bookings] = await db.query(adminGetQueries.getAllBookings);
 
-    res.status(200).json({
-      message: "Bookings fetched successfully",
-      bookings,
-    });
-  } catch (error) {
-    console.error("Error fetching bookings:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
-  }
+        res.status(200).json({
+            message: "Bookings fetched successfully",
+            bookings,
+        });
+    } catch (error) {
+        console.error("Error fetching bookings:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
 });
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
-  const connection = await db.getConnection();
-  await connection.beginTransaction();
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-  try {
-    const { serviceId, serviceTypeName, packages, preferences } = req.body;
+    try {
+        const { serviceId, serviceTypeName, packages, preferences } = req.body;
 
-    if (!serviceId || !serviceTypeName || !packages) {
-      throw new Error("Missing required fields: serviceId, service_type_name, and packages.");
-    }
-
-    const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
-
-    const [stResult] = await connection.query(
-      adminPostQueries.insertServiceType,
-      [serviceId, serviceTypeName, serviceTypeMedia || null]
-    );
-
-    const service_type_id = stResult.insertId;
-
-    const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
-    if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
-      throw new Error("At least one package is required.");
-    }
-
-    for (let i = 0; i < parsedPackages.length; i++) {
-      const pkg = parsedPackages[i];
-      const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
-
-      const [pkgResult] = await connection.query(
-        adminPostQueries.insertPackage,
-        [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
-      );
-
-      const package_id = pkgResult.insertId;
-
-      for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
-        const sub = pkg.sub_packages[j];
-        const itemMedia = req.uploadedFiles?.[`itemMedia_${j}`]?.[0]?.url || null;
-
-        await connection.query(
-          adminPostQueries.insertPackageItem,
-          [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
-        );
-      }
-
-      if (preferences) {
-        const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-        for (const pref of parsedPrefs) {
-          if (!pref.preference_value) continue;
-
-          await connection.query(
-            adminPostQueries.insertBookingPreference,
-            [package_id, pref.preference_value.trim()]
-          );
+        if (!serviceId || !serviceTypeName || !packages) {
+            throw new Error("Missing required fields: serviceId, service_type_name, and packages.");
         }
-      }
+
+        const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
+
+        const [stResult] = await connection.query(
+            adminPostQueries.insertServiceType,
+            [serviceId, serviceTypeName, serviceTypeMedia || null]
+        );
+
+        const service_type_id = stResult.insertId;
+
+        const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
+            throw new Error("At least one package is required.");
+        }
+
+        for (let i = 0; i < parsedPackages.length; i++) {
+            const pkg = parsedPackages[i];
+            const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
+
+            const [pkgResult] = await connection.query(
+                adminPostQueries.insertPackage,
+                [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
+            );
+
+            const package_id = pkgResult.insertId;
+
+            for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
+                const sub = pkg.sub_packages[j];
+                const itemMedia = req.uploadedFiles?.[`itemMedia_${j}`]?.[0]?.url || null;
+
+                await connection.query(
+                    adminPostQueries.insertPackageItem,
+                    [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
+                );
+            }
+
+            if (preferences) {
+                const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
+                for (const pref of parsedPrefs) {
+                    if (!pref.preference_value) continue;
+
+                    await connection.query(
+                        adminPostQueries.insertBookingPreference,
+                        [package_id, pref.preference_value.trim()]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        connection.release();
+
+        res.status(201).json({
+            message: "Service type and packages created successfully by admin",
+            service_type_id
+        });
+
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Admin package creation error:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
     }
-
-    await connection.commit();
-    connection.release();
-
-    res.status(201).json({
-      message: "Service type and packages created successfully by admin",
-      service_type_id
-    });
-
-  } catch (err) {
-    await connection.rollback();
-    connection.release();
-    console.error("Admin package creation error:", err);
-    res.status(500).json({ error: "Database error", details: err.message });
-  }
 });
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
-  try {
-    const [rows] = await db.query(adminGetQueries.getAdminCreatedPackages);
+    try {
+        const [rows] = await db.query(adminGetQueries.getAdminCreatedPackages);
 
-    const result = rows.map(row => ({
-      service_type_id: row.service_type_id,
-      service_type_name: row.serviceTypeName,
-      service_type_media: row.serviceTypeMedia,
+        const result = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            service_type_name: row.serviceTypeName,
+            service_type_media: row.serviceTypeMedia,
 
-      service_id: row.service_id,
-      service_name: row.serviceName,
+            service_id: row.service_id,
+            service_name: row.serviceName,
 
-      service_category_id: row.service_categories_id,
-      service_category_name: row.serviceCategory,
+            service_category_id: row.service_categories_id,
+            service_category_name: row.serviceCategory,
 
-      packages: JSON.parse(row.packages || '[]').map(pkg => ({
-        ...pkg,
-        sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
-        preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
-      }))
-    }));
+            packages: JSON.parse(row.packages || '[]').map(pkg => ({
+                ...pkg,
+                sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
+                preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
+            }))
+        }));
 
-    res.status(200).json({
-      message: "Admin-created packages fetched successfully",
-      result
-    });
-  } catch (err) {
-    console.error("Error fetching admin-created packages:", err);
-    res.status(500).json({ error: "Database error", details: err.message });
-  }
+        res.status(200).json({
+            message: "Admin-created packages fetched successfully",
+            result
+        });
+    } catch (err) {
+        console.error("Error fetching admin-created packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
 });
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
-  const connection = await db.getConnection();
-  await connection.beginTransaction();
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-  try {
-    const { vendor_id, selectedPackages } = req.body;
+    try {
+        const { vendor_id, selectedPackages } = req.body;
 
         if (!vendor_id || !Array.isArray(selectedPackages) || selectedPackages.length === 0) {
             return res.status(400).json({ message: "vendor_id and selectedPackages[] with sub-packages are required." });
         }
 
-    for (const pkg of selectedPackages) {
-      const { package_id, sub_packages = [], preferences = [] } = pkg;
-
-      if (!package_id || !Array.isArray(sub_packages)) {
-        throw new Error("Each package must include package_id and sub_packages[] array.");
-      }
-
-      const [packageExists] = await connection.query(adminPostQueries.checkPackageExists, [package_id]);
-      if (packageExists.length === 0) {
-        throw new Error(`Package ID ${package_id} does not exist.`);
-      }
-
-      await connection.query(adminPostQueries.insertVendorPackage, [vendor_id, package_id]);
-
-      for (const item of sub_packages) {
-        const item_id = item.sub_package_id;
-
-        const [itemExists] = await connection.query(adminPostQueries.checkPackageItemExists, [item_id, package_id]);
-        if (itemExists.length === 0) {
-          throw new Error(`Sub-package ID ${item_id} does not belong to Package ID ${package_id}.`);
+        // ✅ Check if vendor exists
+        const [vendorExists] = await connection.query(
+            `SELECT vendor_id FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+        if (vendorExists.length === 0) {
+            throw new Error(`Vendor ID ${vendor_id} does not exist.`);
         }
 
-        await connection.query(adminPostQueries.insertVendorPackageItem, [vendor_id, package_id, item_id]);
-      }
+        // ✅ Check vendor's toggle status
+        const [toggleResult] = await connection.query(
+            `SELECT manual_vendor_assignment FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
 
-      for (const pref of preferences) {
-        const preference_id = pref.preference_id;
-
-        const [prefExists] = await connection.query(adminPostQueries.checkPreferenceExists, [preference_id, package_id]);
-        if (prefExists.length === 0) {
-          throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}.`);
+        const isAvailable = toggleResult[0]?.manual_vendor_assignment === 0; // 0 = AVAILABLE
+        if (!isAvailable) {
+            throw new Error(`Vendor ID ${vendor_id} is currently NOT available to be assigned services (toggle ON).`);
         }
 
-        await connection.query(adminPostQueries.insertVendorPackagePreference, [vendor_id, package_id, preference_id]);
-      }
-    }
+        for (const pkg of selectedPackages) {
+            const { package_id, sub_packages = [], preferences = [] } = pkg;
 
-    await connection.commit();
-    connection.release();
+            if (!package_id || !Array.isArray(sub_packages)) {
+                throw new Error("Each package must include package_id and sub_packages[] array.");
+            }
+
+            // ✅ Check if package exists
+            const [packageExists] = await connection.query(
+                `SELECT package_id FROM packages WHERE package_id = ?`,
+                [package_id]
+            );
+            if (packageExists.length === 0) {
+                throw new Error(`Package ID ${package_id} does not exist.`);
+            }
+
+            // ✅ Insert vendor-package link
+            await connection.query(
+                `INSERT IGNORE INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                [vendor_id, package_id]
+            );
+
+            // ✅ Insert sub-packages (items)
+            for (const item of sub_packages) {
+                const item_id = item.sub_package_id;
+
+                const [itemExists] = await connection.query(
+                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
+                    [item_id, package_id]
+                );
+                if (itemExists.length === 0) {
+                    throw new Error(`Sub-package ID ${item_id} does not belong to Package ID ${package_id}.`);
+                }
+
+                await connection.query(
+                    `INSERT IGNORE INTO vendor_package_items (vendor_id, package_id, package_item_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, item_id]
+                );
+            }
+
+            // ✅ Insert preferences
+            for (const pref of preferences) {
+                const preference_id = pref.preference_id;
+
+                const [prefExists] = await connection.query(
+                    `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
+                    [preference_id, package_id]
+                );
+                if (prefExists.length === 0) {
+                    throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}.`);
+                }
+
+                await connection.query(
+                    `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, preference_id]
+                );
+            }
+        }
+
+        await connection.commit();
+        connection.release();
 
         res.status(200).json({
-            message: "Packages, items, and preferences successfully assigned to vendor by admin.",
+            message: "Packages, items, and preferences successfully assigned to vendor.",
             assigned: selectedPackages
         });
 
-  } catch (err) {
-    await connection.rollback();
-    connection.release();
-    console.error("Admin assign error:", err);
-    res.status(500).json({ error: "Database error", details: err.message });
-  }
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Admin assign error:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
 });
 
-
 const editPackageByAdmin = asyncHandler(async (req, res) => {
-  const connection = await db.getConnection();
-  await connection.beginTransaction();
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-  try {
-    const { packages, preferences } = req.body;
-    if (!packages) throw new Error("Missing required field: packages");
+    try {
+        const { packages, preferences } = req.body;
+        if (!packages) throw new Error("Missing required field: packages");
 
-    const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
 
-    for (let i = 0; i < parsedPackages.length; i++) {
-      const pkg = parsedPackages[i];
-      const package_id = pkg.package_id;
-      if (!package_id) continue;
+        for (let i = 0; i < parsedPackages.length; i++) {
+            const pkg = parsedPackages[i];
+            const package_id = pkg.package_id;
+            if (!package_id) continue;
 
-      const [existingPackage] = await connection.query(adminPutQueries.getPackageById, [package_id]);
-      if (!existingPackage.length) continue;
-      const existing = existingPackage[0];
+            const [existingPackage] = await connection.query(adminPutQueries.getPackageById, [package_id]);
+            if (!existingPackage.length) continue;
+            const existing = existingPackage[0];
 
-      const packageName = pkg.package_name ?? existing.packageName;
-      const description = pkg.description ?? existing.description;
-      const totalPrice = pkg.total_price ?? existing.totalPrice;
-      const totalTime = pkg.total_time ?? existing.totalTime;
-      const packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || existing.packageMedia;
+            const packageName = pkg.package_name ?? existing.packageName;
+            const description = pkg.description ?? existing.description;
+            const totalPrice = pkg.total_price ?? existing.totalPrice;
+            const totalTime = pkg.total_time ?? existing.totalTime;
+            const packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || existing.packageMedia;
 
-      await connection.query(adminPutQueries.updatePackage, [
-        packageName,
-        description,
-        totalPrice,
-        totalTime,
-        packageMedia,
-        package_id
-      ]);
+            await connection.query(adminPutQueries.updatePackage, [
+                packageName,
+                description,
+                totalPrice,
+                totalTime,
+                packageMedia,
+                package_id
+            ]);
 
-      const submittedItemIds = [];
-      for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
-        const sub = pkg.sub_packages[j];
-        const sub_id = sub.sub_package_id;
+            const submittedItemIds = [];
+            for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
+                const sub = pkg.sub_packages[j];
+                const sub_id = sub.sub_package_id;
 
-        if (sub_id) {
-          const [oldItem] = await connection.query(adminPutQueries.getPackageItemById, [sub_id]);
-          if (!oldItem.length) continue;
-          const old = oldItem[0];
+                if (sub_id) {
+                    const [oldItem] = await connection.query(adminPutQueries.getPackageItemById, [sub_id]);
+                    if (!oldItem.length) continue;
+                    const old = oldItem[0];
 
-          const itemName = sub.item_name ?? old.itemName;
-          const itemDesc = sub.description ?? old.description;
-          const price = sub.price ?? old.price;
-          const timeRequired = sub.time_required ?? old.timeRequired;
-          const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
+                    const itemName = sub.item_name ?? old.itemName;
+                    const itemDesc = sub.description ?? old.description;
+                    const price = sub.price ?? old.price;
+                    const timeRequired = sub.time_required ?? old.timeRequired;
+                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
 
-          await connection.query(adminPutQueries.updatePackageItem, [
-            itemName,
-            itemDesc,
-            price,
-            timeRequired,
-            itemMedia,
-            sub_id,
-            package_id
-          ]);
+                    await connection.query(adminPutQueries.updatePackageItem, [
+                        itemName,
+                        itemDesc,
+                        price,
+                        timeRequired,
+                        itemMedia,
+                        sub_id,
+                        package_id
+                    ]);
 
-          submittedItemIds.push(sub_id);
-        } else {
-          const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+                    submittedItemIds.push(sub_id);
+                } else {
+                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
 
-          const [newItem] = await connection.query(adminPutQueries.insertPackageItem, [
-            package_id,
-            sub.item_name,
-            sub.description,
-            sub.price,
-            sub.time_required,
-            itemMedia
-          ]);
+                    const [newItem] = await connection.query(adminPutQueries.insertPackageItem, [
+                        package_id,
+                        sub.item_name,
+                        sub.description,
+                        sub.price,
+                        sub.time_required,
+                        itemMedia
+                    ]);
 
-          submittedItemIds.push(newItem.insertId);
+                    submittedItemIds.push(newItem.insertId);
+                }
+            }
+
+            if (submittedItemIds.length > 0) {
+                await connection.query(adminPutQueries.deleteRemovedPackageItems, [package_id, submittedItemIds]);
+            } else {
+                await connection.query(adminPutQueries.deleteAllPackageItems, [package_id]);
+            }
+
+            await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
+
+            const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
+            for (const pref of parsedPrefs) {
+                if (!pref.preference_value) continue;
+
+                await connection.query(adminPutQueries.insertPackagePreference, [
+                    package_id,
+                    pref.preference_value.trim()
+                ]);
+            }
         }
-      }
 
-      if (submittedItemIds.length > 0) {
-        await connection.query(adminPutQueries.deleteRemovedPackageItems, [package_id, submittedItemIds]);
-      } else {
-        await connection.query(adminPutQueries.deleteAllPackageItems, [package_id]);
-      }
+        await connection.commit();
+        connection.release();
+        res.status(200).json({ message: "Packages updated successfully" });
 
-      await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
-
-      const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-      for (const pref of parsedPrefs) {
-        if (!pref.preference_value) continue;
-
-        await connection.query(adminPutQueries.insertPackagePreference, [
-          package_id,
-          pref.preference_value.trim()
-        ]);
-      }
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Admin package update error:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
     }
-
-    await connection.commit();
-    connection.release();
-    res.status(200).json({ message: "Packages updated successfully" });
-
-  } catch (err) {
-    await connection.rollback();
-    connection.release();
-    console.error("Admin package update error:", err);
-    res.status(500).json({ error: "Database error", details: err.message });
-  }
 });
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
-  const { package_id } = req.params;
+    const { package_id } = req.params;
 
-  if (!package_id) {
-    return res.status(400).json({ error: "Missing required parameter: package_id" });
-  }
-
-  const connection = await db.getConnection();
-  await connection.beginTransaction();
-
-  try {
-    const [exists] = await connection.query(
-      adminDeleteQueries.checkPackageExists,
-      [package_id]
-    );
-
-    if (exists.length === 0) {
-      throw new Error("Package not found.");
+    if (!package_id) {
+        return res.status(400).json({ error: "Missing required parameter: package_id" });
     }
 
-    await connection.query(
-      adminDeleteQueries.deletePackageById,
-      [package_id]
-    );
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-    await connection.commit();
-    connection.release();
+    try {
+        const [exists] = await connection.query(
+            adminDeleteQueries.checkPackageExists,
+            [package_id]
+        );
 
-    res.status(200).json({
-      message: `Package (ID: ${package_id}) and related data deleted successfully.`,
-    });
+        if (exists.length === 0) {
+            throw new Error("Package not found.");
+        }
 
-  } catch (error) {
-    await connection.rollback();
-    connection.release();
-    console.error("Delete package error:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
-  }
+        await connection.query(
+            adminDeleteQueries.deletePackageById,
+            [package_id]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({
+            message: `Package (ID: ${package_id}) and related data deleted successfully.`,
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error("Delete package error:", error);
+        res.status(500).json({ error: "Database error", details: error.message });
+    }
 });
 
 
