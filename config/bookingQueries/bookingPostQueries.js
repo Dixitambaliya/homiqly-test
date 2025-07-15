@@ -11,7 +11,6 @@ const bookingPostQueries = {
     insertBooking: `
    INSERT INTO service_booking (
     service_categories_id,
-    vendor_id,
     service_id,
     user_id,
     bookingDate,
@@ -20,7 +19,7 @@ const bookingPostQueries = {
     notes,
     bookingMedia,
     payment_intent_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 
 
     insertPackageBooking: `INSERT INTO

@@ -469,38 +469,6 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
   }
 });
 
-const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
-  const { value } = req.body;
-
-  if (value !== 0 && value !== 1) {
-    return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
-  }
-
-  try {
-    await db.query(adminPutQueries.toggleManualVendorAssignment, [value]);
-
-    res.status(200).json({
-      message: `Manual vendor assignment mode set to ${value === 1 ? 'ON' : 'OFF'}`
-    });
-
-  } catch (err) {
-    console.error("Error toggling manual vendor assignment:", err);
-    res.status(500).json({ message: "Internal server error", error: err.message });
-  }
-});
-
-const getManualAssignmentStatus = asyncHandler(async (req, res) => {
-  try {
-    const [result] = await db.query(adminGetQueries.getManualAssignmentStatus);
-
-    res.status(200).json({
-      value: result[0]?.setting_value ?? null
-    });
-  } catch (err) {
-    console.error("Fetch error:", err);
-    res.status(500).json({ message: "Internal server error", error: err.message });
-  }
-});
 
 module.exports = {
     getVendor,
@@ -513,7 +481,5 @@ module.exports = {
     assignPackageToVendor,
     editPackageByAdmin,
     deletePackageByAdmin,
-    deletePackageByAdmin,
-    toggleManualVendorAssignment,
-    getManualAssignmentStatus
+    deletePackageByAdmin
 };

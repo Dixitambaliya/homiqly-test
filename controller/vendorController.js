@@ -763,6 +763,62 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
     }
 });
 
+const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id
+    const { value } = req.body;
+
+    if (![0, 1].includes(value)) {
+        return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
+    }
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    try {
+        await db.query(`
+            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE manual_assignment_enabled = VALUES(manual_assignment_enabled)
+        `, [vendor_id, value]);
+
+        res.status(200).json({
+            message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
+            vendor_id,
+            manual_assignment_enabled: value
+        });
+
+    } catch (err) {
+        console.error("Error toggling manual vendor assignment:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+const getManualAssignmentStatus = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id || req.query.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    try {
+        const [result] = await db.query(
+            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ? LIMIT 1`,
+            [vendor_id]
+        );
+
+        res.status(200).json({
+            vendor_id,
+            value: result[0]?.manual_assignment_enabled ?? 0
+        });
+
+    } catch (err) {
+        console.error("Fetch error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
 module.exports = {
     getVendorAssignedPackages,
     applyPackagesToVendor,
@@ -775,5 +831,7 @@ module.exports = {
     deletePackage,
     getAvailablePackagesForVendor,
     getAllPackagesForVendor,
-    addRatingToPackages
+    addRatingToPackages,
+    toggleManualVendorAssignment,
+    getManualAssignmentStatus
 };
