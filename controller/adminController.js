@@ -350,36 +350,83 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { vendor_id, package_ids } = req.body;
+        const { vendor_id, selectedPackages } = req.body;
 
-        if (!vendor_id || !package_ids || !Array.isArray(package_ids) || package_ids.length === 0) {
+        if (!vendor_id || !Array.isArray(selectedPackages) || selectedPackages.length === 0) {
             return res.status(400).json({ message: "vendor_id and at least one package with items is required." });
         }
 
-        for (const package_id of package_ids) {
-            // Avoid duplicate assignment
-            const [existing] = await connection.query(
-                `SELECT * FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
+        for (const pkg of selectedPackages) {
+            const { package_id, selected_items, selected_preferences } = pkg;
+
+            if (!package_id || !Array.isArray(selected_items)) {
+                throw new Error("Each package must include package_id and selected_items array.");
+            }
+
+            // ✅ Ensure package exists
+            const [packageExists] = await connection.query(
+                `SELECT package_id FROM packages WHERE package_id = ?`,
+                [package_id]
+            );
+            if (packageExists.length === 0) {
+                throw new Error(`Package ID ${package_id} does not exist.`);
+            }
+
+            // ✅ Insert vendor-package relation
+            await connection.query(
+                `INSERT IGNORE INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
 
-            if (existing.length === 0) {
-                await connection.query(
-                    `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
-                    [vendor_id, package_id]
+            // ✅ Insert each package item
+            for (const item_id of selected_items) {
+                const [itemExists] = await connection.query(
+                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
+                    [item_id, package_id]
                 );
+                if (itemExists.length === 0) {
+                    throw new Error(`Item ID ${item_id} does not belong to Package ID ${package_id}`);
+                }
+
+                await connection.query(
+                    `INSERT IGNORE INTO vendor_package_items (vendor_id, package_id, package_item_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, item_id]
+                );
+            }
+
+            // ✅ Insert each preference (if provided)
+            if (Array.isArray(selected_preferences)) {
+                for (const preference_id of selected_preferences) {
+                    const [prefExists] = await connection.query(
+                        `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
+                        [preference_id, package_id]
+                    );
+                    if (prefExists.length === 0) {
+                        throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}`);
+                    }
+
+                    await connection.query(
+                        `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
+                         VALUES (?, ?, ?)`,
+                        [vendor_id, package_id, preference_id]
+                    );
+                }
             }
         }
 
         await connection.commit();
         connection.release();
 
-        res.status(201).json({ message: "Packages assigned to vendor successfully." });
+        res.status(200).json({
+            message: "Packages, items, and preferences successfully assigned to vendor by admin.",
+            assigned: selectedPackages
+        });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Error assigning packages:", err);
+        console.error("Admin assign error:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
@@ -561,11 +608,11 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
 const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     try {
         const [result] = await db.query(
-            `SELECT manual_assignment_enabled FROM system_settings WHERE id = 1`
+            `SELECT setting_value FROM settings WHERE setting_key = 'manual_vendor_assignment' LIMIT 1`
         );
 
         res.status(200).json({
-            manual_assignment_enabled: result[0]?.manual_assignment_enabled || false
+            manual_assignment_enabled: result[0]?.setting_value ?? null
         });
     } catch (err) {
         console.error("Fetch error:", err);

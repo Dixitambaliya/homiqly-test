@@ -10,6 +10,7 @@ const { getVendor,
     assignPackageToVendor,
     editPackageByAdmin,
     deletePackageByAdmin,
+    getManualAssignmentStatus,
     toggleManualVendorAssignment
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
@@ -27,6 +28,10 @@ router.post("/addpackages", authenticationToken, multiUpload, handleUploads, cre
 router.post("/assignpackage", authenticationToken, assignPackageToVendor)
 router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
+
+
+router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
+
 
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
 
