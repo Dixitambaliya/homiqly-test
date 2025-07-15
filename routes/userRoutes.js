@@ -11,7 +11,8 @@ const { getServiceCategories,
     updateUserData,
     addUserData,
     getPackagesByServiceTypeId,
-    getVendorPackagesDetailed
+    getVendorPackagesDetailed,
+    deleteBooking
 } = require("../controller/userController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -25,6 +26,8 @@ router.get("/services/:service_id/allservicetypes", getServiceTypesByServiceId)
 router.get("/getallpackges", getServicestypes)
 
 router.get("/getdata", authenticationToken, getUserData)
+
+router.delete("/deletebookings/:booking_id", authenticationToken, deleteBooking)
 
 router.get("/getpackagedetails/:vendor_id", getVendorPackagesDetailed)
 

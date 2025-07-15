@@ -419,6 +419,36 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
     }
 });
 
+const deleteBooking = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { booking_id } = req.params;
+
+    if (!booking_id) {
+        return res.status(400).json({ message: "Booking ID is required" });
+    }
+
+    try {
+        // ✅ Check if booking belongs to user
+        const [bookingCheck] = await db.query(
+            `SELECT * FROM service_booking WHERE booking_id = ? AND user_id = ?`,
+            [booking_id, user_id]
+        );
+
+        if (bookingCheck.length === 0) {
+            return res.status(404).json({ message: "Booking not found or does not belong to user" });
+        }
+
+        // ✅ Delete booking (child tables auto-deleted via ON DELETE CASCADE)
+        await db.query(`DELETE FROM service_booking WHERE booking_id = ?`, [booking_id]);
+
+        res.status(200).json({ message: "Booking deleted successfully", booking_id });
+    } catch (error) {
+        console.error("Delete booking error:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+
 module.exports = {
     getServiceCategories,
     getServiceByCategory,
@@ -430,5 +460,6 @@ module.exports = {
     updateUserData,
     addUserData,
     getPackagesByServiceTypeId,
-    getVendorPackagesDetailed
+    getVendorPackagesDetailed,
+    deleteBooking
 }
