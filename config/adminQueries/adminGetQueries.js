@@ -168,8 +168,93 @@ GROUP BY vendors.vendor_id`,
 
     getAllUsers: `SELECT user_id, firstName, lastName,profileImage, email address, state, postalcode, phone, created_at
     FROM users
-    ORDER BY created_at DESC`
+    ORDER BY created_at DESC`,
 
+     getAllBookings: `
+    SELECT
+      sb.booking_id,
+      sb.bookingDate,
+      sb.bookingTime,
+      sb.bookingStatus,
+      sb.notes,
+      CONCAT(u.firstName, ' ', u.lastName) AS userName,
+      s.serviceName,
+      sc.serviceCategory,
+      CASE
+        WHEN v.vendorType = 'individual' THEN ind.name
+        WHEN v.vendorType = 'company' THEN comp.companyName
+      END as vendorName
+    FROM service_booking sb
+    JOIN users u ON sb.user_id = u.user_id
+    JOIN services s ON sb.service_id = s.service_id
+    JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+    JOIN vendors v ON sb.vendor_id = v.vendor_id
+    LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
+    LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
+    ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+  `,
+   getAdminCreatedPackages: `
+    SELECT
+        st.service_type_id,
+        st.serviceTypeName,
+        st.serviceTypeMedia,
+
+        s.service_id,
+        s.serviceName,
+
+        sc.service_categories_id,
+        sc.serviceCategory,
+
+        COALESCE((
+            SELECT CONCAT('[', GROUP_CONCAT(
+                JSON_OBJECT(
+                    'package_id', p.package_id,
+                    'title', p.packageName,
+                    'description', p.description,
+                    'price', p.totalPrice,
+                    'time_required', p.totalTime,
+                    'package_media', p.packageMedia,
+                    'sub_packages', IFNULL((
+                        SELECT CONCAT('[', GROUP_CONCAT(
+                            JSON_OBJECT(
+                                'sub_package_id', pi.item_id,
+                                'item_name', pi.itemName,
+                                'description', pi.description,
+                                'price', pi.price,
+                                'time_required', pi.timeRequired,
+                                'item_media', pi.itemMedia
+                            )
+                        ), ']')
+                        FROM package_items pi
+                        WHERE pi.package_id = p.package_id
+                    ), '[]'),
+                    'preferences', IFNULL((
+                        SELECT CONCAT('[', GROUP_CONCAT(
+                            JSON_OBJECT(
+                                'preference_id', bp.preference_id,
+                                'preference_value', bp.preferenceValue
+                            )
+                        ), ']')
+                        FROM booking_preferences bp
+                        WHERE bp.package_id = p.package_id
+                    ), '[]')
+                )
+            ), ']')
+            FROM packages p
+            WHERE p.service_type_id = st.service_type_id
+        ), '[]') AS packages
+
+    FROM service_type st
+    JOIN services s ON s.service_id = st.service_id
+    JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+
+    ORDER BY st.service_type_id DESC
+  `,
+    getManualAssignmentStatus: `
+    SELECT setting_value FROM settings
+    WHERE setting_key = 'manual_vendor_assignment'
+    LIMIT 1
+  `
 
 }
 
