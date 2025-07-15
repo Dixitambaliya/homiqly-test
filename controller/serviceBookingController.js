@@ -23,7 +23,7 @@ const bookService = asyncHandler(async (req, res) => {
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
 
-    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime) {
+    if (!service_categories_id || !service_type_id || !bookingDate || !bookingTime) {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -49,62 +49,86 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ 1. [Optional] Verify payment with Stripe if paymentIntentId is provided
+        // ✅ 1. Verify Stripe Payment if provided
         if (paymentIntentId) {
             const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
             if (!paymentIntent || paymentIntent.status !== "succeeded") {
                 return res.status(402).json({ message: "Payment was not successful or is incomplete." });
             }
         }
 
-        // ✅ 2. Check if user already booked this slot
-        const [existingBooking] = await db.query(
-            bookingPostQueries.checkUserBookingSlot,
-            [user_id, serviceId, bookingDate, bookingTime]
-        );
-        if (existingBooking.length > 0) {
-            return res.status(409).json({ message: "You already booked this service for the selected slot." });
+        // ✅ 2. Toggle for manual/auto vendor assignment
+        const [settingRow] = await db.query(`
+            SELECT setting_value FROM settings WHERE setting_key = 'manual_vendor_assignment' LIMIT 1
+        `);
+        const isManual = Number(settingRow[0]?.setting_value) === 1;
+        let vendor_id = null;
+        if (!isManual) {
+            // Auto assign vendor
+            const [vendorResult] = await db.query(
+                bookingGetQueries.getVendorByServiceTypeId,
+                [service_type_id]
+            );
+            if (!vendorResult.length) {
+                return res.status(400).json({ message: "Vendor not found for selected service type." });
+            }
+
+            vendor_id = vendorResult[0].vendor_id;
+
+            // Check vendor availability
+            const [availability] = await db.query(
+                bookingPostQueries.checkVendorAvailability,
+                [vendor_id, bookingDate, bookingTime]
+            );
+            if (availability.length > 0) {
+                return res.status(409).json({ message: "Vendor is not available at this time slot." });
+            }
+        } else {
+            vendor_id = null; // 🚨 Important!
         }
 
-        // ✅ 3. Get vendor from service_type
-        const [vendorResult] = await db.query(
-            bookingGetQueries.getVendorByServiceTypeId,
-            [service_type_id]
-        );
-        if (!vendorResult.length) {
-            return res.status(400).json({ message: "Vendor not found for selected service type." });
-        }
 
-        const vendor_id = vendorResult[0].vendor_id;
-
-        // ✅ 4. Check vendor availability
-        const [availability] = await db.query(
-            bookingPostQueries.checkVendorAvailability,
-            [vendor_id, bookingDate, bookingTime]
-        );
-        if (availability.length > 0) {
-            return res.status(409).json({ message: "Vendor is not available at this time slot." });
-        }
-
-        // ✅ 5. Validate packages
+        // ✅ 3. Check if user already booked each selected package for this service type
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
 
-            const [assigned] = await db.query(
-                `SELECT * FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
-                [vendor_id, package_id]
+            const [existing] = await db.query(
+                `
+                SELECT sb.booking_id
+                FROM service_booking sb
+                JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
+                JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+                WHERE sb.user_id = ?
+                  AND sbt.service_type_id = ?
+                  AND sbp.package_id = ?
+                LIMIT 1
+                `,
+                [user_id, service_type_id, package_id]
             );
-            if (assigned.length === 0) {
-                return res.status(400).json({ message: `Package ID ${package_id} is not assigned to this vendor.` });
+
+            if (existing.length > 0) {
+                return res.status(409).json({
+                    message: `You have already booked package ID ${package_id} for this service type.`,
+                });
+            }
+
+            // Also validate vendor-package assignment (only if auto mode)
+            if (!isManual && vendor_id) {
+                const [assigned] = await db.query(
+                    `SELECT * FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
+                    [vendor_id, package_id]
+                );
+                if (assigned.length === 0) {
+                    return res.status(400).json({ message: `Package ID ${package_id} is not assigned to this vendor.` });
+                }
             }
         }
 
-        // ✅ 6. Insert booking
+        // ✅ 4. Insert booking
         const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
             service_categories_id,
-            serviceId,
+            serviceId || null,  // optional now
             vendor_id,
             user_id,
             bookingDate,
@@ -116,13 +140,13 @@ const bookService = asyncHandler(async (req, res) => {
         ]);
         const booking_id = insertBooking.insertId;
 
-        // ✅ 7. Link service type
+        // ✅ 5. Link service type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // ✅ 8. Packages and sub-packages
+        // ✅ 6. Link packages & sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -145,7 +169,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 9. Preferences
+        // ✅ 7. Link preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -156,7 +180,7 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ 10. Update payment status in DB if paid
+        // ✅ 8. Mark payment complete if paid
         if (paymentIntentId) {
             await db.query(
                 `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
@@ -166,7 +190,8 @@ const bookService = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "Booking successfully created",
-            booking_id
+            booking_id,
+            vendor_assigned: !isManual
         });
 
     } catch (err) {
@@ -174,7 +199,6 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 
 const getVendorBookings = asyncHandler(async (req, res) => {

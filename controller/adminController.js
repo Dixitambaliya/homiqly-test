@@ -353,7 +353,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         const { vendor_id, package_ids } = req.body;
 
         if (!vendor_id || !package_ids || !Array.isArray(package_ids) || package_ids.length === 0) {
-            return res.status(400).json({ message: "vendor_id and package_ids[] are required." });
+            return res.status(400).json({ message: "vendor_id and at least one package with items is required." });
         }
 
         for (const package_id of package_ids) {
@@ -534,25 +534,26 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-const toggleManualAssignment = asyncHandler(async (req, res) => {
-    const { enable } = req.body
+const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
+    const { value } = req.body;
 
-    if (typeof enable !== "boolean") {
-        return res.status(400).json({ message: "Please send 'enable' as boolean true or false" });
+    if (value !== 0 && value !== 1) {
+        return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
     }
 
     try {
-        await db.query(
-            `UPDATE system_settings SET manual_assignment_enabled = ? WHERE id = 1`,
-            [enable]
-        );
+        await db.query(`
+            INSERT INTO settings (setting_key, setting_value)
+            VALUES ('manual_vendor_assignment', ?)
+            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+        `, [value]);
 
         res.status(200).json({
-            message: `Manual assignment mode has been ${enable ? "enabled" : "disabled"}`,
-            manual_assignment_enabled: enable
+            message: `Manual vendor assignment mode set to ${value === 1 ? 'ON' : 'OFF'}`
         });
+
     } catch (err) {
-        console.error("Toggle error:", err);
+        console.error("Error toggling manual vendor assignment:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
@@ -584,6 +585,6 @@ module.exports = {
     editPackageByAdmin,
     deletePackageByAdmin,
     deletePackageByAdmin,
-    toggleManualAssignment,
+    toggleManualVendorAssignment,
     getManualAssignmentStatus
 };
