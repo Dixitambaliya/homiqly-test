@@ -57,38 +57,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 2. Toggle for manual/auto vendor assignment
-        const [settingRow] = await db.query(`
-            SELECT setting_value FROM settings WHERE setting_key = 'manual_vendor_assignment' LIMIT 1
-        `);
-        const isManual = Number(settingRow[0]?.setting_value) === 1;
-        let vendor_id = null;
-        if (!isManual) {
-            // Auto assign vendor
-            const [vendorResult] = await db.query(
-                bookingGetQueries.getVendorByServiceTypeId,
-                [service_type_id]
-            );
-            if (!vendorResult.length) {
-                return res.status(400).json({ message: "Vendor not found for selected service type." });
-            }
-
-            vendor_id = vendorResult[0].vendor_id;
-
-            // Check vendor availability
-            const [availability] = await db.query(
-                bookingPostQueries.checkVendorAvailability,
-                [vendor_id, bookingDate, bookingTime]
-            );
-            if (availability.length > 0) {
-                return res.status(409).json({ message: "Vendor is not available at this time slot." });
-            }
-        } else {
-            vendor_id = null; // 🚨 Important!
-        }
-
-
-        // ✅ 3. Check if user already booked each selected package for this service type
+        // ✅ 2. Check if user already booked each selected package for this service type
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
@@ -112,24 +81,12 @@ const bookService = asyncHandler(async (req, res) => {
                     message: `You have already booked package ID ${package_id} for this service type.`,
                 });
             }
-
-            // Also validate vendor-package assignment (only if auto mode)
-            if (!isManual && vendor_id) {
-                const [assigned] = await db.query(
-                    `SELECT * FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
-                    [vendor_id, package_id]
-                );
-                if (assigned.length === 0) {
-                    return res.status(400).json({ message: `Package ID ${package_id} is not assigned to this vendor.` });
-                }
-            }
         }
 
-        // ✅ 4. Insert booking
+        // ✅ 3. Insert booking with no vendor
         const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
             service_categories_id,
-            serviceId || null,  // optional now
-            vendor_id,
+            serviceId,
             user_id,
             bookingDate,
             bookingTime,
@@ -140,13 +97,13 @@ const bookService = asyncHandler(async (req, res) => {
         ]);
         const booking_id = insertBooking.insertId;
 
-        // ✅ 5. Link service type
+        // ✅ 4. Link service type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // ✅ 6. Link packages & sub-packages
+        // ✅ 5. Link packages & sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -169,7 +126,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 7. Link preferences
+        // ✅ 6. Link preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -180,7 +137,7 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ 8. Mark payment complete if paid
+        // ✅ 7. Mark payment complete if paid
         if (paymentIntentId) {
             await db.query(
                 `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
@@ -189,9 +146,9 @@ const bookService = asyncHandler(async (req, res) => {
         }
 
         res.status(200).json({
-            message: "Booking successfully created",
+            message: "Booking successfully created. Vendor will be assigned by admin.",
             booking_id,
-            vendor_assigned: !isManual
+            vendor_assigned: false
         });
 
     } catch (err) {
