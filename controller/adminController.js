@@ -210,8 +210,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             const package_id = pkgResult.insertId;
 
-            for (let j = 0; j < (pkg.subPackages || []).length; j++) {
-                const sub = pkg.subPackages[j];
+            for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
+                const sub = pkg.sub_packages[j];
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${j}`]?.[0]?.url || null;
 
                 await connection.query(`
@@ -473,8 +473,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             // Process sub-packages
             const submittedItemIds = [];
-            for (let j = 0; j < (pkg.subPackages || []).length; j++) {
-                const sub = pkg.subPackages[j];
+            for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
+                const sub = pkg.sub_packages[j];
                 const sub_id = sub.sub_package_id;
 
                 if (sub_id) {
