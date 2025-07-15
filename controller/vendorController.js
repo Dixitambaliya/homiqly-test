@@ -47,13 +47,13 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         }
 
         for (const pkg of selectedPackages) {
-            const { package_id, selected_items, selected_preferences } = pkg;
+            const { package_id, sub_packages = [], preferences = [] } = pkg;
 
-            if (!package_id || !Array.isArray(selected_items)) {
-                throw new Error("Each package must include package_id and selected_items array.");
+            if (!package_id || !Array.isArray(sub_packages)) {
+                throw new Error("Each package must include package_id and sub_packages array.");
             }
 
-            // ✅ Check if package exists
+            // ✅ Validate package exists
             const [packageExists] = await connection.query(
                 `SELECT package_id FROM packages WHERE package_id = ?`,
                 [package_id]
@@ -68,14 +68,15 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
                 [vendor_id, package_id]
             );
 
-            // ✅ Check and insert each sub-package (item)
-            for (const item_id of selected_items) {
+            // ✅ Insert vendor-package items
+            for (const item of sub_packages) {
+                const item_id = item.sub_package_id;
                 const [itemExists] = await connection.query(
                     `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
                     [item_id, package_id]
                 );
                 if (itemExists.length === 0) {
-                    throw new Error(`Item ID ${item_id} does not belong to Package ID ${package_id}`);
+                    throw new Error(`Sub-package ID ${item_id} does not belong to Package ID ${package_id}`);
                 }
 
                 await connection.query(
@@ -85,23 +86,22 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Check and insert each preference (if any)
-            if (Array.isArray(selected_preferences)) {
-                for (const preference_id of selected_preferences) {
-                    const [preferenceExists] = await connection.query(
-                        `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
-                        [preference_id, package_id]
-                    );
-                    if (preferenceExists.length === 0) {
-                        throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}`);
-                    }
-
-                    await connection.query(
-                        `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
-                         VALUES (?, ?, ?)`,
-                        [vendor_id, package_id, preference_id]
-                    );
+            // ✅ Insert vendor preferences
+            for (const pref of preferences) {
+                const preference_id = pref.preference_id;
+                const [prefExists] = await connection.query(
+                    `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
+                    [preference_id, package_id]
+                );
+                if (prefExists.length === 0) {
+                    throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}`);
                 }
+
+                await connection.query(
+                    `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, preference_id]
+                );
             }
         }
 
