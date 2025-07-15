@@ -21,6 +21,8 @@ const adminGetQueries = {
     company_details.companyAddress AS company_companyAddress,
     company_details.contactPerson AS company_contactPerson,
 
+    vendor_settings.manual_assignment_enabled AS status,
+
     COALESCE(
         CONCAT(
             '[',
@@ -82,6 +84,9 @@ LEFT JOIN service_categories
         individual_service_categories.service_categories_id,
         company_service_categories.service_categories_id
     )
+
+ LEFT JOIN vendor_settings
+    ON vendors.vendor_id = vendor_settings.vendor_id
 
 GROUP BY vendors.vendor_id`,
 

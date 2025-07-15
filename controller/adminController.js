@@ -356,6 +356,26 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "vendor_id and selectedPackages[] with sub-packages are required." });
         }
 
+        // ✅ Check if vendor exists
+        const [vendorExists] = await connection.query(
+            `SELECT vendor_id FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+        if (vendorExists.length === 0) {
+            throw new Error(`Vendor ID ${vendor_id} does not exist.`);
+        }
+
+        // ✅ Check vendor's toggle status
+        const [toggleResult] = await connection.query(
+            `SELECT manual_vendor_assignment FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        const isAvailable = toggleResult[0]?.manual_vendor_assignment === 0; // 0 = AVAILABLE
+        if (!isAvailable) {
+            throw new Error(`Vendor ID ${vendor_id} is currently NOT available to be assigned services (toggle ON).`);
+        }
+
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [], preferences = [] } = pkg;
 
@@ -421,7 +441,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: "Packages, items, and preferences successfully assigned to vendor by admin.",
+            message: "Packages, items, and preferences successfully assigned to vendor.",
             assigned: selectedPackages
         });
 
