@@ -312,6 +312,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     sbsp.sub_package_id AS item_id,
                     pi.itemName,
                     sbsp.price,
+                    sbsp.quantity,
                     pi.itemMedia,
                     pi.timeRequired,
                     pi.package_id
