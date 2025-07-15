@@ -764,7 +764,7 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
 });
 
 const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id 
+    const vendor_id = req.user.vendor_id
     const { value } = req.body;
 
     if (![0, 1].includes(value)) {
@@ -809,7 +809,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             vendor_id,
-            manual_assignment_enabled: result[0]?.manual_assignment_enabled ?? 0
+            value: result[0]?.manual_assignment_enabled ?? 0
         });
 
     } catch (err) {
