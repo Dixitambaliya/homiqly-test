@@ -72,58 +72,70 @@ const Packages = () => {
               {services.map((service) => (
                 <div
                   key={service.service_type_id}
-                  className="border rounded-xl shadow-sm overflow-hidden"
+                  className="rounded-2xl shadow-md bg-white overflow-hidden transition-all hover:shadow-lg border border-gray-100"
                 >
                   <img
                     src={service.service_type_media}
                     alt={service.service_type_name}
-                    className="w-full h-40 object-cover"
+                    className="w-full h-48 object-cover"
                   />
-                  <div className="p-4">
-                    <h4 className="text-lg font-bold mb-2">
+                  <div className="p-5">
+                    <h4 className="text-xl font-semibold text-gray-800">
                       {service.service_type_name}
                     </h4>
-                    <p className="text-sm text-gray-500 mb-2">
+                    <p className="text-sm text-gray-500 mb-3">
                       Service: {service.service_name}
                     </p>
+
                     {service.packages.map((pkg) => (
-                      <div key={pkg.package_id} className="mt-4 border-t pt-4">
+                      <div
+                        key={pkg.package_id}
+                        className="mt-6 bg-gray-50 border border-gray-200 p-4 rounded-xl"
+                      >
                         <img
                           src={pkg.package_media}
                           alt={pkg.title}
-                          className="w-full h-32 object-cover rounded-md mb-2"
+                          className="w-full h-36 object-cover rounded-md mb-3"
                         />
-                        <h5 className="text-md font-semibold">{pkg.title}</h5>
+                        <div className="flex justify-between items-center mb-1">
+                          <h5 className="text-md font-bold text-gray-800">
+                            {pkg.title}
+                          </h5>
+                          <p className="text-sm font-medium text-blue-700">
+                            ₹{pkg.price}
+                          </p>
+                        </div>
                         <p className="text-sm text-gray-600 mb-1">
                           {pkg.description}
                         </p>
-                        <p className="text-sm text-gray-700">
-                          Price: ₹{pkg.price} | Time: {pkg.time_required}
+                        <p className="text-xs text-gray-500 mb-3">
+                          Time: {pkg.time_required}
                         </p>
 
                         {/* Sub-Packages */}
-                        {pkg.sub_packages.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-sm font-semibold">
+                        {pkg.sub_packages?.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-sm font-semibold mb-1 text-gray-700">
                               Sub-packages:
                             </p>
-                            <ul className="list-disc list-inside text-sm text-gray-600">
+                            <ul className="space-y-2">
                               {pkg.sub_packages.map((sub) => (
-                                <li key={sub.sub_package_id}>
-                                  <div className="flex items-start gap-2 mt-1">
-                                    <img
-                                      src={sub.item_media}
-                                      alt={sub.title}
-                                      className="w-10 h-10 object-cover rounded"
-                                    />
-                                    <div>
-                                      <p className="font-medium">
-                                        {sub.item_name}
-                                      </p>
-                                      <p className="text-xs">
-                                        ₹{sub.price} | {sub.time_required}
-                                      </p>
-                                    </div>
+                                <li
+                                  key={sub.sub_package_id}
+                                  className="flex gap-3"
+                                >
+                                  <img
+                                    src={sub.item_media}
+                                    alt={sub.title}
+                                    className="w-12 h-12 object-cover rounded-lg border"
+                                  />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-800">
+                                      {sub.item_name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      ₹{sub.price} | {sub.time_required}
+                                    </p>
                                   </div>
                                 </li>
                               ))}
@@ -132,24 +144,25 @@ const Packages = () => {
                         )}
 
                         {/* Preferences */}
-                        {pkg.preferences.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-sm font-semibold">
+                        {pkg.preferences?.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-sm font-semibold text-gray-700">
                               Preferences:
                             </p>
-                            <ul className="flex flex-wrap gap-2 mt-1">
+                            <div className="flex flex-wrap gap-2 mt-1">
                               {pkg.preferences.map((pref) => (
-                                <li
+                                <span
                                   key={pref.preference_id}
-                                  className="text-xs px-2 py-1 bg-gray-200 rounded-full"
+                                  className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full"
                                 >
                                   {pref.preference_value}
-                                </li>
+                                </span>
                               ))}
-                            </ul>
+                            </div>
                           </div>
                         )}
 
+                        {/* Edit Button */}
                         <div className="flex justify-end mt-2">
                           <Button
                             size="sm"
@@ -177,7 +190,7 @@ const Packages = () => {
         onClose={() => setShowAddModal(false)}
       />
 
-      <EditPackageModal
+      <EditPackkageModal
         isOpen={showEditModal}
         onClose={() => {
           setShowEditModal(false);

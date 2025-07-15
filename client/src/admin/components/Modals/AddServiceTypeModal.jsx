@@ -27,7 +27,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
         total_time: "",
         sub_packages: [
           {
-            title: "",
+            item_name: "",
             description: "",
             item_images: null,
             price: "",
@@ -36,6 +36,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
         ],
       },
     ],
+    preferences: [{ preference_value: "" }],
   });
 
   const [categories, setCategories] = useState([]);
@@ -108,7 +109,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
   const addSubPackage = (pkgIndex) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages.push({
-      title: "",
+      item_name: "",
       description: "",
       item_images: null,
       price: "",
@@ -135,7 +136,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
           total_time: "",
           sub_packages: [
             {
-              title: "",
+              item_name: "",
               description: "",
               item_images: null,
               price: "",
@@ -207,6 +208,11 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
       // Append cleaned packages JSON
       formDataToSend.append("packages", JSON.stringify(cleanedPackages));
 
+      formDataToSend.append(
+        "preferences",
+        JSON.stringify(formData.preferences)
+      );
+
       const response = await axios.post(
         "/api/admin/addpackages",
         formDataToSend,
@@ -244,7 +250,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
           total_time: "",
           sub_packages: [
             {
-              title: "",
+              item_name: "",
               description: "",
               // item_images: null,
               price: "",
@@ -253,6 +259,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
           ],
         },
       ],
+      preferences: [{ preference_value: "" }],
     });
     setFilteredServices([]);
   };
@@ -425,13 +432,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                           <FormInput
-                            label="Title"
-                            value={sub.title}
+                            label="item_name"
+                            value={sub.item_name}
                             onChange={(e) =>
                               handleSubPackageChange(
                                 pkgIndex,
                                 subIndex,
-                                "title",
+                                "item_name",
                                 e.target.value
                               )
                             }
@@ -510,6 +517,65 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
                 icon={<FiPlus className="mr-1" />}
               >
                 Add Another Package
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Preferences
+            </label>
+            <div className="space-y-3">
+              {formData.preferences.map((pref, index) => (
+                <div key={index} className="flex gap-2 items-center">
+                  <FormInput
+                    placeholder="Enter preference (e.g., Private Room)"
+                    value={pref.preference_value}
+                    onChange={(e) => {
+                      const updated = [...formData.preferences];
+                      updated[index].preference_value = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        preferences: updated,
+                      }));
+                    }}
+                    required
+                  />
+                  {formData.preferences.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = formData.preferences.filter(
+                          (_, i) => i !== index
+                        );
+                        setFormData((prev) => ({
+                          ...prev,
+                          preferences: updated,
+                        }));
+                      }}
+                      className="text-red-500"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    preferences: [
+                      ...prev.preferences,
+                      { preference_value: "" },
+                    ],
+                  }))
+                }
+                icon={<FiPlus className="mr-1" />}
+              >
+                Add Preference
               </Button>
             </div>
           </div>
