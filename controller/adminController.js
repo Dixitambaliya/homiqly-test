@@ -612,7 +612,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
         );
 
         res.status(200).json({
-            manual_assignment_enabled: result[0]?.setting_value ?? null
+            value: result[0]?.setting_value ?? null
         });
     } catch (err) {
         console.error("Fetch error:", err);
