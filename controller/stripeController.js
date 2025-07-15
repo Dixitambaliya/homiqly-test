@@ -152,20 +152,17 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         return res.status(400).json({ error: "Total amount must be greater than 0" });
     }
 
+    // ✅ Create PaymentIntent (not confirmed yet)
     const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(totalAmount * 100),
         currency: currency.toLowerCase(),
-        payment_method: 'pm_card_visa', // test method
-        confirm: true,
         metadata: { ...metadata, totalAmount },
         automatic_payment_methods: {
             enabled: true,
-            allow_redirects: 'never', // ⛔ disables redirect-based methods like iDEAL
         },
     });
 
-
-    // Optional: save payment intent (for audit or webhook handling)
+    // ✅ Save for tracking (status = 'pending')
     await db.query(`
         INSERT INTO payments (user_id, payment_intent_id, amount, currency, status)
         VALUES (?, ?, ?, ?, ?)
@@ -177,6 +174,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         "pending"
     ]);
 
+    // ✅ Return clientSecret to frontend
     res.status(200).json({
         clientSecret: paymentIntent.client_secret,
         amount: totalAmount,
@@ -184,6 +182,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         paymentIntentId: paymentIntent.id
     });
 });
+
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
