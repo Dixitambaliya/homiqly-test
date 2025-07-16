@@ -764,8 +764,8 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
 });
 
 const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id
-    const { value } = req.body;
+    const vendor_id = req.user.vendor_id;
+    const { value, startDateTime, endDateTime } = req.body;
 
     if (![0, 1].includes(value)) {
         return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
@@ -777,15 +777,20 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
 
     try {
         await db.query(`
-            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
-            VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE manual_assignment_enabled = VALUES(manual_assignment_enabled)
-        `, [vendor_id, value]);
+            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled, start_datetime, end_datetime)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                manual_assignment_enabled = VALUES(manual_assignment_enabled),
+                start_datetime = VALUES(start_datetime),
+                end_datetime = VALUES(end_datetime)
+        `, [vendor_id, value, startDateTime || null, endDateTime || null]);
 
         res.status(200).json({
             message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
             vendor_id,
-            manual_assignment_enabled: value
+            manual_assignment_enabled: value,
+            start_datetime: startDateTime || null,
+            end_datetime: endDateTime || null
         });
 
     } catch (err) {

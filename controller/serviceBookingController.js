@@ -49,15 +49,19 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ 1. Verify Stripe Payment if provided
+        // ✅ 1. Validate payment intent (but don't require it to be 'succeeded')
         if (paymentIntentId) {
             const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-            if (!paymentIntent || paymentIntent.status !== "succeeded") {
-                return res.status(402).json({ message: "Payment was not successful or is incomplete." });
+            if (!paymentIntent) {
+                return res.status(400).json({ message: "Invalid payment intent ID." });
+            }
+
+            if (!['succeeded', 'requires_payment_method', 'requires_confirmation', 'requires_action'].includes(paymentIntent.status)) {
+                return res.status(402).json({ message: `Invalid payment intent status: ${paymentIntent.status}` });
             }
         }
 
-        // ✅ 2. Check if user already booked each selected package for this service type
+        // ✅ 2. Prevent duplicate bookings of same package
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
@@ -83,18 +87,25 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 3. Insert booking with no vendor
-        const [insertBooking] = await db.query(bookingPostQueries.insertBooking, [
+        // ✅ 3. Insert booking with status 'pending'
+        const [insertBooking] = await db.query(`
+            INSERT INTO service_booking (
+                service_categories_id, service_id, user_id,
+                bookingDate, bookingTime, vendor_id,
+                notes, bookingMedia, payment_intent_id, payment_status
+            )
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 'pending')
+        `, [
             service_categories_id,
             serviceId,
             user_id,
             bookingDate,
             bookingTime,
-            0,
             notes || null,
             bookingMedia || null,
             paymentIntentId || null
         ]);
+
         const booking_id = insertBooking.insertId;
 
         // ✅ 4. Link service type
@@ -103,7 +114,7 @@ const bookService = asyncHandler(async (req, res) => {
             [booking_id, service_type_id]
         );
 
-        // ✅ 5. Link packages & sub-packages
+        // ✅ 5. Link packages and sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -137,18 +148,11 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ 7. Mark payment complete if paid
-        if (paymentIntentId) {
-            await db.query(
-                `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
-                [paymentIntentId]
-            );
-        }
-
         res.status(200).json({
-            message: "Booking successfully created. Vendor will be assigned by admin.",
+            message: "Booking created successfully. Payment pending until admin approves.",
             booking_id,
-            vendor_assigned: false
+            vendor_assigned: false,
+            payment_status: 'pending'
         });
 
     } catch (err) {
@@ -156,6 +160,8 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 
 const getVendorBookings = asyncHandler(async (req, res) => {
