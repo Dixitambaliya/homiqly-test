@@ -140,41 +140,54 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     }
 
     let totalAmount = 0;
-    for (const pkg of parsedPackages) {
-        for (const item of pkg.sub_packages || []) {
+    const metadataToStore = { ...metadata };
+
+    parsedPackages.forEach((pkg, index) => {
+        const { package_id, package_name, sub_packages = [] } = pkg;
+        const pkgLabel = `${package_name || "Package"} - ID:${package_id}`;
+        metadataToStore[`package_${index}`] = pkgLabel;
+
+        sub_packages.forEach((item, itemIndex) => {
             const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1;
             const price = item.price || 0;
             totalAmount += price * quantity;
-        }
-    }
+
+            const itemName = item.item_name || `Item_${itemIndex}`;
+            const itemKey = `pkg${index}_item${itemIndex}`;
+            metadataToStore[itemKey] = `${itemName} x${quantity} @${price}`;
+        });
+    });
 
     if (totalAmount <= 0) {
         return res.status(400).json({ error: "Total amount must be greater than 0" });
     }
 
-    // ✅ Create PaymentIntent (not confirmed yet)
+    metadataToStore.totalAmount = totalAmount;
+
+    // ✅ Create Stripe PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(totalAmount * 100),
+        amount: Math.round(totalAmount * 100), // amount in cents
         currency: currency.toLowerCase(),
-        metadata: { ...metadata, totalAmount },
+        metadata: metadataToStore,
         automatic_payment_methods: {
             enabled: true,
         },
     });
 
-    // ✅ Save for tracking (status = 'pending')
-    await db.query(`
-        INSERT INTO payments (user_id, payment_intent_id, amount, currency, status)
-        VALUES (?, ?, ?, ?, ?)
-    `, [
-        req.user.user_id,
-        paymentIntent.id,
-        totalAmount,
-        currency.toLowerCase(),
-        "pending"
-    ]);
+    // ✅ Save payment intent record in DB
+    await db.query(
+        `INSERT INTO payments (user_id, payment_intent_id, amount, currency, status)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+            req.user.user_id,
+            paymentIntent.id,
+            totalAmount,
+            currency.toLowerCase(),
+            "pending"
+        ]
+    );
 
-    // ✅ Return clientSecret to frontend
+    // ✅ Respond with payment info
     res.status(200).json({
         clientSecret: paymentIntent.client_secret,
         amount: totalAmount,
@@ -182,7 +195,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         paymentIntentId: paymentIntent.id
     });
 });
-
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
