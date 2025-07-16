@@ -242,9 +242,9 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, companyName = ?, address = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                 SET profileImage = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, address, birthDate, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
+                [profileImageVendor, name, birthDate, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
             );
         } else {
             return res.status(400).json({ message: "Invalid vendor type" });
