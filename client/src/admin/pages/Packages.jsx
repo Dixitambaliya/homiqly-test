@@ -190,7 +190,7 @@ const Packages = () => {
         onClose={() => setShowAddModal(false)}
       />
 
-      <EditPackkageModal
+      <EditPackageModal
         isOpen={showEditModal}
         onClose={() => {
           setShowEditModal(false);

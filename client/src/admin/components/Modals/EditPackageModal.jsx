@@ -200,7 +200,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData }) => {
           <div className="flex justify-between items-center mb-2">
             <h4 className="text-md font-semibold">Sub-Packages</h4>
             <Button type="button" size="sm" onClick={addSubPackage}>
-              + Add Sub-package                                                                                                                                                                                                                                                                                                                                  
+              + Add Sub-package
             </Button>
           </div>
           {subPackages.map((sub, index) => (

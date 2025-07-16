@@ -2,15 +2,19 @@ import React, { useEffect, useState } from "react";
 import Modal from "../../../shared/components/Modal/Modal";
 import { Button } from "../../../shared/components/Button";
 import axios from "axios";
+import Select from "react-select";
+import { toast } from "react-toastify";
 
 const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
   const [groupedPackages, setGroupedPackages] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedService, setSelectedService] = useState("");
-  const [selectedPackage, setSelectedPackage] = useState("");
-  const [selectedSubPackage, setSelectedSubPackage] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedPackages, setSelectedPackages] = useState([]);
+  const [selectedSubPackages, setSelectedSubPackages] = useState([]);
+  const [selectedPreferences, setSelectedPreferences] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -19,6 +23,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
         const rawData = Array.isArray(response.data)
           ? response.data
           : response.data?.result || [];
+
+        console.log("Raw API response:", rawData); // 👈 check what you get
 
         const grouped = rawData.reduce((acc, item) => {
           const category = item.service_category_name;
@@ -39,55 +45,166 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
     }
   }, [isOpen]);
 
-  const categoryOptions = Object.keys(groupedPackages);
+  const resetSelections = () => {
+    setSelectedCategory(null);
+    setSelectedService(null);
+    setSelectedPackages([]);
+    setSelectedSubPackages([]);
+    setSelectedPreferences([]);
+  };
+
+  const handleModalClose = () => {
+    resetSelections();
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    // Build payload with validation logic
+    const builtPackages = selectedPackages.map((pkg) => {
+      const pkgId = pkg.value;
+
+      const subPackages = selectedSubPackages
+        .filter((sub) => {
+          const pkgDetail = allPackages.find((p) => p.package_id === pkgId);
+          return pkgDetail?.sub_packages?.some(
+            (sp) => sp.sub_package_id === sub.value
+          );
+        })
+        .map((sub) => ({ sub_package_id: sub.value }));
+
+      const preferences = selectedPreferences
+        .filter((pref) => {
+          const pkgDetail = allPackages.find((p) => p.package_id === pkgId);
+          return pkgDetail?.preferences?.some(
+            (p) => p.preference_id === pref.value
+          );
+        })
+        .map((pref) => ({ preference_id: pref.value }));
+
+      return {
+        package_id: pkgId,
+        sub_packages: subPackages,
+        preferences: preferences,
+      };
+    });
+
+    // ✅ Validate: each package must have at least one sub_package and preference
+    const isValid = builtPackages.every(
+      (p) => p.sub_packages.length > 0 && p.preferences.length > 0
+    );
+
+    if (!isValid) {
+      toast.error(
+        "Each package must have at least one sub-package and one preference."
+      );
+      return;
+    }
+
+    const payload = {
+      vendor_id: vendor?.vendor_id,
+      selectedPackages: builtPackages,
+    };
+
+    try {
+      setSubmitting(true);
+      await axios.post("/api/admin/assignpackage", payload);
+      toast.success("Service assigned successfully!");
+      resetSelections();
+      onClose();
+    } catch (err) {
+      console.error("Submission error:", err);
+      toast.error("Failed to assign service. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const categoryOptions = Object.keys(groupedPackages).map((cat) => ({
+    label: cat,
+    value: cat,
+  }));
 
   const serviceOptions =
-    selectedCategory && groupedPackages[selectedCategory]
-      ? groupedPackages[selectedCategory].map((item, index) => ({
-          id: `${item.service_id}-${index}`, // unique key using index
+    selectedCategory && groupedPackages[selectedCategory.value]
+      ? groupedPackages[selectedCategory.value].map((item) => ({
+          label: item.service_name,
           value: item.service_id,
-          name: item.service_name,
         }))
       : [];
 
   const selectedServiceObj =
-    groupedPackages[selectedCategory]?.find(
-      (item) => String(item.service_id) === selectedService
+    groupedPackages[selectedCategory?.value]?.find(
+      (item) => String(item.service_id) === String(selectedService?.value)
     ) || null;
 
-  const packageOptions =
-    selectedServiceObj?.packages?.map((pkg, index) => ({
-      id: `${pkg.package_id}-${index}`,
-      value: pkg.package_id,
-      name: pkg.title,
-    })) || [];
+  const allPackages = selectedServiceObj?.packages || [];
 
-  const selectedPackageObj =
-    selectedServiceObj?.packages?.find(
-      (pkg) => String(pkg.package_id) === selectedPackage
-    ) || null;
+  const packageOptions = allPackages.map((pkg) => ({
+    label: pkg.title,
+    value: pkg.package_id,
+    sub_packages: pkg.sub_packages || [],
+  }));
 
-  const subPackageOptions =
-    selectedPackageObj?.sub_packages?.map((sub, index) => ({
-      id: `${sub.sub_package_id}-${index}`,
-      value: sub.sub_package_id,
-      name: sub.item_name,
-    })) || [];
+  const allSelectedSubPackages = selectedPackages.flatMap((pkg) => {
+    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
+    return (
+      pkgDetail?.sub_packages?.map((sub) => ({
+        label: sub.item_name,
+        value: sub.sub_package_id,
+      })) || []
+    );
+  });
 
-  const handleSubmit = () => {
-    console.log("Assigning to vendor:", vendor?.vendor_id);
-    console.log("Selected category:", selectedCategory);
-    console.log("Selected service:", selectedService);
-    console.log("Selected package:", selectedPackage);
-    console.log("Selected sub-package:", selectedSubPackage);
+  const allSelectedPreferences = selectedPackages.flatMap((pkg) => {
+    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
+    return (
+      pkgDetail?.preferences?.map((pref) => ({
+        label: pref.preference_value,
+        value: pref.preference_id,
+      })) || []
+    );
+  });
 
-    // 🟡 You can send this data to your API if needed
-
-    onClose();
+  const customSelectStyles = {
+    control: (base, state) => ({
+      ...base,
+      padding: "2px 6px",
+      minHeight: 42,
+      borderColor: state.isFocused ? "#3b82f6" : "#d1d5db",
+      boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
+      "&:hover": {
+        borderColor: "#3b82f6",
+      },
+    }),
+    menu: (base) => ({
+      ...base,
+      zIndex: 9999,
+    }),
+    menuPortal: (base) => ({
+      ...base,
+      zIndex: 9999,
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: "#e0f2fe",
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: "#0369a1",
+    }),
+    placeholder: (base) => ({
+      ...base,
+      fontSize: "0.95rem",
+      color: "#9ca3af",
+    }),
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Services to Vendor">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleModalClose}
+      title="Assign Services to Vendor"
+    >
       <p className="text-sm text-gray-700 mb-4">
         {vendor ? (
           <>
@@ -98,111 +215,136 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
         )}
       </p>
 
-      <div className="space-y-4 mb-6">
-        {/* Category Dropdown */}
+      <div className="space-y-5 mb-6">
+        {/* Category */}
         <div>
           <label className="block text-sm font-medium mb-1">Category</label>
-          <select
-            className="w-full border border-gray-300 rounded px-3 py-2"
+          <Select
+            options={categoryOptions}
             value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategory(e.target.value);
-              setSelectedService("");
-              setSelectedPackage("");
-              setSelectedSubPackage("");
+            onChange={(value) => {
+              setSelectedCategory(value);
+              setSelectedService(null);
+              setSelectedPackages([]);
+              setSelectedSubPackages([]);
             }}
-          >
-            <option value="">Select category</option>
-            {categoryOptions.map((cat, index) => (
-              <option key={`${cat}-${index}`} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
+            styles={customSelectStyles}
+            placeholder="Select category"
+            isClearable
+            menuPortalTarget={
+              typeof window !== "undefined" ? document.body : null
+            }
+            menuPosition="fixed"
+          />
         </div>
 
-        {/* Service Dropdown */}
+        {/* Service */}
         {selectedCategory && (
           <div>
             <label className="block text-sm font-medium mb-1">Service</label>
-            <select
-              className="w-full border border-gray-300 rounded px-3 py-2"
+            <Select
+              options={serviceOptions}
               value={selectedService}
-              onChange={(e) => {
-                setSelectedService(e.target.value);
-                setSelectedPackage("");
-                setSelectedSubPackage("");
+              onChange={(value) => {
+                setSelectedService(value);
+                setSelectedPackages([]);
+                setSelectedSubPackages([]);
               }}
-            >
-              <option value="">Select service</option>
-              {serviceOptions.map((s) => (
-                <option key={s.id} value={s.value}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              styles={customSelectStyles}
+              placeholder="Select service"
+              isClearable
+              menuPortalTarget={
+                typeof window !== "undefined" ? document.body : null
+              }
+              menuPosition="fixed"
+            />
           </div>
         )}
 
-        {/* Package Dropdown */}
+        {/* Packages (Multi-select) */}
         {selectedService && (
           <div>
-            <label className="block text-sm font-medium mb-1">Package</label>
-            <select
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              value={selectedPackage}
-              onChange={(e) => {
-                setSelectedPackage(e.target.value);
-                setSelectedSubPackage("");
+            <label className="block text-sm font-medium mb-1">Packages</label>
+            <Select
+              options={packageOptions}
+              value={selectedPackages}
+              onChange={(value) => {
+                setSelectedPackages(value || []);
+                setSelectedSubPackages([]);
               }}
-            >
-              <option value="">Select package</option>
-              {packageOptions.map((pkg) => (
-                <option key={pkg.id} value={pkg.value}>
-                  {pkg.name}
-                </option>
-              ))}
-            </select>
+              styles={customSelectStyles}
+              placeholder="Select packages"
+              isMulti
+              isClearable
+              menuPortalTarget={
+                typeof window !== "undefined" ? document.body : null
+              }
+              menuPosition="fixed"
+            />
           </div>
         )}
 
-        {/* Sub-Package Dropdown */}
-        {selectedPackage && (
+        {/* Sub-Packages (Multi-select) */}
+        {selectedPackages.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
-              Sub-Package
+              Sub-Packages
             </label>
-            <select
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              value={selectedSubPackage}
-              onChange={(e) => setSelectedSubPackage(e.target.value)}
-            >
-              <option value="">Select sub-package</option>
-              {subPackageOptions.map((sub) => (
-                <option key={sub.id} value={sub.value}>
-                  {sub.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              options={allSelectedSubPackages}
+              value={selectedSubPackages}
+              onChange={(value) => setSelectedSubPackages(value || [])}
+              styles={customSelectStyles}
+              placeholder="Select sub-packages"
+              isMulti
+              isClearable
+              menuPortalTarget={
+                typeof window !== "undefined" ? document.body : null
+              }
+              menuPosition="fixed"
+            />
+          </div>
+        )}
+
+        {allSelectedPreferences.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Preferences
+            </label>
+            <Select
+              options={allSelectedPreferences}
+              value={selectedPreferences}
+              onChange={(value) => setSelectedPreferences(value || [])}
+              styles={customSelectStyles}
+              placeholder="Select preferences"
+              isMulti
+              isClearable
+              menuPortalTarget={
+                typeof window !== "undefined" ? document.body : null
+              }
+              menuPosition="fixed"
+            />
           </div>
         )}
       </div>
 
       <div className="flex justify-end space-x-3">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={handleModalClose}>
           Cancel
         </Button>
         <Button
           variant="primary"
           onClick={handleSubmit}
           disabled={
+            submitting ||
             !selectedCategory ||
             !selectedService ||
-            !selectedPackage ||
-            !selectedSubPackage
+            selectedPackages.length === 0 ||
+            selectedSubPackages.length === 0 ||
+            selectedPreferences.length === 0
           }
         >
-          Assign Service
+          {submitting ? "Submitting..." : "Assign Service"}
         </Button>
       </div>
     </Modal>
