@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { bookService, getVendorBookings, getUserBookings, approveOrRejectBooking } = require('../controller/serviceBookingController');
+const { bookService,
+    getVendorBookings,
+    getUserBookings,
+    approveOrRejectBooking,
+    assignBookingToVendor
+} = require('../controller/serviceBookingController');
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -10,5 +15,7 @@ router.post('/bookservice', multiUpload, handleUploads, authenticationToken, boo
 router.get('/vendorbookedservices', authenticationToken, getVendorBookings);
 router.get('/userbookedservices', authenticationToken, getUserBookings);
 router.put('/approveorrejectbooking', authenticationToken, approveOrRejectBooking);
+
+router.post("/assignbooking", authenticationToken, assignBookingToVendor)
 
 module.exports = router;

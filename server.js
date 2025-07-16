@@ -52,7 +52,7 @@ app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", stripeRoutes)
 app.use("/api/rating", ratingRoutes)
-app.use("/api",emailRoutes)
+app.use("/api", emailRoutes)
 
 // // Serve static files for admin and vendor panels (legacy)
 // app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));

@@ -278,11 +278,12 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
         // ✅ Check vendor's toggle status
         const [toggleResult] = await connection.query(
-            `SELECT manual_vendor_assignment FROM vendors WHERE vendor_id = ?`,
+            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
             [vendor_id]
         );
+        console.log(toggleResult);
 
-        const isAvailable = toggleResult[0]?.manual_vendor_assignment === 0; // 0 = AVAILABLE
+        const isAvailable = toggleResult[0]?.manual_assignment_enabled === 0; // 0 = AVAILABLE
         if (!isAvailable) {
             throw new Error(`Vendor ID ${vendor_id} is currently NOT available to be assigned services (toggle ON).`);
         }

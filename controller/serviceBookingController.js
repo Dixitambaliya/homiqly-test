@@ -353,5 +353,103 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
     }
 });
 
+const assignBookingToVendor = asyncHandler(async (req, res) => {
+    const { booking_id, vendor_id } = req.body;
 
-module.exports = { bookService, getVendorBookings, getUserBookings, approveOrRejectBooking };
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        if (!booking_id || !vendor_id) {
+            return res.status(400).json({ message: "booking_id and vendor_id are required" });
+        }
+
+        // ✅ 1. Check vendor toggle
+        const [toggleResult] = await connection.query(
+            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        if (toggleResult.length === 0) {
+            return res.status(404).json({ message: `Vendor ID ${vendor_id} not found.` });
+        }
+
+        const isAvailable = toggleResult[0].manual_assignment_enabled === 1;
+        if (!isAvailable) {
+            return res.status(400).json({
+                message: `Vendor ID ${vendor_id} is not accepting manual bookings (toggle OFF).`
+            });
+        }
+
+        // ✅ 2. Get service_id from booking
+        const [bookingInfo] = await connection.query(
+            `SELECT service_id FROM service_booking WHERE booking_id = ?`,
+            [booking_id]
+        );
+
+        const service_id = bookingInfo[0]?.service_id;
+        if (!service_id) {
+            return res.status(404).json({ message: "Service ID not found for this booking." });
+        }
+
+        // ✅ 3. Get vendor type (individual/company)
+        const [vendorInfo] = await connection.query(
+            `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        if (vendorInfo.length === 0) {
+            return res.status(404).json({ message: `Vendor ${vendor_id} not found.` });
+        }
+
+        const vendorType = vendorInfo[0].vendorType;
+
+        // ✅ 4. Check if vendor is linked to this service
+        let vendorEligible = [];
+
+        if (vendorType === 'individual') {
+            [vendorEligible] = await connection.query(
+                `SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?`,
+                [vendor_id, service_id]
+            );
+        } else if (vendorType === 'company') {
+            [vendorEligible] = await connection.query(
+                `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = ?`,
+                [vendor_id, service_id]
+            );
+        } else {
+            return res.status(400).json({ message: `Invalid vendorType for vendor ${vendor_id}.` });
+        }
+
+        if (vendorEligible.length === 0) {
+            return res.status(400).json({
+                message: `Vendor ${vendor_id} is not registered for service ID ${service_id}.`
+            });
+        }
+
+        // ✅ 5. Assign vendor to booking
+        await connection.query(
+            `UPDATE service_booking SET vendor_id = ? WHERE booking_id = ?`,
+            [vendor_id, booking_id]
+        );
+
+        await connection.commit();
+        res.status(200).json({ message: `Booking ${booking_id} successfully assigned to vendor ${vendor_id}.` });
+    } catch (err) {
+        await connection.rollback();
+        console.error("Assign vendor error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
+    }
+});
+
+
+
+module.exports = {
+    bookService,
+    getVendorBookings,
+    getUserBookings,
+    approveOrRejectBooking,
+    assignBookingToVendor
+};
