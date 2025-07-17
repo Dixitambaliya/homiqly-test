@@ -220,36 +220,68 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
     let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
 
     try {
-        // 1. Get existing profile image if not updated
-        if (!profileImageVendor) {
-            const [existing] = await db.query(
-                vendor_type === "individual"
-                    ? `SELECT profileImage FROM individual_details WHERE vendor_id = ?`
-                    : `SELECT profileImage FROM company_details WHERE vendor_id = ?`,
+        let existing;
+
+        // 1. Fetch existing details
+        if (vendor_type === "individual") {
+            [existing] = await db.query(
+                `SELECT profileImage, name, address, dob, email, phone, otherInfo FROM individual_details WHERE vendor_id = ?`,
                 [vendor_id]
             );
-            profileImageVendor = existing[0]?.profileImage || null;
+        } else if (vendor_type === "company") {
+            [existing] = await db.query(
+                `SELECT profileImage, companyName, dob, companyEmail, companyPhone, googleBusinessProfileLink, companyAddress, contactPerson FROM company_details WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+        } else {
+            return res.status(400).json({ message: "Invalid vendor type" });
         }
 
-        // 2. Update individual or company details
+        if (!existing || existing.length === 0) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
+
+        const current = existing[0];
+
+        // 2. Fallback to old data if any field is not provided
+        profileImageVendor = profileImageVendor || current.profileImage;
+
         if (vendor_type === "individual") {
             await db.query(
                 `UPDATE individual_details
                  SET profileImage = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, address, birthDate, email, phone, otherInfo, vendor_id]
+                [
+                    profileImageVendor,
+                    name ?? current.name,
+                    address ?? current.address,
+                    birthDate ?? current.dob,
+                    email ?? current.email,
+                    phone ?? current.phone,
+                    otherInfo ?? current.otherInfo,
+                    vendor_id
+                ]
             );
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
                  SET profileImage = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
-                [profileImageVendor, name, birthDate, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
+                [
+                    profileImageVendor,
+                    name ?? current.companyName,
+                    birthDate ?? current.dob,
+                    email ?? current.companyEmail,
+                    phone ?? current.companyPhone,
+                    googleBusinessProfileLink ?? current.googleBusinessProfileLink,
+                    companyAddress ?? current.companyAddress,
+                    contactPerson ?? current.contactPerson,
+                    vendor_id
+                ]
             );
-        } else {
-            return res.status(400).json({ message: "Invalid vendor type" });
         }
 
+        // 3. Insert certificates if provided
         if (certificateNames && Array.isArray(certificateNames)) {
             for (let i = 0; i < certificateNames.length; i++) {
                 const certName = certificateNames[i];
