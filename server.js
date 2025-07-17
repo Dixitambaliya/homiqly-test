@@ -2,6 +2,7 @@ const express = require("express")
 const cors = require("cors")
 const path = require("path")
 const { db, testConnection } = require("./config/db")
+const bodyParser = require("body-parser");
 const stripeController = require("./controller/stripeController");
 
 // Import routes
