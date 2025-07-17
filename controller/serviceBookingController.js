@@ -349,11 +349,14 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
     try {
         // First, get user email for this booking
         const [bookingData] = await db.query(`
-            SELECT u.email, u.name, sb.booking_id
-            FROM service_booking sb
-            JOIN users u ON sb.user_id = u.user_id
-            WHERE sb.booking_id = ?
-        `, [booking_id]);
+            SELECT
+            u.email,
+            CONCAT(u.firstName, ' ', u.lastName) AS name,
+            sb.booking_id
+        FROM service_booking sb
+        JOIN users u ON sb.user_id = u.user_id
+        WHERE sb.booking_id = ?`,
+            [booking_id]);
 
         if (!bookingData || bookingData.length === 0) {
             return res.status(404).json({ message: "Booking not found" });
