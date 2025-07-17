@@ -137,15 +137,124 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
 // Get all bookings for admin calendar
 const getBookings = asyncHandler(async (req, res) => {
     try {
-        const [bookings] = await db.query(adminGetQueries.getAllBookings);
+        const [allBookings] = await db.query(`
+            SELECT
+                sb.booking_id,
+                sb.bookingDate,
+                sb.bookingTime,
+                sb.bookingStatus,
+                sb.notes,
+                sb.bookingMedia,
+                sb.payment_intent_id,
+
+                u.user_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+
+                sc.serviceCategory,
+                s.serviceName,
+
+                st.serviceTypeName,
+                st.serviceTypeMedia,
+
+                v.vendor_id,
+                v.vendorType,
+
+                idet.id AS individual_id,
+                idet.name AS individual_name,
+                idet.phone AS individual_phone,
+                idet.email AS individual_email,
+
+                cdet.id AS company_id,
+                cdet.companyName AS company_name,
+                cdet.contactPerson AS company_contact_person,
+                cdet.companyEmail AS company_email,
+                cdet.companyPhone AS company_phone,
+
+                p.status AS payment_status,
+                p.amount AS payment_amount,
+                p.currency AS payment_currency
+
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+        `);
+
+        for (const booking of allBookings) {
+            const bookingId = booking.booking_id;
+
+            // Fetch Packages
+            const [bookingPackages] = await db.query(`
+                SELECT
+                    p.package_id,
+                    p.packageName,
+                    p.totalPrice,
+                    p.totalTime,
+                    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?
+            `, [bookingId]);
+
+            // Fetch Items
+            const [packageItems] = await db.query(`
+                SELECT
+                    sbsp.sub_package_id AS item_id,
+                    pi.itemName,
+                    sbsp.price,
+                    sbsp.quantity,
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?
+            `, [bookingId]);
+
+            // Group items under packages
+            const groupedPackages = bookingPackages.map(pkg => {
+                const items = packageItems.filter(item => item.package_id === pkg.package_id);
+                return { ...pkg, items };
+            });
+
+            // Fetch Preferences
+            const [bookingPreferences] = await db.query(`
+                SELECT
+                    sp.preference_id,
+                    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?
+            `, [bookingId]);
+
+            booking.packages = groupedPackages;
+            booking.package_items = packageItems;
+            booking.preferences = bookingPreferences;
+
+            // Remove nulls
+            Object.keys(booking).forEach(key => {
+                if (booking[key] === null) delete booking[key];
+            });
+        }
 
         res.status(200).json({
-            message: "Bookings fetched successfully",
-            bookings,
+            message: "All bookings fetched successfully",
+            bookings: allBookings
         });
+
     } catch (error) {
-        console.error("Error fetching bookings:", error);
-        res.status(500).json({ message: "Internal server error", error: error.message });
+        console.error("Error fetching all bookings:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
     }
 });
 
