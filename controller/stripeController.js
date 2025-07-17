@@ -241,7 +241,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     try {
         const sig = req.headers["stripe-signature"];
         event = stripe.webhooks.constructEvent(
-            req.body,
+            req.rawBody,
             sig,
             process.env.STRIPE_WEBHOOK_SECRET
         );
@@ -309,7 +309,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             console.error("❌ Error processing payment success:", err.message);
         }
     }
-
+    console.log("✅ Webhook received: ", event.type);
     res.json({ received: true });
 });
 
