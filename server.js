@@ -32,15 +32,15 @@ const PORT = process.env.PORT || 8000
 app.use(cors({
     origin: "*",
 }));
-app.use(express.json())
 
 // Stripe webhook endpoint (MUST come BEFORE express.json())
 app.post(
     "/api/payment/stripe/webhook",
-    bodyParser.raw({ type: "application/json" }), // <--- Raw body required for Stripe
+    express.raw({ type: "application/json" }), // <--- Raw body required for Stripe
     stripeController.stripeWebhook
 );
 
+app.use(express.json())
 
 // API Routes
 app.use("/api/user", userAuthRoutes)

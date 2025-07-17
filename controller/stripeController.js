@@ -240,11 +240,16 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
     try {
         const sig = req.headers["stripe-signature"];
+        console.log("🔐 Received Stripe signature:", sig);
+
         event = stripe.webhooks.constructEvent(
-            req.body,
+            req.body, // IMPORTANT: must use raw body!
             sig,
             process.env.STRIPE_WEBHOOK_SECRET
         );
+
+        console.log("✅ Webhook received:", event.type);
+
     } catch (err) {
         console.error("⚠️ Webhook signature verification failed:", err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -254,10 +259,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
 
-        console.log("✅ Payment succeeded:", paymentIntentId);
+        console.log("✅ Payment succeeded. PaymentIntent ID:", paymentIntentId);
 
         try {
-
             const [paymentResult] = await db.query(
                 `UPDATE payments
                  SET status = 'completed'
@@ -265,7 +269,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 [paymentIntentId]
             );
 
-            // Fetch user email for this payment
+            console.log(`💾 Payment status updated in DB:`, paymentResult);
+
             const [userInfo] = await db.query(`
                 SELECT u.email, u.name, sb.bookingDate, sb.bookingTime
                 FROM users u
@@ -277,7 +282,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             if (userInfo.length > 0) {
                 const user = userInfo[0];
 
-                // Send email to user
+                console.log(`📦 Found user for email notification:`, user);
+
                 const transporter = nodemailer.createTransport({
                     service: "gmail",
                     auth: {
@@ -302,16 +308,19 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 await transporter.sendMail(mailOptions);
                 console.log(`📧 Confirmation email sent to ${user.email}`);
             } else {
-                console.warn("⚠️ User not found for this payment intent");
+                console.warn("⚠️ No user found for payment intent:", paymentIntentId);
             }
 
         } catch (err) {
-            console.error("❌ Error processing payment success:", err.message);
+            console.error("❌ Error during payment handling:", err.message);
         }
+    } else {
+        console.log("ℹ️ Ignored event type:", event.type);
     }
-    console.log("✅ Webhook received: ", event.type);
+
     res.json({ received: true });
 });
+
 
 
 // 8. Vendor sees their bookings
