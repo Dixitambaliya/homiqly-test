@@ -335,9 +335,6 @@ const getUserBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
-const sendEmail = require('../utils/mailer'); // Adjust path as needed
-
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const { booking_id, status } = req.body;
 
