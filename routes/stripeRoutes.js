@@ -1,8 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const { stripeWebhook } = require("../controller/stripeController");
-
-router.post("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
 
 const { createStripeAccount,
     refreshStripeOnboarding,
