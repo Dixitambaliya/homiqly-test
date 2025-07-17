@@ -237,6 +237,7 @@ exports.confirmBooking = asyncHandler(async (req, res) => {
 // 7. Stripe webhook handler
 exports.stripeWebhook = asyncHandler(async (req, res) => {
     let event;
+
     try {
         const sig = req.headers["stripe-signature"];
         event = stripe.webhooks.constructEvent(
@@ -245,18 +246,73 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             process.env.STRIPE_WEBHOOK_SECRET
         );
     } catch (err) {
-        console.error("Webhook error:", err.message);
+        console.error("⚠️ Webhook signature verification failed:", err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     if (event.type === "payment_intent.succeeded") {
         const paymentIntent = event.data.object;
-        console.log("PaymentIntent succeeded:", paymentIntent.id);
-        // Optionally update booking status here
+        const paymentIntentId = paymentIntent.id;
+
+        console.log("✅ Payment succeeded:", paymentIntentId);
+
+        try {
+
+            const [paymentResult] = await db.query(
+                `UPDATE payments
+                 SET status = 'completed'
+                 WHERE payment_intent_id = ?`,
+                [paymentIntentId]
+            );
+
+            // Fetch user email for this payment
+            const [userInfo] = await db.query(`
+                SELECT u.email, u.name, sb.bookingDate, sb.bookingTime
+                FROM users u
+                JOIN service_booking sb ON u.user_id = sb.user_id
+                WHERE sb.payment_intent_id = ?
+                LIMIT 1
+            `, [paymentIntentId]);
+
+            if (userInfo.length > 0) {
+                const user = userInfo[0];
+
+                // Send email to user
+                const transporter = nodemailer.createTransport({
+                    service: "gmail",
+                    auth: {
+                        user: process.env.EMAIL_USER,
+                        pass: process.env.EMAIL_PASS
+                    }
+                });
+
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: user.email,
+                    subject: "Your Booking is Confirmed!",
+                    html: `
+                        <h3>Hi ${user.name},</h3>
+                        <p>Your payment was successful and your booking is confirmed.</p>
+                        <p><strong>Booking Date:</strong> ${user.bookingDate}</p>
+                        <p><strong>Booking Time:</strong> ${user.bookingTime}</p>
+                        <p>Thank you for choosing us!</p>
+                    `
+                };
+
+                await transporter.sendMail(mailOptions);
+                console.log(`📧 Confirmation email sent to ${user.email}`);
+            } else {
+                console.warn("⚠️ User not found for this payment intent");
+            }
+
+        } catch (err) {
+            console.error("❌ Error processing payment success:", err.message);
+        }
     }
 
     res.json({ received: true });
 });
+
 
 // 8. Vendor sees their bookings
 exports.getVendorBookings = asyncHandler(async (req, res) => {

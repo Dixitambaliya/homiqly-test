@@ -27,12 +27,12 @@ router.get("/vendor/get-earnings", authenticationToken, getVendorEarnings);
 // User payment
 router.post("/user/create-payment-intent", authenticationToken, createPaymentIntent);
 router.post("/user/confirm-booking", authenticationToken, confirmBooking);
+
+
 router.post("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
 
 
 router.post("/user/confirm-payment-intent", authenticationToken, confirmPaymentIntentManually);
-
-
 // Admin routes
 router.get("/admin/get-vendor-stripe-info", authenticationToken, adminGetVendorStripeInfo);
 router.get("/admin/get-bookings-by-vendor", authenticationToken, getBookingsByVendor);
