@@ -41,7 +41,7 @@ app.post(
 );
 
 app.use(express.json())
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
 // API Routes
 app.use("/api/user", userAuthRoutes)
