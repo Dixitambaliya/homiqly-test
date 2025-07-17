@@ -3,6 +3,7 @@ const cors = require("cors")
 const path = require("path")
 const { db, testConnection } = require("./config/db")
 const bodyParser = require("body-parser");
+const app = express();
 const stripeController = require("./controller/stripeController");
 
 // Import routes
@@ -26,19 +27,18 @@ const stripeRoutes = require("./routes/stripeRoutes")
 const ratingRoutes = require("./routes/ratingRoutes")
 const emailRoutes = require("./routes/emailRoutes")
 
-const app = express();
 const PORT = process.env.PORT || 8000
 
 app.use(cors({
     origin: "*",
 }));
 
-// Stripe webhook endpoint (MUST come BEFORE express.json())
+// 🟢 Stripe webhook (must come FIRST and use raw parser)
 app.post(
     "/api/payment/stripe/webhook",
-    bodyParser.raw({ type: "application/json" }), // <--- Raw body required for Stripe
+    bodyParser.raw({ type: "application/json" }),
     stripeController.stripeWebhook
-);
+  );
 
 app.use(express.json())
 app.use(bodyParser.json());
