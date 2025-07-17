@@ -36,7 +36,7 @@ app.use(cors({
 // Stripe webhook endpoint (MUST come BEFORE express.json())
 app.post(
     "/api/payment/stripe/webhook",
-    express.raw({ type: "application/json" }), // <--- Raw body required for Stripe
+    bodyParser.raw({ type: "application/json" }), // <--- Raw body required for Stripe
     stripeController.stripeWebhook
 );
 

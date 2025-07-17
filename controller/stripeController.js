@@ -321,8 +321,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     res.json({ received: true });
 });
 
-
-
 // 8. Vendor sees their bookings
 exports.getVendorBookings = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
