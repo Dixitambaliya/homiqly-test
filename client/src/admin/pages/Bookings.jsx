@@ -1,10 +1,21 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import { FiEye, FiRefreshCw, FiCalendar, FiClock, FiUser, FiMapPin, FiX } from 'react-icons/fi';
-import LoadingSpinner from '../../shared/components/LoadingSpinner';
-import StatusBadge from '../../shared/components/StatusBadge';
-import { formatDate, formatTime } from '../../shared/utils/dateUtils';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import {
+  FiEye,
+  FiRefreshCw,
+  FiCalendar,
+  FiClock,
+  FiUser,
+  FiMapPin,
+  FiX,
+  FiCheck,
+  FiXCircle,
+} from "react-icons/fi";
+import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import StatusBadge from "../../shared/components/StatusBadge";
+import { formatDate, formatTime } from "../../shared/utils/dateUtils";
+import { IconButton } from "../../shared/components/Button";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -12,10 +23,10 @@ const Bookings = () => {
   const [error, setError] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [filter, setFilter] = useState('all'); // all, pending, approved, cancelled
+  const [filter, setFilter] = useState("all"); // all, pending, approved, cancelled
   const [dateRange, setDateRange] = useState({
-    startDate: '',
-    endDate: ''
+    startDate: "",
+    endDate: "",
   });
 
   useEffect(() => {
@@ -25,12 +36,12 @@ const Bookings = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/admin/getbookings');
+      const response = await axios.get("/api/admin/getbookings");
       setBookings(response.data.bookings || []);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching bookings:', error);
-      setError('Failed to load bookings');
+      console.error("Error fetching bookings:", error);
+      setError("Failed to load bookings");
       setLoading(false);
     }
   };
@@ -46,33 +57,54 @@ const Bookings = () => {
 
   const handleDateChange = (e) => {
     const { name, value } = e.target;
-    setDateRange(prev => ({
+    setDateRange((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
-  const filteredBookings = bookings.filter(booking => {
+  const handleBookingAction = async (bookingId, status) => {
+    try {
+      const res = await axios.put("/api/booking/approveorrejectbooking", {
+        booking_id: bookingId,
+        status: status,
+      });
+
+      toast.success(res.data.message || "Status updated");
+
+      // Update the booking status in state
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.booking_id === bookingId ? { ...b, bookingStatus: status } : b
+        )
+      );
+    } catch (error) {
+      toast.error("Failed to update status");
+      console.error(error);
+    }
+  };
+
+  const filteredBookings = bookings.filter((booking) => {
     // Status filter
-    if (filter !== 'all') {
+    if (filter !== "all") {
       const status = parseInt(filter);
       if (booking.bookingStatus !== status) {
         return false;
       }
     }
-    
+
     // Date range filter
     if (dateRange.startDate && dateRange.endDate) {
       const bookingDate = new Date(booking.bookingDate);
       const startDate = new Date(dateRange.startDate);
       const endDate = new Date(dateRange.endDate);
       endDate.setHours(23, 59, 59, 999); // End of day
-      
+
       if (bookingDate < startDate || bookingDate > endDate) {
         return false;
       }
     }
-    
+
     return true;
   });
 
@@ -111,10 +143,13 @@ const Bookings = () => {
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
           <h3 className="text-sm font-medium text-gray-700">Filters</h3>
-          
+
           <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
             <div>
-              <label htmlFor="status-filter" className="block text-xs font-medium text-gray-500 mb-1">
+              <label
+                htmlFor="status-filter"
+                className="block text-xs font-medium text-gray-500 mb-1"
+              >
                 Status
               </label>
               <select
@@ -129,9 +164,12 @@ const Bookings = () => {
                 <option value="2">Cancelled</option>
               </select>
             </div>
-            
+
             <div>
-              <label htmlFor="start-date" className="block text-xs font-medium text-gray-500 mb-1">
+              <label
+                htmlFor="start-date"
+                className="block text-xs font-medium text-gray-500 mb-1"
+              >
                 Start Date
               </label>
               <input
@@ -143,9 +181,12 @@ const Bookings = () => {
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light text-sm"
               />
             </div>
-            
+
             <div>
-              <label htmlFor="end-date" className="block text-xs font-medium text-gray-500 mb-1">
+              <label
+                htmlFor="end-date"
+                className="block text-xs font-medium text-gray-500 mb-1"
+              >
                 End Date
               </label>
               <input
@@ -157,12 +198,12 @@ const Bookings = () => {
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light text-sm"
               />
             </div>
-            
+
             <div className="flex items-end">
               <button
                 onClick={() => {
-                  setFilter('all');
-                  setDateRange({ startDate: '', endDate: '' });
+                  setFilter("all");
+                  setDateRange({ startDate: "", endDate: "" });
                 }}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
               >
@@ -180,51 +221,109 @@ const Bookings = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     ID
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Customer
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Vendor
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Service
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Date & Time
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredBookings.map(booking => (
+                {filteredBookings.map((booking) => (
                   <tr key={booking.booking_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">#{booking.booking_id}</div>
+                      <div className="text-sm text-gray-900">
+                        #{booking.booking_id}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{booking.userName}</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {booking.userName}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{booking.vendorName}</div>
+                      <div className="text-sm text-gray-900">
+                        {booking.vendorName}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{booking.serviceName}</div>
-                      <div className="text-xs text-gray-500">{booking.serviceCategory}</div>
+                      <div className="text-sm text-gray-900">
+                        {booking.serviceName}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {booking.serviceCategory}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{formatDate(booking.bookingDate)}</div>
-                      <div className="text-xs text-gray-500">{formatTime(booking.bookingTime)}</div>
+                      <div className="text-sm text-gray-900">
+                        {formatDate(booking.bookingDate)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {formatTime(booking.bookingTime)}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <StatusBadge status={booking.bookingStatus} />
+                      {booking.bookingStatus === 0 ? (
+                        <div className="flex gap-2">
+                          <IconButton
+                            icon={<FiCheck className="h-4 w-4" />}
+                            variant="success"
+                            size="sm"
+                            onClick={() =>
+                              handleBookingAction(booking.booking_id, 1)
+                            }
+                            tooltip="Approve"
+                          />
+                          <IconButton
+                            icon={<FiX className="h-4 w-4" />}
+                            variant="danger"
+                            size="sm"
+                            onClick={() =>
+                              handleBookingAction(booking.booking_id, 2)
+                            }
+                            tooltip="Reject"
+                          />
+                        </div>
+                      ) : (
+                        <StatusBadge status={booking.bookingStatus} />
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
@@ -252,74 +351,100 @@ const Bookings = () => {
           <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">Booking Details</h3>
-              <button 
+              <button
                 onClick={() => setShowDetailsModal(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <FiX className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Booking ID</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Booking ID
+                  </h4>
                   <p className="text-gray-900">#{selectedBooking.booking_id}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Status</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Status
+                  </h4>
                   <StatusBadge status={selectedBooking.bookingStatus} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Customer</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Customer
+                  </h4>
                   <p className="text-gray-900 flex items-center">
                     <FiUser className="mr-1 text-gray-400" />
                     {selectedBooking.userName}
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Vendor</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Vendor
+                  </h4>
                   <p className="text-gray-900">{selectedBooking.vendorName}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Service</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Service
+                  </h4>
                   <p className="text-gray-900">{selectedBooking.serviceName}</p>
-                  <p className="text-sm text-gray-500">{selectedBooking.serviceCategory}</p>
+                  <p className="text-sm text-gray-500">
+                    {selectedBooking.serviceCategory}
+                  </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Service Type</h4>
-                  <p className="text-gray-900">{selectedBooking.serviceTypeName || 'N/A'}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Service Type
+                  </h4>
+                  <p className="text-gray-900">
+                    {selectedBooking.serviceTypeName || "N/A"}
+                  </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Date</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Date
+                  </h4>
                   <p className="text-gray-900 flex items-center">
                     <FiCalendar className="mr-1 text-gray-400" />
                     {formatDate(selectedBooking.bookingDate)}
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Time</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Time
+                  </h4>
                   <p className="text-gray-900 flex items-center">
                     <FiClock className="mr-1 text-gray-400" />
                     {formatTime(selectedBooking.bookingTime)}
                   </p>
                 </div>
               </div>
-              
+
               {selectedBooking.notes && (
                 <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Notes</h4>
-                  <p className="text-gray-900 bg-gray-50 p-3 rounded">{selectedBooking.notes}</p>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Notes
+                  </h4>
+                  <p className="text-gray-900 bg-gray-50 p-3 rounded">
+                    {selectedBooking.notes}
+                  </p>
                 </div>
               )}
-              
+
               {selectedBooking.bookingMedia && (
                 <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Attached Media</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Attached Media
+                  </h4>
                   <div className="mt-2">
-                    <a 
-                      href={selectedBooking.bookingMedia} 
-                      target="_blank" 
+                    <a
+                      href={selectedBooking.bookingMedia}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary-600 hover:text-primary-800"
                     >
