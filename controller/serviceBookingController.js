@@ -337,39 +337,38 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id;
     const { booking_id, status } = req.body;
 
+    // Only allow status 1 (approve) or 2 (cancel/reject)
     if (!booking_id || status === undefined) {
         return res.status(400).json({ message: "booking_id and status are required" });
     }
-
 
     if (![1, 2].includes(status)) {
         return res.status(400).json({ message: "Invalid status value. Use 1 for approve, 2 for cancel." });
     }
 
     try {
-        const [result] = await db.query(bookingPutQueries.approveOrRejectBooking, [
-            status,
-            booking_id,
-            vendor_id
-        ]);
+        const [result] = await db.query(
+            `UPDATE service_booking SET bookingStatus = ? WHERE booking_id = ?`,
+            [status, booking_id]
+        );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ message: "Booking not found or unauthorized" });
+            return res.status(404).json({ message: "Booking not found" });
         }
 
         res.status(200).json({
-            message: `Booking ${status === 1 ? 'approved' : 'cancelled'} successfully`,
+            message: `Booking has been ${status === 1 ? 'approved' : 'cancelled'} successfully`,
             booking_id,
             status
         });
     } catch (error) {
-        console.error("Error approving/rejecting booking:", error);
+        console.error("Error updating booking status:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const assignBookingToVendor = asyncHandler(async (req, res) => {
     const { booking_id, vendor_id } = req.body;
