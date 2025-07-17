@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const { stripeWebhook } = require("../controller/stripeController");
+
+router.post("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+
 const { createStripeAccount,
     refreshStripeOnboarding,
     getStripeAccountStatus,
@@ -7,7 +11,6 @@ const { createStripeAccount,
     getVendorEarnings,
     createPaymentIntent,
     confirmBooking,
-    stripeWebhook,
     adminGetVendorStripeInfo,
     getBookingsByVendor,
     adminGetVendorPaymentSummary,
@@ -27,9 +30,6 @@ router.get("/vendor/get-earnings", authenticationToken, getVendorEarnings);
 // User payment
 router.post("/user/create-payment-intent", authenticationToken, createPaymentIntent);
 router.post("/user/confirm-booking", authenticationToken, confirmBooking);
-
-
-router.post("/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
 
 
 router.post("/user/confirm-payment-intent", authenticationToken, confirmPaymentIntentManually);

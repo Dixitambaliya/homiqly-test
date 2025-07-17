@@ -31,6 +31,9 @@ app.use(cors({
     origin: "*",
 }));
 
+
+app.use("/api/payment", stripeRoutes)
+
 app.use(express.json())
 
 // API Routes
@@ -50,7 +53,6 @@ app.use("/api/contractor", contractorRoutes)
 app.use("/api/employee", employeeRoutes)
 app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
-app.use("/api/payment", stripeRoutes)
 app.use("/api/rating", ratingRoutes)
 app.use("/api", emailRoutes)
 
