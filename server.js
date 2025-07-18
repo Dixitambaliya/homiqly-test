@@ -36,7 +36,7 @@ app.use(cors({
 // 🟢 Stripe webhook (must come FIRST and use raw parser)
 app.post(
     "/api/payment/stripe/webhook",
-    bodyParser.raw({ type: "application/json" }),
+    express.raw({ type: "application/json" }),
     stripeController.stripeWebhook
   );
 

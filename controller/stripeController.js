@@ -283,6 +283,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     WHERE sb.payment_intent_id = ?
                     LIMIT 1
             `, [paymentIntentId]);
+            console.log(userInfo);
 
             if (userInfo.length > 0) {
                 const user = userInfo[0];
@@ -323,7 +324,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         console.log("ℹ️ Ignored event type:", event.type);
     }
 
-    res.json({ received: true });
+    // ✅ Send response only once, and at the end
+    res.status(200).json({ received: true });
 });
 
 // 8. Vendor sees their bookings

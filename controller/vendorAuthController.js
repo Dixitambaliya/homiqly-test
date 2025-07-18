@@ -17,8 +17,12 @@ const transport = nodemailer.createTransport({
         pass: process.env.EMAIL_PASS,
     },
 });
+
 const generateResetCode = () =>
-    Math.floor(1000 + Math.random() * 900000).toString(); // 6-digit code
+    Math.floor(Math.random() * 1_000_000)
+        .toString()
+        .padStart(6, "0");
+        
 // Create User
 const registerVendor = async (req, res) => {
     const conn = await db.getConnection();
