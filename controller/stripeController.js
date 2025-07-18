@@ -259,6 +259,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
 
+        res.status(200).json({ received: true });
         console.log("✅ Payment succeeded. PaymentIntent ID:", paymentIntentId);
 
         try {
@@ -272,11 +273,15 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             console.log(`💾 Payment status updated in DB:`, paymentResult);
 
             const [userInfo] = await db.query(`
-                SELECT u.email, u.name, sb.bookingDate, sb.bookingTime
-                FROM users u
-                JOIN service_booking sb ON u.user_id = sb.user_id
-                WHERE sb.payment_intent_id = ?
-                LIMIT 1
+                SELECT
+                u.email,
+                CONCAT(u.firstName, ' ',u.lastName) AS name,
+                sb.bookingDate,
+                sb.bookingTime
+                    FROM users u
+                    JOIN service_booking sb ON u.user_id = sb.user_id
+                    WHERE sb.payment_intent_id = ?
+                    LIMIT 1
             `, [paymentIntentId]);
 
             if (userInfo.length > 0) {
