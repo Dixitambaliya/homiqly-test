@@ -240,27 +240,47 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
     try {
         const sig = req.headers["stripe-signature"];
-        console.log("🔐 Received Stripe signature:", sig);
+        console.log("🔐 Received Stripe signature:", sig); // ✅ Already logs signature
+
+        // 🔍 Log raw body if needed (be cautious in production; avoid logging full body with sensitive info)
+        // console.log("📦 Raw body:", req.body);
 
         event = stripe.webhooks.constructEvent(
-            req.body, // IMPORTANT: must use raw body!
+            req.body, // ✅ must be raw body
             sig,
             process.env.STRIPE_WEBHOOK_SECRET
         );
 
-        console.log("✅ Webhook received:", event.type);
+        console.log("✅ Webhook received:", event.type); // ✅ Logs the event type
 
     } catch (err) {
-        console.error("⚠️ Webhook signature verification failed:", err.message);
+        console.error("⚠️ Webhook signature verification failed:", err.message); // ✅
+        console.error("📛 Full error stack:", err.stack); // 🔍 Full trace for production
+
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
+
+    // 🔍 Log the event ID and event creation timestamp
+    console.log("🧾 Event ID:", event.id);
+    console.log("🕒 Event Created At:", new Date(event.created * 1000).toISOString());
 
     if (event.type === "payment_intent.succeeded") {
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
 
+        // 🔍 Log entire paymentIntent object safely (just IDs, status, amount, etc.)
+        console.log("💳 PaymentIntent:", {
+            id: paymentIntent.id,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+            status: paymentIntent.status,
+            created: new Date(paymentIntent.created * 1000).toISOString()
+        });
+
+        // Send 200 response early (optional, can also send after DB ops)
         res.status(200).json({ received: true });
-        console.log("✅ Payment succeeded. PaymentIntent ID:", paymentIntentId);
+
+        console.log("✅ Payment succeeded. PaymentIntent ID:", paymentIntentId); // ✅
 
         try {
             const [paymentResult] = await db.query(
@@ -270,25 +290,26 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 [paymentIntentId]
             );
 
-            console.log(`💾 Payment status updated in DB:`, paymentResult);
+            console.log("💾 Payment status updated in DB:", paymentResult); // ✅
 
             const [userInfo] = await db.query(`
                 SELECT
-                u.email,
-                CONCAT(u.firstName, ' ',u.lastName) AS name,
-                sb.bookingDate,
-                sb.bookingTime
-                    FROM users u
-                    JOIN service_booking sb ON u.user_id = sb.user_id
-                    WHERE sb.payment_intent_id = ?
-                    LIMIT 1
+                    u.email,
+                    CONCAT(u.firstName, ' ', u.lastName) AS name,
+                    sb.bookingDate,
+                    sb.bookingTime
+                FROM users u
+                JOIN service_booking sb ON u.user_id = sb.user_id
+                WHERE sb.payment_intent_id = ?
+                LIMIT 1
             `, [paymentIntentId]);
-            console.log(userInfo);
+
+            console.log("📄 Booking info fetched for user:", userInfo); // 🔍 log the array itself
 
             if (userInfo.length > 0) {
                 const user = userInfo[0];
 
-                console.log(`📦 Found user for email notification:`, user);
+                console.log(`📦 Found user for email notification:`, user); // ✅
 
                 const transporter = nodemailer.createTransport({
                     service: "gmail",
@@ -312,21 +333,25 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 };
 
                 await transporter.sendMail(mailOptions);
-                console.log(`📧 Confirmation email sent to ${user.email}`);
+                console.log(`📧 Confirmation email sent to ${user.email}`); // ✅
+
             } else {
-                console.warn("⚠️ No user found for payment intent:", paymentIntentId);
+                console.warn("⚠️ No user found for payment intent:", paymentIntentId); // ✅
             }
 
         } catch (err) {
-            console.error("❌ Error during payment handling:", err.message);
+            console.error("❌ Error during payment handling:", err.message); // ✅
+            console.error("📛 Full error stack:", err.stack); // 🔍
         }
+
     } else {
-        console.log("ℹ️ Ignored event type:", event.type);
+        console.log("ℹ️ Ignored event type:", event.type); // ✅
     }
 
-    // ✅ Send response only once, and at the end
-    res.status(200).json({ received: true });
+    // 🔍 You can optionally add a final log of entire event processing status
+    console.log("✅ Finished processing webhook event:", event.id);
 });
+
 
 // 8. Vendor sees their bookings
 exports.getVendorBookings = asyncHandler(async (req, res) => {
