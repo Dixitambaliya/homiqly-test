@@ -34,6 +34,8 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "stripe": "^18.3.0"
   }
 }
