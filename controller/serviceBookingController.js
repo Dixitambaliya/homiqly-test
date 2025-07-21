@@ -487,50 +487,77 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
 const getEligiblevendors = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
 
-    const connection = await db.getConnection()
+    const connection = await db.getConnection();
 
     try {
-
+        // 1. Get service_id from booking
         const [bookingData] = await connection.query(
-            `SELECT service_id , service_categories_id FROM service_booking WHERE booking_id = ?`,
+            `SELECT service_id FROM service_booking WHERE booking_id = ?`,
             [booking_id]
-        )
+        );
 
         if (bookingData.length === 0) {
-            return res.status(404).json({ message: "Booking not found " })
+            return res.status(404).json({ message: "Booking not found." });
         }
 
-        const { service_id, service_categories_id } = bookingData[0]
+        const { service_id } = bookingData[0];
 
-        const [individual] = await connection.query(`
+        // 2. Get vendors with manual toggle enabled and matching service_id
+        const [individuals] = await connection.query(`
             SELECT v.vendor_id, 'individual' AS vendorType, id.name AS vendorName
             FROM vendors v
             JOIN individual_services isr ON isr.vendor_id = v.vendor_id AND isr.service_id = ?
             JOIN vendor_settings vs ON vs.vendor_id = v.vendor_id
             JOIN individual_details id ON id.vendor_id = v.vendor_id
             WHERE v.vendorType = 'individual' AND vs.manual_assignment_enabled = 1
-            `, [service_id])
+        `, [service_id]);
 
         const [companies] = await connection.query(`
-                SELECT v.vendor_id, 'company' AS vendorType, cd.companyName AS vendorName
-                FROM vendors v
-                JOIN company_services cs ON cs.vendor_id = v.vendor_id AND cs.service_id = ?
-                JOIN vendor_settings vs ON vs.vendor_id = v.vendor_id
-                JOIN company_details cd ON cd.vendor_id = v.vendor_id
-                WHERE v.vendorType = 'company' AND vs.manual_assignment_enabled = 1
-                `, [service_id]);
+            SELECT v.vendor_id, 'company' AS vendorType, cd.companyName AS vendorName
+            FROM vendors v
+            JOIN company_services cs ON cs.vendor_id = v.vendor_id AND cs.service_id = ?
+            JOIN vendor_settings vs ON vs.vendor_id = v.vendor_id
+            JOIN company_details cd ON cd.vendor_id = v.vendor_id
+            WHERE v.vendorType = 'company' AND vs.manual_assignment_enabled = 1
+        `, [service_id]);
 
-        const eligibleVendors = [...individuals, ...companies];
+        // 3. Get vendors with packages where the package belongs to a matching service_type → service_id
+        const [packageVendors] = await connection.query(`
+            SELECT DISTINCT v.vendor_id,
+                v.vendorType,
+                COALESCE(id.name, cd.companyName) AS vendorName
+            FROM vendors v
+            LEFT JOIN individual_details id ON id.vendor_id = v.vendor_id
+            LEFT JOIN company_details cd ON cd.vendor_id = v.vendor_id
+            JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
+            JOIN packages p ON p.package_id = vp.package_id
+            JOIN service_types st ON st.service_type_id = p.service_type_id
+            WHERE st.service_id = ?
+        `, [service_id]);
+
+        // Combine all vendors and remove duplicates based on vendor_id
+        const combinedVendors = [...individuals, ...companies, ...packageVendors];
+        const uniqueVendorsMap = new Map();
+
+        combinedVendors.forEach(v => {
+            if (!uniqueVendorsMap.has(v.vendor_id)) {
+                uniqueVendorsMap.set(v.vendor_id, v);
+            }
+        });
+
+        const eligibleVendors = Array.from(uniqueVendorsMap.values());
 
         res.status(200).json({ eligibleVendors });
-
-    } catch (error) {
+    } catch (err) {
         console.error("Get eligible vendors error:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     } finally {
         connection.release();
     }
-})
+});
+
+
+
 
 module.exports = {
     bookService,
