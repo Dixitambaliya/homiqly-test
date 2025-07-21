@@ -171,7 +171,6 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
 });
 
 
-
 module.exports = {
     getVendorRatings,
     getAllRatings,

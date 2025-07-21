@@ -336,8 +336,10 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(adminGetQueries.getAdminCreatedPackages);
+        console.log(rows);
 
         const result = rows.map(row => ({
+
             service_type_id: row.service_type_id,
             service_type_name: row.serviceTypeName,
             service_type_media: row.serviceTypeMedia,

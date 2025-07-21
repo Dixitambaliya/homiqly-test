@@ -170,7 +170,7 @@ GROUP BY vendors.vendor_id`,
     FROM users
     ORDER BY created_at DESC`,
 
-     getAllBookings: `
+    getAllBookings: `
 SELECT
     sb.booking_id,
     sb.bookingDate,
@@ -227,37 +227,40 @@ SELECT
     pr.preferenceName,
     pr.preferenceValue
 
-FROM service_booking sb
-LEFT JOIN users u ON sb.user_id = u.user_id
-LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
-LEFT JOIN services s ON sb.service_id = s.service_id
+        FROM service_booking sb
+        LEFT JOIN users u ON sb.user_id = u.user_id
+        LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+        LEFT JOIN services s ON sb.service_id = s.service_id
 
--- Service Type
-LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+        -- Service Type
+        LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+        LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
 
--- Vendor
-LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+        -- Vendor
+        LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+        LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+        LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
 
--- Payment
-LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+        -- Payment
+        LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
 
--- Packages
-LEFT JOIN booking_packages bp ON sb.booking_id = bp.booking_id
-LEFT JOIN packages pk ON bp.package_id = pk.package_id
+        -- Packages
+        LEFT JOIN booking_packages bp ON sb.booking_id = bp.booking_id
+        LEFT JOIN packages pk ON bp.package_id = pk.package_id
 
--- Package Items
-LEFT JOIN booking_package_items bpi ON bp.booking_package_id = bpi.booking_package_id
-LEFT JOIN package_items pi ON bpi.package_item_id = pi.item_id
+        -- Package Items
+        LEFT JOIN booking_package_items bpi ON bp.booking_package_id = bpi.booking_package_id
+        LEFT JOIN package_items pi ON bpi.package_item_id = pi.item_id
 
--- Preferences
-LEFT JOIN booking_preferences pr ON pr.booking_package_item_id = bpi.booking_package_item_id
+        -- Preferences
+        LEFT JOIN booking_preferences pr ON pr.booking_package_item_id = bpi.booking_package_item_id
 
-ORDER BY sb.bookingDate DESC, sb.bookingTime DESC;`,
+        -- Ratings
+        LEFT JOIN rating r ON r.package_id = pk.package_id AND r.user_id = u.user_id
 
-   getAdminCreatedPackages: `
+        ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
+
+    getAdminCreatedPackages: `
     SELECT
         st.service_type_id,
         st.serviceTypeName,

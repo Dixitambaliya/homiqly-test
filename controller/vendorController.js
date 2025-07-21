@@ -1,9 +1,8 @@
 const { db } = require("../config/db");
 const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
 const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
-
-const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
+const asyncHandler = require("express-async-handler");
 
 const transport = nodemailer.createTransport({
     service: "gmail",
@@ -47,13 +46,10 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         }
 
         for (const pkg of selectedPackages) {
-            const { package_id, sub_packages = [], preferences = [] } = pkg;
+            const { package_id } = pkg;
 
-            if (!package_id || !Array.isArray(sub_packages)) {
-                throw new Error("Each package must include package_id and sub_packages array.");
-            }
+            if (!package_id) throw new Error("Each package must include package_id");
 
-            // ✅ Validate package exists
             const [packageExists] = await connection.query(
                 `SELECT package_id FROM packages WHERE package_id = ?`,
                 [package_id]
@@ -62,55 +58,41 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
                 throw new Error(`Package ID ${package_id} does not exist`);
             }
 
-            // ✅ Insert vendor-package relation
+            // ✅ Store application for admin approval
             await connection.query(
-                `INSERT IGNORE INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                `INSERT INTO vendor_package_applications (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
-
-            // ✅ Insert vendor-package items
-            for (const item of sub_packages) {
-                const item_id = item.sub_package_id;
-                const [itemExists] = await connection.query(
-                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
-                    [item_id, package_id]
-                );
-                if (itemExists.length === 0) {
-                    throw new Error(`Sub-package ID ${item_id} does not belong to Package ID ${package_id}`);
-                }
-
-                await connection.query(
-                    `INSERT IGNORE INTO vendor_package_items (vendor_id, package_id, package_item_id)
-                     VALUES (?, ?, ?)`,
-                    [vendor_id, package_id, item_id]
-                );
-            }
-
-            // ✅ Insert vendor preferences
-            for (const pref of preferences) {
-                const preference_id = pref.preference_id;
-                const [prefExists] = await connection.query(
-                    `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
-                    [preference_id, package_id]
-                );
-                if (prefExists.length === 0) {
-                    throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}`);
-                }
-
-                await connection.query(
-                    `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
-                     VALUES (?, ?, ?)`,
-                    [vendor_id, package_id, preference_id]
-                );
-            }
         }
 
         await connection.commit();
         connection.release();
 
+        // ✅ Send email notification to admin
+        const transporter = nodemailer.createTransport({
+            service: "Gmail", // or use your SMTP config
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        await transporter.sendMail({
+            from: `"Vendor System" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER, // Admin's real email
+            subject: "New Package Application Submitted",
+            html: `
+                <p><strong>Vendor ID:</strong> ${vendor_id}</p>
+                <p>has applied for the following packages:</p>
+                <ul>
+                    ${selectedPackages.map(p => `<li>Package ID: ${p.package_id}</li>`).join("")}
+                </ul>
+            `
+        });
+
         res.status(200).json({
-            message: "Packages, items, and preferences successfully applied to vendor",
-            applied: selectedPackages
+            message: "Package application submitted for admin approval.",
+            submitted: selectedPackages
         });
 
     } catch (err) {
@@ -797,7 +779,7 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
 
 const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { value, startDateTime, endDateTime } = req.body;
+    const { value } = req.body;
 
     if (![0, 1].includes(value)) {
         return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
@@ -809,20 +791,16 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
 
     try {
         await db.query(`
-            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled, start_datetime, end_datetime)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
+            VALUES (?, ?)
             ON DUPLICATE KEY UPDATE
-                manual_assignment_enabled = VALUES(manual_assignment_enabled),
-                start_datetime = VALUES(start_datetime),
-                end_datetime = VALUES(end_datetime)
-        `, [vendor_id, value, startDateTime || null, endDateTime || null]);
+                manual_assignment_enabled = VALUES(manual_assignment_enabled)
+        `, [vendor_id, value]);
 
         res.status(200).json({
             message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
             vendor_id,
-            manual_assignment_enabled: value,
-            start_datetime: startDateTime || null,
-            end_datetime: endDateTime || null
+            manual_assignment_enabled: value
         });
 
     } catch (err) {
@@ -830,6 +808,7 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id || req.query.vendor_id;

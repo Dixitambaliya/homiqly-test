@@ -28,3 +28,4 @@ router.delete("/deletepackage/:package_id", authenticationToken, deletePackageBy
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 
 module.exports = router
+       

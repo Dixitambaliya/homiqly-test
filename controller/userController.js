@@ -211,7 +211,6 @@ const getUserData = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, email, phone } = req.body;
