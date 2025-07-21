@@ -278,7 +278,12 @@ const googleLogin = asyncHandler(async (req, res) => {
         });
 
         const payload = ticket.getPayload();
-        const { email, given_name, family_name } = payload;
+        const {
+            email,
+            given_name = "",         // fallback to empty string if undefined
+            family_name = "",        // fallback to empty string if undefined
+            picture = "",            // fallback to empty string if undefined
+        } = payload;
 
         // Check if user exists
         const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
@@ -286,12 +291,13 @@ const googleLogin = asyncHandler(async (req, res) => {
         let user_id;
 
         if (existingUser.length === 0) {
-            // Register new user with no password
+            // Register new user
             const [result] = await db.query(userAuthQueries.userInsert, [
                 given_name,
                 family_name,
                 email,
-                "", // no phone yet
+                "",        // phone not available at this point
+                picture,   // include profileImage from Google
             ]);
             user_id = result.insertId;
         } else {
@@ -319,6 +325,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         res.status(401).json({ error: "Invalid Google token", details: err.message });
     }
 });
+
 
 module.exports = {
     registerUser,
