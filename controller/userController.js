@@ -190,8 +190,10 @@ const getUserData = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "User data not found" });
         }
 
-        // Replace nulls with empty strings
+        // Just take the first result row
         const userData = results[0];
+
+        // Replace null values with empty strings
         Object.keys(userData).forEach(key => {
             if (userData[key] === null) {
                 userData[key] = "";
@@ -200,7 +202,7 @@ const getUserData = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "User data fetched successfully",
-            data: userData
+            data: userData // single object, not array
         });
 
     } catch (err) {
