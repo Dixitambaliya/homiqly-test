@@ -531,7 +531,7 @@ const getEligiblevendors = asyncHandler(async (req, res) => {
             LEFT JOIN company_details cd ON cd.vendor_id = v.vendor_id
             JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
             JOIN packages p ON p.package_id = vp.package_id
-            JOIN service_types st ON st.service_type_id = p.service_type_id
+            JOIN service_type st ON st.service_type_id = p.service_type_id
             WHERE st.service_id = ?
         `, [service_id]);
 
