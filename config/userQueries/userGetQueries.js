@@ -6,8 +6,7 @@ const userGetQueries = {
                                     FROM service_categories`,
 
     getUsersData: `SELECT
-                    firstName,
-                    lastName,
+                    CONCAT(firstName,' ',lastName) AS fullName,
                     profileImage,
                     phone,
                     email
