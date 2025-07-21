@@ -24,6 +24,10 @@ const Bookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filter, setFilter] = useState("all"); // all, pending, approved, cancelled
+  const [eligibleVendors, setEligibleVendors] = useState([]);
+  const [assignVendorModal, setAssignVendorModal] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState(null);
+
   const [dateRange, setDateRange] = useState({
     startDate: "",
     endDate: "",
@@ -37,6 +41,7 @@ const Bookings = () => {
     try {
       setLoading(true);
       const response = await axios.get("/api/admin/getbookings");
+      console.log("Bookings fetched:", response.data);
       setBookings(response.data.bookings || []);
       setLoading(false);
     } catch (error) {
@@ -46,9 +51,47 @@ const Bookings = () => {
     }
   };
 
-  const viewBookingDetails = (booking) => {
+  const viewBookingDetails = async (booking) => {
     setSelectedBooking(booking);
     setShowDetailsModal(true);
+
+    try {
+      const res = await axios.get(
+        `/api/booking/get-eligible-vendors/${booking.booking_id}`
+      );
+      setEligibleVendors(res.data.eligibleVendors || []);
+    } catch (error) {
+      console.error("Failed to fetch eligible vendors:", error);
+      setEligibleVendors([]);
+    }
+  };
+
+  const assignVendor = async () => {
+    try {
+      await axios.post("/api/booking/assignbooking", {
+        booking_id: selectedBooking.booking_id,
+        vendor_id: selectedVendorId,
+      });
+
+      toast.success("Vendor assigned successfully.");
+
+      // Update booking with assigned vendor name
+      const assignedVendor = eligibleVendors.find(
+        (v) => v.vendor_id === selectedVendorId
+      );
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.booking_id === selectedBooking.booking_id
+            ? { ...b, vendorName: assignedVendor.vendorName }
+            : b
+        )
+      );
+
+      setAssignVendorModal(false);
+      setShowDetailsModal(false);
+    } catch (error) {
+      toast.error("Failed to assign vendor.");
+    }
   };
 
   const handleFilterChange = (e) => {
@@ -280,7 +323,41 @@ const Bookings = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {booking.vendorName}
+                        {eligibleVendors.length > 0 && (
+                          <div className="mb-4">
+                            {/* <h4 className="text-sm font-medium text-gray-500 mb-1">
+                              Assign Vendor
+                            </h4> */}
+                            <div className="flex gap-2">
+                              <select
+                                onChange={(e) =>
+                                  setSelectedVendorId(Number(e.target.value))
+                                }
+                                className="px-3 py-2 border rounded-md text-sm text-gray-800"
+                                value={selectedVendorId || ""}
+                              >
+                                <option value="" disabled>
+                                  Select Vendor
+                                </option>
+                                {eligibleVendors.map((vendor) => (
+                                  <option
+                                    key={vendor.vendor_id}
+                                    value={vendor.vendor_id}
+                                  >
+                                    {vendor.vendorName} ({vendor.vendorType})
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                disabled={!selectedVendorId}
+                                onClick={() => setAssignVendorModal(true)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-md"
+                              >
+                                Assign
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -345,6 +422,39 @@ const Bookings = () => {
         </div>
       )}
 
+      {assignVendorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-md shadow-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold mb-4">Confirm Assignment</h3>
+            <p className="mb-4">
+              Are you sure you want to assign this booking to vendor:
+              <strong>
+                {" "}
+                {
+                  eligibleVendors.find((v) => v.vendor_id === selectedVendorId)
+                    ?.vendorName
+                }
+              </strong>
+              ?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setAssignVendorModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={assignVendor}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Booking Details Modal */}
       {showDetailsModal && selectedBooking && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -405,6 +515,7 @@ const Bookings = () => {
                     {selectedBooking.serviceTypeName || "N/A"}
                   </p>
                 </div>
+
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 mb-1">
                     Date
