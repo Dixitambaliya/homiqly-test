@@ -184,7 +184,7 @@ const getUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        const results = await db.query(userGetQueries.getUsersData, [user_id]);
+        const [results] = await db.query(userGetQueries.getUsersData, [user_id]);
 
         if (!results || results.length === 0) {
             return res.status(404).json({ message: "User data not found" });
@@ -192,14 +192,16 @@ const getUserData = asyncHandler(async (req, res) => {
 
         const userData = results[0];
 
-        // ✅ Remove null values
-        const cleanedData = Object.fromEntries(
-            Object.entries(userData).filter(([_, v]) => v !== null)
-        );
+        // ✅ Remove only null values
+        Object.keys(userData).forEach((key) => {
+            if (userData[key] === null) {
+                delete userData[key];
+            }
+        });
 
         res.status(200).json({
             message: "User data fetched successfully",
-            data: cleanedData
+            data: userData,
         });
 
     } catch (err) {
@@ -207,6 +209,7 @@ const getUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 const updateUserData = asyncHandler(async (req, res) => {
