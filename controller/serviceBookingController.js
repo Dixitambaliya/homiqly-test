@@ -484,10 +484,59 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
     }
 });
 
+const getEligiblevendors = asyncHandler(async (req, res) => {
+    const { booking_id } = req.params;
+
+    const connection = await db.getConnection()
+
+    try {
+
+        const [bookingData] = await connection.query(
+            `SELECT service_id , service_categories_id FROM service_booking WHERE booking_id = ?`,
+            [booking_id]
+        )
+
+        if (bookingData.length === 0) {
+            return res.status(404).json({ message: "Booking not found " })
+        }
+
+        const { service_id, service_categories_id } = bookingData[0]
+
+        const [individual] = await connection.query(`
+            SELECT v.vendor_id, 'individual' AS vendorType, id.name AS vendorName
+            FROM vendors v
+            JOIN individual_services isr ON isr.vendor_id = v.vendor_id AND isr.service_id = ?
+            JOIN vendor_settings vs ON vs.vendor_id = v.vendor_id
+            JOIN individual_details id ON id.vendor_id = v.vendor_id
+            WHERE v.vendorType = 'individual' AND vs.manual_assignment_enabled = 1
+            `, [service_id])
+
+        const [companies] = await connection.query(`
+                SELECT v.vendor_id, 'company' AS vendorType, cd.companyName AS vendorName
+                FROM vendors v
+                JOIN company_services cs ON cs.vendor_id = v.vendor_id AND cs.service_id = ?
+                JOIN vendor_settings vs ON vs.vendor_id = v.vendor_id
+                JOIN company_details cd ON cd.vendor_id = v.vendor_id
+                WHERE v.vendorType = 'company' AND vs.manual_assignment_enabled = 1
+                `, [service_id]);
+
+        const eligibleVendors = [...individuals, ...companies];
+
+        res.status(200).json({ eligibleVendors });
+
+    } catch (error) {
+        console.error("Get eligible vendors error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
+    }
+})
+
 module.exports = {
     bookService,
     getVendorBookings,
     getUserBookings,
     approveOrRejectBooking,
-    assignBookingToVendor
+    assignBookingToVendor,
+    getEligiblevendors
 };

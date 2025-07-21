@@ -264,16 +264,16 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-    const { authToken } = req.body;
+    const { tokenId } = req.body;
 
-    if (!authToken) {
+    if (!tokenId) {
         return res.status(400).json({ error: "tokenId is required" });
     }
 
     try {
         // Verify token with Google
         const ticket = await googleClient.verifyIdToken({
-            idToken: authToken,
+            idToken: tokenId,
             audience: process.env.GOOGLE_CLIENT_ID,
         });
 
