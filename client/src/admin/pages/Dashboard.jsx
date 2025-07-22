@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import {
   FiUsers,
   FiUserCheck,
@@ -51,15 +51,15 @@ const Dashboard = () => {
         setLoading(true);
 
         // Fetch dashboard stats
-        const statsResponse = await axios.get("/api/analytics/dashboard");
+        const statsResponse = await api.get("/api/analytics/dashboard");
         setStats(statsResponse.data.stats);
 
         // Fetch booking trends
-        const trendsResponse = await axios.get("/api/analytics/booking-trends");
+        const trendsResponse = await api.get("/api/analytics/booking-trends");
         setBookingTrends(trendsResponse.data.trends);
 
         // Fetch service category stats
-        const categoryResponse = await axios.get(
+        const categoryResponse = await api.get(
           "/api/analytics/service-categories"
         );
         setCategoryStats(categoryResponse.data.stats);

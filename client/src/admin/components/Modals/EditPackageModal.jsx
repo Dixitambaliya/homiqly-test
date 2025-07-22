@@ -6,7 +6,7 @@ import {
   FormFileInput,
 } from "../../../shared/components/Form";
 import { Button } from "../../../shared/components/Button";
-import axios from "axios";
+import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 
 const EditPackageModal = ({ isOpen, onClose, packageData }) => {
@@ -151,7 +151,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData }) => {
         form.append(key, file);
       });
 
-      await axios.put("/api/admin/editpackage", form, {
+      await api.put("/api/admin/editpackage", form, {
         headers: {
           "Content-Type": "multipart/form-data",
         },

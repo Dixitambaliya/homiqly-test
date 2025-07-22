@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import DataTable from "../../../shared/components/Table/DataTable";
 
@@ -23,7 +23,8 @@ const PackagesTable = ({ services, onEdit, fetchData }) => {
   };
 
   const handleDeletePackage = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this package?")) return;
+    if (!window.confirm("Are you sure you want to delete this package?"))
+      return;
     try {
       setDeleting(id);
       await axios.delete(`/api/vendor/deletepackages/${id}`);
@@ -79,7 +80,9 @@ const PackagesTable = ({ services, onEdit, fetchData }) => {
       key: "service_type_id",
       render: (row) =>
         row._rowType === "service" ? (
-          <span className="font-medium text-gray-700">{row.service_type_id}</span>
+          <span className="font-medium text-gray-700">
+            {row.service_type_id}
+          </span>
         ) : null,
     },
     {

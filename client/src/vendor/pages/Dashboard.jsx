@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import {
   FiShoppingBag,
   FiClock,
@@ -49,7 +49,7 @@ const Dashboard = () => {
         setLoading(true);
 
         // Fetch vendor bookings
-        const bookingsResponse = await axios.get(
+        const bookingsResponse = await api.get(
           "/api/booking/vendorbookedservices"
         );
         const bookings = bookingsResponse.data.bookings || [];

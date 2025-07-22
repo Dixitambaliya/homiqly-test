@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAdminAuth } from "../contexts/AdminAuthContext";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import TicketsTable from "../components/Tables/TicketsTable"; // Update the path as needed
 
 const Tickets = () => {

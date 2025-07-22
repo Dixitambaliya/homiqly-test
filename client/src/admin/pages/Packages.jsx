@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "../../shared/components/Button";
 import { FiPlus } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EditPackageModal from "../components/Modals/EditPackageModal";
 

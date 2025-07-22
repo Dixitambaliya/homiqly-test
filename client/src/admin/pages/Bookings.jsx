@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import {
   FiEye,
@@ -40,7 +40,7 @@ const Bookings = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/admin/getbookings");
+      const response = await api.get("/api/admin/getbookings");
       console.log("Bookings fetched:", response.data);
       setBookings(response.data.bookings || []);
       setLoading(false);
@@ -56,7 +56,7 @@ const Bookings = () => {
     setShowDetailsModal(true);
 
     try {
-      const res = await axios.get(
+      const res = await api.get(
         `/api/booking/get-eligible-vendors/${booking.booking_id}`
       );
       setEligibleVendors(res.data.eligibleVendors || []);
@@ -68,7 +68,7 @@ const Bookings = () => {
 
   const assignVendor = async () => {
     try {
-      await axios.post("/api/booking/assignbooking", {
+      await api.post("/api/booking/assignbooking", {
         booking_id: selectedBooking.booking_id,
         vendor_id: selectedVendorId,
       });
@@ -108,7 +108,7 @@ const Bookings = () => {
 
   const handleBookingAction = async (bookingId, status) => {
     try {
-      const res = await axios.put("/api/booking/approveorrejectbooking", {
+      const res = await api.put("/api/booking/approveorrejectbooking", {
         booking_id: bookingId,
         status: status,
       });
@@ -323,43 +323,44 @@ const Bookings = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {eligibleVendors.length > 0 && (
-                          <div className="mb-4">
-                            {/* <h4 className="text-sm font-medium text-gray-500 mb-1">
-                              Assign Vendor
-                            </h4> */}
-                            <div className="flex gap-2">
-                              <select
-                                onChange={(e) =>
-                                  setSelectedVendorId(Number(e.target.value))
-                                }
-                                className="px-3 py-2 border rounded-md text-sm text-gray-800"
-                                value={selectedVendorId || ""}
-                              >
-                                <option value="" disabled>
-                                  Select Vendor
+                        {booking.vendorName ? (
+                          <span>{booking.vendorName}</span>
+                        ) : selectedBooking?.booking_id ===
+                            booking.booking_id && eligibleVendors.length > 0 ? (
+                          <div className="flex gap-2">
+                            <select
+                              onChange={(e) =>
+                                setSelectedVendorId(Number(e.target.value))
+                              }
+                              className="px-3 py-2 border rounded-md text-sm text-gray-800"
+                              value={selectedVendorId || ""}
+                            >
+                              <option value="" disabled>
+                                Select Vendor
+                              </option>
+                              {eligibleVendors.map((vendor) => (
+                                <option
+                                  key={vendor.vendor_id}
+                                  value={vendor.vendor_id}
+                                >
+                                  {vendor.vendorName} ({vendor.vendorType})
                                 </option>
-                                {eligibleVendors.map((vendor) => (
-                                  <option
-                                    key={vendor.vendor_id}
-                                    value={vendor.vendor_id}
-                                  >
-                                    {vendor.vendorName} ({vendor.vendorType})
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                disabled={!selectedVendorId}
-                                onClick={() => setAssignVendorModal(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-md"
-                              >
-                                Assign
-                              </button>
-                            </div>
+                              ))}
+                            </select>
+                            <button
+                              disabled={!selectedVendorId}
+                              onClick={() => setAssignVendorModal(true)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-md"
+                            >
+                              Assign
+                            </button>
                           </div>
+                        ) : (
+                          "-"
                         )}
                       </div>
                     </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         {booking.serviceName}
@@ -419,39 +420,6 @@ const Bookings = () => {
       ) : (
         <div className="bg-white rounded-lg shadow p-8 text-center">
           <p className="text-gray-600">No bookings found.</p>
-        </div>
-      )}
-
-      {assignVendorModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-md shadow-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold mb-4">Confirm Assignment</h3>
-            <p className="mb-4">
-              Are you sure you want to assign this booking to vendor:
-              <strong>
-                {" "}
-                {
-                  eligibleVendors.find((v) => v.vendor_id === selectedVendorId)
-                    ?.vendorName
-                }
-              </strong>
-              ?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setAssignVendorModal(false)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={assignVendor}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -564,6 +532,39 @@ const Bookings = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignVendorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-md shadow-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold mb-4">Confirm Assignment</h3>
+            <p className="mb-4">
+              Are you sure you want to assign this booking to vendor:
+              <strong>
+                {" "}
+                {
+                  eligibleVendors.find((v) => v.vendor_id === selectedVendorId)
+                    ?.vendorName
+                }
+              </strong>
+              ?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setAssignVendorModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={assignVendor}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>

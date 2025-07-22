@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import {
   FiUser,
@@ -50,7 +50,7 @@ const Profile = () => {
   const fetchVendorProfile = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/vendor/getprofile");
+      const response = await api.get("/api/vendor/getprofile");
       if (response.data?.profile) {
         const profileData = response.data.profile;
         setProfile(profileData);
@@ -83,7 +83,7 @@ const Profile = () => {
 
   const fetchVendorService = async () => {
     try {
-      const response = await axios.get("/api/vendor/getvendorservice");
+      const response = await api.get("/api/vendor/getvendorservice");
       if (response.data?.result) {
         setServices(response.data.result);
       }
@@ -125,7 +125,7 @@ const Profile = () => {
         }
       });
 
-      const response = await axios.put("/api/vendor/updateprofile", data, {
+      const response = await api.put("/api/vendor/updateprofile", data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 

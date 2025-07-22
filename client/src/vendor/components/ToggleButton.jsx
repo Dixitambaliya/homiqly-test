@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import { Loader2 } from "lucide-react"; // or any loader icon of your choice
 
 export default function ToggleButton() {
@@ -11,7 +11,7 @@ export default function ToggleButton() {
   useEffect(() => {
     const fetchInitialToggle = async () => {
       try {
-        const response = await axios.get("/api/vendor/getstatus");
+        const response = await api.get("/api/vendor/getstatus");
         setIsOn(response.data.value === 1);
       } catch (error) {
         console.error("Error fetching toggle status", error);
@@ -29,7 +29,7 @@ export default function ToggleButton() {
     const newValue = isOn ? 0 : 1;
 
     try {
-      await axios.put("/api/vendor/togglechange", { value: newValue });
+      await api.put("/api/vendor/togglechange", { value: newValue });
       setIsOn(!isOn);
     } catch (error) {
       console.error("Error toggling value", error);

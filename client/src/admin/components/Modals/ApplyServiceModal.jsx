@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Modal from "../../../shared/components/Modal/Modal";
 import { Button } from "../../../shared/components/Button";
-import axios from "axios";
+import api from "../../../lib/axiosConfig";
 import Select from "react-select";
 import { toast } from "react-toastify";
 
@@ -19,7 +19,7 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
   useEffect(() => {
     const fetchPackages = async () => {
       try {
-        const response = await axios.get("/api/admin/getpackages");
+        const response = await api.get("/api/admin/getpackages");
         const rawData = Array.isArray(response.data)
           ? response.data
           : response.data?.result || [];
@@ -107,7 +107,7 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
 
     try {
       setSubmitting(true);
-      await axios.post("/api/admin/assignpackage", payload);
+      await api.post("/api/admin/assignpackage", payload);
       toast.success("Service assigned successfully!");
       resetSelections();
       onClose();

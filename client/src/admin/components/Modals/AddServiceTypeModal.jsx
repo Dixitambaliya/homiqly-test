@@ -8,7 +8,8 @@ import {
   FormFileInput,
 } from "../../../shared/components/Form";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
-import axios from "axios";
+// import api from "../../lib/axiosConfig";
+import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 
 const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
@@ -46,7 +47,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await axios.get("/api/service/getadminservices");
+        const res = await api.get("/api/service/getadminservices");
         console.log("Fetched Categories:", res.data.services);
         setCategories(res.data.services || []);
       } catch (error) {
@@ -213,7 +214,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
         JSON.stringify(formData.preferences)
       );
 
-      const response = await axios.post(
+      const response = await api.post(
         "/api/admin/addpackages",
         formDataToSend,
         { headers: { "Content-Type": "multipart/form-data" } }

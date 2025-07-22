@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button } from "../../shared/components/Button";
 import { toast } from "react-toastify";
@@ -13,7 +13,7 @@ const Services = () => {
   useEffect(() => {
     const fetchPackages = async () => {
       try {
-        const response = await axios.get("/api/admin/getpackages");
+        const response = await api.get("/api/admin/getpackages");
         const rawData = Array.isArray(response.data)
           ? response.data
           : response.data?.result || [];
@@ -48,7 +48,7 @@ const Services = () => {
     setRequestingPackages((prev) => ({ ...prev, [packageId]: true }));
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         "/api/vendor/applyservice",
         { packageIds: [packageId] },
         {
@@ -64,7 +64,7 @@ const Services = () => {
       toast.error("Failed to request service.");
     } finally {
       setRequestingPackages((prev) => ({ ...prev, [packageId]: false }));
-    } 
+    }
   };
 
   return (

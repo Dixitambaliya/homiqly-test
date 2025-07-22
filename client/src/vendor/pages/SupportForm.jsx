@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import { jwtDecode } from "jwt-decode";
 import { FormInput, FormTextarea } from "../../shared/components/Form";
 import { Button } from "../../shared/components/Button";
@@ -15,20 +15,20 @@ const SupportForm = () => {
   const [loading, setLoading] = useState(false);
 
   // Decode token and set email on mount
-//   useEffect(() => {
-//     const token = localStorage.getItem("vendorToken");
-//     if (token) {
-//       try {
-//         const decoded = jwtDecode(token); // new
-//         console.log("Decoded token:", decoded);
-//         if (decoded && decoded.email) {
-//           setForm((prev) => ({ ...prev, email: decoded.email }));
-//         }
-//       } catch (err) {
-//         console.error("Invalid token", err);
-//       }
-//     }
-//   }, []);
+  //   useEffect(() => {
+  //     const token = localStorage.getItem("vendorToken");
+  //     if (token) {
+  //       try {
+  //         const decoded = jwtDecode(token); // new
+  //         console.log("Decoded token:", decoded);
+  //         if (decoded && decoded.email) {
+  //           setForm((prev) => ({ ...prev, email: decoded.email }));
+  //         }
+  //       } catch (err) {
+  //         console.error("Invalid token", err);
+  //       }
+  //     }
+  //   }, []);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -38,7 +38,7 @@ const SupportForm = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post("/api/contact", form);
+      await api.post("/api/contact", form);
       toast.success("Ticket sent successfully!");
       setForm({ name: "", subject: "", message: "" }); // keep email intact
     } catch (error) {
