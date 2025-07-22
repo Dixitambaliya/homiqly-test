@@ -264,67 +264,41 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-    const { tokenId } = req.body;
+    const { email, name, picture } = req.body;
 
-    if (!tokenId) {
-        return res.status(400).json({ error: "tokenId is required" });
+    if (!email) {
+        return res.status(400).json({ error: "Email is required" });
     }
 
-    try {
-        // Verify token with Google
-        const ticket = await googleClient.verifyIdToken({
-            idToken: tokenId,
-            audience: process.env.GOOGLE_CLIENT_ID,
-        });
+    // Split name
+    const [given_name = "", family_name = ""] = name?.split(" ") || [];
 
-        const payload = ticket.getPayload();
-        const {
+    const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+    let user_id;
+
+    if (existingUser.length === 0) {
+        const [result] = await db.query(userAuthQueries.userInsert, [
+            given_name,
+            family_name,
             email,
-            given_name = "",         // fallback to empty string if undefined
-            family_name = "",        // fallback to empty string if undefined
-            picture = "",            // fallback to empty string if undefined
-        } = payload;
-
-        // Check if user exists
-        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
-
-        let user_id;
-
-        if (existingUser.length === 0) {
-            // Register new user
-            const [result] = await db.query(userAuthQueries.userInsert, [
-                given_name,
-                family_name,
-                email,
-                "",        // phone not available at this point
-                picture,   // include profileImage from Google
-            ]);
-            user_id = result.insertId;
-        } else {
-            user_id = existingUser[0].user_id;
-        }
-
-        // Generate JWT
-        const jwtToken = jwt.sign(
-            {
-                user_id,
-                email,
-                status: "active",
-            },
-            process.env.JWT_SECRET
-        );
-
-        res.status(200).json({
-            message: "Login successful via Google",
-            token: jwtToken,
-            user_id,
-        });
-
-    } catch (err) {
-        console.error("Google Login Error:", err);
-        res.status(401).json({ error: "Invalid Google token", details: err.message });
+            "",        // phone
+            picture,
+        ]);
+        user_id = result.insertId;
+    } else {
+        user_id = existingUser[0].user_id;
     }
+
+    const jwtToken = jwt.sign({ user_id, email, status: "active" }, process.env.JWT_SECRET);
+
+    res.status(200).json({
+        message: "Login successful via Google",
+        token: jwtToken,
+        user_id,
+    });
 });
+
 
 
 module.exports = {
