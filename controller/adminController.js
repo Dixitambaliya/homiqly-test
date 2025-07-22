@@ -625,6 +625,85 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
 });
 
 
+const getAllPayments = asyncHandler(async (req, res) => {
+    try {
+        const [payments] = await db.query(`
+            SELECT
+                p.payment_id,
+                p.payment_intent_id,
+                p.amount,
+                p.currency,
+                p.created_at,
+
+                -- User Info
+                u.user_id,
+                u.firstname AS user_firstname,
+                u.lastname AS user_lastname,
+                u.email AS user_email,
+                u.phone AS user_phone,
+
+                -- Vendor Info
+                v.vendor_id,
+                v.vendorType,
+
+                -- Individual Vendor Info
+                idet.name AS individual_name,
+                idet.phone AS individual_phone,
+                idet.email AS individual_email,
+                idet.profileImage AS individual_profile_image,
+
+                -- Company Vendor Info
+                cdet.companyName,
+                cdet.contactPerson,
+                cdet.companyEmail AS email,
+                cdet.companyPhone AS phone,
+                cdet.profileImage AS company_profile_image,
+
+                -- Package Info
+                pkg.package_id,
+                pkg.packageName,
+                pkg.totalPrice,
+                pkg.totalTime,
+                pkg.packageMedia
+
+            FROM payments p
+
+            -- Join user
+            JOIN users u ON p.user_id = u.user_id
+
+            -- Join service_booking using payment_intent_id
+            JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+
+            -- Join vendor from booking
+            JOIN vendors v ON sb.vendor_id = v.vendor_id
+
+            -- Join individual and company details based on vendor type
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+
+            -- Join package from booking
+            JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
+            JOIN packages pkg ON pkg.package_id = sbp.package_id
+
+            ORDER BY p.created_at DESC`);
+
+        const filteredPayments = payments.map(payment => {
+            return Object.fromEntries(
+                Object.entries(payment).filter(([_, value]) => value !== null)
+            );
+        });
+
+        res.status(200).json({
+            success: true,
+            payments: filteredPayments
+        });
+
+    } catch (error) {
+        console.error("Error fetching payments:", error);
+        res.status(500).json({ success: false, message: "Failed to fetch payments" });
+    }
+});
+
 module.exports = {
     getVendor,
     getAllServiceType,
@@ -636,5 +715,6 @@ module.exports = {
     assignPackageToVendor,
     editPackageByAdmin,
     deletePackageByAdmin,
-    deletePackageByAdmin
+    deletePackageByAdmin,
+    getAllPayments
 };
