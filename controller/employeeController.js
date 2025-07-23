@@ -104,67 +104,117 @@ const assignPackageToEmployee = asyncHandler(async (req, res) => {
     }
 });
 
-
-const assignTask = asyncHandler(async (req, res) => {
-    const { employee_id, task_title, task_description, priority, due_date } = req.body;
-    const assigned_by = req.user.admin_id || req.user.employee_id;
-
-    if (!employee_id || !task_title || !priority) {
-        return res.status(400).json({ message: "Employee ID, task title, and priority are required" });
-    }
-
-    try {
-        await db.query(`
-            INSERT INTO employee_tasks (
-                employee_id, task_title, task_description, priority,
-                due_date, assigned_by, assigned_date, status
-                ) VALUES (?, ?, ?, ?, ?, ?, NOW(), 'pending')
-                `, [employee_id, task_title, task_description, priority, due_date, assigned_by]);
-
-        res.status(201).json({
-            message: "Task assigned successfully"
-        });
-
-    } catch (error) {
-        console.error("Error assigning task:", error);
-        res.status(500).json({ message: "Internal server error", error: error.message });
-    }
-});
-
 const getEmployeesWithPackages = asyncHandler(async (req, res) => {
-    const { company_id } = req.params;
+    const vendor_id = req.user.vendor_id;
 
     try {
+        // ✅ 1. Get Company Info
+        const [companyRows] = await db.query(`
+            SELECT id AS vendor_id, companyName, companyEmail, companyPhone
+            FROM company_details
+            WHERE vendor_id = ?
+        `, [vendor_id]);
+
+        if (companyRows.length === 0) {
+            return res.status(404).json({ error: "Company not found for this vendor" });
+        }
+
+        const company = companyRows[0];
+
+        // ✅ 2. Get Employees by vendor_id
         const [employees] = await db.query(`
-            SELECT * FROM company_employees WHERE company_id = ?
-            `, [company_id]);
+            SELECT
+                employee_id,
+                first_name,
+                last_name,
+                phone,
+                email,
+                is_active,
+                created_at
+            FROM company_employees
+            WHERE vendor_id = ?
+        `, [vendor_id]);
 
         for (const emp of employees) {
+            // ✅ 3. Get assigned packages with full detail
             const [packages] = await db.query(`
-                    SELECT ep.id AS employee_package_id, ep.package_id, p.packageName, p.totalPrice, p.totalTime
-                    FROM employee_packages ep
-                    JOIN packages p ON ep.package_id = p.package_id
-                    WHERE ep.employee_id = ?
-                    `, [emp.employee_id]);
+                SELECT
+                    ep.id AS employee_package_id,
+                    ep.package_id,
+                    p.packageName,
+                    p.description,
+                    p.totalPrice,
+                    p.totalTime,
+                    p.packageMedia,
+                    p.service_type_id,
+                    st.serviceTypeName,
+                    st.service_id,
+                    s.serviceName,
+                    s.service_categories_id,
+                    sc.serviceCategory,
 
+                    -- Ratings
+                    IFNULL((
+                        SELECT ROUND(AVG(r.rating), 1)
+                        FROM ratings r
+                        WHERE r.package_id = p.package_id
+                    ), 0) AS averageRating,
+
+                    IFNULL((
+                        SELECT COUNT(r.rating_id)
+                        FROM ratings r
+                        WHERE r.package_id = p.package_id
+                    ), 0) AS totalReviews
+                FROM employee_packages ep
+                JOIN packages p ON ep.package_id = p.package_id
+                JOIN service_type st ON p.service_type_id = st.service_type_id
+                JOIN services s ON st.service_id = s.service_id
+                JOIN service_categories sc ON s.category_id = sc.category_id
+                WHERE ep.employee_id = ?
+            `, [emp.employee_id]);
+
+            // ✅ 4. Add sub-packages & preferences
             for (const pkg of packages) {
-                const [items] = await db.query(`
-                            SELECT epi.package_item_id, pi.itemName, pi.timeRequired
-                            FROM employee_package_items epi
-                            JOIN package_items pi ON epi.package_item_id = pi.package_item_id
-                            WHERE epi.employee_package_id = ?
-                            `, [pkg.employee_package_id]);
+                // Sub-packages
+                const [subPackages] = await db.query(`
+                    SELECT
+                        pi.item_id AS sub_package_id,
+                        pi.itemName AS title,
+                        pi.description,
+                        pi.price,
+                        pi.timeRequired AS time_required,
+                        pi.itemMedia
+                    FROM employee_package_items epi
+                    JOIN package_items pi ON epi.package_item_id = pi.item_id
+                    WHERE epi.employee_package_id = ?
+                `, [pkg.employee_package_id]);
 
-                pkg.package_items = items;
+                // Preferences
+                const [preferences] = await db.query(`
+                    SELECT
+                        bp.preference_id,
+                        bp.preferenceValue
+                    FROM employee_package_preferences epp
+                    JOIN booking_preferences bp ON epp.preference_id = bp.preference_id
+                    WHERE epp.employee_package_id = ?
+                `, [pkg.employee_package_id]);
+
+                pkg.sub_packages = subPackages;
+                pkg.preferences = preferences;
             }
 
             emp.assigned_packages = packages;
         }
 
-        res.status(200).json({ message: "Employees with packages fetched", employees });
+        // ✅ Final Response
+        res.status(200).json({
+            message: "Employees with detailed package info fetched successfully",
+            company,
+            employees
+        });
 
     } catch (err) {
-        console.error("Error fetching employees with packages:", err);
+        console.error("Error fetching detailed employee packages:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
@@ -187,7 +237,6 @@ const getAllEmployees = asyncHandler(async (req, res) => {
 module.exports = {
     getAllEmployees,
     createEmployee,
-    assignTask,
     getEmployeesWithPackages,
     assignPackageToEmployee
 };

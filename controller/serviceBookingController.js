@@ -556,9 +556,6 @@ const getEligiblevendors = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
 module.exports = {
     bookService,
     getVendorBookings,
