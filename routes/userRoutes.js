@@ -21,10 +21,10 @@ const multiUpload = upload.any();
 router.get("/service", getServiceCategories)
 router.get("/servicesbycategories", getServiceByCategory)
 router.get("/services/:service_id/servicetype", getServiceNames)
+
 router.get("/services/:service_id/allservicetypes", getServiceTypesByServiceId)
 
 router.get("/getallpackges", getServicestypes)
-
 router.get("/getdata", authenticationToken, getUserData)
 
 router.delete("/deletebookings/:booking_id", authenticationToken, deleteBooking)

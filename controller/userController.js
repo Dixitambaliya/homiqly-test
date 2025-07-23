@@ -123,7 +123,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
 });
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
-    const service_id = req.params
+    const service_id = req.params.service_id
 
     if (!service_id) {
         return res.status(400).json({ message: "Service ID is required." });
@@ -141,6 +141,7 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
             WHERE service_id = ?
             ORDER BY service_type_id DESC
         `, [service_id]);
+        console.log(rows);
 
         res.status(200).json({
             message: "Service types fetched successfully",
