@@ -169,7 +169,7 @@ const getEmployeesWithPackages = asyncHandler(async (req, res) => {
                 JOIN packages p ON ep.package_id = p.package_id
                 JOIN service_type st ON p.service_type_id = st.service_type_id
                 JOIN services s ON st.service_id = s.service_id
-                JOIN service_categories sc ON s.category_id = sc.category_id
+                JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
                 WHERE ep.employee_id = ?
             `, [emp.employee_id]);
 
@@ -185,7 +185,7 @@ const getEmployeesWithPackages = asyncHandler(async (req, res) => {
                         pi.timeRequired AS time_required,
                         pi.itemMedia
                     FROM employee_package_items epi
-                    JOIN package_items pi ON epi.package_item_id = pi.item_id
+                    JOIN package_items pi ON epi.item_id = pi.item_id
                     WHERE epi.employee_package_id = ?
                 `, [pkg.employee_package_id]);
 
