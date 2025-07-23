@@ -170,10 +170,39 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
     }
 });
 
+const getBookedPackagesForRating = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+
+    try {
+        const [packages] = await db.query(`
+            SELECT
+                sbp.package_id,
+                p.packageName,
+                p.totalPrice,
+                p.totalTime,
+                st.serviceTypeName,
+                s.serviceName
+            FROM service_booking_packages sbp
+            JOIN service_booking sb ON sb.booking_id = sbp.booking_id
+            JOIN packages p ON sbp.package_id = p.package_id
+            JOIN service_type st ON p.service_type_id = st.service_type_id
+            JOIN services s ON st.service_id = s.service_id
+            WHERE sb.user_id = ?
+            GROUP BY sbp.package_id
+        `, [user_id]);
+
+        res.status(200).json({ bookedPackages: packages });
+    } catch (error) {
+        console.error("Error fetching booked packages:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 module.exports = {
     getVendorRatings,
     getAllRatings,
     addRatingToServiceType,
-    addRatingToPackages
+    addRatingToPackages,
+    getBookedPackagesForRating
 };
