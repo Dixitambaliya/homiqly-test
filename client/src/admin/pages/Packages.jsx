@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "../../shared/components/Button";
-import { FiPlus } from "react-icons/fi";
+import { FiPlus, FiTrash2 } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
@@ -16,7 +16,7 @@ const Packages = () => {
   useEffect(() => {
     const fetchPackages = async () => {
       try {
-        const response = await axios.get("/api/admin/getpackages");
+        const response = await api.get("/api/admin/getpackages");
 
         console.log("Raw API response:", response.data); // 👈 check what you get
 
@@ -44,6 +44,20 @@ const Packages = () => {
 
     fetchPackages();
   }, []);
+
+  const handleDeletePackage = async (packageId) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this package?"
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/api/admin/deletepackage/${packageId}`);
+      fetchPackages(); // refresh after deletion
+    } catch (error) {
+      console.error("Error deleting package:", error);
+    }
+  };
 
   return (
     <div>
@@ -163,7 +177,7 @@ const Packages = () => {
                         )}
 
                         {/* Edit Button */}
-                        <div className="flex justify-end mt-2">
+                        <div className="flex justify-end gap-2 mt-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -173,6 +187,15 @@ const Packages = () => {
                             }}
                           >
                             Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            color="red"
+                            onClick={() => handleDeletePackage(pkg.package_id)}
+                            icon={<FiTrash2 />}
+                          >
+                            Delete
                           </Button>
                         </div>
                       </div>

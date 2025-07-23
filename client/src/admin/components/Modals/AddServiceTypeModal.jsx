@@ -221,7 +221,9 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
       );
 
       console.log("Success:", response.data);
-      toast.success("Service type submitted for approval!");
+      toast.success(
+        response.data.message || "Service type submitted successfully"
+      );
       resetForm();
       onClose();
     } catch (error) {
