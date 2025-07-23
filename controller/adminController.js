@@ -3,6 +3,7 @@ const adminQueries = require("../config/adminQueries");
 const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
+const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const asyncHandler = require("express-async-handler");
 
 const getVendor = asyncHandler(async (req, res) => {
