@@ -48,7 +48,7 @@ const userGetQueries = {
     st.serviceTypeMedia,
     st.created_at
 FROM service_type st
-WHERE st.is_approved = 1
+WHERE st.service_id = ?
 ORDER BY st.service_type_id DESC`,
 
 
