@@ -160,16 +160,10 @@ const getBookings = asyncHandler(async (req, res) => {
                 v.vendor_id,
                 v.vendorType,
 
-                idet.id AS individual_id,
-                idet.name AS individual_name,
-                idet.phone AS individual_phone,
-                idet.email AS individual_email,
-
-                cdet.id AS company_id,
-                cdet.companyName AS company_name,
-                cdet.contactPerson AS company_contact_person,
-                cdet.companyEmail AS company_email,
-                cdet.companyPhone AS company_phone,
+                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+                IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
                 p.status AS payment_status,
                 p.amount AS payment_amount,
@@ -185,6 +179,7 @@ const getBookings = asyncHandler(async (req, res) => {
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `);
 
