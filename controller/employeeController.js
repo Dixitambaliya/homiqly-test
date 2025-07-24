@@ -1,27 +1,31 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const employeeGetQueries = require('../config/employeeQueries/employeeGetQueries');
+const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 
 const createEmployee = asyncHandler(async (req, res) => {
-    const {
-        first_name,
-        last_name,
-        email,
-        phone
-    } = req.body;
-
+    const { first_name, last_name, email, phone } = req.body;
     const vendor_id = req.user.vendor_id;
 
     if (!vendor_id) {
         return res.status(401).json({ message: "Unauthorized: Vendor not identified" });
     }
-    console.log(vendor_id);
 
     if (!first_name || !last_name || !email) {
         return res.status(400).json({ message: "Required fields missing" });
     }
 
     try {
+        // 1️⃣ Generate random password (8 characters - alphanumeric)
+        const plainPassword = crypto.randomBytes(4).toString('hex'); // Example: "a1b2c3d4"
+
+        // 2️⃣ Hash password
+        const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+        // 3️⃣ Insert into DB
         const [result] = await db.query(`
             INSERT INTO company_employees (
                 vendor_id,
@@ -29,18 +33,48 @@ const createEmployee = asyncHandler(async (req, res) => {
                 last_name,
                 email,
                 phone,
+                password,
                 is_active
-            ) VALUES (?, ?, ?, ?, ? , 1)
+            ) VALUES (?, ?, ?, ?, ?, ?, 1)
         `, [
             vendor_id,
             first_name,
             last_name,
             email,
-            phone
+            phone,
+            hashedPassword
         ]);
 
+        // 4️⃣ Send password to employee via email
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        const mailOptions = {
+            from: `"${req.user.name}" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: 'Your Employee Login Credentials',
+            html: `
+                <p>Hi ${first_name},</p>
+                <p>You’ve been added as an employee under our company.</p>
+                <p><strong>Login Credentials:</strong></p>
+                <ul>
+                    <li>Email: ${email}</li>
+                    <li>Password: <b>${plainPassword}</b></li>
+                </ul>
+                <p>Please login and update your password after first login.</p>
+                <p>Thanks,<br/>${req.user.name}</p>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+
         res.status(201).json({
-            message: "Employee created successfully",
+            message: "Employee created and login credentials sent to email",
             employee_id: result.insertId
         });
 
@@ -49,6 +83,58 @@ const createEmployee = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+const employeeLogin = asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    try {
+        const [rows] = await db.query(
+            `SELECT * FROM company_employees WHERE email = ? AND is_active = 1`,
+            [email]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Employee not found or inactive" });
+        }
+
+        const employee = rows[0];
+
+        // ✅ Check if password is valid
+        if (typeof employee.password !== 'string') {
+            console.error("Invalid password type from DB:", employee.password);
+            return res.status(500).json({ message: "Invalid password stored in database" });
+        }
+
+        const isMatch = await bcrypt.compare(password, employee.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        const token = jwt.sign(
+            {
+                employee_id: employee.employee_id,
+                vendor_id: employee.vendor_id,
+                email: employee.email,
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        res.status(200).json({
+            message: "Login successful",
+            token
+        });
+
+    } catch (error) {
+        console.error("Employee login error:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 const assignPackageToEmployee = asyncHandler(async (req, res) => {
     const { employee_id, assignedPackages } = req.body;
@@ -238,5 +324,6 @@ module.exports = {
     getAllEmployees,
     createEmployee,
     getEmployeesWithPackages,
-    assignPackageToEmployee
+    assignPackageToEmployee,
+    employeeLogin
 };
