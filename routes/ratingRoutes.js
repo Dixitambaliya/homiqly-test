@@ -18,7 +18,7 @@ router.get('/vendor', authenticationToken, getVendorRatings);
 // Admin routes
 router.get('/all', authenticationToken, getAllRatings);
 
-router.get('/bookedpackges', authenticationToken, getBookedPackagesForRating);
+router.get('/bookedpackages', authenticationToken, getBookedPackagesForRating);
 
 router.post('/addrating', authenticationToken, addRatingToServiceType);
 
