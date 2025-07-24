@@ -389,9 +389,9 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             [vendor_id]
         );
 
-        const isAvailable = toggleResult[0]?.manual_assignment_enabled === 0;
-        if (!isAvailable) {
-            throw new Error(`Vendor ID ${vendor_id} is currently NOT available to be assigned services (toggle ON).`);
+        const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1; // 1 = enabled
+        if (!isEnabled) {
+            throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
         }
 
         for (const pkg of selectedPackages) {
