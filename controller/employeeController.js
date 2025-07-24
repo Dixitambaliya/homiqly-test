@@ -172,19 +172,6 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Employee not found or not linked to a vendor" });
         }
 
-        // ✅ 3. Check vendor toggle (manual assignment must be ON)
-        const [toggleResult] = await connection.query(
-            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
-            [vendor_id]
-        );
-
-        const isManualAllowed = toggleResult[0]?.manual_assignment_enabled === 1;
-        if (!isManualAllowed) {
-            await connection.rollback();
-            connection.release();
-            return res.status(400).json({ message: "Manual booking assignment is disabled for this vendor" });
-        }
-
         // ✅ 4. Validate that the vendor is allowed to handle this service
         const [vendorTypeRow] = await connection.query(
             `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
@@ -220,7 +207,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
 
         // ✅ 5. Assign booking to employee
         await connection.query(
-            `UPDATE service_booking SET assigned_employee_id = ?, status = 'assigned' WHERE booking_id = ?`,
+            `UPDATE service_booking SET assigned_employee_id = ? WHERE booking_id = ?`,
             [employee_id, booking_id]
         );
 
