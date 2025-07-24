@@ -57,6 +57,11 @@ const DashboardLayout = () => {
       icon: <FiBox className="w-5 h-5" />,
     },
     {
+      path: "/vendor/employees",
+      name: "Employees",
+      icon: <FiUser className="w-5 h-5" />,
+    },
+    {
       path: "/vendor/payments",
       name: "Payments",
       icon: <FiCreditCard className="w-5 h-5" />,

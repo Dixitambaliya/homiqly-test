@@ -28,8 +28,15 @@ const stopLoading = () => {
 
 // Helper: Get the correct token
 const getAuthToken = () => {
-  const adminToken = localStorage.getItem("adminToken");
-  const vendorToken = localStorage.getItem("vendorToken");
+  const pathname = window.location.pathname;
+
+  if (pathname.startsWith("/admin")) {
+    return localStorage.getItem("adminToken");
+  }
+
+  if (pathname.startsWith("/vendor")) {
+    return localStorage.getItem("vendorToken");
+  }
 
   // Priority: admin > vendor
   if (adminToken) return adminToken;

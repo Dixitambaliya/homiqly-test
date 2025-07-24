@@ -11,7 +11,14 @@ export default function ToggleButton() {
   useEffect(() => {
     const fetchInitialToggle = async () => {
       try {
-        const response = await api.get("/api/vendor/getstatus");
+        const response = await api.get("/api/vendor/getstatus", {
+          headers: {
+            Authorization: `Bearer ${
+              localStorage.getItem("vendorToken")
+              // localStorage.getItem("adminToken")
+            }`,
+          },
+        });
         setIsOn(response.data.value === 1);
       } catch (error) {
         console.error("Error fetching toggle status", error);
