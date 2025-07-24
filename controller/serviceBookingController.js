@@ -187,13 +187,15 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 st.serviceTypeName,
                 p.status AS payment_status,
                 p.amount AS payment_amount,
-                p.currency AS payment_currency
+                p.currency AS payment_currency,
+                u.*
             FROM service_booking sb
-            LEFT JOIN services s ON sb.service_id = s.service_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
             LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
             LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            LEFT JOIN users u ON sb.user_id = u.user_id
             WHERE sb.vendor_id = ?
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `, [vendor_id]);
@@ -211,6 +213,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
