@@ -188,7 +188,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 p.status AS payment_status,
                 p.amount AS payment_amount,
                 p.currency AS payment_currency,
-                u.*
+                CONCAT(u.firstName,' ', u.lastName) AS userName,
+                u.profileImage AS userProfileImage,
+                u.email AS userEmail,
+                u.phone AS userPhone,
+                u.address AS userAddress,
+                u.state AS userState,
+                u.postalcode AS userPostalCode
             FROM service_booking sb
              LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
