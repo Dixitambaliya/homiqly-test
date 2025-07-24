@@ -379,22 +379,22 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "vendor_id and selectedPackages[] with sub-packages are required." });
         }
 
-        // ✅ Check if vendor exists and get type
+        // ✅ Check vendor existence and type
         const [vendorExists] = await connection.query(
             `SELECT vendor_id, vendorType FROM vendors WHERE vendor_id = ?`,
             [vendor_id]
         );
         if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
 
-        const vendorType = vendorExists[0].vendorType; // "company" or "individual"
+        const vendorType = vendorExists[0].vendorType;
 
-        // ✅ Check vendor's toggle status
+        // ✅ Check manual toggle status
         const [toggleResult] = await connection.query(
             `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
             [vendor_id]
         );
 
-        const isAvailable = toggleResult[0]?.manual_assignment_enabled === 0; // 0 = AVAILABLE
+        const isAvailable = toggleResult[0]?.manual_assignment_enabled === 0;
         if (!isAvailable) {
             throw new Error(`Vendor ID ${vendor_id} is currently NOT available to be assigned services (toggle ON).`);
         }
@@ -402,22 +402,26 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [], preferences = [] } = pkg;
 
-            if (!package_id || !Array.isArray(sub_packages)) {
-                throw new Error("Each package must include package_id and sub_packages[] array.");
-            }
-
-            // ✅ Get service_id and service_category_id from package
-            const [packageDetails] = await connection.query(
-                `SELECT p.package_id, s.service_id, sc.service_categories_id
-                 FROM packages p
-                 JOIN services s ON p.service_id = s.service_id
-                 JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-                 WHERE p.package_id = ?`,
+            // ✅ Step 1: Get service_type_id from package
+            const [pkgRow] = await connection.query(
+                `SELECT service_type_id FROM packages WHERE package_id = ?`,
                 [package_id]
             );
-            if (packageDetails.length === 0) throw new Error(`Package ID ${package_id} not found or missing service link.`);
+            if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
 
-            const { service_id, service_categories_id } = packageDetails[0];
+            const service_type_id = pkgRow[0].service_type_id;
+
+            // ✅ Step 2: Get service_id and category from service_type
+            const [serviceDetails] = await connection.query(
+                `SELECT s.service_id, s.service_categories_id
+                 FROM service_type st
+                 JOIN services s ON st.service_id = s.service_id
+                 WHERE st.service_type_id = ?`,
+                [service_type_id]
+            );
+            if (serviceDetails.length === 0) throw new Error(`Service Type ID ${service_type_id} not valid.`);
+
+            const { service_id, service_categories_id } = serviceDetails[0];
 
             // ✅ Insert vendor-package
             await connection.query(
@@ -425,7 +429,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                 [vendor_id, package_id]
             );
 
-            // ✅ Insert service and category based on vendor type
+            // ✅ Insert services and categories
             if (vendorType === "company") {
                 await connection.query(
                     `INSERT IGNORE INTO company_services (vendor_id, service_id) VALUES (?, ?)`,
@@ -446,7 +450,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Insert sub-packages (items)
+            // ✅ Insert sub-packages
             for (const item of sub_packages) {
                 const item_id = item.sub_package_id;
 
@@ -500,6 +504,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
