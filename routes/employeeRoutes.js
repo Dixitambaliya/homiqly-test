@@ -3,7 +3,7 @@ const router = express.Router();
 const {
     getAllEmployees,
     createEmployee,
-    assignPackageToEmployee,
+    assignBookingToEmployee,
     getEmployeesWithPackages,
     employeeLogin
 } = require('../controller/employeeController');
@@ -11,7 +11,7 @@ const { authenticationToken } = require('../middleware/authMiddleware');
 
 router.get('/all', authenticationToken, getAllEmployees);
 router.post('/create-employee', authenticationToken, createEmployee);
-router.post('/assign-package', authenticationToken, assignPackageToEmployee);
+router.post('/assign-booking', authenticationToken, assignBookingToEmployee);
 router.post('/login-employee', authenticationToken, employeeLogin);
 router.get('/getemployeepackages', authenticationToken, getEmployeesWithPackages);
 

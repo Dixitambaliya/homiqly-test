@@ -135,58 +135,107 @@ const employeeLogin = asyncHandler(async (req, res) => {
     }
 });
 
+const assignBookingToEmployee = asyncHandler(async (req, res) => {
+    const { booking_id, employee_id } = req.body;
 
-const assignPackageToEmployee = asyncHandler(async (req, res) => {
-    const { employee_id, assignedPackages } = req.body;
-
-    if (!employee_id || !Array.isArray(assignedPackages) || assignedPackages.length === 0) {
-        return res.status(400).json({ message: "employee_id and assignedPackages[] are required" });
+    if (!booking_id || !employee_id) {
+        return res.status(400).json({ message: "booking_id and employee_id are required" });
     }
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        for (const pkg of assignedPackages) {
-            const [packageInsertResult] = await connection.query(
-                `INSERT INTO employee_packages (employee_id, package_id) VALUES (?, ?)`,
-                [employee_id, pkg.package_id]
-            );
+        // ✅ 1. Get booking info (including service_id)
+        const [bookingInfo] = await connection.query(
+            `SELECT service_id FROM service_booking WHERE booking_id = ?`,
+            [booking_id]
+        );
 
-            const employee_package_id = packageInsertResult.insertId;
-
-            // 1. Insert package items
-            if (Array.isArray(pkg.sub_packages)) {
-                for (const item_id of pkg.sub_packages) {
-                    await connection.query(
-                        `INSERT INTO employee_package_items (employee_package_id, item_id) VALUES (?, ?)`,
-                        [employee_package_id, item_id]
-                    );
-                }
-            }
-
-            // 2. Insert preferences
-            if (Array.isArray(pkg.preferences)) {
-                for (const pref of pkg.preferences) {
-                    await connection.query(
-                        `INSERT INTO employee_package_preferences (employee_package_id, preference_id, package_id)
-                         VALUES (?, ?, ?)`,
-                        [employee_package_id, pref.preference_id, pkg.package_id]
-                    );
-                }
-            }
+        const service_id = bookingInfo[0]?.service_id;
+        if (!service_id) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ message: "Service not found for this booking" });
         }
+
+        // ✅ 2. Get employee's vendor_id
+        const [employeeInfo] = await connection.query(
+            `SELECT vendor_id FROM company_employees WHERE employee_id = ?`,
+            [employee_id]
+        );
+
+        const vendor_id = employeeInfo[0]?.vendor_id;
+        if (!vendor_id) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ message: "Employee not found or not linked to a vendor" });
+        }
+
+        // ✅ 3. Check vendor toggle (manual assignment must be ON)
+        const [toggleResult] = await connection.query(
+            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        const isManualAllowed = toggleResult[0]?.manual_assignment_enabled === 1;
+        if (!isManualAllowed) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ message: "Manual booking assignment is disabled for this vendor" });
+        }
+
+        // ✅ 4. Validate that the vendor is allowed to handle this service
+        const [vendorTypeRow] = await connection.query(
+            `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        const vendorType = vendorTypeRow[0]?.vendorType;
+        if (!vendorType) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ message: "Vendor not found for employee" });
+        }
+
+        let serviceCheck = [];
+
+        if (vendorType === 'individual') {
+            [serviceCheck] = await connection.query(
+                `SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?`,
+                [vendor_id, service_id]
+            );
+        } else if (vendorType === 'company') {
+            [serviceCheck] = await connection.query(
+                `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = ?`,
+                [vendor_id, service_id]
+            );
+        }
+
+        if (serviceCheck.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ message: "This employee's vendor is not registered for the requested service" });
+        }
+
+        // ✅ 5. Assign booking to employee
+        await connection.query(
+            `UPDATE service_booking SET assigned_employee_id = ?, status = 'assigned' WHERE booking_id = ?`,
+            [employee_id, booking_id]
+        );
 
         await connection.commit();
         connection.release();
 
-        res.status(200).json({ message: "Packages and preferences assigned to employee successfully" });
+        res.status(200).json({
+            message: `Booking ${booking_id} successfully assigned to employee ${employee_id}`
+        });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Error assigning packages:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+        console.error("Error assigning booking to employee:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
 
@@ -321,9 +370,9 @@ const getAllEmployees = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-    getAllEmployees,
     createEmployee,
+    getAllEmployees,
     getEmployeesWithPackages,
-    assignPackageToEmployee,
+    assignBookingToEmployee,
     employeeLogin
 };

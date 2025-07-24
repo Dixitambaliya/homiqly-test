@@ -379,21 +379,20 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "vendor_id and selectedPackages[] with sub-packages are required." });
         }
 
-        // ✅ Check if vendor exists
+        // ✅ Check if vendor exists and get type
         const [vendorExists] = await connection.query(
-            `SELECT vendor_id FROM vendors WHERE vendor_id = ?`,
+            `SELECT vendor_id, vendorType FROM vendors WHERE vendor_id = ?`,
             [vendor_id]
         );
-        if (vendorExists.length === 0) {
-            throw new Error(`Vendor ID ${vendor_id} does not exist.`);
-        }
+        if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
+
+        const vendorType = vendorExists[0].vendorType; // "company" or "individual"
 
         // ✅ Check vendor's toggle status
         const [toggleResult] = await connection.query(
             `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
             [vendor_id]
         );
-        console.log(toggleResult);
 
         const isAvailable = toggleResult[0]?.manual_assignment_enabled === 0; // 0 = AVAILABLE
         if (!isAvailable) {
@@ -407,20 +406,45 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                 throw new Error("Each package must include package_id and sub_packages[] array.");
             }
 
-            // ✅ Check if package exists
-            const [packageExists] = await connection.query(
-                `SELECT package_id FROM packages WHERE package_id = ?`,
+            // ✅ Get service_id and service_category_id from package
+            const [packageDetails] = await connection.query(
+                `SELECT p.package_id, s.service_id, sc.service_categories_id
+                 FROM packages p
+                 JOIN services s ON p.service_id = s.service_id
+                 JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+                 WHERE p.package_id = ?`,
                 [package_id]
             );
-            if (packageExists.length === 0) {
-                throw new Error(`Package ID ${package_id} does not exist.`);
-            }
+            if (packageDetails.length === 0) throw new Error(`Package ID ${package_id} not found or missing service link.`);
 
-            // ✅ Insert vendor-package link
+            const { service_id, service_categories_id } = packageDetails[0];
+
+            // ✅ Insert vendor-package
             await connection.query(
                 `INSERT IGNORE INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
+
+            // ✅ Insert service and category based on vendor type
+            if (vendorType === "company") {
+                await connection.query(
+                    `INSERT IGNORE INTO company_services (vendor_id, service_id) VALUES (?, ?)`,
+                    [vendor_id, service_id]
+                );
+                await connection.query(
+                    `INSERT IGNORE INTO company_service_categories (vendor_id, service_categories_id) VALUES (?, ?)`,
+                    [vendor_id, service_categories_id]
+                );
+            } else {
+                await connection.query(
+                    `INSERT IGNORE INTO individual_services (vendor_id, service_id) VALUES (?, ?)`,
+                    [vendor_id, service_id]
+                );
+                await connection.query(
+                    `INSERT IGNORE INTO individual_service_categories (vendor_id, service_categories_id) VALUES (?, ?)`,
+                    [vendor_id, service_categories_id]
+                );
+            }
 
             // ✅ Insert sub-packages (items)
             for (const item of sub_packages) {
@@ -465,14 +489,14 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: "Packages, items, and preferences successfully assigned to vendor.",
+            message: "Packages, services, and preferences successfully assigned to vendor.",
             assigned: selectedPackages
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Admin assign error:", err);
+        console.error("Assign error:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
