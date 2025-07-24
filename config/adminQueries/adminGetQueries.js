@@ -1,7 +1,8 @@
 const adminGetQueries = {
 
 
-    vendorDetails: `SELECT
+    vendorDetails: `
+    SELECT
     vendors.vendor_id,
     vendors.vendorType,
     vendors.is_authenticated,
@@ -29,66 +30,49 @@ const adminGetQueries = {
             GROUP_CONCAT(
                 DISTINCT CASE
                     WHEN vendors.vendorType = 'individual' THEN JSON_OBJECT(
-                        'category_id', service_categories.service_categories_id,
-                        'categoryName', service_categories.serviceCategory,
-                        'service_id', services.service_id,
-                        'serviceName', services.serviceName,
-                        'serviceLocation', individual_services.serviceLocation,
-                        'serviceDescription ', individual_services.serviceDescription,
-                        'categoryName', service_categories.serviceCategory
+                        'category_id', sc.service_categories_id,
+                        'categoryName', sc.serviceCategory,
+                        'service_id', s.service_id,
+                        'serviceName', TRIM(s.serviceName),
+                        'serviceLocation', iser.serviceLocation,
+                        'serviceDescription', iser.serviceDescription
                     )
                     WHEN vendors.vendorType = 'company' THEN JSON_OBJECT(
-                        'category_id', service_categories.service_categories_id,
-                        'categoryName', service_categories.serviceCategory,
-                        'service_id', services.service_id,
-                        'serviceName', services.serviceName,
-                        'serviceLocation', company_services.serviceLocation,
-                        'serviceDescription ', company_services.serviceDescription,
-                        'categoryName', service_categories.serviceCategory
+                        'category_id', sc.service_categories_id,
+                        'categoryName', sc.serviceCategory,
+                        'service_id', s.service_id,
+                        'serviceName', TRIM(s.serviceName),
+                        'serviceLocation', cser.serviceLocation,
+                        'serviceDescription', cser.serviceDescription
                     )
                 END
-                ORDER BY
-                COALESCE(individual_services.service_id, company_services.service_id)
+                ORDER BY COALESCE(iser.service_id, cser.service_id)
             ),
             ']'
         ),
         '[]'
     ) AS services
 
-FROM vendors
+        FROM vendors
 
-LEFT JOIN individual_details
-    ON vendors.vendor_id = individual_details.vendor_id
+        -- Join vendor details
+        LEFT JOIN individual_details AS idet ON vendors.vendor_id = idet.vendor_id
+        LEFT JOIN company_details AS cdet ON vendors.vendor_id = cdet.vendor_id
 
-LEFT JOIN company_details
-    ON vendors.vendor_id = company_details.vendor_id
+        -- Join services
+        LEFT JOIN individual_services AS iser ON vendors.vendor_id = iser.vendor_id
+        LEFT JOIN company_services AS cser ON vendors.vendor_id = cser.vendor_id
 
-LEFT JOIN individual_services
-    ON vendors.vendor_id = individual_services.vendor_id
+        -- Join services table
+        LEFT JOIN services AS s ON s.service_id = COALESCE(iser.service_id, cser.service_id)
 
-LEFT JOIN company_services
-    ON vendors.vendor_id = company_services.vendor_id
+        -- ✅ Correct category join using services table
+        LEFT JOIN service_categories AS sc ON sc.service_categories_id = s.service_categories_id
 
-LEFT JOIN services
-    ON services.service_id = COALESCE(individual_services.service_id, company_services.service_id)
+        -- Vendor settings
+        LEFT JOIN vendor_settings ON vendors.vendor_id = vendor_settings.vendor_id
 
-LEFT JOIN individual_service_categories
-    ON vendors.vendor_id = individual_service_categories.vendor_id
-
-LEFT JOIN company_service_categories
-    ON vendors.vendor_id = company_service_categories.vendor_id
-
-LEFT JOIN service_categories
-    ON service_categories.service_categories_id =
-    COALESCE (
-        individual_service_categories.service_categories_id,
-        company_service_categories.service_categories_id
-    )
-
- LEFT JOIN vendor_settings
-    ON vendors.vendor_id = vendor_settings.vendor_id
-
-GROUP BY vendors.vendor_id`,
+        GROUP BY vendors.vendor_id`,
 
 
     getAllServiceTypes: `
