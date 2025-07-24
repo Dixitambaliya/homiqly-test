@@ -2,19 +2,21 @@ const adminGetQueries = {
 
 
     vendorDetails: `
-    SELECT
+SELECT
     vendors.vendor_id,
     vendors.vendorType,
     vendors.is_authenticated,
 
-    individual_details.id AS individual_id,
+    -- Individual Vendor Details
+    individual_details.vendor_id AS individual_id,
     individual_details.name AS individual_name,
     individual_details.email AS individual_email,
     individual_details.phone AS individual_phone,
     individual_details.otherInfo AS individual_otherInfo,
     individual_details.resume AS individual_resume,
 
-    company_details.id AS company_id,
+    -- Company Vendor Details
+    company_details.vendor_id AS company_id,
     company_details.companyName AS company_companyName,
     company_details.googleBusinessProfileLink AS company_googleBusinessProfileLink,
     company_details.companyEmail AS company_companyEmail,
@@ -22,8 +24,10 @@ const adminGetQueries = {
     company_details.companyAddress AS company_companyAddress,
     company_details.contactPerson AS company_contactPerson,
 
+    -- Vendor settings
     vendor_settings.manual_assignment_enabled AS status,
 
+    -- Services JSON Array
     COALESCE(
         CONCAT(
             '[',
@@ -53,26 +57,36 @@ const adminGetQueries = {
         '[]'
     ) AS services
 
-        FROM vendors
+FROM vendors
 
-        -- Join vendor details
-        LEFT JOIN individual_details AS idet ON vendors.vendor_id = idet.vendor_id
-        LEFT JOIN company_details AS cdet ON vendors.vendor_id = cdet.vendor_id
+-- Join individual and company profile data
+LEFT JOIN individual_details AS individual_details
+    ON vendors.vendor_id = individual_details.vendor_id
 
-        -- Join services
-        LEFT JOIN individual_services AS iser ON vendors.vendor_id = iser.vendor_id
-        LEFT JOIN company_services AS cser ON vendors.vendor_id = cser.vendor_id
+LEFT JOIN company_details AS company_details
+    ON vendors.vendor_id = company_details.vendor_id
 
-        -- Join services table
-        LEFT JOIN services AS s ON s.service_id = COALESCE(iser.service_id, cser.service_id)
+-- Join individual and company services
+LEFT JOIN individual_services AS iser
+    ON vendors.vendor_id = iser.vendor_id
 
-        -- ✅ Correct category join using services table
-        LEFT JOIN service_categories AS sc ON sc.service_categories_id = s.service_categories_id
+LEFT JOIN company_services AS cser
+    ON vendors.vendor_id = cser.vendor_id
 
-        -- Vendor settings
-        LEFT JOIN vendor_settings ON vendors.vendor_id = vendor_settings.vendor_id
+-- Join the actual services table
+LEFT JOIN services AS s
+    ON s.service_id = COALESCE(iser.service_id, cser.service_id)
 
-        GROUP BY vendors.vendor_id`,
+-- ✅ Correct category join via services
+LEFT JOIN service_categories AS sc
+    ON sc.service_categories_id = s.service_categories_id
+
+-- Vendor settings
+LEFT JOIN vendor_settings
+    ON vendors.vendor_id = vendor_settings.vendor_id
+
+GROUP BY vendors.vendor_id;
+`,
 
 
     getAllServiceTypes: `
