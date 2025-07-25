@@ -172,7 +172,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Employee not found or not linked to a vendor" });
         }
 
-        // ✅ 4. Validate that the vendor is allowed to handle this service
+        // ✅ 3. Check vendor type and confirm service access
         const [vendorTypeRow] = await connection.query(
             `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
             [vendor_id]
@@ -186,7 +186,6 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         }
 
         let serviceCheck = [];
-
         if (vendorType === 'individual') {
             [serviceCheck] = await connection.query(
                 `SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?`,
@@ -205,17 +204,17 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "This employee's vendor is not registered for the requested service" });
         }
 
-        // ✅ 5. Assign booking to employee
+        // ✅ 4. Assign booking to employee and vendor
         await connection.query(
-            `UPDATE service_booking SET assigned_employee_id = ? WHERE booking_id = ?`,
-            [employee_id, booking_id]
+            `UPDATE service_booking SET assigned_employee_id = ?, assigned_vendor_id = ? WHERE booking_id = ?`,
+            [employee_id, vendor_id, booking_id]
         );
 
         await connection.commit();
         connection.release();
 
         res.status(200).json({
-            message: `Booking ${booking_id} successfully assigned to employee ${employee_id}`
+            message: `Booking ${booking_id} successfully assigned to employee ${employee_id} and vendor ${vendor_id}`
         });
 
     } catch (err) {
