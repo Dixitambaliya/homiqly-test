@@ -468,6 +468,28 @@ const deleteEmployee = asyncHandler(async (req, res) => {
     }
 });
 
+const getEmployeeStatus = asyncHandler(async (req, res) => {
+    const { employee_id } = req.params;
+
+    if (!employee_id) {
+        return res.status(400).json({ message: "employee_id is required in params" });
+    }
+
+    const [rows] = await db.query(
+        "SELECT employee_id, is_active FROM company_employees WHERE employee_id = ?",
+        [employee_id]
+    );
+
+    if (rows.length === 0) {
+        return res.status(404).json({ message: "Employee not found" });
+    }
+
+    res.status(200).json({
+        employee_id: rows[0].employee_id,
+        is_active: rows[0].is_active
+    });
+});
+
 
 module.exports = {
     createEmployee,
@@ -477,5 +499,6 @@ module.exports = {
     employeeLogin,
     getEmployeesByVendor,
     toggleEmployeeStatus,
-    deleteEmployee
+    deleteEmployee,
+    getEmployeeStatus
 };
