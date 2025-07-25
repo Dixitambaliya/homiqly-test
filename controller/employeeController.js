@@ -522,6 +522,64 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `, [employee_id]);
 
+        // Loop over bookings to attach package data
+        for (const booking of bookings) {
+            const bookingId = booking.booking_id;
+
+            // 🔹 Fetch Packages
+            const [bookingPackages] = await db.query(`
+                SELECT
+                    p.package_id,
+                    p.packageName,
+                    p.totalPrice,
+                    p.totalTime,
+                    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?
+            `, [bookingId]);
+
+            // 🔹 Fetch Package Items
+            const [packageItems] = await db.query(`
+                SELECT
+                    sbsp.sub_package_id AS item_id,
+                    pi.itemName,
+                    sbsp.price,
+                    sbsp.quantity,
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?
+            `, [bookingId]);
+
+            // 🔹 Group items by package
+            const groupedPackages = bookingPackages.map(pkg => {
+                const items = packageItems.filter(item => item.package_id === pkg.package_id);
+                return { ...pkg, items };
+            });
+
+            // 🔹 Fetch Preferences
+            const [bookingPreferences] = await db.query(`
+                SELECT
+                    sp.preference_id,
+                    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?
+            `, [bookingId]);
+
+            booking.packages = groupedPackages;
+            booking.package_items = packageItems;
+            booking.preferences = bookingPreferences;
+
+            // 🔹 Clean nulls
+            Object.keys(booking).forEach(key => {
+                if (booking[key] === null) delete booking[key];
+            });
+        }
+
         res.status(200).json({
             message: "Employee bookings fetched successfully",
             bookings
@@ -535,6 +593,7 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 
 module.exports = {
