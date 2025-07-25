@@ -143,7 +143,8 @@ const employeeLogin = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "Login successful",
-            token
+            token,
+            employee_id:employee.employee_id
         });
 
     } catch (error) {
