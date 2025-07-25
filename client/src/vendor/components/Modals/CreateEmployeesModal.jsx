@@ -3,8 +3,9 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { Button } from "../../../shared/components/Button";
 import { FormInput } from "../../../shared/components/Form";
+import Loader from "../../../shared/components/LoadingSpinner";
 
-const CreateEmployeesModal = ({ isOpen, onClose }) => {
+const CreateEmployeesModal = ({ isOpen, onClose, onEmployeeCreated }) => {
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -23,6 +24,7 @@ const CreateEmployeesModal = ({ isOpen, onClose }) => {
     try {
       await axios.post("/api/employee/create-employee", form);
       toast.success("Employee created successfully!");
+      onEmployeeCreated();
       onClose();
       setForm({
         first_name: "",
@@ -39,6 +41,10 @@ const CreateEmployeesModal = ({ isOpen, onClose }) => {
   };
 
   if (!isOpen) return null;
+
+  if (loading) {
+    <Loader />;
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
@@ -79,14 +85,14 @@ const CreateEmployeesModal = ({ isOpen, onClose }) => {
               type="button"
               variant="secondary"
               onClick={onClose}
-            //   className="px-4 py-2 bg-gray-300 rounded"
+              //   className="px-4 py-2 bg-gray-300 rounded"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={loading}
-            //   className="px-4 py-2 bg-blue-600 text-white rounded"
+              //   className="px-4 py-2 bg-blue-600 text-white rounded"
             >
               {loading ? "Creating..." : "Create"}
             </Button>

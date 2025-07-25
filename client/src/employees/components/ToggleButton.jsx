@@ -11,15 +11,15 @@ export default function ToggleButton() {
   useEffect(() => {
     const fetchInitialToggle = async () => {
       try {
-        const response = await api.get("/api/vendor/getstatus", {
+        const response = await api.get("/api/employee/getstatus", {
           headers: {
             Authorization: `Bearer ${
-              localStorage.getItem("vendorToken")
+              localStorage.getItem("employeesToken")
               // localStorage.getItem("adminToken")
             }`,
           },
         });
-        setIsOn(response.data.value === 1);
+        setIsOn(response.data.is_active === 1);
       } catch (error) {
         console.error("Error fetching toggle status", error);
       } finally {
@@ -36,7 +36,7 @@ export default function ToggleButton() {
     const newValue = isOn ? 0 : 1;
 
     try {
-      await api.put("/api/vendor/togglechange", { value: newValue });
+      await api.put("/api/employee/togglechange", { is_active: newValue });
       setIsOn(!isOn);
     } catch (error) {
       console.error("Error toggling value", error);
@@ -48,7 +48,7 @@ export default function ToggleButton() {
   return (
     <div className="flex items-center space-x-4">
       <span className="text-gray-700 font-medium">
-         Service Access: {loading ? "Loading..." : isOn ? "ON" : "OFF"}
+        Service Toggle : {loading ? "Loading..." : isOn ? "ON" : "OFF"}
       </span>
 
       <button
