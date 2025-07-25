@@ -341,6 +341,38 @@ const getEmployeesWithPackages = asyncHandler(async (req, res) => {
     }
 });
 
+const getEmployeesByVendor = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(401).json({ message: "Unauthorized: Vendor not identified" });
+    }
+
+    try {
+        const [employees] = await db.query(`
+            SELECT
+                employee_id,
+                first_name,
+                last_name,
+                email,
+                phone,
+                is_active,
+                created_at
+            FROM company_employees
+            WHERE vendor_id = ?
+        `, [vendor_id]);
+
+        res.status(200).json({
+            employees
+        });
+
+    } catch (error) {
+        console.error("Error fetching employees:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+
 const getAllEmployees = asyncHandler(async (req, res) => {
     try {
         const [employees] = await db.query(employeeGetQueries.getAllEmployees);
@@ -361,5 +393,6 @@ module.exports = {
     getAllEmployees,
     getEmployeesWithPackages,
     assignBookingToEmployee,
-    employeeLogin
+    employeeLogin,
+    getEmployeesByVendor
 };

@@ -5,7 +5,8 @@ const {
     createEmployee,
     assignBookingToEmployee,
     getEmployeesWithPackages,
-    employeeLogin
+    employeeLogin,
+    getEmployeesByVendor
 } = require('../controller/employeeController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 
@@ -14,5 +15,7 @@ router.post('/create-employee', authenticationToken, createEmployee);
 router.post('/assign-booking', authenticationToken, assignBookingToEmployee);
 router.post('/login', employeeLogin);
 router.get('/getemployeepackages', authenticationToken, getEmployeesWithPackages);
+
+router.get('/getemployee', authenticationToken, getEmployeesByVendor);
 
 module.exports = router;
