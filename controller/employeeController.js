@@ -21,7 +21,7 @@ const createEmployee = asyncHandler(async (req, res) => {
     try {
         // 🔐 1️⃣ Check if vendor is of type 'company'
         const [vendorRows] = await db.query(
-            "SELECT vendor_type, name FROM vendors WHERE vendor_id = ?",
+            "SELECT vendorType FROM vendors WHERE vendor_id = ?",
             [vendor_id]
         );
 
