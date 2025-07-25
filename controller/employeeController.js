@@ -206,7 +206,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
 
         // ✅ 4. Assign booking to employee and vendor
         await connection.query(
-            `UPDATE service_booking SET assigned_employee_id = ?, assigned_vendor_id = ? WHERE booking_id = ?`,
+            `UPDATE service_booking SET assigned_employee_id = ?, vendor_id = ? WHERE booking_id = ?`,
             [employee_id, vendor_id, booking_id]
         );
 
@@ -287,10 +287,10 @@ const getEmployeesWithPackages = asyncHandler(async (req, res) => {
                         WHERE r.package_id = p.package_id
                     ), 0) AS totalReviews
                 FROM employee_packages ep
-                JOIN packages p ON ep.package_id = p.package_id
-                JOIN service_type st ON p.service_type_id = st.service_type_id
-                JOIN services s ON st.service_id = s.service_id
-                JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+                LEFT JOIN packages p ON ep.package_id = p.package_id
+                LEFT JOIN service_type st ON p.service_type_id = st.service_type_id
+                LEFT JOIN services s ON st.service_id = s.service_id
+                LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
                 WHERE ep.employee_id = ?
             `, [emp.employee_id]);
 
