@@ -659,6 +659,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
                 p.amount,
                 p.currency,
                 p.created_at,
+                p.status,
 
                 -- User Info
                 u.user_id,
