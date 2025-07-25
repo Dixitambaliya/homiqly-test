@@ -19,13 +19,29 @@ const createEmployee = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 1️⃣ Generate random password (8 characters - alphanumeric)
-        const plainPassword = crypto.randomBytes(4).toString('hex'); // Example: "a1b2c3d4"
+        // 🔐 1️⃣ Check if vendor is of type 'company'
+        const [vendorRows] = await db.query(
+            "SELECT vendor_type, name FROM vendors WHERE vendor_id = ?",
+            [vendor_id]
+        );
 
-        // 2️⃣ Hash password
+        if (vendorRows.length === 0) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
+
+        const vendor = vendorRows[0];
+
+        if (vendor.vendor_type !== 'company') {
+            return res.status(403).json({ message: "Only company vendors can create employees" });
+        }
+
+        // 🔑 2️⃣ Generate random password
+        const plainPassword = crypto.randomBytes(4).toString('hex');
+
+        // 🔒 3️⃣ Hash password
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-        // 3️⃣ Insert into DB
+        // 📦 4️⃣ Insert into employee table
         const [result] = await db.query(`
             INSERT INTO company_employees (
                 vendor_id,
@@ -45,7 +61,7 @@ const createEmployee = asyncHandler(async (req, res) => {
             hashedPassword
         ]);
 
-        // 4️⃣ Send password to employee via email
+        // 📧 5️⃣ Send password via email
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
@@ -55,7 +71,7 @@ const createEmployee = asyncHandler(async (req, res) => {
         });
 
         const mailOptions = {
-            from: `"${req.user.name}" <${process.env.EMAIL_USER}>`,
+            from: `"${vendor.name}" <${process.env.EMAIL_USER}>`,
             to: email,
             subject: 'Your Employee Login Credentials',
             html: `
@@ -67,7 +83,7 @@ const createEmployee = asyncHandler(async (req, res) => {
                     <li>Password: <b>${plainPassword}</b></li>
                 </ul>
                 <p>Please login and update your password after first login.</p>
-                <p>Thanks,<br/>${req.user.name}</p>
+                <p>Thanks,<br/>${vendor.name}</p>
             `
         };
 
@@ -83,6 +99,7 @@ const createEmployee = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const employeeLogin = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
