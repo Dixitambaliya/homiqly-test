@@ -101,7 +101,6 @@ const createEmployee = asyncHandler(async (req, res) => {
     }
 });
 
-
 const employeeLogin = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
@@ -390,8 +389,10 @@ const getEmployeesByVendor = asyncHandler(async (req, res) => {
 });
 
 const getAllEmployees = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
     try {
-        const [employees] = await db.query(employeeGetQueries.getAllEmployees);
+        const [employees] = await db.query(employeeGetQueries.getAllEmployees, [vendor_id]);
 
         res.status(200).json({
             message: "Employees fetched successfully",
@@ -467,7 +468,6 @@ const toggleEmployeeStatus = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getEmployeeStatus = asyncHandler(async (req, res) => {
     const { employee_id } = req.params;
 
@@ -490,6 +490,50 @@ const getEmployeeStatus = asyncHandler(async (req, res) => {
     });
 });
 
+const getEmployeeBookings = asyncHandler(async (req, res) => {
+    const employee_id = req.user.employee_id;
+
+    try {
+        const [bookings] = await db.query(`
+            SELECT
+                sb.*,
+                s.serviceName,
+                sc.serviceCategory,
+                st.serviceTypeName,
+                p.status AS payment_status,
+                p.amount AS payment_amount,
+                p.currency AS payment_currency,
+                CONCAT(u.firstName,' ', u.lastName) AS userName,
+                u.profileImage AS userProfileImage,
+                u.email AS userEmail,
+                u.phone AS userPhone,
+                u.address AS userAddress,
+                u.state AS userState,
+                u.postalcode AS userPostalCode
+            FROM service_booking sb
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            WHERE sb.assigned_employee_id = ?
+            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+        `, [employee_id]);
+
+        res.status(200).json({
+            message: "Employee bookings fetched successfully",
+            bookings
+        });
+
+    } catch (error) {
+        console.error("Error fetching employee bookings:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
 
 
 module.exports = {
@@ -501,5 +545,6 @@ module.exports = {
     getEmployeesByVendor,
     toggleEmployeeStatus,
     deleteEmployee,
-    getEmployeeStatus
+    getEmployeeStatus,
+    getEmployeeBookings
 };

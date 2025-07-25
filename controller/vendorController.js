@@ -809,7 +809,6 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id || req.query.vendor_id;
 

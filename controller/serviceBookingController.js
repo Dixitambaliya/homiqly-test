@@ -419,7 +419,7 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
         );
 
         if (toggleResult.length === 0) {
-            return res.status(404).json({ message: `Vendor ID ${vendor_id} not found.` });
+            return res.status(404).json({ message: `Vendor ID ${vendor_id} Toggle off` });
         }
 
         const isAvailable = toggleResult[0].manual_assignment_enabled === 1;
