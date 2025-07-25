@@ -12,7 +12,7 @@ const { authenticationToken } = require('../middleware/authMiddleware');
 router.get('/all', authenticationToken, getAllEmployees);
 router.post('/create-employee', authenticationToken, createEmployee);
 router.post('/assign-booking', authenticationToken, assignBookingToEmployee);
-router.post('/login-employee', employeeLogin);
+router.post('/login', employeeLogin);
 router.get('/getemployeepackages', authenticationToken, getEmployeesWithPackages);
 
 module.exports = router;
