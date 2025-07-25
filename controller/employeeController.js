@@ -24,6 +24,7 @@ const createEmployee = asyncHandler(async (req, res) => {
             "SELECT vendorType FROM vendors WHERE vendor_id = ?",
             [vendor_id]
         );
+        console.log(vendorRows);
 
         if (vendorRows.length === 0) {
             return res.status(404).json({ message: "Vendor not found" });
@@ -31,7 +32,7 @@ const createEmployee = asyncHandler(async (req, res) => {
 
         const vendor = vendorRows[0];
 
-        if (vendor.vendor_type !== 'company') {
+        if (vendor.vendorType !== 'company') {
             return res.status(403).json({ message: "Only company vendors can create employees" });
         }
 
@@ -430,6 +431,43 @@ const toggleEmployeeStatus = asyncHandler(async (req, res) => {
     });
 });
 
+const deleteEmployee = asyncHandler(async (req, res) => {
+    const { employee_id } = req.body;
+    const vendor_id = req.user.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(401).json({ message: "Unauthorized: Vendor not identified" });
+    }
+
+    if (!employee_id) {
+        return res.status(400).json({ message: "employee_id is required" });
+    }
+
+    try {
+        // 1️⃣ Check if the employee exists and belongs to the vendor
+        const [rows] = await db.query(
+            `SELECT * FROM company_employees WHERE employee_id = ? AND vendor_id = ?`,
+            [employee_id, vendor_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Employee not found or unauthorized" });
+        }
+
+        // 2️⃣ Delete the employee
+        await db.query(
+            `DELETE FROM company_employees WHERE employee_id = ? AND vendor_id = ?`,
+            [employee_id, vendor_id]
+        );
+
+        res.status(200).json({ message: "Employee deleted successfully" });
+
+    } catch (error) {
+        console.error("Error deleting employee:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 module.exports = {
     createEmployee,
@@ -438,5 +476,6 @@ module.exports = {
     assignBookingToEmployee,
     employeeLogin,
     getEmployeesByVendor,
-    toggleEmployeeStatus
+    toggleEmployeeStatus,
+    deleteEmployee
 };
