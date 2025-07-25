@@ -144,7 +144,7 @@ const employeeLogin = asyncHandler(async (req, res) => {
         res.status(200).json({
             message: "Login successful",
             token,
-            employee_id:employee.employee_id
+            employee_id: employee.employee_id
         });
 
     } catch (error) {
@@ -445,13 +445,13 @@ const deleteEmployee = asyncHandler(async (req, res) => {
 
 const toggleEmployeeStatus = asyncHandler(async (req, res) => {
     const employee_id = req.user.employee_id;
-    const { status } = req.body;
+    const { is_active } = req.body;
 
-    if (employee_id === undefined || status === undefined) {
+    if (employee_id === undefined || is_active === undefined) {
         return res.status(400).json({ message: "employee_id and status are required" });
     }
 
-    if (status !== 0 && status !== 1) {
+    if (is_active !== 0 && is_active !== 1) {
         return res.status(400).json({ message: "Invalid status. Use 1 for 'on' or 0 for 'off'" });
     }
 
@@ -461,19 +461,19 @@ const toggleEmployeeStatus = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Employee not found" });
     }
 
-    await db.query("UPDATE company_employees SET is_active = ? WHERE employee_id = ?", [status, employee_id]);
+    await db.query("UPDATE company_employees SET is_active = ? WHERE employee_id = ?", [is_active, employee_id]);
 
     res.status(200).json({
         employee_id,
-        is_active: status
+        is_active
     });
 });
 
 const getEmployeeStatus = asyncHandler(async (req, res) => {
-    const { employee_id } = req.params;
+    const employee_id = req.user.employee_id;
 
     if (!employee_id) {
-        return res.status(400).json({ message: "employee_id is required in params" });
+        return res.status(400).json({ message: "employee_id is required" });
     }
 
     const [rows] = await db.query(
