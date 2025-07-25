@@ -372,7 +372,6 @@ const getEmployeesByVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllEmployees = asyncHandler(async (req, res) => {
     try {
         const [employees] = await db.query(employeeGetQueries.getAllEmployees);
@@ -388,11 +387,40 @@ const getAllEmployees = asyncHandler(async (req, res) => {
     }
 });
 
+const toggleEmployeeStatus = asyncHandler(async (req, res) => {
+
+    const employee_id = req.user.employee_id
+    const { status } = req.body;
+
+    if (employee_id === undefined || status === undefined) {
+        return res.status(400).json({ message: "employee_id and status are required" });
+    }
+
+    if (status !== 0 && status !== 1) {
+        return res.status(400).json({ message: "Invalid status. Use 1 for 'on' or 0 for 'off'" });
+    }
+
+    const [rows] = await db.query("SELECT * FROM company_employees WHERE employee_id = ?", [employee_id]);
+
+    if (rows.length === 0) {
+        return res.status(404).json({ message: "Employee not found" });
+    }
+
+    await db.query("UPDATE company_employees SET is_active = ? WHERE employee_id = ?", [status, employee_id]);
+
+    res.status(200).json({
+        message: `Employee status updated to ${status === 1 ? "on" : "off"}`,
+        employee_id
+    });
+});
+
+
 module.exports = {
     createEmployee,
     getAllEmployees,
     getEmployeesWithPackages,
     assignBookingToEmployee,
     employeeLogin,
-    getEmployeesByVendor
+    getEmployeesByVendor,
+    toggleEmployeeStatus
 };
