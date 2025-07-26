@@ -52,9 +52,6 @@ app.use("/api/notification", notificationRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api/rating", ratingRoutes)
 
-// Serve static files for admin and vendor panels (legacy)
-app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
-app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));
@@ -65,10 +62,6 @@ app.get("/api/health", (req, res) => {
         status: "OK", 
         message: "Homiqly Backend is running",
         timestamp: new Date().toISOString(),
-        panels: {
-            admin: `http://localhost:${PORT}/admin`,
-            vendor: `http://localhost:${PORT}/vendor`
-        }
     });
 });
 
@@ -118,8 +111,6 @@ app.listen(PORT, async () => {
     console.log(`🚀 Homiqly Backend Server starting on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
     console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
-    console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin`);
-    console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor`);
     
     // Test database connection
     const isConnected = await testConnection();
