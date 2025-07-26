@@ -62,10 +62,6 @@ app.get("/api/health", (req, res) => {
         status: "OK", 
         message: "Homiqly Backend is running",
         timestamp: new Date().toISOString(),
-        panels: {
-            admin: `http://localhost:${PORT}/admin`,
-            vendor: `http://localhost:${PORT}/vendor`
-        }
     });
 });
 
