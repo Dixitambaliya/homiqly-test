@@ -2,54 +2,66 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const ratingGetQueries = require('../config/ratingQueries/ratingGetQueries');
 
-// const addRating = asyncHandler(async (req, res) => {
-//     const user_id = req.user.user_id;
-//     const { booking_id, vendor_id, rating, review } = req.body;
+const addVendorServiceRating = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const vendor_type = req.user.vendor_type; // "individual" or "company"
+    const { service_id, rating, review } = req.body;
 
-//     if (!booking_id || !vendor_id || !rating) {
-//         return res.status(400).json({ message: "Booking ID, vendor ID, and rating are required" });
-//     }
+    if (!service_id || !rating) {
+        return res.status(400).json({ message: "Service ID and rating are required" });
+    }
 
-//     if (rating < 1 || rating > 5) {
-//         return res.status(400).json({ message: "Rating must be between 1 and 5" });
-//     }
+    if (rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
 
-//     try {
-//         // Check if user has already rated this booking
-//         const [existingRating] = await db.query(`
-//             SELECT rating_id FROM ratings
-//             WHERE booking_id = ? AND user_id = ?
-//         `, [booking_id, user_id]);
+    try {
+        // ✅ Ensure the service is assigned to this vendor
+        let serviceCheckQuery = "";
+        if (vendor_type === "individual") {
+            serviceCheckQuery = `
+                SELECT 1 FROM individual_services
+                WHERE vendor_id = ? AND service_id = ?
+            `;
+        } else if (vendor_type === "company") {
+            serviceCheckQuery = `
+                SELECT 1 FROM company_services
+                WHERE vendor_id = ? AND service_id = ?
+            `;
+        } else {
+            return res.status(400).json({ message: "Invalid vendor type" });
+        }
 
-//         if (existingRating.length > 0) {
-//             return res.status(400).json({ message: "You have already rated this service" });
-//         }
+        const [isAssigned] = await db.query(serviceCheckQuery, [vendor_id, service_id]);
 
-//         // Verify booking belongs to user and is completed
-//         const [booking] = await db.query(`
-//             SELECT booking_id FROM service_booking
-//             WHERE booking_id = ? AND user_id = ? AND bookingStatus = 1
-//         `, [booking_id, user_id]);
+        if (isAssigned.length === 0) {
+            return res.status(403).json({ message: "You are not assigned to this service" });
+        }
 
-//         if (booking.length === 0) {
-//             return res.status(400).json({ message: "Invalid booking or service not completed" });
-//         }
+        // ✅ Prevent duplicate ratings
+        const [existingRating] = await db.query(`
+            SELECT rating_id FROM vendor_service_ratings
+            WHERE vendor_id = ? AND service_id = ?
+        `, [vendor_id, service_id]);
 
-//         // Add rating
-//         await db.query(`
-//             INSERT INTO ratings (booking_id, user_id, vendor_id, rating, review, created_at)
-//             VALUES (?, ?, ?, ?, ?, NOW())
-//         `, [booking_id, user_id, vendor_id, rating, review]);
+        if (existingRating.length > 0) {
+            return res.status(400).json({ message: "You have already rated this service" });
+        }
 
-//         res.status(201).json({
-//             message: "Rating added successfully"
-//         });
+        // ✅ Submit the new rating
+        await db.query(`
+            INSERT INTO vendor_service_ratings (vendor_id, service_id, rating, review, created_at)
+            VALUES (?, ?, ?, ?, NOW())
+        `, [vendor_id, service_id, rating, review]);
 
-//     } catch (error) {
-//         console.error("Error adding rating:", error);
-//         res.status(500).json({ message: "Internal server error", error: error.message });
-//     }
-// });
+        res.status(201).json({ message: "Rating submitted successfully" });
+
+    } catch (error) {
+        console.error("Error submitting rating:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 const getVendorRatings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -198,11 +210,48 @@ const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     }
 });
 
+const getVendorServicesForReview = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const vendor_type = req.user.vendor_type; // "individual" or "company"
+
+    try {
+        let serviceQuery = "";
+
+        if (vendor_type === "individual") {
+            serviceQuery = `
+                SELECT s.service_id, s.serviceName, s.serviceImage
+                FROM individual_services vs
+                JOIN services s ON vs.service_id = s.service_id
+                WHERE vs.vendor_id = ?
+            `;
+        } else if (vendor_type === "company") {
+            serviceQuery = `
+                SELECT s.service_id, s.serviceName, s.serviceImage
+                FROM company_services vs
+                JOIN services s ON vs.service_id = s.service_id
+                WHERE vs.vendor_id = ?
+            `;
+        } else {
+            return res.status(400).json({ message: "Invalid vendor type" });
+        }
+
+        const [services] = await db.query(serviceQuery, [vendor_id]);
+
+        res.status(200).json({ services });
+
+    } catch (error) {
+        console.error("Error fetching vendor services:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 module.exports = {
     getVendorRatings,
+    addVendorServiceRating,
     getAllRatings,
     addRatingToServiceType,
     addRatingToPackages,
-    getBookedPackagesForRating
+    getBookedPackagesForRating,
+    getVendorServicesForReview
 };
