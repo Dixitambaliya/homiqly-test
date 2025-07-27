@@ -38,9 +38,14 @@ const getAuthToken = () => {
     return localStorage.getItem("vendorToken");
   }
 
+  if (pathname.startsWith("/employees")) {
+    return localStorage.getItem("employeesToken");
+  }
+
   // Priority: admin > vendor
   if (adminToken) return adminToken;
   if (vendorToken) return vendorToken;
+  if (employeesToken) return employeesToken;
 
   return null;
 };

@@ -12,9 +12,6 @@ const BookingsTable = ({
   onApproveBooking,
   onRejectBooking,
   filteredStatus,
-  employees = [],
-  onSelectEmployee,
-  onAssignEmployee,
 }) => {
   const columns = [
     {
@@ -43,43 +40,6 @@ const BookingsTable = ({
       ),
     },
     {
-      title: "Assign Employee",
-      key: "employeeName",
-      render: (row) => (
-        <div className=" py-4 whitespace-nowrap">
-          {row.assignedEmployee.name ? (
-            <span className="text-gray-800">{row.assignedEmployee.name}</span>
-          ) : (
-            <div className="flex gap-2">
-              <select
-                className="border rounded px-2 py-1 text-sm"
-                value={row.selectedEmployeeId || ""}
-                onChange={(e) => {
-                  const selectedId = Number(e.target.value);
-                  onSelectEmployee(row.booking_id, selectedId);
-                }}
-              >
-                <option value="">Select</option>
-                {employees.map((emp) => (
-                  <option key={emp.employee_id} value={emp.employee_id}>
-                    {emp.employee_name}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => onAssignEmployee(row.booking_id)}
-                disabled={!row.selectedEmployeeId}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
-              >
-                Assign
-              </button>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
       title: "Date & Time",
       render: (row) => (
         <div>
@@ -96,7 +56,9 @@ const BookingsTable = ({
       title: "Payment",
       key: "payment_amount",
       render: (row) => (
-        <div className="text-sm text-gray-900">{row.payment_amount}</div>
+        <div className="text-sm text-gray-900">
+          {row.payment_amount}
+        </div>
       ),
     },
     {
@@ -163,7 +125,7 @@ const BookingsTable = ({
       data={filteredBookings}
       isLoading={isLoading}
       emptyMessage="No bookings found."
-      // onRowClick={onViewBooking}
+      onRowClick={onViewBooking}
     />
   );
 };

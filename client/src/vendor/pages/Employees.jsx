@@ -61,7 +61,11 @@ const Employees = () => {
   }
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />;
+      </div>
+    );
   }
   return (
     <div className="p-4">

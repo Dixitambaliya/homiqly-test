@@ -82,7 +82,7 @@ const Ratings = () => {
     );
   }
 
-  if (error) {
+  if (!error) {
     return (
       <div className="bg-red-50 p-4 rounded-md">
         <p className="text-red-500">{error}</p>

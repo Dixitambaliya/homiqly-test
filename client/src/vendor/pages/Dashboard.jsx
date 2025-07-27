@@ -50,7 +50,7 @@ const Dashboard = () => {
 
         // Fetch vendor bookings
         const bookingsResponse = await api.get(
-          "/api/booking/vendorbookedservices"
+          "/api/booking/vendorassignedservices"
         );
         const bookings = bookingsResponse.data.bookings || [];
 

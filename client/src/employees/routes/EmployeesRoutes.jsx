@@ -12,7 +12,7 @@ import Dashboard from "../pages/Dashboard";
 // import Vendors from "../pages/Vendors";
 // import Users from "../pages/Users";
 // import Services from "../pages/Services";
-// import Bookings from "../pages/Bookings";
+import Bookings from "../pages/Bookings";
 // import SupplyKits from "../pages/SupplyKits";
 // import Contractors from "../pages/Contractors";
 // import Employees from "../pages/Employees";
@@ -75,11 +75,11 @@ const EmployeesRoutes = () => {
         }
       >
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="bookings" element={<Bookings />} />
         {/* <Route path="vendors" element={<Vendors />} />
         <Route path="users" element={<Users />} />
         <Route path="services" element={<Services />} />
         <Route path="packages" element={<Packages />} />
-        <Route path="bookings" element={<Bookings />} />
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="contractors" element={<Contractors />} />
         <Route path="employees" element={<Employees />} />

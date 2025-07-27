@@ -55,11 +55,11 @@ const DashboardLayout = () => {
     //   name: "Packages",
     //   icon: <FiShoppingBag className="w-5 h-5" />,
     // },
-    // {
-    //   path: "/employees/bookings",
-    //   name: "Bookings",
-    //   icon: <FiCalendar className="w-5 h-5" />,
-    // },
+    {
+      path: "/employees/bookings",
+      name: "Bookings",
+      icon: <FiCalendar className="w-5 h-5" />,
+    },
     // {
     //   path: "/employees/supply-kits",
     //   name: "Supply Kits",
