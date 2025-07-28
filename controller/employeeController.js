@@ -670,9 +670,6 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
 });
 
 
-
-
-
 module.exports = {
     createEmployee,
     getAllEmployees,
