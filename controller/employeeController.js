@@ -840,7 +840,7 @@ const changeEmployeePassword = asyncHandler(async (req, res) => {
     } catch (error) {
         console.error("Error changing employee password:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
-}
+    }
 });
 
 
