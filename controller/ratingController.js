@@ -4,10 +4,10 @@ const ratingGetQueries = require('../config/ratingQueries/ratingGetQueries');
 
 const vendorRatesUser = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { booking_id, user_id, rating, review } = req.body;
+    const { booking_id, rating, review } = req.body;
 
-    if (!booking_id || !user_id || !rating) {
-        return res.status(400).json({ message: "booking_id, user_id, and rating are required" });
+    if (!booking_id || !rating) {
+        return res.status(400).json({ message: "booking_id and rating are required" });
     }
 
     if (rating < 1 || rating > 5) {
@@ -15,31 +15,33 @@ const vendorRatesUser = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ Verify the booking belongs to the vendor and user
-        const [booking] = await db.query(
-            `SELECT * FROM bookings WHERE booking_id = ? AND vendor_id = ? AND user_id = ?`,
-            [booking_id, vendor_id, user_id]
-        );
-
-        if (booking.length === 0) {
-            return res.status(403).json({ message: "You are not authorized to rate this booking" });
-        }
-
-        // ❌ Check if rating already submitted by vendor for this booking
-        const [existing] = await db.query(
-            `SELECT * FROM vendor_user_ratings WHERE booking_id = ? AND vendor_id = ?`,
+        // ✅ Get user_id and service_id from this booking
+        const [bookingRows] = await db.query(
+            `SELECT user_id, service_id FROM service_booking WHERE booking_id = ? AND vendor_id = ?`,
             [booking_id, vendor_id]
         );
 
-        if (existing.length > 0) {
+        if (bookingRows.length === 0) {
+            return res.status(403).json({ message: "You are not authorized to rate this booking" });
+        }
+
+        const { user_id, service_id } = bookingRows[0];
+
+        // ✅ Check if rating already exists
+        const [existingRows] = await db.query(
+            `SELECT * FROM vendor_service_ratings WHERE booking_id = ? AND vendor_id = ?`,
+            [booking_id, vendor_id]
+        );
+
+        if (existingRows.length > 0) {
             return res.status(400).json({ message: "Rating already submitted for this booking" });
         }
 
-        // ✅ Insert new rating
+        // ✅ Insert rating with service_id
         await db.query(
-            `INSERT INTO vendor_user_ratings (booking_id, vendor_id, user_id, rating, review)
-             VALUES (?, ?, ?, ?, ?)`,
-            [booking_id, vendor_id, user_id, rating, review]
+            `INSERT INTO vendor_service_ratings (booking_id, vendor_id, user_id, service_id, rating, review)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [booking_id, vendor_id, user_id, service_id, rating, review]
         );
 
         res.status(201).json({ message: "Rating submitted successfully" });
@@ -50,12 +52,14 @@ const vendorRatesUser = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorRatings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
+        // Fetch detailed service ratings
         const [ratings] = await db.query(ratingGetQueries.getServiceRatings, [vendor_id]);
+
+        // Fetch average rating and total reviews
         const [avgRating] = await db.query(ratingGetQueries.getVendorAverageRating, [vendor_id]);
 
         res.status(200).json({
@@ -70,6 +74,7 @@ const getVendorRatings = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getAllRatings = asyncHandler(async (req, res) => {
     try {
