@@ -833,6 +833,46 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
+const getVendorPaymentHistory = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Vendor ID is required" });
+    }
+
+    try {
+        const [payments] = await db.query(
+            `SELECT
+                sb.booking_id,
+                sb.user_id,
+                sb.vendor_id,
+                sb.service_id,
+                sb.service_categories_id,
+                sb.bookingDate,
+                sb.bookingTime,
+                sb.payment_intent_id,
+                sb.notes,
+                sb.created_at,
+                u.firstName,
+                u.lastName,
+                u.email
+            FROM service_booking sb
+            JOIN users u ON sb.user_id = u.user_id
+            WHERE sb.vendor_id = ?
+              AND sb.bookingStatus = 1
+              AND sb.payment_intent_id IS NOT NULL
+            ORDER BY sb.created_at DESC`,
+            [vendor_id]
+        );
+
+        res.status(200).json({ vendor_id, total: payments.length, payments });
+    } catch (err) {
+        console.error("Payment history error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
 
 module.exports = {
     getVendorAssignedPackages,
@@ -848,5 +888,6 @@ module.exports = {
     getAllPackagesForVendor,
     addRatingToPackages,
     toggleManualVendorAssignment,
-    getManualAssignmentStatus
+    getManualAssignmentStatus,
+    getVendorPaymentHistory
 };

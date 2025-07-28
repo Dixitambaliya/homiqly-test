@@ -647,11 +647,144 @@ const getEligiblevendors = asyncHandler(async (req, res) => {
     }
 });
 
+const approveOrAssignBooking = asyncHandler(async (req, res) => {
+    const { booking_id, status, vendor_id } = req.body;
+
+    if (!booking_id || status === undefined) {
+        return res.status(400).json({ message: "booking_id and status are required" });
+    }
+
+    if (![1, 2].includes(status)) {
+        return res.status(400).json({ message: "Invalid status value. Use 1 for approve, 2 for cancel." });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        // ✅ 1. Get user info
+        const [bookingData] = await connection.query(`
+            SELECT u.email, CONCAT(u.firstName, ' ', u.lastName) AS name
+            FROM service_booking sb
+            JOIN users u ON sb.user_id = u.user_id
+            WHERE sb.booking_id = ?
+        `, [booking_id]);
+
+        if (!bookingData || bookingData.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Booking not found" });
+        }
+
+        const userEmail = bookingData[0].email;
+        const userName = bookingData[0].name;
+
+        // ✅ 2. Update booking status
+        const [updateStatusResult] = await connection.query(
+            `UPDATE service_booking SET bookingStatus = ? WHERE booking_id = ?`,
+            [status, booking_id]
+        );
+
+        if (updateStatusResult.affectedRows === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Booking not found" });
+        }
+
+        // ✅ 3. Assign vendor if approved and vendor_id is provided
+        if (status === 1 && vendor_id) {
+            // 🔎 Check vendor toggle
+            const [toggleResult] = await connection.query(
+                `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+            if (toggleResult.length === 0 || toggleResult[0].manual_assignment_enabled !== 1) {
+                await connection.rollback();
+                return res.status(400).json({ message: `Vendor ${vendor_id} not accepting manual bookings.` });
+            }
+
+            // 🔎 Get service_id
+            const [bookingInfo] = await connection.query(
+                `SELECT service_id FROM service_booking WHERE booking_id = ?`,
+                [booking_id]
+            );
+            const service_id = bookingInfo[0]?.service_id;
+            if (!service_id) {
+                await connection.rollback();
+                return res.status(404).json({ message: "Service ID not found for this booking." });
+            }
+
+            // 🔎 Get vendor type
+            const [vendorInfo] = await connection.query(
+                `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+            if (vendorInfo.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ message: `Vendor ${vendor_id} not found.` });
+            }
+            const vendorType = vendorInfo[0].vendorType;
+
+            // 🔎 Check if vendor is registered for the service
+            let vendorEligible = [];
+            if (vendorType === 'individual') {
+                [vendorEligible] = await connection.query(
+                    `SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?`,
+                    [vendor_id, service_id]
+                );
+            } else if (vendorType === 'company') {
+                [vendorEligible] = await connection.query(
+                    `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = ?`,
+                    [vendor_id, service_id]
+                );
+            } else {
+                await connection.rollback();
+                return res.status(400).json({ message: `Invalid vendorType for vendor ${vendor_id}.` });
+            }
+
+            if (vendorEligible.length === 0) {
+                await connection.rollback();
+                return res.status(400).json({
+                    message: `Vendor ${vendor_id} is not registered for service ID ${service_id}.`
+                });
+            }
+
+            // ✅ Assign vendor
+            await connection.query(
+                `UPDATE service_booking SET vendor_id = ? WHERE booking_id = ?`,
+                [vendor_id, booking_id]
+            );
+        }
+
+        // ✅ Send email
+        const subject = status === 1 ? "Booking Approved" : "Booking Cancelled";
+        const message = status === 1
+            ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
+            : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
+
+        await sendEmail(userEmail, subject, message);
+
+        await connection.commit();
+        res.status(200).json({
+            message: `Booking has been ${status === 1 ? 'approved' : 'cancelled'}${vendor_id ? ' and vendor assigned' : ''} successfully.`,
+            booking_id,
+            status,
+            vendor_assigned: !!vendor_id
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("approveOrAssignBooking error:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    } finally {
+        connection.release();
+    }
+});
+
 module.exports = {
     bookService,
     getVendorBookings,
     getUserBookings,
     approveOrRejectBooking,
     assignBookingToVendor,
-    getEligiblevendors
+    getEligiblevendors,
+    approveOrAssignBooking
 };

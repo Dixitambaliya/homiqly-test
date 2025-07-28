@@ -5,7 +5,8 @@ const { bookService,
     getUserBookings,
     approveOrRejectBooking,
     assignBookingToVendor,
-    getEligiblevendors
+    getEligiblevendors,
+    approveOrAssignBooking
 } = require('../controller/serviceBookingController');
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
@@ -21,5 +22,7 @@ router.get('/get-eligible-vendors/:booking_id', authenticationToken, getEligible
 
 router.put('/approveorrejectbooking', authenticationToken, approveOrRejectBooking);
 router.post("/assignbooking", authenticationToken, assignBookingToVendor)
+
+router.post("/approveandassign", authenticationToken, approveOrAssignBooking)
 
 module.exports = router;

@@ -3,8 +3,26 @@ const employeeGetQueries = {
     getAllEmployees: `
     SELECT
         e.employee_id,
-        CONCAT(e.first_name, ' ', e.last_name) AS employee_name
+        e.first_name,
+        e.last_name,
+        e.vendor_id,
+        e.phone,
+        e.email,
+        e.is_active,
+        e.created_at AS employee_created_at,
+
+        cd.dob,
+        cd.profileImage,
+        cd.companyName,
+        cd.contactPerson,
+        cd.companyEmail,
+        cd.companyPhone,
+        cd.googleBusinessProfileLink,
+        cd.companyAddress,
+        cd.created_at AS vendor_created_at
+
     FROM company_employees e
+    LEFT JOIN company_details cd ON e.vendor_id = cd.vendor_id
     WHERE e.is_active = 1 AND e.vendor_id = ?
     ORDER BY e.first_name ASC
 `,
