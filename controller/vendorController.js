@@ -834,7 +834,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
 });
 
 const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
-    const vendor_id = req.params.vendor_id;
+    const vendor_id = req.user.vendor_id;
 
     if (!vendor_id) {
         return res.status(400).json({ message: "Vendor ID is required" });
