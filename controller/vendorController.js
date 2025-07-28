@@ -833,7 +833,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-const getVendorPaymentHistory = asyncHandler(async (req, res) => {
+const getVendorStripePayments = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     if (!vendor_id) {
@@ -841,36 +841,44 @@ const getVendorPaymentHistory = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [payments] = await db.query(
-            `SELECT
-                sb.booking_id,
-                sb.user_id,
-                sb.vendor_id,
-                sb.service_id,
-                sb.service_categories_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.payment_intent_id,
-                sb.notes,
-                sb.created_at,
-                u.firstName,
-                u.lastName,
-                u.email
-            FROM service_booking sb
-            JOIN users u ON sb.user_id = u.user_id
-            WHERE sb.vendor_id = ?
-              AND sb.bookingStatus = 1
-              AND sb.payment_intent_id IS NOT NULL
-            ORDER BY sb.created_at DESC`,
+        // 1. Get all payment_intent_ids from service_booking
+        const [bookings] = await db.query(
+            `SELECT payment_intent_id FROM service_booking
+             WHERE vendor_id = ? AND bookingStatus = 1 AND payment_intent_id IS NOT NULL`,
             [vendor_id]
         );
 
-        res.status(200).json({ vendor_id, total: payments.length, payments });
+        if (bookings.length === 0) {
+            return res.status(200).json({ vendor_id, payments: [] });
+        }
+
+        const stripePayments = [];
+
+        // 2. Fetch each payment from Stripe
+        for (const booking of bookings) {
+            const intentId = booking.payment_intent_id;
+            try {
+                const intent = await stripe.paymentIntents.retrieve(intentId);
+                stripePayments.push({
+                    payment_intent_id: intent.id,
+                    amount: intent.amount,
+                    currency: intent.currency,
+                    status: intent.status,
+                    created: intent.created,
+                    charges: intent.charges?.data
+                });
+            } catch (err) {
+                console.warn(`Failed to fetch paymentIntent ${intentId}: ${err.message}`);
+            }
+        }
+
+        res.status(200).json({ vendor_id, total: stripePayments.length, stripePayments });
     } catch (err) {
-        console.error("Payment history error:", err);
+        console.error("Stripe payment fetch error:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
@@ -889,5 +897,5 @@ module.exports = {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorPaymentHistory
+    getVendorStripePayments
 };

@@ -17,7 +17,7 @@ const {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorPaymentHistory
+    getVendorStripePayments
 } = require("../controller/vendorController")
 
 const multiUpload = upload.any();
@@ -37,7 +37,7 @@ router.put("/updateprofile", authenticationToken, multiUpload, handleUploads, up
 router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
 
 
-router.get("/getpaymenthistory", authenticationToken, getVendorPaymentHistory)
+router.get("/getpaymenthistory", authenticationToken, getVendorStripePayments)
 
 
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
