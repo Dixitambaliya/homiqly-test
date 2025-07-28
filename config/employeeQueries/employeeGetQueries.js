@@ -5,6 +5,7 @@ const employeeGetQueries = {
         e.employee_id,
         e.first_name,
         e.last_name,
+        e.profile_iamge,
         e.vendor_id,
         e.phone,
         e.email,

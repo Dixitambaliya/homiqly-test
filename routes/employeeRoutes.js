@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { upload, handleUploads } = require("../middleware/upload");
 const {
     getAllEmployees,
     createEmployee,
@@ -15,6 +16,7 @@ const {
     editEmployeeProfile
 } = require('../controller/employeeController');
 const { authenticationToken } = require('../middleware/authMiddleware');
+const multiUpload = upload.any();
 
 router.get('/getallemployee', authenticationToken, getAllEmployees);
 
@@ -35,7 +37,7 @@ router.get('/getstatus', authenticationToken, getEmployeeStatus);
 router.get('/getprofile', authenticationToken, getEmployeeProfile);
 
 
-router.put('/editprofile', authenticationToken, editEmployeeProfile);
+router.put('/editprofile', authenticationToken, multiUpload, handleUploads, editEmployeeProfile);
 
 
 router.get('/getbookingemployee', authenticationToken, getEmployeeBookings);

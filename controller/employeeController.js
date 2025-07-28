@@ -370,6 +370,7 @@ const getEmployeesByVendor = asyncHandler(async (req, res) => {
             SELECT
                 employee_id,
                 CONCAT(first_name, ' ', last_name) AS employee_name,
+                profile_image,
                 email,
                 phone,
                 is_active,
@@ -602,7 +603,7 @@ const getEmployeeProfile = asyncHandler(async (req, res) => {
 
     try {
         const [rows] = await db.query(
-            `SELECT employee_id, first_name, last_name, vendor_id, phone, email, is_active, created_at
+            `SELECT employee_id, first_name, last_name, profile_image, vendor_id, phone, email, is_active, created_at
              FROM company_employees
              WHERE employee_id = ?`,
             [employee_id]
@@ -627,10 +628,12 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
         return res.status(401).json({ message: "Unauthorized: employee_id missing" });
     }
 
+    const newProfileImage = req.uploadedFiles?.newProfileImage?.[0]?.url || null;
+
     try {
         // Step 1: Fetch existing employee data
         const [existingRows] = await db.query(
-            `SELECT first_name, last_name, phone, email FROM company_employees WHERE employee_id = ?`,
+            `SELECT first_name, last_name, phone, email, profile_image FROM company_employees WHERE employee_id = ?`,
             [employee_id]
         );
 
@@ -640,18 +643,19 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
 
         const existing = existingRows[0];
 
-        // Step 2: Merge with new values (preserve old if not provided)
+        // Step 2: Merge with new values
         const updatedFirstName = first_name || existing.first_name;
         const updatedLastName = last_name || existing.last_name;
         const updatedPhone = phone || existing.phone;
         const updatedEmail = email || existing.email;
+        const updatedProfileImage = newProfileImage || existing.profileImage;
 
         // Step 3: Update the record
         const [result] = await db.query(
             `UPDATE company_employees
-             SET first_name = ?, last_name = ?, phone = ?, email = ?
+             SET first_name = ?, last_name = ?, phone = ?, email = ?, profile_image = ?
              WHERE employee_id = ?`,
-            [updatedFirstName, updatedLastName, updatedPhone, updatedEmail, employee_id]
+            [updatedFirstName, updatedLastName, updatedPhone, updatedEmail, updatedProfileImage, employee_id]
         );
 
         if (result.affectedRows === 0) {
@@ -664,6 +668,7 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 });
+
 
 
 
