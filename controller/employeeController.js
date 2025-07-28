@@ -694,7 +694,7 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
 
         // ✅ Update the booking status
         await db.query(
-            `UPDATE service_booking SET booking_status = ? WHERE booking_id = ?`,
+            `UPDATE service_booking SET bookingStatus = ? WHERE booking_id = ?`,
             [status, booking_id]
         );
 
