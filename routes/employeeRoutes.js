@@ -14,7 +14,8 @@ const {
     getEmployeeBookings,
     getEmployeeProfile,
     editEmployeeProfile,
-    updateBookingStatusByEmployee
+    updateBookingStatusByEmployee,
+    getEmployeeBookingHistory
 } = require('../controller/employeeController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 const multiUpload = upload.any();
@@ -33,5 +34,6 @@ router.put('/editprofile', authenticationToken, multiUpload, handleUploads, edit
 
 router.put('/updatebookingstatus', authenticationToken, updateBookingStatusByEmployee);
 router.get('/getbookingemployee', authenticationToken, getEmployeeBookings);
+router.get('/bookinghistory', authenticationToken, getEmployeeBookingHistory);
 
 module.exports = router;
