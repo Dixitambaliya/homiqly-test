@@ -135,16 +135,19 @@ const employeeLogin = asyncHandler(async (req, res) => {
             {
                 employee_id: employee.employee_id,
                 vendor_id: employee.vendor_id,
-                email: employee.email,
+                email: employee.email
             },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
+        const fullName = `${employee.first_name} ${employee.last_name}`
+
         res.status(200).json({
             message: "Login successful",
             token,
-            employee_id: employee.employee_id
+            employee_id: employee.employee_id,
+            name: fullName
         });
 
     } catch (error) {
