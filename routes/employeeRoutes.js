@@ -10,7 +10,9 @@ const {
     toggleEmployeeStatus,
     deleteEmployee,
     getEmployeeStatus,
-    getEmployeeBookings
+    getEmployeeBookings,
+    getEmployeeProfile,
+    editEmployeeProfile
 } = require('../controller/employeeController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 
@@ -30,6 +32,11 @@ router.get('/getemployeepackages', authenticationToken, getEmployeesWithPackages
 router.get('/getemployee', authenticationToken, getEmployeesByVendor);
 
 router.get('/getstatus', authenticationToken, getEmployeeStatus);
+router.get('/getprofile', authenticationToken, getEmployeeProfile);
+
+
+router.put('/editprofile', authenticationToken, editEmployeeProfile);
+
 
 router.get('/getbookingemployee', authenticationToken, getEmployeeBookings);
 

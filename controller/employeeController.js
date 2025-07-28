@@ -593,6 +593,79 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
     }
 });
 
+const getEmployeeProfile = asyncHandler(async (req, res) => {
+    const employee_id = req.user.employee_id;
+
+    if (!employee_id) {
+        return res.status(401).json({ message: "Unauthorized: employee_id missing" });
+    }
+
+    try {
+        const [rows] = await db.query(
+            `SELECT employee_id, first_name, last_name, vendor_id, phone, email, is_active, created_at
+             FROM company_employees
+             WHERE employee_id = ?`,
+            [employee_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+
+        res.status(200).json(rows[0]);
+    } catch (err) {
+        console.error("Error fetching employee profile:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+const editEmployeeProfile = asyncHandler(async (req, res) => {
+    const employee_id = req.user.employee_id;
+    const { first_name, last_name, phone, email } = req.body;
+
+    if (!employee_id) {
+        return res.status(401).json({ message: "Unauthorized: employee_id missing" });
+    }
+
+    try {
+        // Step 1: Fetch existing employee data
+        const [existingRows] = await db.query(
+            `SELECT first_name, last_name, phone, email FROM company_employees WHERE employee_id = ?`,
+            [employee_id]
+        );
+
+        if (existingRows.length === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+
+        const existing = existingRows[0];
+
+        // Step 2: Merge with new values (preserve old if not provided)
+        const updatedFirstName = first_name || existing.first_name;
+        const updatedLastName = last_name || existing.last_name;
+        const updatedPhone = phone || existing.phone;
+        const updatedEmail = email || existing.email;
+
+        // Step 3: Update the record
+        const [result] = await db.query(
+            `UPDATE company_employees
+             SET first_name = ?, last_name = ?, phone = ?, email = ?
+             WHERE employee_id = ?`,
+            [updatedFirstName, updatedLastName, updatedPhone, updatedEmail, employee_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(400).json({ message: "Nothing was updated" });
+        }
+
+        res.status(200).json({ message: "Profile updated successfully" });
+    } catch (err) {
+        console.error("Error updating employee profile:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
 
 
 module.exports = {
@@ -605,5 +678,7 @@ module.exports = {
     toggleEmployeeStatus,
     deleteEmployee,
     getEmployeeStatus,
-    getEmployeeBookings
+    getEmployeeBookings,
+    getEmployeeProfile,
+    editEmployeeProfile
 };
