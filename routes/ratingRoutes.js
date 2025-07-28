@@ -12,7 +12,7 @@ const {
 const { authenticationToken } = require('../middleware/authMiddleware');
 
 // // User routes
-router.post('/vendor-rating', authenticationToken, vendorRatesUser);
+router.post('/add-rating', authenticationToken, vendorRatesUser);
 
 // Vendor routes
 router.get('/getrating', authenticationToken, getVendorRatings);
