@@ -2,13 +2,12 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const ratingGetQueries = require('../config/ratingQueries/ratingGetQueries');
 
-const addVendorServiceRating = asyncHandler(async (req, res) => {
+const vendorRatesUser = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const vendor_type = req.user.vendor_type; // "individual" or "company"
-    const { service_id, rating, review } = req.body;
+    const { booking_id, user_id, rating, review } = req.body;
 
-    if (!service_id || !rating) {
-        return res.status(400).json({ message: "Service ID and rating are required" });
+    if (!booking_id || !user_id || !rating) {
+        return res.status(400).json({ message: "booking_id, user_id, and rating are required" });
     }
 
     if (rating < 1 || rating > 5) {
@@ -16,43 +15,32 @@ const addVendorServiceRating = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ Ensure the service is assigned to this vendor
-        let serviceCheckQuery = "";
-        if (vendor_type === "individual") {
-            serviceCheckQuery = `
-                SELECT 1 FROM individual_services
-                WHERE vendor_id = ? AND service_id = ?
-            `;
-        } else if (vendor_type === "company") {
-            serviceCheckQuery = `
-                SELECT 1 FROM company_services
-                WHERE vendor_id = ? AND service_id = ?
-            `;
-        } else {
-            return res.status(400).json({ message: "Invalid vendor type" });
+        // ✅ Verify the booking belongs to the vendor and user
+        const [booking] = await db.query(
+            `SELECT * FROM bookings WHERE booking_id = ? AND vendor_id = ? AND user_id = ?`,
+            [booking_id, vendor_id, user_id]
+        );
+
+        if (booking.length === 0) {
+            return res.status(403).json({ message: "You are not authorized to rate this booking" });
         }
 
-        const [isAssigned] = await db.query(serviceCheckQuery, [vendor_id, service_id]);
+        // ❌ Check if rating already submitted by vendor for this booking
+        const [existing] = await db.query(
+            `SELECT * FROM vendor_user_ratings WHERE booking_id = ? AND vendor_id = ?`,
+            [booking_id, vendor_id]
+        );
 
-        if (isAssigned.length === 0) {
-            return res.status(403).json({ message: "You are not assigned to this service" });
+        if (existing.length > 0) {
+            return res.status(400).json({ message: "Rating already submitted for this booking" });
         }
 
-        // ✅ Prevent duplicate ratings
-        const [existingRating] = await db.query(`
-            SELECT rating_id FROM vendor_service_ratings
-            WHERE vendor_id = ? AND service_id = ?
-        `, [vendor_id, service_id]);
-
-        if (existingRating.length > 0) {
-            return res.status(400).json({ message: "You have already rated this service" });
-        }
-
-        // ✅ Submit the new rating
-        await db.query(`
-            INSERT INTO vendor_service_ratings (vendor_id, service_id, rating, review, created_at)
-            VALUES (?, ?, ?, ?, NOW())
-        `, [vendor_id, service_id, rating, review]);
+        // ✅ Insert new rating
+        await db.query(
+            `INSERT INTO vendor_user_ratings (booking_id, vendor_id, user_id, rating, review)
+             VALUES (?, ?, ?, ?, ?)`,
+            [booking_id, vendor_id, user_id, rating, review]
+        );
 
         res.status(201).json({ message: "Rating submitted successfully" });
 
@@ -248,7 +236,7 @@ const getVendorServicesForReview = asyncHandler(async (req, res) => {
 
 module.exports = {
     getVendorRatings,
-    addVendorServiceRating,
+    vendorRatesUser,
     getAllRatings,
     addRatingToServiceType,
     addRatingToPackages,

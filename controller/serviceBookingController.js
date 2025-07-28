@@ -530,7 +530,7 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-const getEligiblevendors = asyncHandler(async (req, rBes) => {
+const getEligiblevendors = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
 
     const connection = await db.getConnection();

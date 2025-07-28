@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
-    addVendorServiceRating,
+    vendorRatesUser,
     getVendorRatings,
     getAllRatings,
     addRatingToServiceType,
@@ -12,7 +12,7 @@ const {
 const { authenticationToken } = require('../middleware/authMiddleware');
 
 // // User routes
-router.post('/vendor-rating', authenticationToken, addVendorServiceRating);
+router.post('/vendor-rating', authenticationToken, vendorRatesUser);
 
 // Vendor routes
 router.get('/vendor', authenticationToken, getVendorRatings);
