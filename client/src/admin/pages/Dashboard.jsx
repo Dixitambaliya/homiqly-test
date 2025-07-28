@@ -20,6 +20,7 @@ import {
 } from "chart.js";
 import { Link } from "react-router-dom";
 import Loader from "../../components/Loader";
+import LoadingSlider from "../../shared/components/LoadingSpinner";
 
 // Register ChartJS components
 ChartJS.register(
@@ -112,7 +113,7 @@ const Dashboard = () => {
   };
 
   if (loading) {
-    return <Loader />;
+    return <LoadingSlider />;
   }
 
   if (error) {

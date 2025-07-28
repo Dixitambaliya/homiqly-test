@@ -21,7 +21,7 @@ const Ratings = () => {
   const fetchRatings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/rating/vendor');
+      const response = await axios.get('/api/rating/getrating',);
       setRatings(response.data.ratings || []);
       setStats({
         average_rating: response.data.average_rating || 0,

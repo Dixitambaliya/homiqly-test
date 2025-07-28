@@ -15,7 +15,7 @@ const LoadingSlider = ({ fullscreen = false, color = "success" }) => {
 
   return (
     <div
-      className={`w-full h-screen flex items-center justify-center ${
+      className={`w-full h-96 flex items-center justify-center ${
         fullscreen ? "fixed inset-0 z-50 bg-white/60" : ""
       }`}
     >

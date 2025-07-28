@@ -16,6 +16,7 @@ const BookingsTable = ({
   onSelectEmployee,
   onAssignEmployee,
 }) => {
+  console.log(employees);
   const columns = [
     {
       title: "Booking ID",
@@ -46,8 +47,8 @@ const BookingsTable = ({
       title: "Assign Employee",
       key: "employeeName",
       render: (row) => (
-        <div className=" py-4 whitespace-nowrap">
-          {row.assignedEmployee.name ? (
+        <div className="py-4 whitespace-nowrap">
+          {row.assignedEmployee && row.assignedEmployee.name ? (
             <span className="text-gray-800">{row.assignedEmployee.name}</span>
           ) : (
             <div className="flex gap-2">

@@ -13,6 +13,7 @@ import Dashboard from "../pages/Dashboard";
 // import Users from "../pages/Users";
 // import Services from "../pages/Services";
 import Bookings from "../pages/Bookings";
+import Profile from "../pages/Profile";
 // import SupplyKits from "../pages/SupplyKits";
 // import Contractors from "../pages/Contractors";
 // import Employees from "../pages/Employees";
@@ -76,6 +77,7 @@ const EmployeesRoutes = () => {
       >
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="bookings" element={<Bookings />} />
+        <Route path="profile" element={<Profile />} />
         {/* <Route path="vendors" element={<Vendors />} />
         <Route path="users" element={<Users />} />
         <Route path="services" element={<Services />} />
@@ -86,7 +88,6 @@ const EmployeesRoutes = () => {
         <Route path="payments" element={<Payments />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="notifications" element={<Notifications />} />
-        <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
         <Route path="tickets" element={<Tickets />} /> */}
       </Route>

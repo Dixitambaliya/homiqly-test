@@ -15,7 +15,7 @@ const EmployeesTable = ({ employees, isLoading }) => {
       title: "Name",
       render: (row) => (
         <div className="text-sm font-medium text-gray-900">
-          {row.first_name} {row.last_name}
+          {row.employee_name}
         </div>
       ),
     },

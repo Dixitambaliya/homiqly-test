@@ -6,6 +6,7 @@ import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
 import { Button } from "../../shared/components/Button";
 import { FormSelect } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { toast } from "react-toastify";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -84,6 +85,8 @@ const Bookings = () => {
 
       // Show success toast
       toast.success(response.data.message || "Employee assigned successfully");
+
+      fetchBookings();
     } catch (error) {
       console.error("Failed to assign employee:", error);
       toast.error("Failed to assign employee");
@@ -93,7 +96,7 @@ const Bookings = () => {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem("vendorToken");
-      const res = await axios.get("/api/employee/getallemployee", {
+      const res = await axios.get("/api/employee/getemployee", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
