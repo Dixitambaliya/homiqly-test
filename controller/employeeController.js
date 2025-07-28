@@ -369,8 +369,7 @@ const getEmployeesByVendor = asyncHandler(async (req, res) => {
         const [employees] = await db.query(`
             SELECT
                 employee_id,
-                first_name,
-                last_name,
+                CONCAT('first_name, ' ' , 'last_name') AS name,
                 email,
                 phone,
                 is_active,
