@@ -669,6 +669,45 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
     }
 });
 
+const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
+    const employee_id = req.user.employee_id;
+    const { booking_id, status } = req.body;
+
+    // ✅ Validate input
+    if (!booking_id || ![3, 4].includes(status)) {
+        return res.status(400).json({ message: "Invalid booking ID or status" });
+    }
+
+    try {
+        // 🔐 Check if the booking is assigned to the current employee
+        const [checkBooking] = await db.query(
+            `SELECT * FROM service_booking WHERE booking_id = ? AND assigned_employee_id = ?`,
+            [booking_id, employee_id]
+        );
+
+        if (checkBooking.length === 0) {
+            return res.status(403).json({ message: "Unauthorized or booking not assigned to this employee" });
+        }
+
+        // ✅ Update the booking status
+        await db.query(
+            `UPDATE service_booking SET booking_status = ? WHERE booking_id = ?`,
+            [status, booking_id]
+        );
+
+        res.status(200).json({
+            message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
+        });
+
+    } catch (error) {
+        console.error("Error updating booking status:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
+
 
 module.exports = {
     createEmployee,
@@ -682,5 +721,6 @@ module.exports = {
     getEmployeeStatus,
     getEmployeeBookings,
     getEmployeeProfile,
-    editEmployeeProfile
+    editEmployeeProfile,
+    updateBookingStatusByEmployee
 };
