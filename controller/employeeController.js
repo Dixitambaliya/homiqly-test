@@ -812,6 +812,38 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
     }
 });
 
+const changeEmployeePassword = asyncHandler(async (req, res) => {
+    const { newPassword } = req.body;
+    const employee_id = req.user.employee_id; // from auth middleware
+
+    if (!employee_id) {
+        return res.status(401).json({ message: "Unauthorized: employee_id missing from token" });
+    }
+
+    if (!newPassword || newPassword.length < 4) {
+        return res.status(400).json({ message: "New password must be at least 4 characters long" });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        const [result] = await db.query(
+            `UPDATE company_employees SET password = ? WHERE employee_id = ?`,
+            [hashedPassword, employee_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+
+        res.status(200).json({ message: "Password updated successfully" });
+    } catch (error) {
+        console.error("Error changing employee password:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+}
+});
+
+
 
 module.exports = {
     createEmployee,
@@ -827,5 +859,6 @@ module.exports = {
     getEmployeeProfile,
     editEmployeeProfile,
     updateBookingStatusByEmployee,
-    getEmployeeBookingHistory
+    getEmployeeBookingHistory,
+    changeEmployeePassword
 };
