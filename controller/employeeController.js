@@ -631,7 +631,7 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
         return res.status(401).json({ message: "Unauthorized: employee_id missing" });
     }
 
-    const newProfileImage = req.uploadedFiles?.newProfileImage?.[0]?.url || null;
+    const newProfileImage = req.uploadedFiles?.profile_image?.[0]?.url || null;
 
     try {
         // Step 1: Fetch existing employee data
@@ -651,7 +651,7 @@ const editEmployeeProfile = asyncHandler(async (req, res) => {
         const updatedLastName = last_name || existing.last_name;
         const updatedPhone = phone || existing.phone;
         const updatedEmail = email || existing.email;
-        const updatedProfileImage = newProfileImage || existing.profileImage;
+        const updatedProfileImage = newProfileImage || existing.profile_image;
 
         // Step 3: Update the record
         const [result] = await db.query(
