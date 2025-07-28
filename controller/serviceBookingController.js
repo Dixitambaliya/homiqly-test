@@ -307,45 +307,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        const [userBookings] = await db.query(`
-            SELECT
-                sb.booking_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.notes,
-                sb.bookingMedia,
-                sb.payment_intent_id,
-
-                sc.serviceCategory,
-                s.serviceName,
-
-                st.serviceTypeName,
-                st.serviceTypeMedia,
-
-                v.vendorType,
-
-                COALESCE(idet.id, cdet.id) AS vendor_id,
-                COALESCE(idet.name, cdet.companyName) AS vendor_name,
-                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
-                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
-
-                p.status AS payment_status,
-                p.amount AS payment_amount,
-                p.currency AS payment_currency
-
-            FROM service_booking sb
-            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
-            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-            WHERE sb.user_id = ?
-            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-        `, [user_id]);
+        const [userBookings] = await db.query(bookingGetQueries.userGetBooking, [user_id]);
 
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
