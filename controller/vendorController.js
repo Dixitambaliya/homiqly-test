@@ -3,6 +3,8 @@ const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
 const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
 const nodemailer = require("nodemailer");
 const asyncHandler = require("express-async-handler");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
 
 const transport = nodemailer.createTransport({
     service: "gmail",
