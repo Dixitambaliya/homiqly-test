@@ -649,7 +649,6 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
         const [payments] = await db.query(`

@@ -692,10 +692,13 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
             return res.status(403).json({ message: "Unauthorized or booking not assigned to this employee" });
         }
 
-        // ✅ Update the booking status
+        // ✅ Determine completed_flag
+        const completed_flag = status === 4 ? 1 : 0;
+
+        // ✅ Update the booking status and completed flag
         await db.query(
-            `UPDATE service_booking SET bookingStatus = ? WHERE booking_id = ?`,
-            [status, booking_id]
+            `UPDATE service_booking SET bookingStatus = ?, completed_flag = ? WHERE booking_id = ?`,
+            [status, completed_flag, booking_id]
         );
 
         res.status(200).json({
@@ -710,6 +713,7 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 
 module.exports = {

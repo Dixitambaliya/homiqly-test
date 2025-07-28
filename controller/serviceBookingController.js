@@ -323,19 +323,12 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 st.serviceTypeName,
                 st.serviceTypeMedia,
 
-                v.vendor_id,
                 v.vendorType,
 
-                idet.id AS individual_id,
-                idet.name AS individual_name,
-                idet.phone AS individual_phone,
-                idet.email AS individual_email,
-
-                cdet.id AS company_id,
-                cdet.companyName AS company_name,
-                cdet.contactPerson AS company_contact_person,
-                cdet.companyEmail AS company_email,
-                cdet.companyPhone AS company_phone,
+                COALESCE(idet.id, cdet.id) AS vendor_id,
+                COALESCE(idet.name, cdet.companyName) AS vendor_name,
+                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
+                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
                 p.status AS payment_status,
                 p.amount AS payment_amount,
@@ -575,7 +568,7 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-const getEligiblevendors = asyncHandler(async (req, res) => {
+const getEligiblevendors = asyncHandler(async (req, rBes) => {
     const { booking_id } = req.params;
 
     const connection = await db.getConnection();
