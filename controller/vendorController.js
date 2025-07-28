@@ -833,46 +833,63 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-const getVendorStripePayments = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id;
+const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
+    const vendor_id = req.params.vendor_id;
 
     if (!vendor_id) {
         return res.status(400).json({ message: "Vendor ID is required" });
     }
 
     try {
-        // 1. Get all payment_intent_ids from service_booking
         const [bookings] = await db.query(
-            `SELECT payment_intent_id FROM service_booking
-             WHERE vendor_id = ? AND bookingStatus = 1 AND payment_intent_id IS NOT NULL`,
+            `SELECT
+                booking_id, service_categories_id, service_id, vendor_id,
+                assigned_employee_id, user_id, bookingDate, bookingTime,
+                bookingStatus, payment_intent_id, notes, bookingMedia, created_at
+            FROM service_booking
+            WHERE vendor_id = ? AND payment_intent_id IS NOT NULL`,
             [vendor_id]
         );
 
-        if (bookings.length === 0) {
-            return res.status(200).json({ vendor_id, payments: [] });
-        }
+        const enriched = [];
 
-        const stripePayments = [];
-
-        // 2. Fetch each payment from Stripe
         for (const booking of bookings) {
-            const intentId = booking.payment_intent_id;
+            let stripeData = null;
+
             try {
-                const intent = await stripe.paymentIntents.retrieve(intentId);
-                stripePayments.push({
-                    payment_intent_id: intent.id,
-                    amount: intent.amount,
-                    currency: intent.currency,
-                    status: intent.status,
-                    created: intent.created,
-                    charges: intent.charges?.data
-                });
+                const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id);
+                const charge = paymentIntent.charges?.data?.[0];
+
+                if (charge) {
+                    stripeData = {
+                        charge_id: charge.id,
+                        amount: charge.amount / 100, // convert to normal currency
+                        currency: charge.currency,
+                        status: charge.status,
+                        receipt_url: charge.receipt_url,
+                        card_brand: charge.payment_method_details?.card?.brand,
+                        last4: charge.payment_method_details?.card?.last4,
+                        card_country: charge.payment_method_details?.card?.country,
+                        billing_name: charge.billing_details?.name,
+                        billing_email: charge.billing_details?.email,
+                        items: Object.values(charge.metadata || {}) // Flatten metadata as item list
+                    };
+                }
             } catch (err) {
-                console.warn(`Failed to fetch paymentIntent ${intentId}: ${err.message}`);
+                console.warn(`Stripe error for intent ${booking.payment_intent_id}: ${err.message}`);
             }
+
+            enriched.push({
+                ...booking,
+                stripe_payment: stripeData
+            });
         }
 
-        res.status(200).json({ vendor_id, total: stripePayments.length, stripePayments });
+        res.status(200).json({
+            vendor_id,
+            total: enriched.length,
+            bookings: enriched
+        });
     } catch (err) {
         console.error("Stripe payment fetch error:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
@@ -897,5 +914,5 @@ module.exports = {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorStripePayments
+    getVendorFullPaymentHistory
 };
