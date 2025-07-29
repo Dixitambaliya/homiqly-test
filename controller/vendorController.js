@@ -1,9 +1,10 @@
 const { db } = require("../config/db");
 const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
 const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
-
-const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
+const asyncHandler = require("express-async-handler");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
 
 const transport = nodemailer.createTransport({
     service: "gmail",
@@ -13,245 +14,93 @@ const transport = nodemailer.createTransport({
     },
 });
 
-const getVendorServices = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id;
+const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
+    const { service_id } = req.params;
 
-    try {
-        const [rows] = await db.query(vendorGetQueries.getVendorService, [vendor_id]);
-
-        if (!rows.length) {
-            return res.status(404).json({ message: "No services found for this vendor." });
-        }
-
-        const servicesMap = new Map();
-
-        for (const row of rows) {
-            const serviceTypeId = row.service_type_id;
-            const packageId = row.package_id;
-            const itemId = row.item_id;
-            const preferenceValue = row.preferenceValue;
-
-            // 1. Create service
-            if (!servicesMap.has(serviceTypeId)) {
-                servicesMap.set(serviceTypeId, {
-                    service_type_id: serviceTypeId,
-                    is_approved: row.is_approved,
-                    serviceType: row.serviceTypeName,
-                    serviceTypeMedia: row.serviceTypeMedia,
-                    serviceId: row.serviceId,
-                    serviceName: row.serviceName,
-                    category_id: row.category_id,
-                    categoryName: row.categoryName,
-                    serviceLocation: row.serviceLocation,
-                    serviceDescription: row.serviceDescription,
-                    packages: []
-                });
-            }
-
-            const serviceEntry = servicesMap.get(serviceTypeId);
-
-            // 2. Create or find package
-            let packageEntry = serviceEntry.packages.find(p => p.package_id === packageId);
-            if (!packageEntry && packageId) {
-                packageEntry = {
-                    package_id: packageId,
-                    title: row.packageName,
-                    description: row.packageDescription,
-                    price: parseFloat(row.totalPrice),
-                    time_required: row.totalTime,
-                    package_media: row.packageMedia,
-                    sub_packages: [],
-                    preferences: []
-                };
-                serviceEntry.packages.push(packageEntry);
-            }
-
-            // 3. Add item if exists
-            if (packageEntry && itemId) {
-                const existingItem = packageEntry.sub_packages.find(i => i.sub_package_id === itemId);
-                if (!existingItem) {
-                    packageEntry.sub_packages.push({
-                        sub_package_id: itemId,
-                        title: row.itemName,
-                        description: row.itemDescription,
-                        item_images: row.itemMedia,
-                        price: parseFloat(row.itemPrice),
-                        time_required: row.timeRequired
-                    });
-                }
-            }
-
-            // 4. Add preference if exists
-            if (packageEntry && preferenceValue) {
-                if (!packageEntry.preferences.includes(preferenceValue)) {
-                    packageEntry.preferences.push(preferenceValue);
-                }
-            }
-        }
-
-        const services = Array.from(servicesMap.values());
-
-        return res.status(200).json({
-            vendor_id,
-            services
-        });
-
-    } catch (error) {
-        console.error("Error fetching vendor services:", error);
-        return res.status(500).json({ message: "Database error", error: error.message });
+    if (!service_id) {
+        return res.status(400).json({ message: "service_id is required." });
     }
+
+    const [types] = await db.query(
+        `SELECT service_type_id, serviceTypeName, serviceTypeMedia
+         FROM service_type
+         WHERE service_id = ?`,
+        [service_id]
+    );
+
+    res.status(200).json({
+        message: "Service types fetched successfully.",
+        service_id,
+        service_types: types
+    });
 });
 
-
-const applyForServiceType = asyncHandler(async (req, res) => {
+const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
-    const { vendor_id, vendor_type } = req.user;
-    const {
-        serviceId,
-        serviceType,
-        packages,
-        preferences // optional
-    } = req.body;
-
-    const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
-
     try {
-        if (!serviceId || !serviceType || !packages || !serviceTypeMedia) {
-            throw new Error("All required fields (except preferences) must be provided including at least one package and image.");
+        const vendor_id = req.user.vendor_id;
+        const { selectedPackages } = req.body;
+
+        if (!Array.isArray(selectedPackages) || selectedPackages.length === 0) {
+            throw new Error("At least one package with sub-packages must be provided.");
         }
 
-        const checkServiceQuery = vendor_type === "individual"
-            ? "SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?"
-            : "SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = ?";
+        for (const pkg of selectedPackages) {
+            const { package_id } = pkg;
 
-        const [checkRows] = await connection.query(checkServiceQuery, [vendor_id, serviceId]);
-        if (checkRows.length === 0) {
-            throw new Error("Vendor has not registered this service.");
-        }
+            if (!package_id) throw new Error("Each package must include package_id");
 
-        const [vendorRow] = await db.query(
-            vendor_type === "individual"
-                ? "SELECT name AS vendorName FROM individual_details WHERE vendor_id = ?"
-                : "SELECT companyName AS vendorName FROM company_details WHERE vendor_id = ?",
-            [vendor_id]
-        );
-        const vendorName = vendorRow[0]?.vendorName || "";
-
-        const [serviceInfo] = await db.query("SELECT serviceName FROM services WHERE service_id = ?", [serviceId]);
-        const serviceName = serviceInfo[0]?.serviceName || "Unknown Service";
-
-        const [existing] = await connection.query(vendorPostQueries.checkServiceType, [serviceId, serviceType.trim()]);
-        if (existing.length > 0) throw new Error("Service type already exists for this service");
-
-        const [insertResult] = await connection.query(vendorPostQueries.insertServiceType, [
-            serviceId,
-            vendor_id,
-            serviceType.trim(),
-            serviceTypeMedia,
-            0
-        ]);
-        const service_type_id = insertResult.insertId;
-
-        const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
-        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
-            throw new Error("At least one package is required.");
-        }
-
-        const insertedPackages = [];
-
-        for (let i = 0; i < parsedPackages.length; i++) {
-            const pkg = parsedPackages[i];
-            const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
-
-            const [pkgResult] = await connection.query(
-                "INSERT INTO packages (service_type_id, vendor_id, packageName, description, totalPrice, totalTime, packageMedia) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [service_type_id, vendor_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
+            const [packageExists] = await connection.query(
+                `SELECT package_id FROM packages WHERE package_id = ?`,
+                [package_id]
             );
-
-            const package_id = pkgResult.insertId;
-            insertedPackages.push(package_id);
-
-            for (let itemIndex = 0; itemIndex < (pkg.items || []).length; itemIndex++) {
-                const item = pkg.items[itemIndex];
-
-                const itemMedia = req.uploadedFiles?.[`itemMedia_${i}`]?.[0]?.url || null;
-
-                await connection.query(
-                    "INSERT INTO package_items (package_id, vendor_id, itemName, itemMedia, description, price, timeRequired) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    [package_id, vendor_id, item.item_name, itemMedia, item.description, item.price, item.time_required]
-                );
+            if (packageExists.length === 0) {
+                throw new Error(`Package ID ${package_id} does not exist`);
             }
-        }
 
-        if (preferences) {
-            const parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-
-            if (Array.isArray(parsedPreferences) && parsedPreferences.length > 0) {
-                for (const package_id of insertedPackages) {
-                    for (const pref of parsedPreferences) {
-                        if (!pref.preference_value) {
-                            throw new Error("Each preference must have a 'preference_value'.");
-                        }
-
-                        await connection.query(
-                            "INSERT INTO booking_preferences (package_id, preferenceValue) VALUES (?, ?)",
-                            [package_id, pref.preference_value.trim()]
-                        );
-                    }
-                }
-            }
+            // ✅ Store application for admin approval
+            await connection.query(
+                `INSERT INTO vendor_package_applications (vendor_id, package_id) VALUES (?, ?)`,
+                [vendor_id, package_id]
+            );
         }
 
         await connection.commit();
         connection.release();
 
-        // Notify admins
-        const [adminEmailRows] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
-        const adminEmails = adminEmailRows.map(row => row.email);
-        const packageHtml = parsedPackages.map(p => `<li>${p.package_name} - ₹${p.total_price} (${p.total_time})</li>`).join("");
+        // ✅ Send email notification to admin
+        const transporter = nodemailer.createTransport({
+            service: "Gmail", // or use your SMTP config
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
 
-        if (adminEmails.length > 0) {
-            await transport.sendMail({
-                from: process.env.EMAIL_USER,
-                to: adminEmails,
-                subject: "New Service Type Submitted by Vendor",
-                html: `
-                    <p>A new service type has been submitted by a vendor and is pending approval:</p>
-                    <ul>
-                        <li><strong>Vendor ID:</strong> ${vendor_id}</li>
-                        <li><strong>Vendor Name:</strong> ${vendorName}</li>
-                        <li><strong>Service:</strong> ${serviceName}</li>
-                        <li><strong>Service Type:</strong> ${serviceType}</li>
-                    </ul>
-                    <h4>Packages:</h4><ul>${packageHtml}</ul>
-                    <p>Please review and approve it in the admin panel.</p>`
-            });
-        }
+        await transporter.sendMail({
+            from: `"Vendor System" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER, // Admin's real email
+            subject: "New Package Application Submitted",
+            html: `
+                <p><strong>Vendor ID:</strong> ${vendor_id}</p>
+                <p>has applied for the following packages:</p>
+                <ul>
+                    ${selectedPackages.map(p => `<li>Package ID: ${p.package_id}</li>`).join("")}
+                </ul>
+            `
+        });
 
-        const [adminFCMTokens] = await db.query("SELECT fcmToken FROM admin WHERE fcmToken IS NOT NULL");
-        const tokens = adminFCMTokens.map(row => row.fcmToken).filter(Boolean);
-
-        if (tokens.length > 0) {
-            await admin.messaging().sendEachForMulticast({
-                notification: {
-                    title: "New Service Type Submitted",
-                    body: `${serviceName} → ${serviceType} (by ${vendorName})`
-                },
-                tokens
-            });
-        }
-
-        res.status(201).json({
-            message: "Service type and vendor details submitted successfully and pending approval.",
-            service_type_id
+        res.status(200).json({
+            message: "Package application submitted for admin approval.",
+            submitted: selectedPackages
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Error applying for service type:", err);
+        console.error("Apply vendor packages error:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
@@ -295,30 +144,47 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        const [rows] = await db.query(vendorGetQueries.getProfileVendor, [vendor_id])
+        // Step 1: Fetch profile
+        const [rows] = await db.query(vendorGetQueries.getProfileVendor, [vendor_id]);
 
         if (!rows || rows.length === 0) {
             return res.status(404).json({ message: "Vendor profile not found" });
         }
 
-        // Remove null values
-        const profileWithNonNulls = {};
+        // Step 2: Fetch certificates
+        const [certificatesRaw] = await db.query(vendorGetQueries.getCertificate, [vendor_id]);
+
+        // Step 3: Clean profile data (remove nulls)
+        const profile = {};
         for (const key in rows[0]) {
             if (rows[0][key] !== null) {
-                profileWithNonNulls[key] = rows[0][key];
+                profile[key] = rows[0][key];
             }
         }
 
+        // Step 4: Filter certificate fields
+        const certificates = (certificatesRaw || []).map(cert => ({
+            certificateName: cert.certificateName,
+            certificateFile: cert.certificateFile
+        }));
+
+        // Step 5: Attach cleaned certificates
+        profile.certificates = certificates;
+
+        // Step 6: Send response
         res.status(200).json({
             message: "Vendor profile fetched successfully",
-            profile: profileWithNonNulls
+            profile
         });
 
     } catch (err) {
-        console.error("Error fetching service types:", err);
-        res.status(500).json({ error: "Internal server error", details: err.message });
+        console.error("Error fetching vendor profile:", err);
+        res.status(500).json({
+            error: "Internal server error",
+            details: err.message
+        });
     }
-})
+});
 
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
@@ -329,49 +195,92 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         otherInfo,
         googleBusinessProfileLink,
         companyAddress,
-        contactPerson
+        contactPerson,
+        birthDate,
+        address,
+        certificateNames // assume this is an array
     } = req.body;
 
     let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
 
     try {
-        if (vendor_type === "individual") {
-            // Get current image if no new image uploaded
-            if (!profileImageVendor) {
-                const [existing] = await db.query(
-                    `SELECT profileImage FROM individual_details WHERE vendor_id = ?`,
-                    [vendor_id]
-                );
-                profileImageVendor = existing[0]?.profileImage || null;
-            }
+        let existing;
 
-            await db.query(
-                `UPDATE individual_details
-                 SET profileImage = ?, name = ?, email = ?, phone = ?, otherInfo = ?
-                 WHERE vendor_id = ?`,
-                [profileImageVendor, name, email, phone, otherInfo, vendor_id]
+        // 1. Fetch existing details
+        if (vendor_type === "individual") {
+            [existing] = await db.query(
+                `SELECT profileImage, name, address, dob, email, phone, otherInfo FROM individual_details WHERE vendor_id = ?`,
+                [vendor_id]
             );
         } else if (vendor_type === "company") {
-            // Get current image if no new image uploaded
-            if (!profileImageVendor) {
-                const [existing] = await db.query(
-                    `SELECT profileImage FROM company_details WHERE vendor_id = ?`,
-                    [vendor_id]
-                );
-                profileImageVendor = existing[0]?.profileImage || null;
-            }
-
-            await db.query(
-                `UPDATE company_details
-                 SET profileImage = ?, companyName = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
-                 WHERE vendor_id = ?`,
-                [profileImageVendor, name, email, phone, googleBusinessProfileLink, companyAddress, contactPerson, vendor_id]
+            [existing] = await db.query(
+                `SELECT profileImage, companyName, dob, companyEmail, companyPhone, googleBusinessProfileLink, companyAddress, contactPerson FROM company_details WHERE vendor_id = ?`,
+                [vendor_id]
             );
         } else {
             return res.status(400).json({ message: "Invalid vendor type" });
         }
 
-        res.status(200).json({ message: "Vendor profile updated successfully" });
+        if (!existing || existing.length === 0) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
+
+        const current = existing[0];
+
+        // 2. Fallback to old data if any field is not provided
+        profileImageVendor = profileImageVendor || current.profileImage;
+
+        if (vendor_type === "individual") {
+            await db.query(
+                `UPDATE individual_details
+                 SET profileImage = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
+                 WHERE vendor_id = ?`,
+                [
+                    profileImageVendor,
+                    name ?? current.name,
+                    address ?? current.address,
+                    birthDate ?? current.dob,
+                    email ?? current.email,
+                    phone ?? current.phone,
+                    otherInfo ?? current.otherInfo,
+                    vendor_id
+                ]
+            );
+        } else if (vendor_type === "company") {
+            await db.query(
+                `UPDATE company_details
+                 SET profileImage = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                 WHERE vendor_id = ?`,
+                [
+                    profileImageVendor,
+                    name ?? current.companyName,
+                    birthDate ?? current.dob,
+                    email ?? current.companyEmail,
+                    phone ?? current.companyPhone,
+                    googleBusinessProfileLink ?? current.googleBusinessProfileLink,
+                    companyAddress ?? current.companyAddress,
+                    contactPerson ?? current.contactPerson,
+                    vendor_id
+                ]
+            );
+        }
+
+        // 3. Insert certificates if provided
+        if (certificateNames && Array.isArray(certificateNames)) {
+            for (let i = 0; i < certificateNames.length; i++) {
+                const certName = certificateNames[i];
+                const certFile = req.uploadedFiles?.[`certificateFiles_${i}`]?.[0]?.url;
+
+                if (certName && certFile) {
+                    await db.query(
+                        `INSERT INTO certificates (vendor_id, certificateName, certificateFile) VALUES (?, ?, ?)`,
+                        [vendor_id, certName, certFile]
+                    );
+                }
+            }
+        }
+
+        res.status(200).json({ message: "Vendor profile and certificates updated successfully" });
     } catch (err) {
         console.error("Error updating vendor profile:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
@@ -384,7 +293,7 @@ const editServiceType = asyncHandler(async (req, res) => {
 
     const { vendor_id } = req.user;
     const { service_type_id, packages } = req.body;
-    
+
     try {
         if (!service_type_id || !packages || !Array.isArray(packages)) {
             throw new Error("Service Type ID and packages array are required.");
@@ -443,5 +352,569 @@ const editServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+const deletePackage = asyncHandler(async (req, res) => {
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-module.exports = { getVendorServices, applyForServiceType, getServiceTypesByVendor, getVendorService, getProfileVendor, updateProfileVendor, editServiceType };
+    const { vendor_id } = req.user;
+    const { package_id } = req.params;
+
+    try {
+        // Step 1: Check if the package exists and belongs to the vendor
+        const [packageRows] = await connection.query(
+            `SELECT package_id FROM packages WHERE package_id = ? AND vendor_id = ?`,
+            [package_id, vendor_id]
+        );
+
+        if (packageRows.length === 0) {
+            throw new Error("Package not found or not authorized.");
+        }
+
+        // Step 2: Delete booking preferences (if any)
+        await connection.query(
+            `DELETE FROM booking_preferences WHERE package_id = ?`,
+            [package_id]
+        );
+
+        // Step 3: Delete package items (if any)
+        await connection.query(
+            `DELETE FROM package_items WHERE package_id = ? AND vendor_id = ?`,
+            [package_id, vendor_id]
+        );
+
+        // Step 4: Delete the package itself
+        await connection.query(
+            `DELETE FROM packages WHERE package_id = ? AND vendor_id = ?`,
+            [package_id, vendor_id]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({ message: "Package and related data deleted successfully." });
+
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Error deleting package:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+const getAvailablePackagesForVendor = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    const {
+        service_categories_id,
+        service_id,
+        service_type_id
+    } = req.query; // Filter via query params
+
+    try {
+        const conditions = [];
+        const params = [vendor_id];
+
+        if (service_categories_id) {
+            conditions.push("sc.service_categories_id = ?");
+            params.push(service_categories_id);
+        }
+        if (service_id) {
+            conditions.push("s.service_id = ?");
+            params.push(service_id);
+        }
+        if (service_type_id) {
+            conditions.push("st.service_type_id = ?");
+            params.push(service_type_id);
+        }
+
+        const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        const [rows] = await db.query(`
+        SELECT
+          sc.service_categories_id,
+          sc.serviceCategory,
+
+          s.service_id,
+          s.serviceName,
+
+          st.service_type_id,
+          st.serviceTypeName,
+          st.serviceTypeMedia,
+
+          COALESCE((
+            SELECT CONCAT('[', GROUP_CONCAT(
+              JSON_OBJECT(
+                'package_id', p.package_id,
+                'packageName', p.packageName,
+                'packageMedia', p.packageMedia,
+                'description', p.description,
+                'totalPrice', p.totalPrice,
+                'totalTime', p.totalTime,
+                'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
+                'subPackages', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'sub_package_id', pi.item_id,
+                      'itemName', pi.itemName,
+                      'itemMedia', pi.itemMedia,
+                      'description', pi.description,
+                      'price', pi.price,
+                      'timeRequired', pi.timeRequired
+                    )
+                  ), ']')
+                  FROM package_items pi
+                  WHERE pi.package_id = p.package_id
+                ), '[]'),
+                'preferences', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'preference_id', bp.preference_id,
+                      'preference_value', bp.preferenceValue
+                    )
+                  ), ']')
+                  FROM booking_preferences bp
+                  WHERE bp.package_id = p.package_id
+                ), '[]')
+              )
+            ), ']')
+            FROM packages p
+            LEFT JOIN vendor_packages vp ON vp.package_id = p.package_id AND vp.vendor_id = ?
+            WHERE p.service_type_id = st.service_type_id
+          ), '[]') AS packages
+
+        FROM service_categories sc
+        JOIN services s ON s.service_categories_id = sc.service_categories_id
+        JOIN service_type st ON st.service_id = s.service_id
+
+        ${whereClause}
+
+        GROUP BY st.service_type_id
+        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+      `, params);
+
+        const parsed = rows.map(row => {
+            let packages = [];
+            try {
+                packages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    subPackages: typeof pkg.subPackages === 'string'
+                        ? JSON.parse(pkg.subPackages || '[]')
+                        : (pkg.subPackages || []),
+                    preferences: typeof pkg.preferences === 'string'
+                        ? JSON.parse(pkg.preferences || '[]')
+                        : (pkg.preferences || [])
+                }));
+            } catch (e) {
+                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, e.message);
+            }
+
+            return {
+                ...row,
+                packages
+            };
+        });
+
+        res.status(200).json({
+            message: "packages",
+            data: parsed
+        });
+
+    } catch (err) {
+        console.error("Vendor package fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch vendor packages", details: err.message });
+    }
+});
+
+const getAllPackagesForVendor = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    try {
+        const [rows] = await db.query(`
+        SELECT
+          sc.service_categories_id,
+          sc.serviceCategory,
+
+          s.service_id,
+          s.serviceName,
+
+          st.service_type_id,
+          st.serviceTypeName,
+          st.serviceTypeMedia,
+
+          -- Packages grouped per service_type
+          COALESCE((
+            SELECT CONCAT('[', GROUP_CONCAT(
+              JSON_OBJECT(
+                'package_id', p.package_id,
+                'packageName', p.packageName,
+                'packageMedia', p.packageMedia,
+                'description', p.description,
+                'totalPrice', p.totalPrice,
+                'totalTime', p.totalTime,
+                'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
+                'subPackages', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'sub_package_id', pi.item_id,
+                      'itemName', pi.itemName,
+                      'itemMedia', pi.itemMedia,
+                      'description', pi.description,
+                      'price', pi.price,
+                      'timeRequired', pi.timeRequired
+                    )
+                  ), ']')
+                  FROM package_items pi
+                  WHERE pi.package_id = p.package_id
+                ), '[]'),
+                'preferences', IFNULL((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'preference_id', bp.preference_id,
+                      'preference_value', bp.preferenceValue
+                    )
+                  ), ']')
+                  FROM booking_preferences bp
+                  WHERE bp.package_id = p.package_id
+                ), '[]')
+              )
+            ), ']')
+            FROM packages p
+            LEFT JOIN vendor_packages vp ON vp.package_id = p.package_id AND vp.vendor_id = ?
+            WHERE p.service_type_id = st.service_type_id
+          ), '[]') AS packages
+
+        FROM service_categories sc
+        JOIN services s ON s.service_categories_id = sc.service_categories_id
+        JOIN service_type st ON st.service_id = s.service_id
+
+        GROUP BY st.service_type_id
+        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+      `, [vendor_id]);
+
+        // Final parsing of nested packages
+        const parsed = rows.map(row => {
+            let packages = [];
+            try {
+                packages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    subPackages: typeof pkg.subPackages === 'string'
+                        ? JSON.parse(pkg.subPackages || '[]')
+                        : (pkg.subPackages || []),
+                    preferences: typeof pkg.preferences === 'string'
+                        ? JSON.parse(pkg.preferences || '[]')
+                        : (pkg.preferences || [])
+                }));
+            } catch (e) {
+                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, e.message);
+            }
+
+            return {
+                ...row,
+                packages
+            };
+        });
+
+        res.status(200).json({
+            message: "packages",
+            data: parsed
+        });
+
+    } catch (err) {
+        console.error("Vendor package fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch vendor packages", details: err.message });
+    }
+});
+
+const getVendorAssignedPackages = asyncHandler(async (req, res) => {
+    const vendorId = req.user.vendor_id;
+
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                service_type.service_type_id,
+                service_type.serviceTypeName,
+                service_type.serviceTypeMedia,
+
+                service.service_id,
+                service.serviceName,
+
+                service_category.service_categories_id,
+                service_category.serviceCategory,
+
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'package_id', package_table.package_id,
+                            'title', package_table.packageName,
+                            'description', package_table.description,
+                            'price', package_table.totalPrice,
+                            'time_required', package_table.totalTime,
+                            'package_media', package_table.packageMedia,
+
+                            -- ✅ Sub-packages
+                            'sub_packages', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'sub_package_id', package_item.item_id,
+                                        'title', package_item.itemName,
+                                        'description', package_item.description,
+                                        'price', package_item.price,
+                                        'time_required', package_item.timeRequired,
+                                        'item_media', package_item.itemMedia
+                                    )
+                                ), ']')
+                                FROM package_items AS package_item
+                                WHERE package_item.package_id = package_table.package_id
+                            ), '[]'),
+
+                            -- ✅ Preferences
+                            'preferences', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'preference_id', booking_preference.preference_id,
+                                        'preference_value', booking_preference.preferenceValue
+                                    )
+                                ), ']')
+                                FROM booking_preferences AS booking_preference
+                                WHERE booking_preference.package_id = package_table.package_id
+                            ), '[]')
+                        )
+                    ), ']')
+                    FROM packages AS package_table
+                    JOIN vendor_packages AS vendor_package_link ON vendor_package_link.package_id = package_table.package_id
+                    WHERE package_table.service_type_id = service_type.service_type_id AND vendor_package_link.vendor_id = ?
+                ), '[]') AS packages
+
+            FROM service_type
+            JOIN services AS service ON service.service_id = service_type.service_id
+            JOIN service_categories AS service_category ON service_category.service_categories_id = service.service_categories_id
+
+            WHERE EXISTS (
+                SELECT 1 FROM vendor_packages AS vendor_package_check
+                JOIN packages AS package_check ON package_check.package_id = vendor_package_check.package_id
+                WHERE package_check.service_type_id = service_type.service_type_id AND vendor_package_check.vendor_id = ?
+            )
+
+            ORDER BY service_type.service_type_id DESC
+        `, [vendorId, vendorId]);
+
+        const result = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            service_type_name: row.serviceTypeName,
+            service_type_media: row.serviceTypeMedia,
+
+            service_id: row.service_id,
+            service_name: row.serviceName,
+
+            service_category_id: row.service_categories_id,
+            service_category_name: row.serviceCategory,
+
+            packages: JSON.parse(row.packages || '[]').map(pkg => ({
+                ...pkg,
+                sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
+                preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
+            }))
+        }));
+
+        res.status(200).json({
+            message: "Vendor's assigned/applied packages fetched successfully",
+            result
+        });
+    } catch (err) {
+        console.error("Error fetching vendor packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+const addRatingToPackages = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const { service_id, package_id, rating, review } = req.body;
+
+    if (!vendor_id || !package_id || !rating) {
+        return res.status(400).json({
+            message: "Vendor ID from token, Package ID, and Rating are required"
+        });
+    }
+
+    if (rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    try {
+        const [assigned] = await db.query(`
+            SELECT vendor_packages_id FROM vendor_packages
+            WHERE vendor_id = ? AND package_id = ?
+        `, [vendor_id, package_id]);
+
+        if (assigned.length === 0) {
+            return res.status(403).json({ message: "This package is not assigned to you." });
+        }
+
+        // ✅ Check for duplicate rating
+        const [existing] = await db.query(`
+            SELECT rating_id FROM ratings
+            WHERE vendor_id = ? AND package_id = ?
+        `, [vendor_id, package_id]);
+
+        if (existing.length > 0) {
+            return res.status(400).json({ message: "You have already rated this package." });
+        }
+
+        await db.query(`
+            INSERT INTO ratings (vendor_id, service_id, package_id, rating, review)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            vendor_id,
+            service_id || null,
+            package_id,
+            rating,
+            review || null
+        ]);
+
+        res.status(201).json({ message: "Rating submitted successfully by vendor." });
+
+    } catch (error) {
+        console.error("Error submitting vendor package rating:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const { value } = req.body;
+
+    if (![0, 1].includes(value)) {
+        return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
+    }
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    try {
+        await db.query(`
+            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE
+                manual_assignment_enabled = VALUES(manual_assignment_enabled)
+        `, [vendor_id, value]);
+
+        res.status(200).json({
+            message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
+            vendor_id,
+            manual_assignment_enabled: value
+        });
+
+    } catch (err) {
+        console.error("Error toggling manual vendor assignment:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+const getManualAssignmentStatus = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id || req.query.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    try {
+        const [result] = await db.query(
+            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ? LIMIT 1`,
+            [vendor_id]
+        );
+
+        res.status(200).json({
+            vendor_id,
+            value: result[0]?.manual_assignment_enabled ?? 0
+        });
+
+    } catch (err) {
+        console.error("Fetch error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Vendor ID is required" });
+    }
+
+    try {
+        const [bookings] = await db.query(
+            `SELECT
+                booking_id, service_categories_id, service_id, vendor_id,
+                assigned_employee_id, user_id, bookingDate, bookingTime,
+                bookingStatus, payment_intent_id, notes, bookingMedia, created_at
+            FROM service_booking
+            WHERE vendor_id = ? AND payment_intent_id IS NOT NULL`,
+            [vendor_id]
+        );
+
+        const enriched = [];
+
+        for (const booking of bookings) {
+            let stripeData = null;
+
+            try {
+                const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id);
+                const charge = paymentIntent.charges?.data?.[0];
+
+                if (charge) {
+                    stripeData = {
+                        charge_id: charge.id,
+                        amount: charge.amount / 100, // convert to normal currency
+                        currency: charge.currency,
+                        status: charge.status,
+                        receipt_url: charge.receipt_url,
+                        card_brand: charge.payment_method_details?.card?.brand,
+                        last4: charge.payment_method_details?.card?.last4,
+                        card_country: charge.payment_method_details?.card?.country,
+                        billing_name: charge.billing_details?.name,
+                        billing_email: charge.billing_details?.email,
+                        items: Object.values(charge.metadata || {}) // Flatten metadata as item list
+                    };
+                }
+            } catch (err) {
+                console.warn(`Stripe error for intent ${booking.payment_intent_id}: ${err.message}`);
+            }
+
+            enriched.push({
+                ...booking,
+                stripe_payment: stripeData
+            });
+        }
+
+        res.status(200).json({
+            vendor_id,
+            total: enriched.length,
+            bookings: enriched
+        });
+    } catch (err) {
+        console.error("Stripe payment fetch error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
+
+
+module.exports = {
+    getVendorAssignedPackages,
+    applyPackagesToVendor,
+    getServiceTypesByVendor,
+    getVendorService,
+    getProfileVendor,
+    updateProfileVendor,
+    editServiceType,
+    getServiceTypesByServiceId,
+    deletePackage,
+    getAvailablePackagesForVendor,
+    getAllPackagesForVendor,
+    addRatingToPackages,
+    toggleManualVendorAssignment,
+    getManualAssignmentStatus,
+    getVendorFullPaymentHistory
+};

@@ -1,7 +1,7 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const contractorGetQueries = require('../config/contractorQueries/contractorGetQueries');
-const contractorPostQueries = require('../config/contractorQueries/contractorPostQueries');
+const  contractorPostQueries = require('../config/contractorQueries/contractorPostQueries');
 
 const createContractor = asyncHandler(async (req, res) => {
     const {
@@ -90,56 +90,46 @@ const getAllContractors = asyncHandler(async (req, res) => {
 });
 
 const assignContractorToBooking = asyncHandler(async (req, res) => {
-    const { booking_id, contractor_id, estimated_hours } = req.body;
+  const { booking_id, contractor_id, estimated_hours } = req.body;
 
-    if (!booking_id || !contractor_id || !estimated_hours) {
-        return res.status(400).json({ message: "Booking ID, contractor ID, and estimated hours are required" });
+  if (!booking_id || !contractor_id || !estimated_hours) {
+    return res.status(400).json({ message: "Booking ID, contractor ID, and estimated hours are required" });
+  }
+
+  try {
+    const [contractorService] = await db.query(
+      contractorPostQueries.getContractorHourlyRateForBooking,
+      [contractor_id, booking_id]
+    );
+
+    if (contractorService.length === 0) {
+      return res.status(400).json({ message: "Contractor not available for this service" });
     }
 
-    try {
-        // Get contractor's hourly rate for this service
-        const [contractorService] = await db.query(`
-            SELECT cs.hourly_rate 
-            FROM contractor_services cs
-            JOIN service_booking sb ON cs.service_id = sb.service_id
-            WHERE cs.contractor_id = ? AND sb.booking_id = ?
-        `, [contractor_id, booking_id]);
+    const hourly_rate = contractorService[0].hourly_rate;
+    const total_amount = hourly_rate * estimated_hours;
 
-        if (contractorService.length === 0) {
-            return res.status(400).json({ message: "Contractor not available for this service" });
-        }
+    await db.query(contractorPostQueries.assignContractorToBooking, [
+      booking_id,
+      contractor_id,
+      estimated_hours,
+      hourly_rate,
+      total_amount,
+      'assigned'
+    ]);
 
-        const hourly_rate = contractorService[0].hourly_rate;
-        const total_amount = hourly_rate * estimated_hours;
+    await db.query(contractorPostQueries.updateBookingStatus, [booking_id]);
 
-        // Assign contractor to booking
-        await db.query(contractorPostQueries.assignContractorToBooking, [
-            booking_id,
-            contractor_id,
-            estimated_hours,
-            hourly_rate,
-            total_amount,
-            'assigned' // booking_status
-        ]);
+    res.status(200).json({
+      message: "Contractor assigned successfully",
+      total_amount
+    });
 
-        // Update main booking status
-        await db.query(`
-            UPDATE service_booking 
-            SET bookingStatus = 1 
-            WHERE booking_id = ?
-        `, [booking_id]);
-
-        res.status(200).json({
-            message: "Contractor assigned successfully",
-            total_amount
-        });
-
-    } catch (error) {
-        console.error("Error assigning contractor:", error);
-        res.status(500).json({ message: "Internal server error", error: error.message });
-    }
+  } catch (error) {
+    console.error("Error assigning contractor:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
 });
-
 const getContractorBookings = asyncHandler(async (req, res) => {
     const { contractor_id } = req.params;
 

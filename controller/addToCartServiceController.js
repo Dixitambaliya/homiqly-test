@@ -27,11 +27,26 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     try {
         parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
-        if (!Array.isArray(parsedPackages)) {
-            return res.status(400).json({ message: "'packages' must be a valid array of objects." });
+        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
+            return res.status(400).json({ message: "'packages' must be a non-empty array." });
         }
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
+    }
+
+    // ✅ Validate all packages and sub_packages before any insert
+    for (const pkg of parsedPackages) {
+        if (!pkg.package_id) {
+            return res.status(400).json({ message: "Each package must include a package_id." });
+        }
+        if (!Array.isArray(pkg.sub_packages) || pkg.sub_packages.length === 0) {
+            return res.status(400).json({ message: `Package ${pkg.package_id} must include at least one sub_package.` });
+        }
+        for (const item of pkg.sub_packages) {
+            if (!item.sub_package_id || item.price == null) {
+                return res.status(400).json({ message: `Each sub_package in package ${pkg.package_id} must include sub_package_id and price.` });
+            }
+        }
     }
 
     try {
@@ -47,14 +62,18 @@ const addToCartService = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const [vendorResult] = await connection.query(bookingGetQueries.getVendorByServiceTypeId, [service_type_id]);
+        const [vendorResult] = await connection.query(
+            bookingGetQueries.getVendorByServiceTypeId,
+            [service_type_id]
+        );
+
         if (!vendorResult.length) {
             throw new Error("Could not find vendor for the selected service type.");
         }
 
         const vendor_id = vendorResult[0].vendor_id;
 
-        // Insert into service_cart
+        // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
                 user_id, vendor_id, service_id, service_type_id,
@@ -77,11 +96,9 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         const cart_id = insertCart.insertId;
 
-        // Insert packages & items
+        // ✅ Step 2: Insert cart_packages and cart_package_items
         for (const pkg of parsedPackages) {
-            const { package_id, sub_packages = [] } = pkg;
-
-            if (!package_id) throw new Error("Missing package_id in packages");
+            const { package_id, sub_packages } = pkg;
 
             await connection.query(
                 "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
@@ -89,23 +106,21 @@ const addToCartService = asyncHandler(async (req, res) => {
             );
 
             for (const item of sub_packages) {
-                if (!item.sub_package_id || item.price == null) {
-                    throw new Error("Each sub_package must include sub_package_id and price.");
-                }
+                const { sub_package_id, price, quantity = 1 } = item;
 
                 await connection.query(
                     `INSERT INTO cart_package_items
-                        (cart_id, sub_package_id, price, package_id, item_id)
-                     VALUES (?, ?, ?, ?, ?)`,
-                    [cart_id, item.sub_package_id, item.price, package_id, item.sub_package_id]
+                        (cart_id, sub_package_id, price, package_id, item_id, quantity)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
         }
 
-        // Insert preferences
+        // ✅ Step 3 (Optional): Insert preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
-            if (!preference_id) throw new Error("Invalid preference entry");
+            if (!preference_id) continue;
 
             await connection.query(
                 "INSERT INTO cart_preferences (cart_id, preference_id) VALUES (?, ?)",
@@ -155,7 +170,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 packages.totalTime,
                 packages.packageMedia
              FROM cart_packages
-             LEFT JOIN packages ON cart_packages.package_id = packages.package_id
+             JOIN packages ON cart_packages.package_id = packages.package_id
              WHERE cart_packages.cart_id = ?`,
             [cart_id]
         );
@@ -166,10 +181,11 @@ const getUserCart = asyncHandler(async (req, res) => {
                 cart_package_items.sub_package_id AS item_id,
                 package_items.itemName,
                 cart_package_items.price,
+                cart_package_items.quantity,
                 package_items.timeRequired,
                 package_items.package_id
              FROM cart_package_items
-             LEFT JOIN package_items ON cart_package_items.sub_package_id = package_items.item_id
+             JOIN package_items ON cart_package_items.sub_package_id = package_items.item_id
              WHERE cart_package_items.cart_id = ?`,
             [cart_id]
         );
@@ -182,7 +198,6 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sub_packages: subPackagesForThisPackage    // ✅ RENAMED
             };
         });
-
 
         // Fetch preferences linked to the cart
         const [cartPreferences] = await db.query(

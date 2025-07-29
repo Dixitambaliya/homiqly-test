@@ -136,37 +136,43 @@ const addServiceCity = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 })
+
 const addServiceType = asyncHandler(async (req, res) => {
-    const { serviceName, serviceTypeName } = req.body;
-    const { vendor_id } = req.user.vendor_id;
+    const { service_id, serviceTypeName } = req.body;
+    const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
 
-    if (!serviceName || !serviceTypeName || serviceTypeName.trim() === "") {
-        return res.status(400).json({ message: "Service name and type are required" });
+    if (!service_id || !serviceTypeName) {
+        return res.status(400).json({ message: "service_id and serviceTypeName are required." });
     }
 
-    try {
-        // Step 1: Get service_id by serviceName
-        const [serviceRows] = await db.query(servicePostQueries.getServiceIdByName, [serviceName.trim()]);
-        if (serviceRows.length === 0) {
-            return res.status(400).json({ message: "Service name not found" });
-        }
-
-        const serviceId = serviceRows[0].service_id;
-
-        // Step 2: Check if the type already exists for this service
-        const [existing] = await db.query(servicePostQueries.checkServiceType, [serviceId, serviceTypeName.trim()]);
-        if (existing.length > 0) {
-            return res.status(400).json({ message: "Service type already exists for this service" });
-        }
-
-        // Step 3: Insert new service type
-        await db.query(servicePostQueries.insertServiceType, [serviceId, serviceTypeName.trim()]);
-
-        res.status(201).json({ message: "Service type added successfully" });
-    } catch (err) {
-        console.error("Error adding service type:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+    // Check if the service exists
+    const [serviceExists] = await db.query(
+        `SELECT service_id FROM services WHERE service_id = ?`,
+        [service_id]
+    );
+    if (serviceExists.length === 0) {
+        return res.status(404).json({ message: "Service not found." });
     }
+
+    // Prevent duplicate service type names under same service
+    const [existing] = await db.query(
+        `SELECT 1 FROM service_type WHERE service_id = ? AND serviceTypeName = ?`,
+        [service_id, serviceTypeName.trim()]
+    );
+    if (existing.length > 0) {
+        return res.status(409).json({ message: "Service type already exists under this service." });
+    }
+
+    const [result] = await db.query(
+        `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia, is_approved)
+         VALUES (?, ?, ?, 1)`,
+        [service_id, serviceTypeName.trim(), serviceTypeMedia]
+    );
+
+    res.status(201).json({
+        message: "Service type created successfully.",
+        service_type_id: result.insertId
+    });
 });
 
 const getAdminService = asyncHandler(async (req, res) => {

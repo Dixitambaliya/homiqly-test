@@ -1,68 +1,97 @@
-// const express = require("express");
-// const nodemailer = require("nodemailer");
-// const router = express.Router();
-
-// // POST /send-email
-// router.post("/send-email", async (req, res) => {
-//   const { to, subject, text } = req.body;
-
-//   if (!to || !subject || !text) {
-//     return res.status(400).json({ message: "Missing required fields" });
-//   }
-
-//   const transporter = nodemailer.createTransport({
-//     host: "smtp.hostinger.com",
-//     port: 465,
-//     secure: true,
-//     auth: {
-//       user: "info@codegrin.com",
-//       pass: "Yourcode@2001",
-//     },
-//   });
-
-//   try {
-//     await transporter.sendMail({
-//       from: '"Codegrin Technologies" <info@codegrin.com>',
-//       to,
-//       subject,
-//       text,
-//     });
-
-//     res.status(200).json({ message: "Email sent successfully!" });
-//   } catch (err) {
-//     console.error("Email error:", err);
-//     res.status(500).json({ message: "Failed to send email", error: err.message });
-//   }
-// });
-
-// module.exports = router;
-
 const nodemailer = require("nodemailer");
+const asyncHandler = require("express-async-handler");
+const { db } = require("../config/db");
 
-async function sendWelcomeEmail() {
-  const transporter = nodemailer.createTransport({
-    host: "smtp.hostinger.com",
-    port: 465,
-    secure: true,
+const transporter = nodemailer.createTransport({
+    service: "gmail",
     auth: {
-      user: "info@codegrin.com",
-      pass: "Yourcode@2001", // 🔐 Don't hardcode in production
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
     },
-  });
+});
 
-  try {
-    const info = await transporter.sendMail({
-      from: '"Codegrin Technologies" <info@codegrin.com>',
-      to: "client@example.com",
-      subject: "Welcome to Codegrin",
-      text: "Thank you for choosing us.",
-    });
+const sendMessageToAdmins = asyncHandler(async (req, res) => {
+    const { name, subject, message } = req.body;
+    const senderEmail = req.user?.email
 
-    console.log("✅ Email sent: " + info.messageId);
-  } catch (err) {
-    console.error("❌ Failed to send email:", err.message);
-  }
-}
+    if (!name || !subject || !message) {
+        return res.status(400).json({ error: "Name, subject, and message are required" });
+    }
 
-// Call the function directly
-sendWelcomeEmail();
+    try {
+        // Step 1: Insert into support_tickets table
+        await db.query(`
+            INSERT INTO support_tickets (user_email, user_name, subject, message)
+            VALUES (?, ?, ?, ?)
+        `, [senderEmail, name, subject, message]);
+
+        // Step 2: Send email to admins
+        const [admins] = await db.query("SELECT email FROM admin");
+
+        if (admins.length === 0) {
+            return res.status(404).json({ error: "No admins found" });
+        }
+
+        const adminEmails = admins.map((admin) => admin.email).join(",");
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            bcc: adminEmails,
+            subject: `Ticket: ${subject}`,
+            html: `
+                <p><strong>From:</strong> ${name} (${senderEmail})</p>
+                <p><strong>Message:</strong></p>
+                <p>${message}</p>
+                <hr />
+                <p>This message was also logged as a support ticket.</p>
+            `,
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.status(200).json({ message: "Support ticket created and message sent to admins" });
+    } catch (err) {
+        console.error("Error creating support ticket or sending message:", err);
+        res.status(500).json({ error: "Failed to send message", details: err.message });
+    }
+});
+
+const getAllSupportTickets = asyncHandler(async (req, res) => {
+    try {
+        const [tickets] = await db.query(`
+            SELECT * FROM support_tickets ORDER BY created_at DESC
+        `);
+        res.status(200).json({ tickets });
+    } catch (err) {
+        console.error("Failed to fetch support tickets:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+const deleteTicket = asyncHandler(async (req, res) => {
+    const { ticket_id } = req.params;
+
+    if (!ticket_id) {
+        return res.status(400).json({ message: "Ticket ID is required" });
+    }
+
+    try {
+        const [result] = await db.query(
+            `DELETE FROM support_tickets WHERE ticket_id = ?`,
+            [ticket_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Ticket not found" });
+        }
+
+        res.status(200).json({ message: "Ticket deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting ticket:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
+
+module.exports = { sendMessageToAdmins, getAllSupportTickets, deleteTicket };

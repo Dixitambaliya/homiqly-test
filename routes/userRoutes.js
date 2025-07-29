@@ -5,11 +5,14 @@ const { authenticationToken } = require("../middleware/authMiddleware")
 const { getServiceCategories,
     getServiceByCategory,
     getServiceNames,
-    getApprovedServices,
+    getServicestypes,
     getServiceTypesByServiceId,
     getUserData,
     updateUserData,
-    addUserData
+    addUserData,
+    getPackagesByServiceTypeId,
+    getVendorPackagesDetailed,
+    deleteBooking
 } = require("../controller/userController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -18,9 +21,18 @@ const multiUpload = upload.any();
 router.get("/service", getServiceCategories)
 router.get("/servicesbycategories", getServiceByCategory)
 router.get("/services/:service_id/servicetype", getServiceNames)
-router.get("/services/:service_id/vendorservice", getServiceTypesByServiceId)
-router.get("/getallservicetypes", getApprovedServices)
+
+router.get("/services/:service_id/allservicetypes", getServiceTypesByServiceId)
+
+router.get("/getallpackges", getServicestypes)
 router.get("/getdata", authenticationToken, getUserData)
+
+router.delete("/deletebookings/:booking_id", authenticationToken, deleteBooking)
+
+router.get("/getpackagedetails/:vendor_id", getVendorPackagesDetailed)
+
+router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
+
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
 router.put("/insertdata", authenticationToken, addUserData)
 
