@@ -167,63 +167,65 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        // Step 1: Get booking info
-        const [bookingInfoRows] = await connection.query(`
-            SELECT
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.notes,
-                sb.city,
-                sb.address,
-                s.serviceName,
-                st.serviceTypeName,
-                u.firstname, u.lastname, u.email AS user_email, u.phone AS user_phone
-            FROM service_booking sb
-            JOIN service_type st ON sb.service_type_id = st.service_type_id
-            JOIN services s ON st.service_id = s.service_id
-            JOIN users u ON sb.user_id = u.user_id
-            WHERE sb.booking_id = ?
-        `, [booking_id]);
+        // ✅ 1. Get booking info (including service_id)
+        const [bookingInfo] = await connection.query(
+            `SELECT service_id FROM service_booking WHERE booking_id = ?`,
+            [booking_id]
+        );
 
-        const booking = bookingInfoRows[0];
-        if (!booking) {
+        const service_id = bookingInfo[0]?.service_id;
+        if (!service_id) {
             await connection.rollback();
             connection.release();
-            return res.status(404).json({ message: "Booking not found" });
+            return res.status(404).json({ message: "Service not found for this booking" });
         }
 
-        // Step 2: Get employee and vendor info
+        // ✅ 2. Get employee's vendor_id
         const [employeeInfo] = await connection.query(
-            `SELECT vendor_id, email, first_name, last_name FROM company_employees WHERE employee_id = ?`,
+            `SELECT vendor_id FROM company_employees WHERE employee_id = ?`,
             [employee_id]
         );
 
-        const employee = employeeInfo[0];
-        if (!employee || !employee.vendor_id) {
+        const vendor_id = employeeInfo[0]?.vendor_id;
+        if (!vendor_id) {
             await connection.rollback();
             connection.release();
             return res.status(404).json({ message: "Employee not found or not linked to a vendor" });
         }
 
-        const vendor_id = employee.vendor_id;
-
-        // Step 3: Check if company vendor has access to the service
-        const [serviceCheck] = await connection.query(
-            `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = (
-                SELECT service_id FROM service_type WHERE service_type_id = (
-                    SELECT service_type_id FROM service_booking WHERE booking_id = ?
-                )
-            )`,
-            [vendor_id, booking_id]
+        // ✅ 3. Check vendor type and confirm service access
+        const [vendorTypeRow] = await connection.query(
+            `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
         );
+
+        const vendorType = vendorTypeRow[0]?.vendorType;
+        if (!vendorType) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ message: "Vendor not found for employee" });
+        }
+
+        let serviceCheck = [];
+        if (vendorType === 'individual') {
+            [serviceCheck] = await connection.query(
+                `SELECT 1 FROM individual_services WHERE vendor_id = ? AND service_id = ?`,
+                [vendor_id, service_id]
+            );
+        } else if (vendorType === 'company') {
+            [serviceCheck] = await connection.query(
+                `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = ?`,
+                [vendor_id, service_id]
+            );
+        }
 
         if (serviceCheck.length === 0) {
             await connection.rollback();
             connection.release();
-            return res.status(400).json({ message: "Vendor not registered for this service" });
+            return res.status(400).json({ message: "This employee's vendor is not registered for the requested service" });
         }
 
-        // Step 4: Assign booking to employee
+        // ✅ 4. Assign booking to employee and vendor
         await connection.query(
             `UPDATE service_booking SET assigned_employee_id = ?, vendor_id = ? WHERE booking_id = ?`,
             [employee_id, vendor_id, booking_id]
@@ -232,23 +234,6 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         await connection.commit();
         connection.release();
 
-        // Step 5: Notify employee via email
-        const emailBody = `
-            <h2>New Booking Assigned</h2>
-            <p><strong>Service:</strong> ${booking.serviceName} - ${booking.serviceTypeName}</p>
-            <p><strong>Booking Date:</strong> ${booking.bookingDate}</p>
-            <p><strong>Booking Time:</strong> ${booking.bookingTime}</p>
-            <p><strong>Location:</strong> ${booking.address}, ${booking.city}</p>
-            <p><strong>User:</strong> ${booking.firstname} ${booking.lastname} (${booking.user_email}, ${booking.user_phone})</p>
-            <p><strong>Notes:</strong> ${booking.notes || "None"}</p>
-        `;
-
-        await sendMail(
-            employee.email,
-            `New Booking Assigned (Booking ID: ${booking_id})`,
-            emailBody
-        );
-
         res.status(200).json({
             message: `Booking ${booking_id} successfully assigned to employee ${employee_id} and vendor ${vendor_id}`
         });
@@ -256,7 +241,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Error assigning booking:", err);
+        console.error("Error assigning booking to employee:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
