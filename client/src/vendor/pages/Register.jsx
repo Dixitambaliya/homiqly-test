@@ -1,172 +1,192 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useVendorAuth } from '../contexts/VendorAuthContext';
-import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiLock, FiLoader, FiChevronRight, FiChevronLeft, FiCheck } from 'react-icons/fi';
-import axios from 'axios';
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useVendorAuth } from "../contexts/VendorAuthContext";
+import { toast } from "react-toastify";
+import {
+  FiUser,
+  FiMail,
+  FiPhone,
+  FiLock,
+  FiLoader,
+  FiChevronRight,
+  FiChevronLeft,
+  FiCheck,
+} from "react-icons/fi";
+import axios from "axios";
 
 const Register = () => {
   const navigate = useNavigate();
   const { register } = useVendorAuth();
-  
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [serviceLoading, setServiceLoading] = useState(false);
-  
+
   // Form data
-  const [vendorType, setVendorType] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [contactPerson, setContactPerson] = useState('');
-  const [companyEmail, setCompanyEmail] = useState('');
-  const [companyPhone, setCompanyPhone] = useState('');
-  const [companyAddress, setCompanyAddress] = useState('');
-  const [googleBusinessLink, setGoogleBusinessLink] = useState('');
+  const [vendorType, setVendorType] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [googleBusinessLink, setGoogleBusinessLink] = useState("");
   const [resume, setResume] = useState(null);
-  
+
   // Services data
   const [serviceCategories, setServiceCategories] = useState([]);
+  console.log("Service categories 123:", serviceCategories);
   const [selectedServices, setSelectedServices] = useState([]);
-  
+
   // Load service categories and services
   useEffect(() => {
-    if (step === 2) {
+    if (step === 2 || step === 3) {
       loadServices();
     }
   }, [step]);
-  
+
   const loadServices = async () => {
     try {
       setServiceLoading(true);
-      const response = await axios.get('/api/user/servicesbycategories');
-      console.log('Loaded services:', response.data);
+      const response = await axios.get("/api/user/servicesbycategories");
+      console.log("Loaded services:", response.data);
       setServiceCategories(response.data.services || []);
-      console.log('Service categories:', response.data.services);
+      console.log("Service categories:", response.data.services);
       setServiceLoading(false);
     } catch (error) {
-      console.error('Error loading services:', error);
-      toast.error('Failed to load services');
+      console.error("Error loading services:", error);
+      toast.error("Failed to load services");
       setServiceLoading(false);
     }
   };
-  
+
   const handleNextStep = () => {
     if (step === 1) {
       if (!validateStep1()) return;
     } else if (step === 2) {
       if (!validateStep2()) return;
     }
-    
+
     setStep(step + 1);
   };
-  
+
   const handlePrevStep = () => {
     setStep(step - 1);
   };
-  
+
   const validateStep1 = () => {
     if (!vendorType) {
-      toast.error('Please select vendor type');
+      toast.error("Please select vendor type");
       return false;
     }
-    
-    if (vendorType === 'individual') {
+
+    if (vendorType === "individual") {
       if (!name || !email || !phone || !password) {
-        toast.error('Please fill all required fields');
+        toast.error("Please fill all required fields");
         return false;
       }
-    } else if (vendorType === 'company') {
-      if (!companyName || !contactPerson || !companyEmail || !companyPhone || !companyAddress) {
-        toast.error('Please fill all required fields');
+    } else if (vendorType === "company") {
+      if (
+        !companyName ||
+        !contactPerson ||
+        !companyEmail ||
+        !companyPhone ||
+        !companyAddress
+      ) {
+        toast.error("Please fill all required fields");
         return false;
       }
     }
-    
+
     return true;
   };
-  
+
   const validateStep2 = () => {
     if (selectedServices.length === 0) {
-      toast.error('Please select at least one service');
+      toast.error("Please select at least one service");
       return false;
     }
-    
+
     return true;
   };
-  
-  const toggleService = (serviceId, categoryId) => {
-      console.log('Toggling:', { serviceId, categoryId });
 
-    const exists = selectedServices.some(s => s.serviceId === serviceId);
-    
+  const toggleService = (serviceId, categoryId) => {
+    console.log("Toggling:", { serviceId, categoryId });
+
+    const exists = selectedServices.some((s) => s.serviceId === serviceId);
+
     if (exists) {
-      setSelectedServices(selectedServices.filter(s => s.serviceId !== serviceId));
+      setSelectedServices(
+        selectedServices.filter((s) => s.serviceId !== serviceId)
+      );
     } else {
       setSelectedServices([
         ...selectedServices,
         {
           serviceId,
           serviceCategoryId: categoryId,
-          serviceLocation: ''
-        }
+          serviceLocation: "",
+        },
       ]);
     }
   };
-  
+
   const updateServiceLocation = (serviceId, location) => {
     setSelectedServices(
-      selectedServices.map(service => 
-        service.serviceId === serviceId 
+      selectedServices.map((service) =>
+        service.serviceId === serviceId
           ? { ...service, serviceLocation: location }
           : service
       )
     );
   };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateStep2()) return;
-    
+
     const formData = new FormData();
-    formData.append('vendorType', vendorType);
-    formData.append('confirmation', 'true');
-    
-    if (vendorType === 'individual') {
-      formData.append('name', name);
-      formData.append('email', email);
-      formData.append('phone', phone);
-      formData.append('password', password);
-      if (resume) formData.append('resume', resume);
+    formData.append("vendorType", vendorType);
+    formData.append("confirmation", "true");
+
+    if (vendorType === "individual") {
+      formData.append("name", name);
+      formData.append("email", email);
+      formData.append("phone", phone);
+      formData.append("password", password);
+      if (resume) formData.append("resume", resume);
     } else {
-      formData.append('companyName', companyName);
-      formData.append('contactPerson', contactPerson);
-      formData.append('companyEmail', companyEmail);
-      formData.append('companyPhone', companyPhone);
-      formData.append('companyAddress', companyAddress);
-      formData.append('googleBusinessProfileLink', googleBusinessLink);
+      formData.append("companyName", companyName);
+      formData.append("contactPerson", contactPerson);
+      formData.append("companyEmail", companyEmail);
+      formData.append("companyPhone", companyPhone);
+      formData.append("companyAddress", companyAddress);
+      formData.append("googleBusinessProfileLink", googleBusinessLink);
     }
-    
-    console.log('Submitting registration with data:', selectedServices);
-    formData.append('services', JSON.stringify(selectedServices));
-    
+
+    console.log("Submitting registration with data:", selectedServices);
+    formData.append("services", JSON.stringify(selectedServices));
+
     setLoading(true);
-    
+
     try {
       const result = await register(formData);
-      
+
       if (result.success) {
-        toast.success('Registration successful! Please wait for admin approval.');
-        navigate('/vendor/login');
+        toast.success(
+          "Registration successful! Please wait for admin approval."
+        );
+        navigate("/vendor/login");
       } else {
-        toast.error(result.error || 'Registration failed');
+        toast.error(result.error || "Registration failed");
       }
     } catch (error) {
-      toast.error('An unexpected error occurred');
-      console.error('Registration error:', error);
+      toast.error("An unexpected error occurred");
+      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
@@ -176,27 +196,59 @@ const Register = () => {
     <div>
       <div className="mb-6">
         <div className="flex items-center justify-between">
-          <div className={`flex-1 ${step >= 1 ? 'text-primary' : 'text-gray-300'}`}>
+          <div
+            className={`flex-1 ${step >= 1 ? "text-primary" : "text-gray-300"}`}
+          >
             <div className="flex items-center">
-              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 1 ? 'border-primary bg-primary text-white' : 'border-gray-300'}`}>
+              <div
+                className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${
+                  step >= 1
+                    ? "border-primary bg-primary text-white"
+                    : "border-gray-300"
+                }`}
+              >
                 1
               </div>
               <span className="ml-2 text-sm font-medium">Basic Info</span>
             </div>
           </div>
-          <div className={`h-1 flex-1 mx-2 ${step >= 2 ? 'bg-primary' : 'bg-gray-200'}`}></div>
-          <div className={`flex-1 ${step >= 2 ? 'text-primary' : 'text-gray-300'}`}>
+          <div
+            className={`h-1 flex-1 mx-2 ${
+              step >= 2 ? "bg-primary" : "bg-gray-200"
+            }`}
+          ></div>
+          <div
+            className={`flex-1 ${step >= 2 ? "text-primary" : "text-gray-300"}`}
+          >
             <div className="flex items-center">
-              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 2 ? 'border-primary bg-primary text-white' : 'border-gray-300'}`}>
+              <div
+                className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${
+                  step >= 2
+                    ? "border-primary bg-primary text-white"
+                    : "border-gray-300"
+                }`}
+              >
                 2
               </div>
               <span className="ml-2 text-sm font-medium">Services</span>
             </div>
           </div>
-          <div className={`h-1 flex-1 mx-2 ${step >= 3 ? 'bg-primary' : 'bg-gray-200'}`}></div>
-          <div className={`flex-1 ${step >= 3 ? 'text-primary' : 'text-gray-300'}`}>
+          <div
+            className={`h-1 flex-1 mx-2 ${
+              step >= 3 ? "bg-primary" : "bg-gray-200"
+            }`}
+          ></div>
+          <div
+            className={`flex-1 ${step >= 3 ? "text-primary" : "text-gray-300"}`}
+          >
             <div className="flex items-center">
-              <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${step >= 3 ? 'border-primary bg-primary text-white' : 'border-gray-300'}`}>
+              <div
+                className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${
+                  step >= 3
+                    ? "border-primary bg-primary text-white"
+                    : "border-gray-300"
+                }`}
+              >
                 3
               </div>
               <span className="ml-2 text-sm font-medium">Confirm</span>
@@ -207,10 +259,15 @@ const Register = () => {
 
       {step === 1 && (
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Basic Information</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            Basic Information
+          </h2>
           <div className="space-y-6">
             <div>
-              <label htmlFor="vendorType" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="vendorType"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Vendor Type*
               </label>
               <select
@@ -225,10 +282,13 @@ const Register = () => {
               </select>
             </div>
 
-            {vendorType === 'individual' && (
+            {vendorType === "individual" && (
               <>
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="name"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Full Name*
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
@@ -247,7 +307,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Email*
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
@@ -266,7 +329,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Phone*
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
@@ -285,7 +351,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Password*
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
@@ -304,7 +373,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="resume" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="resume"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Resume (PDF)
                   </label>
                   <input
@@ -318,10 +390,13 @@ const Register = () => {
               </>
             )}
 
-            {vendorType === 'company' && (
+            {vendorType === "company" && (
               <>
                 <div>
-                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="companyName"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Company Name*
                   </label>
                   <input
@@ -335,7 +410,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="contactPerson" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="contactPerson"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Contact Person*
                   </label>
                   <input
@@ -349,7 +427,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="companyEmail" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="companyEmail"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Company Email*
                   </label>
                   <input
@@ -363,7 +444,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="companyPhone" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="companyPhone"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Company Phone*
                   </label>
                   <input
@@ -377,7 +461,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="companyAddress" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="companyAddress"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Company Address*
                   </label>
                   <textarea
@@ -391,7 +478,10 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="googleBusinessLink" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="googleBusinessLink"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Google Business Profile Link
                   </label>
                   <input
@@ -422,8 +512,10 @@ const Register = () => {
 
       {step === 2 && (
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Select Services</h2>
-          
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            Select Services
+          </h2>
+
           {serviceLoading ? (
             <div className="flex justify-center py-8">
               <FiLoader className="animate-spin h-8 w-8 text-primary" />
@@ -431,14 +523,16 @@ const Register = () => {
           ) : (
             <div className="space-y-6">
               <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
-                {serviceCategories.map(category => (
-                  <div key={category.serviceCategoryId} className="mb-6">
+                {serviceCategories.map((category, index) => (
+                  <div key={index} className="mb-6">
                     <h3 className="font-medium text-gray-800 mb-2 bg-gray-100 p-2 rounded">
                       {category.categoryName}
                     </h3>
                     <div className="space-y-2 pl-2">
-                      {category.services.map(service => {
-                        const isSelected = selectedServices.some(s => s.serviceId === service.serviceId);
+                      {category.services.map((service) => {
+                        const isSelected = selectedServices.some(
+                          (s) => s.serviceId === service.serviceId
+                        );
                         return (
                           <div key={service.serviceId}>
                             <div className="flex items-center">
@@ -446,24 +540,44 @@ const Register = () => {
                                 type="checkbox"
                                 id={`service_${service.serviceId}`}
                                 checked={isSelected}
-                                onChange={() => toggleService(service.serviceId, service.serviceCategoryId)}
+                                onChange={() =>
+                                  toggleService(
+                                    service.serviceId,
+                                    service.serviceCategoryId
+                                  )
+                                }
                                 className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                               />
-                              <label htmlFor={`service_${service.serviceId}`} className="ml-2 text-sm text-gray-700">
+                              <label
+                                htmlFor={`service_${service.serviceId}`}
+                                className="ml-2 text-sm text-gray-700"
+                              >
                                 {service.title}
                               </label>
                             </div>
-                            
+
                             {isSelected && (
                               <div className="mt-2 ml-6">
-                                <label htmlFor={`location_${service.serviceId}`} className="block text-xs font-medium text-gray-500">
+                                <label
+                                  htmlFor={`location_${service.serviceId}`}
+                                  className="block text-xs font-medium text-gray-500"
+                                >
                                   Service Location
                                 </label>
                                 <input
                                   type="text"
                                   id={`location_${service.serviceId}`}
-                                  value={selectedServices.find(s => s.serviceId === service.serviceId)?.serviceLocation || ''}
-                                  onChange={(e) => updateServiceLocation(service.serviceId, e.target.value)}
+                                  value={
+                                    selectedServices.find(
+                                      (s) => s.serviceId === service.serviceId
+                                    )?.serviceLocation || ""
+                                  }
+                                  onChange={(e) =>
+                                    updateServiceLocation(
+                                      service.serviceId,
+                                      e.target.value
+                                    )
+                                  }
                                   placeholder="e.g., Mumbai, Delhi, Bangalore"
                                   className="mt-1 block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                                 />
@@ -476,7 +590,7 @@ const Register = () => {
                   </div>
                 ))}
               </div>
-              
+
               <div className="flex justify-between">
                 <button
                   type="button"
@@ -499,40 +613,79 @@ const Register = () => {
           )}
         </div>
       )}
- 
+
       {step === 3 && (
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Confirm Registration</h2>
-          
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            Confirm Registration
+          </h2>
+
           <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h3 className="font-medium text-gray-800 mb-2">Vendor Information</h3>
+            <h3 className="font-medium text-gray-800 mb-2">
+              Vendor Information
+            </h3>
             <div className="space-y-2">
-              <p><span className="font-medium">Vendor Type:</span> {vendorType === 'individual' ? 'Individual' : 'Company'}</p>
-              
-              {vendorType === 'individual' ? (
+              <p>
+                <span className="font-medium">Vendor Type:</span>{" "}
+                {vendorType === "individual" ? "Individual" : "Company"}
+              </p>
+
+              {vendorType === "individual" ? (
                 <>
-                  <p><span className="font-medium">Name:</span> {name}</p>
-                  <p><span className="font-medium">Email:</span> {email}</p>
-                  <p><span className="font-medium">Phone:</span> {phone}</p>
-                  <p><span className="font-medium">Resume:</span> {resume ? resume.name : 'Not provided'}</p>
+                  <p>
+                    <span className="font-medium">Name:</span> {name}
+                  </p>
+                  <p>
+                    <span className="font-medium">Email:</span> {email}
+                  </p>
+                  <p>
+                    <span className="font-medium">Phone:</span> {phone}
+                  </p>
+                  <p>
+                    <span className="font-medium">Resume:</span>{" "}
+                    {resume ? resume.name : "Not provided"}
+                  </p>
                 </>
               ) : (
                 <>
-                  <p><span className="font-medium">Company Name:</span> {companyName}</p>
-                  <p><span className="font-medium">Contact Person:</span> {contactPerson}</p>
-                  <p><span className="font-medium">Company Email:</span> {companyEmail}</p>
-                  <p><span className="font-medium">Company Phone:</span> {companyPhone}</p>
-                  <p><span className="font-medium">Company Address:</span> {companyAddress}</p>
+                  <p>
+                    <span className="font-medium">Company Name:</span>{" "}
+                    {companyName}
+                  </p>
+                  <p>
+                    <span className="font-medium">Contact Person:</span>{" "}
+                    {contactPerson}
+                  </p>
+                  <p>
+                    <span className="font-medium">Company Email:</span>{" "}
+                    {companyEmail}
+                  </p>
+                  <p>
+                    <span className="font-medium">Company Phone:</span>{" "}
+                    {companyPhone}
+                  </p>
+                  <p>
+                    <span className="font-medium">Company Address:</span>{" "}
+                    {companyAddress}
+                  </p>
                 </>
               )}
             </div>
-            
-            <h3 className="font-medium text-gray-800 mt-4 mb-2">Selected Services</h3>
+
+            <h3 className="font-medium text-gray-800 mt-4 mb-2">
+              Selected Services
+            </h3>
             <div className="space-y-2">
-              {selectedServices.map(service => {
-                const category = serviceCategories.find(c => c.serviceCategoryId === service.serviceCategoryId);
-                const serviceItem = category?.services.find(s => s.serviceId === service.serviceId);
-                
+              {selectedServices.map((service) => {
+                const category = serviceCategories.find(
+                  (c) => c.serviceCategoryId === service.serviceCategoryId
+
+                );
+                const serviceItem = category?.services.find(
+                  (s) => s.serviceId === service.serviceId
+
+                );
+
                 return (
                   <div key={service.serviceId} className="flex items-start">
                     <FiCheck className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
@@ -548,7 +701,7 @@ const Register = () => {
               })}
             </div>
           </div>
-          
+
           <div className="mb-4">
             <div className="flex items-center">
               <input
@@ -558,12 +711,16 @@ const Register = () => {
                 required
                 className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
               />
-              <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
-                I confirm that all the information provided is accurate and I agree to the terms and conditions.
+              <label
+                htmlFor="terms"
+                className="ml-2 block text-sm text-gray-700"
+              >
+                I confirm that all the information provided is accurate and I
+                agree to the terms and conditions.
               </label>
             </div>
           </div>
-          
+
           <div className="flex justify-between">
             <button
               type="button"
@@ -585,7 +742,7 @@ const Register = () => {
                   Registering...
                 </>
               ) : (
-                'Complete Registration'
+                "Complete Registration"
               )}
             </button>
           </div>
@@ -594,8 +751,11 @@ const Register = () => {
 
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
-          Already have an account?{' '}
-          <Link to="/vendor/login" className="font-medium text-primary hover:text-primary-dark">
+          Already have an account?{" "}
+          <Link
+            to="/vendor/login"
+            className="font-medium text-primary hover:text-primary-dark"
+          >
             Login here
           </Link>
         </p>

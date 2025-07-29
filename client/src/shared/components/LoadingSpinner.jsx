@@ -1,26 +1,30 @@
 import React from "react";
 
-const LoadingSpinner = ({ size = "md", color = "primary" }) => {
-  const sizeClasses = {
-    sm: "h-4 w-4 border-2",
-    md: "h-8 w-8 border-2",
-    lg: "h-12 w-12 border-3",
-    xl: "h-16 w-16 border-4",
-  };
+const colorVariants = {
+  primary: ["bg-blue-600", "bg-blue-400"],
+  secondary: ["bg-purple-600", "bg-purple-400"],
+  outline: ["bg-gray-600", "bg-gray-400"],
+  danger: ["bg-red-600", "bg-red-400"],
+  success: ["bg-green-600", "bg-green-500"],
+  warning: ["bg-yellow-500", "bg-yellow-300"],
+  ghost: ["bg-gray-300", "bg-gray-100"],
+};
 
-  const colorClasses = {
-    primary: "border-primary",
-    white: "border-white",
-    gray: "border-gray-300",
-  };
+const LoadingSlider = ({ fullscreen = false, color = "success" }) => {
+  const [bar1, bar2] = colorVariants[color] || colorVariants["primary"];
 
   return (
-    <div className="flex justify-center items-center">
-      <div
-        className={`animate-spin rounded-full ${sizeClasses[size]} border-t-transparent ${colorClasses[color]}`}
-      ></div>
+    <div
+      className={`w-full h-96 flex items-center justify-center ${
+        fullscreen ? "fixed inset-0 z-50 bg-white/60" : ""
+      }`}
+    >
+      <div className="w-96 h-1 bg-gray-200 overflow-hidden relative rounded">
+        <div className={`absolute h-full ${bar1} animate-slide1`}></div>
+        <div className={`absolute h-full ${bar2} animate-slide2`}></div>
+      </div>
     </div>
   );
 };
 
-export default LoadingSpinner;
+export default LoadingSlider;

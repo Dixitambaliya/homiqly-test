@@ -19,6 +19,10 @@ import Employees from "../pages/Employees";
 import Payments from "../pages/Payments";
 import Analytics from "../pages/Analytics";
 import Notifications from "../pages/Notifications";
+import Profile from "../pages/Profile";
+import Settings from "../pages/Settings";
+import Packages from "../pages/Packages";
+import Tickets from "../pages/Tickets";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -74,6 +78,7 @@ const AdminRoutes = () => {
         <Route path="vendors" element={<Vendors />} />
         <Route path="users" element={<Users />} />
         <Route path="services" element={<Services />} />
+        <Route path="packages" element={<Packages />} />
         <Route path="bookings" element={<Bookings />} />
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="contractors" element={<Contractors />} />
@@ -81,6 +86,9 @@ const AdminRoutes = () => {
         <Route path="payments" element={<Payments />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="tickets" element={<Tickets />} />
       </Route>
 
       {/* 404 Route */}

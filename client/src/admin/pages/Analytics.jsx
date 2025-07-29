@@ -372,7 +372,7 @@ const Analytics = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {vendor.avg_rating ? vendor.avg_rating.toFixed(1) : 'N/A'} 
+                      {vendor.avg_rating ? (typeof vendor.avg_rating === 'number' ? vendor.avg_rating.toFixed(1) : vendor.avg_rating) : 'N/A'} 
                       {vendor.avg_rating ? ' ★' : ''}
                     </div>
                   </td>

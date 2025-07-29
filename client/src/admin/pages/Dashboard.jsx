@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import {
   FiUsers,
   FiUserCheck,
@@ -19,6 +19,8 @@ import {
   Title,
 } from "chart.js";
 import { Link } from "react-router-dom";
+import Loader from "../../components/Loader";
+import LoadingSlider from "../../shared/components/LoadingSpinner";
 
 // Register ChartJS components
 ChartJS.register(
@@ -51,15 +53,15 @@ const Dashboard = () => {
         setLoading(true);
 
         // Fetch dashboard stats
-        const statsResponse = await axios.get("/api/analytics/dashboard");
+        const statsResponse = await api.get("/api/analytics/dashboard");
         setStats(statsResponse.data.stats);
 
         // Fetch booking trends
-        const trendsResponse = await axios.get("/api/analytics/booking-trends");
+        const trendsResponse = await api.get("/api/analytics/booking-trends");
         setBookingTrends(trendsResponse.data.trends);
 
         // Fetch service category stats
-        const categoryResponse = await axios.get(
+        const categoryResponse = await api.get(
           "/api/analytics/service-categories"
         );
         setCategoryStats(categoryResponse.data.stats);
@@ -111,11 +113,7 @@ const Dashboard = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-light"></div>
-      </div>
-    );
+    return <LoadingSlider />;
   }
 
   if (error) {

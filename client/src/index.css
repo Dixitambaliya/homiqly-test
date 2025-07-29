@@ -2,16 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* @import "nprogress/nprogress.css"; */
+
 :root {
-  --primary-dark: #0F4C5C;
-  --primary: #3BACB6;
-  --primary-light: #5ADBFF;
-  --secondary-dark: #0A3A47;
-  --secondary: #2A8D9C;
-  --secondary-light: #7EEAFD;
-  --accent: #E0FBFC;
-  --background: #F0F7F8;
-  --surface: #FFFFFF;
+  --primary-dark: #0f4c5c;
+  --primary: #3bacb6;
+  --primary-light: #5adbff;
+  --secondary-dark: #0a3a47;
+  --secondary: #2a8d9c;
+  --secondary-light: #7eeafd;
+  --accent: #e0fbfc;
+  --background: #f0f7f8;
+  --surface: #ffffff;
   --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --border: #e5e7eb;
@@ -22,7 +24,8 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   @apply bg-background text-gray-900;
 }
 
@@ -183,4 +186,41 @@ body {
 
 .booking-more {
   @apply bg-gray-500 text-white py-0.5 px-1.5 rounded text-[0.7rem] text-center;
+}
+
+/* Custom NProgress Style */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  /* background: linear-gradient(90deg, #00c6ff, #0072ff, #00c6ff); */
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 4px;
+
+  background-size: 200% 100%;
+  animation: pulse-bar 1.5s linear infinite;
+}
+
+/* Optional: remove spinner */
+#nprogress .spinner {
+  display: none;
+}
+
+@keyframes pulse-bar {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+#nprogress .bar {
+  transition: opacity 0.4s ease;
 }

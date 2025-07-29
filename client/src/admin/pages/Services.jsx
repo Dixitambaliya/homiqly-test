@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../lib/axiosConfig';
 import { toast } from 'react-toastify';
 import { FiPlus, FiEdit, FiTrash2, FiRefreshCw, FiX } from 'react-icons/fi';
 import LoadingSpinner from '../../shared/components/LoadingSpinner';
@@ -36,11 +36,11 @@ const Services = () => {
       setLoading(true);
       
       // Fetch services
-      const servicesResponse = await axios.get('/api/service/getadminservices');
+      const servicesResponse = await api.get('/api/service/getadminservices');
       setServices(servicesResponse.data.services || []);
       
       // Fetch categories
-      const categoriesResponse = await axios.get('/api/service/getservicecategories');
+      const categoriesResponse = await api.get('/api/service/getservicecategories');
       setCategories(categoriesResponse.data.categories || []);
       
       setLoading(false);
@@ -101,7 +101,7 @@ const Services = () => {
       formDataToSend.append('serviceDescription', serviceFormData.serviceDescription || '');
       formDataToSend.append('serviceImage', serviceFormData.serviceImage);
       
-      const response = await axios.post('/api/service/addservice', formDataToSend, {
+      const response = await api.post('/api/service/addservice', formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -142,7 +142,7 @@ const Services = () => {
         formDataToSend.append('serviceImage', serviceFormData.serviceImage);
       }
       
-      const response = await axios.put('/api/service/editService', formDataToSend, {
+      const response = await api.put('/api/service/editService', formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -172,7 +172,7 @@ const Services = () => {
     try {
       setSubmitting(true);
       
-      const response = await axios.post('/api/service/addcategory', categoryFormData);
+      const response = await api.post('/api/service/addcategory', categoryFormData);
       
       if (response.status === 201) {
         toast.success('Category added successfully');
@@ -199,7 +199,7 @@ const Services = () => {
     try {
       setSubmitting(true);
       
-      const response = await axios.put('/api/service/editcategory', {
+      const response = await api.put('/api/service/editcategory', {
         serviceCategoryId: selectedCategory.serviceCategoryId,
         newCategoryName: categoryFormData.categoryName
       });
@@ -223,7 +223,7 @@ const Services = () => {
     }
     
     try {
-      const response = await axios.delete('/api/service/deleteservice', {
+      const response = await api.delete('/api/service/deleteservice', {
         data: { serviceId }
       });
       
@@ -243,7 +243,7 @@ const Services = () => {
     }
     
     try {
-      const response = await axios.delete('/api/service/deletecategory', {
+      const response = await api.delete('/api/service/deletecategory', {
         data: { serviceCategoryId }
       });
       
