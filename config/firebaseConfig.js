@@ -1,21 +1,11 @@
-const admin = require("firebase-admin");
-const path = require("path");
+var admin = require("firebase-admin");
 
-// Use environment variables if available, otherwise use the service account file
-let credential;
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
-} else {
-  const serviceAccount = require("../homiqly-cbc23-firebase-adminsdk-fbsvc-890d39d22a.json");
-  credential = admin.credential.cert(serviceAccount);
-}
+const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG_JSON);
+serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
 
-// Initialize Firebase app if it hasn't been initialized already
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: credential,
-    storageBucket: "homiqly-cbc23.appspot.com",
-  });
-}
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+});
 
 module.exports = admin;

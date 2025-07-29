@@ -16,13 +16,13 @@ const sendNotification = asyncHandler(async (req, res) => {
         // Determine which table to query based on user type
         switch (user_type) {
             case 'users':
-                tokenQuery = user_ids 
+                tokenQuery = user_ids
                     ? `SELECT fcmToken FROM users WHERE user_id IN (${user_ids.map(() => '?').join(',')}) AND fcmToken IS NOT NULL`
                     : `SELECT fcmToken FROM users WHERE fcmToken IS NOT NULL`;
                 queryParams = user_ids || [];
                 break;
             case 'vendors':
-                tokenQuery = user_ids 
+                tokenQuery = user_ids
                     ? `SELECT fcmToken FROM vendors WHERE vendor_id IN (${user_ids.map(() => '?').join(',')}) AND fcmToken IS NOT NULL`
                     : `SELECT fcmToken FROM vendors WHERE fcmToken IS NOT NULL`;
                 queryParams = user_ids || [];
@@ -40,7 +40,7 @@ const sendNotification = asyncHandler(async (req, res) => {
         if (tokens.length === 0) {
             return res.status(404).json({ message: "No FCM tokens found for specified users" });
         }
-
+ 
         // Send notification
         const message = {
             notification: { title, body },
@@ -72,12 +72,12 @@ const sendNotification = asyncHandler(async (req, res) => {
 
 const getUserNotifications = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id || req.user.vendor_id || req.user.admin_id;
-    const user_type = req.user.role === 'admin' ? 'admin' : 
+    const user_type = req.user.role === 'admin' ? 'admin' :
                      req.user.vendor_id ? 'vendors' : 'users';
 
     try {
         const [notifications] = await db.query(`
-            SELECT * FROM notifications 
+            SELECT * FROM notifications
             WHERE user_type = ? AND (user_id = ? OR user_id IS NULL)
             ORDER BY sent_at DESC
             LIMIT 50
@@ -99,8 +99,8 @@ const markNotificationAsRead = asyncHandler(async (req, res) => {
 
     try {
         await db.query(`
-            UPDATE notifications 
-            SET is_read = 1, read_at = NOW() 
+            UPDATE notifications
+            SET is_read = 1, read_at = NOW()
             WHERE notification_id = ?
         `, [notification_id]);
 

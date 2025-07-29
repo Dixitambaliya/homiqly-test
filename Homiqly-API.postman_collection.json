@@ -674,9 +674,9 @@
               ]
             },
             "url": {
-              "raw": "{{baseUrl}}/api/vendor/applyservicetype",
+              "raw": "{{baseUrl}}/api/vendor/",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "vendor", "applyservicetype"]
+              "path": ["api", "vendor", ""]
             },
             "description": "Apply for a new service type"
           },

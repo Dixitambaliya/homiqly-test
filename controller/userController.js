@@ -42,24 +42,40 @@ const getService = asyncHandler(async (req, res) => {
 });
 
 const getServiceNames = asyncHandler(async (req, res) => {
-    const service_id = req.params.service_id; // Fixed parameter name
+    const service_id = req.params.service_id;
 
     try {
         const [rows] = await db.query(userGetQueries.getServiceNames, [service_id]);
 
         const parsedRows = rows.map((row) => {
+            let parsedPackages = [];
+            try {
+                parsedPackages = JSON.parse(row.packages || '[]').map(pkg => ({
+                    ...pkg,
+                    sub_packages: typeof pkg.sub_packages === 'string'
+                        ? JSON.parse(pkg.sub_packages || '[]')
+                        : (pkg.sub_packages || [])
+                }));
+            } catch (e) {
+                console.warn(`Failed to parse packages for service_type_id ${row.service_type_id}`, e.message);
+            }
+
             return {
                 service_type_id: row.service_type_id,
                 serviceName: row.serviceName,
                 serviceTypeName: row.serviceTypeName,
-                is_approved: row.is_approved,
                 serviceTypeMedia: row.serviceTypeMedia,
-                serviceDescription: row.serviceDescription
+                serviceDescription: row.serviceDescription,
+                is_approved: row.is_approved,
+                created_at: row.created_at,
+                average_rating: row.average_rating,
+                total_reviews: row.total_reviews,
+                packages: parsedPackages
             };
         });
 
         res.status(200).json({
-            message: "Services fetched successfully",
+            message: "Admin service types fetched successfully",
             rows: parsedRows
         });
 
@@ -68,7 +84,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
@@ -108,154 +123,52 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
 });
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
-    const service_id = req.params.service_id;
+    const service_id = req.params.service_id
+
+    if (!service_id) {
+        return res.status(400).json({ message: "Service ID is required." });
+    }
 
     try {
         const [rows] = await db.query(`
             SELECT
-              st.service_type_id,
-              st.serviceTypeName,
-              st.serviceTypeMedia,
-              st.is_approved,
-              st.service_id,
-
-              v.vendor_id,
-              v.vendorType,
-
-              ind.id AS individual_id,
-              ind.name AS individual_name,
-              ind.phone AS individual_phone,
-              ind.email AS individual_email,
-
-              comp.id AS company_id,
-              comp.companyName,
-              comp.contactPerson,
-              comp.companyEmail,
-              comp.companyPhone,
-
-              -- Packages Subquery
-              COALESCE((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'package_id', p.package_id,
-                    'title', p.packageName,
-                    'package_media', p.packageMedia,
-                    'description', p.description,
-                    'price', p.totalPrice,
-                    'time_required', p.totalTime,
-                    'sub_packages', IFNULL((
-                      SELECT CONCAT('[', GROUP_CONCAT(
-                        JSON_OBJECT(
-                          'sub_package_id', pi.item_id,
-                          'title', pi.itemName,
-                          'item_media', pi.itemMedia,
-                          'description', pi.description,
-                          'price', pi.price,
-                          'time_required', pi.timeRequired
-                        )
-                      ), ']')
-                      FROM package_items pi
-                      WHERE pi.package_id = p.package_id
-                    ), '[]')
-                  )
-                ), ']')
-                FROM packages p
-                WHERE p.service_type_id = st.service_type_id
-              ), '[]') AS packages,
-
-              -- Preferences Subquery
-              COALESCE((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'preference_id', bp.preference_id,
-                    'preference_value', bp.preferenceValue
-                  )
-                ), ']')
-                FROM booking_preferences bp
-                JOIN packages p ON p.package_id = bp.package_id
-                WHERE p.service_type_id = st.service_type_id
-              ), '[]') AS preferences
-
-            FROM service_type st
-            LEFT JOIN vendors v ON st.vendor_id = v.vendor_id
-            LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
-            LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
-            WHERE st.service_id = ? AND st.is_approved = 1
-            ORDER BY st.service_type_id DESC
+                service_type_id,
+                service_id,
+                serviceTypeName,
+                serviceTypeMedia,
+                created_at
+            FROM service_type
+            WHERE service_id = ?
+            ORDER BY service_type_id DESC
         `, [service_id]);
-
-        const cleanedRows = rows.map(row => {
-            let parsedPackages = [];
-            let parsedPreferences = [];
-
-            try {
-                parsedPackages = JSON.parse(row.packages || '[]').map(pkg => ({
-                    ...pkg,
-                    sub_packages: typeof pkg.sub_packages === 'string'
-                        ? JSON.parse(pkg.sub_packages || '[]')
-                        : (pkg.sub_packages || [])
-                }));
-            } catch (err) {
-                console.warn(`⚠️ Failed to parse packages for service_type_id ${row.service_type_id}:`, err.message);
-            }
-
-            try {
-                parsedPreferences = JSON.parse(row.preferences || '[]');
-            } catch (err) {
-                console.warn(`Failed to parse preferences for service_type_id ${row.service_type_id}:`, err.message);
-            }
-
-            const cleanedRow = Object.fromEntries(
-                Object.entries(row).filter(([_, val]) => val !== null && val !== undefined)
-            );
-
-            return {
-                ...cleanedRow,
-                packages: parsedPackages,
-                preferences: parsedPreferences
-            };
-        });
+        console.log(rows);
 
         res.status(200).json({
             message: "Service types fetched successfully",
-            rows: cleanedRows
+            rows
         });
 
     } catch (err) {
         console.error("Error fetching service types by service_id:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+        res.status(500).json({
+            error: "Database error",
+            details: err.message
+        });
     }
 });
 
-
-const getApprovedServices = asyncHandler(async (req, res) => {
-
+const getServicestypes = asyncHandler(async (req, res) => {
     try {
-        const [rows] = await db.query(userGetQueries.getApprovedServices);
+        const [rows] = await db.query(userGetQueries.getServiceNames);
 
         const cleanedRows = rows.map(row => {
-            // Parse JSON fields
-            const packages = JSON.parse(row.packages || '[]');
-
-            const parsedPackages = packages.map(pkg => ({
-                ...pkg,
-                sub_packages: typeof pkg.sub_packages === 'string'
-                    ? JSON.parse(pkg.sub_packages)
-                    : pkg.sub_packages
-            }));
-
-            // Filter out null fields
             const cleanedRow = {};
             for (const key in row) {
                 if (row[key] !== null) {
                     cleanedRow[key] = row[key];
                 }
             }
-
-            return {
-                ...cleanedRow,
-                packages: parsedPackages
-            };
+            return cleanedRow;
         });
 
         res.status(200).json({
@@ -272,22 +185,32 @@ const getUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        const results = await db.query(userGetQueries.getUsersData, [user_id])
+        const results = await db.query(userGetQueries.getUsersData, [user_id]);
 
         if (!results || results.length === 0) {
             return res.status(404).json({ message: "User data not found" });
         }
 
+        // Just take the first result row
+        const userData = results[0];
+
+        // Replace null values with empty strings
+        Object.keys(userData).forEach(key => {
+            if (userData[key] === null) {
+                userData[key] = "";
+            }
+        });
+
         res.status(200).json({
             message: "User data fetched successfully",
-            data: results[0]
+            data: userData // single object, not array
         });
 
     } catch (err) {
-        console.error("Error fetching service types:", err);
+        console.error("Error fetching user data:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
-})
+});
 
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -328,7 +251,6 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, phone, address, state, postalcode } = req.body;
@@ -357,15 +279,198 @@ const addUserData = asyncHandler(async (req, res) => {
     }
 });
 
+const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
+    const { service_type_id } = req.params;
+
+    if (!service_type_id) {
+        return res.status(400).json({ message: "Service Type ID is required." });
+    }
+
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                st.service_type_id,
+                st.serviceTypeName,
+                st.serviceTypeMedia,
+
+                CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                        'package_id', p.package_id,
+                        'title', p.packageName,
+                        'description', p.description,
+                        'price', p.totalPrice,
+                        'price'
+                        'time_required', p.totalTime,
+                        'package_media', p.packageMedia,
+                        'vendor_id', vp.vendor_id
+                    )
+                ), ']') AS packages
+
+            FROM service_type st
+            INNER JOIN packages p ON p.service_type_id = st.service_type_id
+            INNER JOIN vendor_packages vp ON vp.package_id = p.package_id
+
+            WHERE st.service_type_id = ?
+            GROUP BY st.service_type_id
+        `, [service_type_id]);
+
+        // If no rows found, don't return empty result
+        if (!rows.length) {
+            return res.status(404).json({ message: "No vendor-registered packages found for this service type." });
+        }
+
+        const result = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            serviceTypeName: row.serviceTypeName,
+            serviceTypeMedia: row.serviceTypeMedia,
+            packages: JSON.parse(row.packages || '[]')
+        }));
+
+        res.status(200).json({
+            message: "Packages by service type fetched successfully",
+            result
+        });
+
+    } catch (err) {
+        console.error("Error fetching packages by service_type_id:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
+    const { vendor_id } = req.params;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Vendor ID is required" });
+    }
+
+    try {
+        const [rows] = await db.query(`
+            SELECT
+                vp.vendor_packages_id,
+                vp.vendor_id,
+                p.package_id,
+                p.packageName,
+                p.description,
+                p.totalPrice,
+                p.totalTime,
+                p.packageMedia,
+
+                -- Ratings
+                IFNULL((
+                    SELECT ROUND(AVG(r.rating), 1)
+                    FROM ratings r
+                    WHERE r.package_id = p.package_id
+                ), 0) AS averageRating,
+
+                IFNULL((
+                    SELECT COUNT(r.rating_id)
+                    FROM ratings r
+                    WHERE r.package_id = p.package_id
+                ), 0) AS totalReviews,
+
+                -- Sub-packages
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'sub_package_id', pi.item_id,
+                            'title', pi.itemName,
+                            'description', pi.description,
+                            'price', pi.price,
+                            'time_required', pi.timeRequired,
+                            'item_media', pi.itemMedia
+                        )
+                    ), ']')
+                    FROM package_items pi
+                    INNER JOIN vendor_package_items vpi ON vpi.package_item_id = pi.item_id
+                    WHERE vpi.vendor_id = vp.vendor_id AND vpi.package_id = p.package_id
+                ), '[]') AS sub_packages,
+
+                -- Preferences
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'preference_id', bp.preference_id,
+                            'preference_value', bp.preferenceValue
+                        )
+                    ), ']')
+                    FROM booking_preferences bp
+                    INNER JOIN vendor_package_preferences vpp ON vpp.preference_id = bp.preference_id
+                    WHERE vpp.vendor_id = vp.vendor_id AND vpp.package_id = p.package_id
+                ), '[]') AS preferences
+
+            FROM vendor_packages vp
+            INNER JOIN packages p ON vp.package_id = p.package_id
+            WHERE vp.vendor_id = ?
+            ORDER BY vp.vendor_packages_id DESC
+        `, [vendor_id]);
+
+        const data = rows.map(row => ({
+            vendor_packages_id: row.vendor_packages_id,
+            vendor_id: row.vendor_id,
+            package_id: row.package_id,
+            packageName: row.packageName,
+            description: row.description,
+            totalPrice: row.totalPrice,
+            totalTime: row.totalTime,
+            packageMedia: row.packageMedia,
+            averageRating: row.averageRating,
+            totalReviews: row.totalReviews,
+            sub_packages: JSON.parse(row.sub_packages || '[]'),
+            preferences: JSON.parse(row.preferences || '[]')
+        }));
+
+        res.status(200).json({
+            message: "Vendor packages fetched successfully",
+            packages: data
+        });
+    } catch (err) {
+        console.error("Error fetching vendor packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+const deleteBooking = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { booking_id } = req.params;
+
+    if (!booking_id) {
+        return res.status(400).json({ message: "Booking ID is required" });
+    }
+
+    try {
+        // ✅ Check if booking belongs to user
+        const [bookingCheck] = await db.query(
+            `SELECT * FROM service_booking WHERE booking_id = ? AND user_id = ?`,
+            [booking_id, user_id]
+        );
+
+        if (bookingCheck.length === 0) {
+            return res.status(404).json({ message: "Booking not found or does not belong to user" });
+        }
+
+        // ✅ Delete booking (child tables auto-deleted via ON DELETE CASCADE)
+        await db.query(`DELETE FROM service_booking WHERE booking_id = ?`, [booking_id]);
+
+        res.status(200).json({ message: "Booking deleted successfully", booking_id });
+    } catch (error) {
+        console.error("Delete booking error:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 module.exports = {
     getServiceCategories,
     getServiceByCategory,
     getServiceNames,
     getService,
-    getApprovedServices,
+    getServicestypes,
     getServiceTypesByServiceId,
     getUserData,
     updateUserData,
-    addUserData
+    addUserData,
+    getPackagesByServiceTypeId,
+    getVendorPackagesDetailed,
+    deleteBooking
 }
