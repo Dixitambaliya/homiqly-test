@@ -179,7 +179,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
                 st.serviceTypeName,
                 u.firstname, u.lastname, u.email AS user_email, u.phone AS user_phone
             FROM service_booking sb
-            JOIN service_types st ON sb.serviceType_id = st.serviceType_id
+            JOIN service_type st ON sb.serviceType_id = st.serviceType_id
             JOIN services s ON st.service_id = s.service_id
             JOIN users u ON sb.user_id = u.user_id
             WHERE sb.booking_id = ?
@@ -210,7 +210,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         // Step 3: Check if company vendor has access to the service
         const [serviceCheck] = await connection.query(
             `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = (
-                SELECT service_id FROM service_types WHERE serviceType_id = (
+                SELECT service_id FROM service_type WHERE serviceType_id = (
                     SELECT serviceType_id FROM service_booking WHERE booking_id = ?
                 )
             )`,
@@ -260,8 +260,6 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
 
 const getEmployeesWithPackages = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
