@@ -835,6 +835,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -859,13 +860,16 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
             let stripeData = null;
 
             try {
-                const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id);
+                const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id, {
+                    expand: ['charges.data.payment_method_details']
+                });
+
                 const charge = paymentIntent.charges?.data?.[0];
 
                 if (charge) {
                     stripeData = {
                         charge_id: charge.id,
-                        amount: charge.amount / 100, // convert to normal currency
+                        amount: charge.amount / 100, // convert to currency
                         currency: charge.currency,
                         status: charge.status,
                         receipt_url: charge.receipt_url,
@@ -874,7 +878,7 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
                         card_country: charge.payment_method_details?.card?.country,
                         billing_name: charge.billing_details?.name,
                         billing_email: charge.billing_details?.email,
-                        items: Object.values(charge.metadata || {}) // Flatten metadata as item list
+                        metadata: charge.metadata || {}
                     };
                 }
             } catch (err) {
