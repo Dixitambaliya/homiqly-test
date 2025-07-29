@@ -25,7 +25,7 @@ router.post("/addservice", multiUpload, handleUploads, authenticationToken, addS
 
 router.put("/editService", multiUpload, handleUploads, editService);
 
-router.post("/addservicetype", authenticationToken, addServiceType)
+router.post("/addservicetype", multiUpload, handleUploads, authenticationToken, addServiceType)
 
 router.post("/addcategory", authenticationToken, addCategory)
 router.get("/getcity", getcity)
