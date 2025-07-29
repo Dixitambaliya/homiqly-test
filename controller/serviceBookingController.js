@@ -17,8 +17,7 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate,
         bookingTime,
         notes,
-        preferences,
-        paymentIntentId
+        preferences
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -49,25 +48,7 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ 1. Validate payment intent (if provided)
-        let paymentStatus = 'pending';
-        if (paymentIntentId) {
-            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-            if (!paymentIntent) {
-                return res.status(400).json({ message: "Invalid payment intent ID." });
-            }
-
-            const allowedStatuses = ['succeeded', 'requires_payment_method', 'requires_confirmation', 'requires_action'];
-            if (!allowedStatuses.includes(paymentIntent.status)) {
-                return res.status(402).json({ message: `Invalid payment intent status: ${paymentIntent.status}` });
-            }
-
-            if (paymentIntent.status === 'succeeded') {
-                paymentStatus = 'completed';
-            }
-        }
-
-        // ✅ 2. Prevent duplicate bookings for same package
+        // ✅ 1. Prevent duplicate bookings for same package
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
@@ -89,14 +70,14 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 3. Insert booking (vendor_id = 0 for now)
+        // ✅ 2. Insert booking (vendor_id = 0 for now)
         const [insertBooking] = await db.query(`
             INSERT INTO service_booking (
                 service_categories_id, service_id, user_id,
                 bookingDate, bookingTime, vendor_id,
-                notes, bookingMedia, payment_intent_id
+                notes, bookingMedia
             )
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?)
         `, [
             service_categories_id,
             serviceId,
@@ -104,19 +85,18 @@ const bookService = asyncHandler(async (req, res) => {
             bookingDate,
             bookingTime,
             notes || null,
-            bookingMedia || null,
-            paymentIntentId || null
+            bookingMedia || null
         ]);
 
         const booking_id = insertBooking.insertId;
 
-        // ✅ 4. Link service type
+        // ✅ 3. Link service type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // ✅ 5. Link packages and sub-packages
+        // ✅ 4. Link packages and sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -141,7 +121,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 6. Link preferences
+        // ✅ 5. Link preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -152,21 +132,10 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ 7. Update payments table with status and vendor_id = NULL
-        if (paymentIntentId) {
-            await db.query(
-                `UPDATE payments
-                 SET status = ?, vendor_id = NULL
-                 WHERE payment_intent_id = ? AND user_id = ?`,
-                [paymentStatus, paymentIntentId, user_id]
-            );
-        }
-
         res.status(200).json({
             message: "Booking created successfully.",
             booking_id,
-            vendor_assigned: false,
-            payment_status: paymentStatus
+            vendor_assigned: false
         });
 
     } catch (err) {
@@ -174,6 +143,7 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
