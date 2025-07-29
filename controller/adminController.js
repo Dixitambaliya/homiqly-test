@@ -500,7 +500,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -535,12 +534,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 package_id
             ]);
 
-            // Only process sub-packages if provided
-            if (Array.isArray(pkg.sub_packages)) {
+            // ✅ Now using subPackages instead of sub_packages
+            if (Array.isArray(pkg.subPackages)) {
                 const submittedItemIds = [];
 
-                for (let j = 0; j < pkg.sub_packages.length; j++) {
-                    const sub = pkg.sub_packages[j];
+                for (let j = 0; j < pkg.subPackages.length; j++) {
+                    const sub = pkg.subPackages[j];
                     const sub_id = sub.sub_package_id;
 
                     if (sub_id) {
@@ -581,7 +580,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     }
                 }
 
-                // ✅ COMMENT OUT OR REMOVE THIS BLOCK to preserve old items
+                // Optional cleanup logic - commented to preserve old items
                 // if (submittedItemIds.length > 0) {
                 //     await connection.query(adminPutQueries.deleteRemovedPackageItems, [package_id, submittedItemIds]);
                 // } else {
@@ -589,7 +588,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 // }
             }
 
-            // Only update preferences if explicitly provided
             if (Array.isArray(preferences)) {
                 await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
 
@@ -615,6 +613,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
