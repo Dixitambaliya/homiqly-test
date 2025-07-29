@@ -9,8 +9,7 @@ import { Button } from "../../../shared/components/Button";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 
-const EditPackageModal = ({ isOpen, onClose, packageData }) => {
-  console.log("Package Data:", packageData);
+const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [timeRequired, setTimeRequired] = useState("");
@@ -159,6 +158,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData }) => {
 
       toast.success("Package updated successfully");
       onClose();
+      refresh();
     } catch (err) {
       console.error("Error:", err);
       toast.error("Failed to update package");

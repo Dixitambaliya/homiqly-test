@@ -5,6 +5,7 @@ import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EditPackageModal from "../components/Modals/EditPackageModal";
+import LoadingSlider from "../../shared/components/LoadingSpinner";
 
 const Packages = () => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -13,35 +14,34 @@ const Packages = () => {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  const fetchPackages = async () => {
+    try {
+      const response = await api.get("/api/admin/getpackages");
+
+      console.log("Raw API response:", response.data); // 👈 check what you get
+
+      // Ensure you're accessing the correct array
+      const rawData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.result || []; // adjust this based on structure
+
+      const grouped = rawData.reduce((acc, item) => {
+        const category = item.service_category_name;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(item);
+        return acc;
+      }, {});
+
+      setGroupedPackages(grouped);
+    } catch (error) {
+      console.error("Error fetching packages:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    const fetchPackages = async () => {
-      try {
-        const response = await api.get("/api/admin/getpackages");
-
-        console.log("Raw API response:", response.data); // 👈 check what you get
-
-        // Ensure you're accessing the correct array
-        const rawData = Array.isArray(response.data)
-          ? response.data
-          : response.data?.result || []; // adjust this based on structure
-
-        const grouped = rawData.reduce((acc, item) => {
-          const category = item.service_category_name;
-          if (!acc[category]) {
-            acc[category] = [];
-          }
-          acc[category].push(item);
-          return acc;
-        }, {});
-
-        setGroupedPackages(grouped);
-      } catch (error) {
-        console.error("Error fetching packages:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchPackages();
   }, []);
 
@@ -59,6 +59,13 @@ const Packages = () => {
     }
   };
 
+  if (loading)
+    return (
+      <>
+        <LoadingSlider />
+      </>
+    );
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -74,7 +81,7 @@ const Packages = () => {
 
       {loading ? (
         <div>
-          <LoadingSpinner />
+          <LoadingSlider />
         </div>
       ) : (
         Object.entries(groupedPackages).map(([categoryName, services]) => (
@@ -211,6 +218,7 @@ const Packages = () => {
       <AddServiceTypeModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
+        refresh={fetchPackages}
       />
 
       <EditPackageModal
@@ -219,6 +227,7 @@ const Packages = () => {
           setShowEditModal(false);
           setSelectedPackage(null);
         }}
+        refresh={fetchPackages}
         packageData={selectedPackage}
       />
     </div>

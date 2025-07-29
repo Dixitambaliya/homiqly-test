@@ -12,7 +12,7 @@ import { FiPlus, FiTrash2 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 
-const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
+const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -226,6 +226,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting }) => {
       );
       resetForm();
       onClose();
+      refresh();
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Failed to submit service type"
