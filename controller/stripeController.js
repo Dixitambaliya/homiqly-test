@@ -146,8 +146,9 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
     parsedPackages.forEach((pkg, index) => {
         const { package_id, package_name, sub_packages = [] } = pkg;
-        const pkgLabel = `${package_name || "Package"} - ID:${package_id}`;
-        metadataToStore[`package_${index}`] = pkgLabel;
+        const pkgKey = `package_${index}`;
+        const pkgLabel = `${package_name || "Package"} (ID:${package_id})`;
+        metadataToStore[pkgKey] = pkgLabel;
 
         sub_packages.forEach((item, itemIndex) => {
             const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1;
@@ -164,11 +165,11 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         return res.status(400).json({ error: "Total amount must be greater than 0" });
     }
 
-    metadataToStore.totalAmount = totalAmount;
+    metadataToStore.totalAmount = totalAmount.toString(); // Must be string
 
     // ✅ Create Stripe PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(totalAmount * 100), // amount in cents
+        amount: Math.round(totalAmount * 100), // cents
         currency: currency.toLowerCase(),
         metadata: metadataToStore,
         automatic_payment_methods: {
@@ -176,7 +177,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         },
     });
 
-    // ✅ Save payment intent record in DB
+    // ✅ Store PaymentIntent in DB
     await db.query(
         `INSERT INTO payments (user_id, payment_intent_id, amount, currency, status)
          VALUES (?, ?, ?, ?, ?)`,
@@ -189,7 +190,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         ]
     );
 
-    // ✅ Respond with payment info
+    // ✅ Respond with clientSecret
     res.status(200).json({
         clientSecret: paymentIntent.client_secret,
         amount: totalAmount,
@@ -197,6 +198,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         paymentIntentId: paymentIntent.id
     });
 });
+
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
