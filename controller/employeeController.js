@@ -179,7 +179,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
                 st.serviceTypeName,
                 u.firstname, u.lastname, u.email AS user_email, u.phone AS user_phone
             FROM service_booking sb
-            JOIN service_type st ON sb.serviceType_id = st.serviceType_id
+            JOIN service_type st ON sb.service_type_id = st.service_type_id
             JOIN services s ON st.service_id = s.service_id
             JOIN users u ON sb.user_id = u.user_id
             WHERE sb.booking_id = ?
@@ -210,8 +210,8 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         // Step 3: Check if company vendor has access to the service
         const [serviceCheck] = await connection.query(
             `SELECT 1 FROM company_services WHERE vendor_id = ? AND service_id = (
-                SELECT service_id FROM service_type WHERE serviceType_id = (
-                    SELECT serviceType_id FROM service_booking WHERE booking_id = ?
+                SELECT service_id FROM service_type WHERE service_type_id = (
+                    SELECT service_type_id FROM service_booking WHERE booking_id = ?
                 )
             )`,
             [vendor_id, booking_id]
