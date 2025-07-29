@@ -16,7 +16,10 @@ const BookingsTable = ({
   onSelectEmployee,
   onAssignEmployee,
 }) => {
-  console.log(employees);
+  const vendorType = localStorage.getItem("vendorData")
+    ? JSON.parse(localStorage.getItem("vendorData"))?.vendor_type
+    : null;
+
   const columns = [
     {
       title: "Booking ID",
@@ -43,43 +46,49 @@ const BookingsTable = ({
         </div>
       ),
     },
-    {
-      title: "Assign Employee",
-      key: "employeeName",
-      render: (row) => (
-        <div className="py-4 whitespace-nowrap">
-          {row.assignedEmployee && row.assignedEmployee.name ? (
-            <span className="text-gray-800">{row.assignedEmployee.name}</span>
-          ) : (
-            <div className="flex gap-2">
-              <select
-                className="border rounded px-2 py-1 text-sm"
-                value={row.selectedEmployeeId || ""}
-                onChange={(e) => {
-                  const selectedId = Number(e.target.value);
-                  onSelectEmployee(row.booking_id, selectedId);
-                }}
-              >
-                <option value="">Select</option>
-                {employees.map((emp) => (
-                  <option key={emp.employee_id} value={emp.employee_id}>
-                    {emp.employee_name}
-                  </option>
-                ))}
-              </select>
+    ...(vendorType !== "individual"
+      ? [
+          {
+            title: "Assign Employee",
+            key: "employeeName",
+            render: (row) => (
+              <div className="py-4 whitespace-nowrap">
+                {row.assignedEmployee && row.assignedEmployee.name ? (
+                  <span className="text-gray-800">
+                    {row.assignedEmployee.name}
+                  </span>
+                ) : (
+                  <div className="flex gap-2">
+                    <select
+                      className="border rounded px-2 py-1 text-sm"
+                      value={row.selectedEmployeeId || ""}
+                      onChange={(e) => {
+                        const selectedId = Number(e.target.value);
+                        onSelectEmployee(row.booking_id, selectedId);
+                      }}
+                    >
+                      <option value="">Select</option>
+                      {employees.map((emp) => (
+                        <option key={emp.employee_id} value={emp.employee_id}>
+                          {emp.employee_name}
+                        </option>
+                      ))}
+                    </select>
 
-              <button
-                onClick={() => onAssignEmployee(row.booking_id)}
-                disabled={!row.selectedEmployeeId}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
-              >
-                Assign
-              </button>
-            </div>
-          )}
-        </div>
-      ),
-    },
+                    <button
+                      onClick={() => onAssignEmployee(row.booking_id)}
+                      disabled={!row.selectedEmployeeId}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                    >
+                      Assign
+                    </button>
+                  </div>
+                )}
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       title: "Date & Time",
       render: (row) => (

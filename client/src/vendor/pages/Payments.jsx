@@ -1,9 +1,11 @@
 // pages/vendor/Payments.jsx
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { FiDownload, FiFilter } from "react-icons/fi";
+import { FiDownload, FiFilter, FiEye } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
+import PaymentsTable from "../components/Tables/PaymentsTable";
 
 const Payments = () => {
   const [bookings, setBookings] = useState([]);
@@ -16,6 +18,8 @@ const Payments = () => {
     approved: 0,
     completed: 0,
   });
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchBookings();
@@ -158,53 +162,11 @@ const Payments = () => {
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm text-left">
-            <thead className="bg-gray-100 text-gray-600">
-              <tr>
-                <th className="px-4 py-2">Booking ID</th>
-                <th className="px-4 py-2">Service ID</th>
-                <th className="px-4 py-2">Date</th>
-                <th className="px-4 py-2">Time</th>"
-                <th className="px-4 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBookings.map((b) => (
-                <tr key={b.booking_id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-2">#{b.booking_id}</td>
-                  <td className="px-4 py-2">{b.service_id}</td>
-                  <td className="px-4 py-2">{formatDate(b.bookingDate)}</td>
-                  <td className="px-4 py-2">{b.bookingTime}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        b.bookingStatus === 4
-                          ? "bg-green-100 text-green-800"
-                          : b.bookingStatus === 1
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {b.bookingStatus === 4
-                        ? "Completed"
-                        : b.bookingStatus === 1
-                        ? "Approved"
-                        : "Other"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {filteredBookings.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="text-center py-6 text-gray-400">
-                    No bookings found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <PaymentsTable
+          bookings={filteredBookings}
+          isLoading={loading}
+          filteredStatus={filter}
+        />
       </div>
     </div>
   );

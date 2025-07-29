@@ -1,84 +1,94 @@
-import React from 'react';
-import DataTable from '../../../shared/components/Table/DataTable';
-import { formatCurrency } from '../../../shared/utils/formatUtils';
-import { formatDate } from '../../../shared/utils/dateUtils';
+// pages/vendor/components/PaymentsTable.jsx
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { FiEye } from "react-icons/fi";
+import DataTable from "../../../shared/components/Table/DataTable";
+import { formatDate } from "../../../shared/utils/dateUtils";
 
-const PaymentsTable = ({ 
-  payments, 
-  isLoading,
-  filter
+const PaymentsTable = ({
+  bookings = [],
+  isLoading = false,
+  filteredStatus = "all",
 }) => {
+  const navigate = useNavigate();
+
+  const handleViewDetails = (row) => {
+    navigate(`/vendor/payments/${row.booking_id}`, {
+      state: { payment: row },
+    });
+  };
+
   const columns = [
     {
-      title: 'Payment ID',
-      key: 'payment_id',
-      render: (row) => <div className="text-sm font-medium text-gray-900">#{row.payment_id}</div>
+      title: "Booking ID",
+      key: "booking_id",
+      render: (row) => `#${row.booking_id}`,
     },
     {
-      title: 'Service',
-      render: (row) => (
-        <div>
-          <div className="text-sm text-gray-900">{row.serviceName}</div>
-          <div className="text-xs text-gray-500">{row.serviceCategory}</div>
-        </div>
-      )
+      title: "Service ID",
+      key: "service_id",
+      render: (row) => row.service_id,
     },
     {
-      title: 'Amount',
-      key: 'amount',
-      render: (row) => (
-        <div className="text-sm font-medium text-gray-900">{formatCurrency(row.amount)}</div>
-      )
+      title: "Date",
+      key: "bookingDate",
+      render: (row) => formatDate(row.bookingDate),
     },
     {
-      title: 'Commission',
-      render: (row) => (
-        <div>
-          <div className="text-sm text-gray-900">{formatCurrency(row.commission_amount)}</div>
-          <div className="text-xs text-gray-500">{row.commission_rate}%</div>
-        </div>
-      )
+      title: "Time",
+      key: "bookingTime",
+      render: (row) => row.bookingTime,
     },
     {
-      title: 'Net Amount',
-      key: 'net_amount',
-      render: (row) => (
-        <div className="text-sm font-medium text-green-600">{formatCurrency(row.net_amount)}</div>
-      )
+      title: "Status",
+      key: "bookingStatus",
+      render: (row) => {
+        const status = row.bookingStatus;
+        const label =
+          status === 4 ? "Completed" : status === 1 ? "Approved" : "Other";
+        const color =
+          status === 4
+            ? "bg-green-100 text-green-800"
+            : status === 1
+            ? "bg-blue-100 text-blue-800"
+            : "bg-gray-100 text-gray-700";
+
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-medium ${color}`}
+          >
+            {label}
+          </span>
+        );
+      },
     },
     {
-      title: 'Status',
-      key: 'payment_status',
+      title: "Actions",
+      key: "actions",
       render: (row) => (
-        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-          row.payment_status === 'completed' 
-            ? 'bg-green-100 text-green-800' 
-            : 'bg-yellow-100 text-yellow-800'
-        }`}>
-          {row.payment_status.charAt(0).toUpperCase() + row.payment_status.slice(1)}
-        </span>
-      )
+        <button
+          className="text-primary hover:text-primary-dark"
+          onClick={() => handleViewDetails(row)}
+        >
+          <FiEye />
+        </button>
+      ),
     },
-    {
-      title: 'Date',
-      key: 'payment_date',
-      render: (row) => (
-        <div className="text-sm text-gray-900">{formatDate(row.payment_date)}</div>
-      )
-    }
   ];
 
-  // Filter payments by status if needed
-  const filteredPayments = filter !== 'all'
-    ? payments.filter(payment => payment.payment_status === filter)
-    : payments;
+  const filteredBookings =
+    filteredStatus !== "all"
+      ? bookings.filter(
+          (b) => String(b.bookingStatus) === String(filteredStatus)
+        )
+      : bookings;
 
   return (
     <DataTable
       columns={columns}
-      data={filteredPayments}
+      data={filteredBookings}
       isLoading={isLoading}
-      emptyMessage="No payment records found."
+      emptyMessage="No bookings found."
     />
   );
 };
