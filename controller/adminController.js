@@ -383,16 +383,16 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
         const vendorType = vendorExists[0].vendorType;
 
-        // ✅ Check manual toggle status
-        const [toggleResult] = await connection.query(
-            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
-            [vendor_id]
-        );
+        // // ✅ Check manual toggle status
+        // const [toggleResult] = await connection.query(
+        //     `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
+        //     [vendor_id]
+        // );
 
-        const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1; // 1 = enabled
-        if (!isEnabled) {
-            throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
-        }
+        // const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1; // 1 = enabled
+        // if (!isEnabled) {
+        //     throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
+        // }
 
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [], preferences = [] } = pkg;
