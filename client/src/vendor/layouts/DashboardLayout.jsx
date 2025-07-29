@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
-import { FiMenu, FiX, FiLogOut, FiUser } from "react-icons/fi";
+import { FiHelpCircle, FiMenu, FiX } from "react-icons/fi";
 import {
   FiHome,
   FiCalendar,
@@ -9,7 +9,9 @@ import {
   FiBox,
   FiCreditCard,
   FiStar,
+  FiUser,
 } from "react-icons/fi";
+import { HeaderMenu } from "../../shared/components/Header";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useVendorAuth();
@@ -55,6 +57,11 @@ const DashboardLayout = () => {
       icon: <FiBox className="w-5 h-5" />,
     },
     {
+      path: "/vendor/employees",
+      name: "Employees",
+      icon: <FiUser className="w-5 h-5" />,
+    },
+    {
       path: "/vendor/payments",
       name: "Payments",
       icon: <FiCreditCard className="w-5 h-5" />,
@@ -63,6 +70,11 @@ const DashboardLayout = () => {
       path: "/vendor/ratings",
       name: "Ratings",
       icon: <FiStar className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/support",
+      name: "Support",
+      icon: <FiHelpCircle className="w-5 h-5" />,
     },
   ];
 
@@ -105,16 +117,6 @@ const DashboardLayout = () => {
               ))}
             </ul>
           </nav>
-
-          <div className="p-4 border-t border-white/10">
-            <button
-              onClick={handleLogout}
-              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-white/10 rounded-md hover:bg-white/20"
-            >
-              <FiLogOut className="w-4 h-4 mr-2" />
-              Logout
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -145,17 +147,13 @@ const DashboardLayout = () => {
               </h1>
             </div>
 
-            <div className="flex items-center">
-              <div className="flex items-center text-gray-600">
-                <span className="mr-2">
-                  {currentUser?.name || "Vendor User"}
-                </span>
-                <FiUser
-                  onClick={() => navigate("/vendor/profile")}
-                  className="w-5 h-5 cursor-pointer hover:text-primary-dark transition-colors duration-200"
-                />
-              </div>
-            </div>
+            <HeaderMenu
+              userName={currentUser?.name || "Vendor User"}
+              userRole={currentUser?.vendor_type || "vendor"}
+              onLogout={handleLogout}
+              profilePath="/vendor/profile"
+              settingsPath="/vendor/settings"
+            />
           </div>
 
           {/* Mobile menu */}

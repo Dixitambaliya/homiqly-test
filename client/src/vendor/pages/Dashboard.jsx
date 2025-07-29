@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../lib/axiosConfig";
 import {
   FiShoppingBag,
   FiClock,
@@ -18,6 +18,7 @@ import {
   Legend,
 } from "chart.js";
 import { Link } from "react-router-dom";
+import ToggleButton from "../components/ToggleButton";
 
 // Register ChartJS components
 ChartJS.register(
@@ -48,8 +49,8 @@ const Dashboard = () => {
         setLoading(true);
 
         // Fetch vendor bookings
-        const bookingsResponse = await axios.get(
-          "/api/booking/vendorbookedservices"
+        const bookingsResponse = await api.get(
+          "/api/booking/vendorassignedservices"
         );
         const bookings = bookingsResponse.data.bookings || [];
 
@@ -119,6 +120,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+      <ToggleButton />
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">

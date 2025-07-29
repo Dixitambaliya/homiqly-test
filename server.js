@@ -64,10 +64,6 @@ app.use("/api/notification", notificationRoutes)
 app.use("/api/rating", ratingRoutes)
 app.use("/api", emailRoutes)
 
-// // Serve static files for admin and vendor panels (legacy)
-// app.use('/admin-panel', express.static(path.join(__dirname, 'admin-panel')));
-// app.use('/vendor-panel', express.static(path.join(__dirname, 'vendor-panel')));
-
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));
 
@@ -77,10 +73,6 @@ app.get("/api/health", (req, res) => {
         status: "OK",
         message: "Homiqly Backend is running",
         timestamp: new Date().toISOString(),
-        panels: {
-            admin: `http://localhost:${PORT}/admin`,
-            vendor: `http://localhost:${PORT}/vendor`
-        }
     });
 });
 
