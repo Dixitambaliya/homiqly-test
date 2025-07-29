@@ -863,10 +863,7 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
                 CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
                 u.email AS user_email,
                 u.phone AS user_phone,
-
-                u.email AS user_email,
-                u.phone AS user_phone,
-
+                
                 -- Vendor Info
                 v.vendorType,
 
