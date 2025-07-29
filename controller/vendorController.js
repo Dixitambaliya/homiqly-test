@@ -835,7 +835,6 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -846,11 +845,63 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     try {
         const [bookings] = await db.query(
             `SELECT
-                booking_id, service_categories_id, service_id, vendor_id,
-                assigned_employee_id, user_id, bookingDate, bookingTime,
-                bookingStatus, payment_intent_id, notes, bookingMedia, created_at
-            FROM service_booking
-            WHERE vendor_id = ? AND payment_intent_id IS NOT NULL`,
+                sb.booking_id,
+                sb.service_categories_id,
+                sb.service_id,
+                sb.vendor_id,
+                sb.assigned_employee_id,
+                sb.user_id,
+                sb.bookingDate,
+                sb.bookingTime,
+                sb.bookingStatus,
+                sb.payment_intent_id,
+                sb.notes,
+                sb.bookingMedia,
+                sb.created_at,
+
+                -- User Info
+                u.firstname AS user_firstname,
+                u.lastname AS user_lastname,
+                u.email AS user_email,
+                u.phone AS user_phone,
+
+                -- Vendor Info
+                v.vendorType,
+
+                -- Individual Vendor Info
+                idet.name AS individual_name,
+                idet.phone AS individual_phone,
+                idet.email AS individual_email,
+                idet.profileImage AS individual_profile_image,
+
+                -- Company Vendor Info
+                cdet.companyName,
+                cdet.contactPerson,
+                cdet.companyEmail AS company_email,
+                cdet.companyPhone AS company_phone,
+                cdet.profileImage AS company_profile_image,
+
+                -- Package Info
+                pkg.package_id,
+                pkg.packageName,
+                pkg.totalPrice,
+                pkg.totalTime,
+                pkg.packageMedia
+
+            FROM service_booking sb
+
+            JOIN users u ON sb.user_id = u.user_id
+            JOIN vendors v ON sb.vendor_id = v.vendor_id
+
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+
+            LEFT JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
+            LEFT JOIN packages pkg ON pkg.package_id = sbp.package_id
+
+            WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
+
+            ORDER BY sb.created_at DESC`,
             [vendor_id]
         );
 
@@ -869,7 +920,7 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
                 if (charge) {
                     stripeData = {
                         charge_id: charge.id,
-                        amount: charge.amount / 100, // convert to currency
+                        amount: charge.amount / 100,
                         currency: charge.currency,
                         status: charge.status,
                         receipt_url: charge.receipt_url,
@@ -896,13 +947,12 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
             total: enriched.length,
             bookings: enriched
         });
+
     } catch (err) {
-        console.error("Stripe payment fetch error:", err);
+        console.error("Error fetching vendor history:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
 
 
 module.exports = {
