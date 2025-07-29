@@ -164,8 +164,8 @@ const addServiceType = asyncHandler(async (req, res) => {
     }
 
     const [result] = await db.query(
-        `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia, is_approved)
-         VALUES (?, ?, ?, 1)`,
+        `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+         VALUES (?, ?, ?)`,
         [service_id, serviceTypeName.trim(), serviceTypeMedia]
     );
 

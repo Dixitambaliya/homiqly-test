@@ -11,6 +11,6 @@ router.post("/login", loginVendor)
 router.post("/requestreset", requestResetVendor)
 router.post("/verifyresetcode", verifyResetCode)
 router.post("/resetpassword", resetPassword);
-router.post("/changepassword", changeVendorPassword);
+router.put("/changepassword", changeVendorPassword);
 
 module.exports = router;
