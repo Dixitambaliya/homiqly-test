@@ -80,7 +80,11 @@ const Employees = () => {
         </Button>
       </div>
 
-      <EmployeesTable employees={employees} isLoading={isLoading} />
+      <EmployeesTable
+        employees={employees}
+        isLoading={isLoading}
+        onDelete={fetchEmployees}
+      />
 
       <CreateEmployeesModal
         isOpen={showModal}

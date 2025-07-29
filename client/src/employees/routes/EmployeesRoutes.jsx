@@ -14,6 +14,8 @@ import Dashboard from "../pages/Dashboard";
 // import Services from "../pages/Services";
 import Bookings from "../pages/Bookings";
 import Profile from "../pages/Profile";
+import Calendar from "../pages/Calendar";
+import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
 // import SupplyKits from "../pages/SupplyKits";
 // import Contractors from "../pages/Contractors";
 // import Employees from "../pages/Employees";
@@ -77,7 +79,10 @@ const EmployeesRoutes = () => {
       >
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="bookings" element={<Bookings />} />
+        <Route path="bookings/:bookingId" element={<BookingDetailsPage />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="calendar" element={<Calendar />} />
+
         {/* <Route path="vendors" element={<Vendors />} />
         <Route path="users" element={<Users />} />
         <Route path="services" element={<Services />} />

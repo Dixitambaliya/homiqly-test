@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiFilter, FiRefreshCw } from "react-icons/fi";
+import { FiRefreshCw } from "react-icons/fi";
 import BookingsTable from "../components/Tables/BookingsTable";
-import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
-import { Card } from "../../shared/components/Card";
 import { Button } from "../../shared/components/Button";
 import { FormSelect } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
@@ -12,10 +10,7 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [filter, setFilter] = useState("all"); // all, pending, approved, cancelled
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     fetchBookings();
@@ -24,13 +19,11 @@ const Bookings = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/employee/getbookingemployee ");
+      const response = await axios.get("/api/employee/getbookingemployee");
       setBookings(response.data.bookings || []);
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching bookings:", error);
-      setError("Failed to load bookings");
-      setLoading(false);
+      toast.error("Failed to load bookings");
     } finally {
       setLoading(false);
     }
@@ -44,34 +37,16 @@ const Bookings = () => {
       });
 
       if (response.status === 200) {
-        // Update local state
-        setBookings(
-          bookings.map((booking) =>
-            booking.booking_id === bookingId || booking.bookingId === bookingId
-              ? { ...booking, bookingStatus: status }
-              : booking
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.booking_id === bookingId || b.bookingId === bookingId
+              ? { ...b, bookingStatus: status }
+              : b
           )
         );
-
-        // Update selected booking if open
-        if (
-          selectedBooking &&
-          (selectedBooking.booking_id === bookingId ||
-            selectedBooking.bookingId === bookingId)
-        ) {
-          setSelectedBooking({
-            ...selectedBooking,
-            bookingStatus: status,
-          });
-        }
-
-        // Show success message
         toast.success(
           `Booking ${status === 1 ? "approved" : "rejected"} successfully`
         );
-
-        // Close modal
-        setShowDetailsModal(false);
       }
     } catch (error) {
       console.error("Error updating booking status:", error);
@@ -79,32 +54,17 @@ const Bookings = () => {
     }
   };
 
-  const viewBookingDetails = (booking) => {
-    setSelectedBooking(booking);
-    setShowDetailsModal(true);
-  };
-
-  const handleFilterChange = (e) => {
-    setFilter(e.target.value);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <LoadingSpinner />;
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Employees Booking Management</h2>
+        <h2 className="text-2xl font-bold text-gray-800">
+          Employees Booking Management
+        </h2>
         <div className="flex space-x-2">
           <FormSelect
             name="filter"
             value={filter}
-            onChange={handleFilterChange}
+            onChange={(e) => setFilter(e.target.value)}
             options={[
               { value: "all", label: "All Bookings" },
               { value: "0", label: "Pending" },
@@ -123,22 +83,19 @@ const Bookings = () => {
         </div>
       </div>
 
-      <BookingsTable
-        bookings={bookings}
-        isLoading={loading}
-        onViewBooking={viewBookingDetails}
-        onApproveBooking={(bookingId) => handleUpdateStatus(bookingId, 1)}
-        onRejectBooking={(bookingId) => handleUpdateStatus(bookingId, 2)}
-        filteredStatus={filter !== "all" ? parseInt(filter) : undefined}
-      />
-
-      <BookingDetailsModal
-        isOpen={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
-        booking={selectedBooking}
-        onApprove={(bookingId) => handleUpdateStatus(bookingId, 1)}
-        onReject={(bookingId) => handleUpdateStatus(bookingId, 2)}
-      />
+      {loading ? (
+        <div className="flex items-center justify-center h-96">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <BookingsTable
+          bookings={bookings}
+          isLoading={loading}
+          onApproveBooking={(id) => handleUpdateStatus(id, 1)}
+          onRejectBooking={(id) => handleUpdateStatus(id, 2)}
+          filteredStatus={filter !== "all" ? parseInt(filter) : undefined}
+        />
+      )}
     </div>
   );
 };

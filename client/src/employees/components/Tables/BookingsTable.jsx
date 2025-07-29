@@ -4,15 +4,23 @@ import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
+import { useNavigate } from "react-router-dom";
 
 const BookingsTable = ({
   bookings,
   isLoading,
-  onViewBooking,
   onApproveBooking,
   onRejectBooking,
   filteredStatus,
 }) => {
+  const navigate = useNavigate();
+
+  const handleViewDetails = (row) => {
+    navigate(`/employees/bookings/${row.booking_id}`, {
+      state: { booking: row },
+    });
+  };
+
   const columns = [
     {
       title: "Booking ID",
@@ -56,9 +64,7 @@ const BookingsTable = ({
       title: "Payment",
       key: "payment_amount",
       render: (row) => (
-        <div className="text-sm text-gray-900">
-          {row.payment_amount}
-        </div>
+        <div className="text-sm text-gray-900">{row.payment_amount}</div>
       ),
     },
     {
@@ -75,13 +81,9 @@ const BookingsTable = ({
             icon={<FiEye className="h-4 w-4" />}
             variant="ghost"
             size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewBooking(row);
-            }}
+            onClick={() => handleViewDetails(row)}
             tooltip="View details"
           />
-
           {row.bookingStatus === 0 && (
             <>
               <IconButton
@@ -111,7 +113,6 @@ const BookingsTable = ({
     },
   ];
 
-  // Filter bookings by status if needed
   const filteredBookings =
     filteredStatus !== undefined && filteredStatus !== "all"
       ? bookings.filter(
@@ -125,7 +126,6 @@ const BookingsTable = ({
       data={filteredBookings}
       isLoading={isLoading}
       emptyMessage="No bookings found."
-      onRowClick={onViewBooking}
     />
   );
 };

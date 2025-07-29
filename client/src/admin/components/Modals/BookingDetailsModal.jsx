@@ -62,7 +62,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           <div>
             <p className="text-sm text-gray-500">Payment</p>
             <p className="text-gray-900">
-              {booking.payment_status.toUpperCase()} —{" "}
+              {booking.payment_status?.toUpperCase()} —{" "}
               {booking.payment_currency?.toUpperCase()} {booking.payment_amount}
             </p>
           </div>

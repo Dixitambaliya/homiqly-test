@@ -1,8 +1,24 @@
 import React from "react";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
+import { FiTrash2 } from "react-icons/fi";
+import api from "../../../lib/axiosConfig";
 
-const EmployeesTable = ({ employees, isLoading }) => {
+const EmployeesTable = ({ employees, isLoading, onDelete }) => {
+  const handleDelete = async (employee_id) => {
+    if (!window.confirm("Are you sure you want to delete this employee?"))
+      return;
+    try {
+      await api.delete("/api/employee/remove-employee", {
+        data: { employee_id },
+      });
+      onDelete(); // Refresh list
+    } catch (error) {
+      console.error("Failed to delete employee:", error);
+      alert("Error deleting employee. Please try again.");
+    }
+  };
+
   const columns = [
     {
       title: "ID",
@@ -41,6 +57,19 @@ const EmployeesTable = ({ employees, isLoading }) => {
         <div className="text-sm text-gray-600">
           {new Date(row.created_at).toLocaleDateString()}
         </div>
+      ),
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      render: (row) => (
+        <button
+          className="text-red-600 hover:text-red-800 p-1"
+          onClick={() => handleDelete(row.employee_id)}
+          title="Delete employee"
+        >
+          <FiTrash2 />
+        </button>
       ),
     },
   ];

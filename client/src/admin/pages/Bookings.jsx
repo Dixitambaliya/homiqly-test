@@ -1,21 +1,10 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import {
-  FiEye,
-  FiRefreshCw,
-  FiCalendar,
-  FiClock,
-  FiUser,
-  FiX,
-  FiCheck,
-} from "react-icons/fi";
+import { FiEye, FiRefreshCw } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import StatusBadge from "../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../shared/utils/dateUtils";
-import { IconButton } from "../../shared/components/Button";
 import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
 
 const Bookings = () => {
@@ -24,14 +13,10 @@ const Bookings = () => {
   const [error, setError] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [assignVendorModal, setAssignVendorModal] = useState(false);
-  const [selectedVendorId, setSelectedVendorId] = useState(null);
   const [filter, setFilter] = useState("all");
   const [eligibleVendorsMap, setEligibleVendorsMap] = useState({});
-  const [dateRange, setDateRange] = useState({
-    startDate: "",
-    endDate: "",
-  });
+  const [selectedVendorMap, setSelectedVendorMap] = useState({});
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
 
   useEffect(() => {
     fetchBookings();
@@ -53,69 +38,66 @@ const Bookings = () => {
                 `/api/booking/get-eligible-vendors/${booking.booking_id}`
               );
               vendorsMap[booking.booking_id] = res.data.eligibleVendors || [];
-            } catch (err) {
+            } catch {
               vendorsMap[booking.booking_id] = [];
             }
           }
         })
       );
       setEligibleVendorsMap(vendorsMap);
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       setError("Failed to load bookings");
+    } finally {
       setLoading(false);
     }
   };
 
-  const assignVendor = async () => {
+  const handleSelectVendor = (bookingId, vendorId) => {
+    setSelectedVendorMap((prev) => ({
+      ...prev,
+      [bookingId]: vendorId,
+    }));
+  };
+
+  const handleAssignVendor = async (bookingId) => {
+    const vendorId = selectedVendorMap[bookingId];
+    if (!vendorId) return;
+
     try {
-      await api.post("/api/booking/assignbooking", {
-        booking_id: selectedBooking.booking_id,
-        vendor_id: selectedVendorId,
+      const res = await api.post("/api/booking/assignbooking", {
+        booking_id: bookingId,
+        vendor_id: vendorId,
       });
 
-      toast.success("Vendor assigned successfully.");
-      const assignedVendor = eligibleVendorsMap[
-        selectedBooking.booking_id
-      ].find((v) => v.vendor_id === selectedVendorId);
+      const assignedVendor = eligibleVendorsMap[bookingId].find(
+        (v) => v.vendor_id === vendorId
+      );
 
       setBookings((prev) =>
         prev.map((b) =>
-          b.booking_id === selectedBooking.booking_id
-            ? { ...b, vendorName: assignedVendor.vendorName }
+          b.booking_id === bookingId
+            ? { ...b, vendorName: assignedVendor?.vendorName }
             : b
         )
       );
 
-      setAssignVendorModal(false);
-      setSelectedVendorId(null);
-    } catch (error) {
-      toast.error("Failed to assign vendor.");
-    }
-  };
+      toast.success(res.data.message || "Vendor assigned successfully");
 
-  const handleBookingAction = async (bookingId, status) => {
-    try {
-      const res = await api.put("/api/booking/approveorrejectbooking", {
-        booking_id: bookingId,
-        status: status,
+      setSelectedVendorMap((prev) => {
+        const updated = { ...prev };
+        delete updated[bookingId];
+        return updated;
       });
 
-      toast.success(res.data.message || "Status updated");
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.booking_id === bookingId ? { ...b, bookingStatus: status } : b
-        )
-      );
+      fetchBookings();
     } catch (error) {
-      toast.error("Failed to update status");
+      console.error("Failed to assign vendor:", error);
+      toast.error("Failed to assign vendor");
     }
   };
 
-  const handleFilterChange = (e) => {
-    setFilter(e.target.value);
-  };
+  const handleFilterChange = (e) => setFilter(e.target.value);
 
   const handleDateChange = (e) => {
     const { name, value } = e.target;
@@ -123,16 +105,15 @@ const Bookings = () => {
   };
 
   const filteredBookings = bookings.filter((booking) => {
-    if (filter !== "all") {
-      const status = parseInt(filter);
-      if (booking.bookingStatus !== status) return false;
+    if (filter !== "all" && booking.bookingStatus !== parseInt(filter)) {
+      return false;
     }
     if (dateRange.startDate && dateRange.endDate) {
       const bookingDate = new Date(booking.bookingDate);
-      const startDate = new Date(dateRange.startDate);
-      const endDate = new Date(dateRange.endDate);
-      endDate.setHours(23, 59, 59, 999);
-      if (bookingDate < startDate || bookingDate > endDate) return false;
+      const start = new Date(dateRange.startDate);
+      const end = new Date(dateRange.endDate);
+      end.setHours(23, 59, 59, 999);
+      if (bookingDate < start || bookingDate > end) return false;
     }
     return true;
   });
@@ -140,7 +121,7 @@ const Bookings = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner />
       </div>
     );
   }
@@ -170,9 +151,9 @@ const Bookings = () => {
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
           <h3 className="text-sm font-medium text-gray-700">Filters</h3>
-          <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+          <div className="flex flex-col md:flex-row md:space-x-4">
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">Status</label>
+              <label className="text-xs block text-gray-500">Status</label>
               <select
                 value={filter}
                 onChange={handleFilterChange}
@@ -185,9 +166,7 @@ const Bookings = () => {
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                Start Date
-              </label>
+              <label className="text-xs block text-gray-500">Start Date</label>
               <input
                 type="date"
                 name="startDate"
@@ -197,9 +176,7 @@ const Bookings = () => {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                End Date
-              </label>
+              <label className="text-xs block text-gray-500">End Date</label>
               <input
                 type="date"
                 name="endDate"
@@ -221,10 +198,10 @@ const Bookings = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Bookings Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
             <tr>
               <th className="px-6 py-3 text-left">ID</th>
               <th className="px-6 py-3 text-left">Customer</th>
@@ -246,11 +223,14 @@ const Bookings = () => {
                   ) : (
                     <div className="flex gap-2">
                       <select
-                        onChange={(e) =>
-                          setSelectedVendorId(Number(e.target.value))
-                        }
                         className="px-2 py-1 border rounded text-sm"
-                        value={selectedVendorId || ""}
+                        value={selectedVendorMap[booking.booking_id] || ""}
+                        onChange={(e) =>
+                          handleSelectVendor(
+                            booking.booking_id,
+                            Number(e.target.value)
+                          )
+                        }
                       >
                         <option value="">Select Vendor</option>
                         {(eligibleVendorsMap[booking.booking_id] || []).map(
@@ -265,11 +245,8 @@ const Bookings = () => {
                         )}
                       </select>
                       <button
-                        disabled={!selectedVendorId}
-                        onClick={() => {
-                          setSelectedBooking(booking);
-                          setAssignVendorModal(true);
-                        }}
+                        disabled={!selectedVendorMap[booking.booking_id]}
+                        onClick={() => handleAssignVendor(booking.booking_id)}
                         className="bg-blue-600 text-white text-sm px-3 py-1 rounded"
                       >
                         Assign
@@ -290,28 +267,7 @@ const Bookings = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  {booking.bookingStatus === 0 ? (
-                    <div className="flex gap-2">
-                      <IconButton
-                        icon={<FiCheck />}
-                        variant="success"
-                        size="sm"
-                        onClick={() =>
-                          handleBookingAction(booking.booking_id, 1)
-                        }
-                      />
-                      <IconButton
-                        icon={<FiX />}
-                        variant="danger"
-                        size="sm"
-                        onClick={() =>
-                          handleBookingAction(booking.booking_id, 2)
-                        }
-                      />
-                    </div>
-                  ) : (
-                    <StatusBadge status={booking.bookingStatus} />
-                  )}
+                  <StatusBadge status={booking.bookingStatus} />
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button
@@ -329,40 +285,6 @@ const Bookings = () => {
           </tbody>
         </table>
       </div>
-
-      {/* Assign Vendor Modal */}
-      {assignVendorModal && selectedBooking && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow-md max-w-sm w-full">
-            <h3 className="text-lg font-semibold mb-2">Confirm Assignment</h3>
-            <p className="mb-4">
-              Assign booking #{selectedBooking.booking_id} to{" "}
-              <strong>
-                {
-                  (eligibleVendorsMap[selectedBooking.booking_id] || []).find(
-                    (v) => v.vendor_id === selectedVendorId
-                  )?.vendorName
-                }
-              </strong>
-              ?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setAssignVendorModal(false)}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={assignVendor}
-                className="bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showDetailsModal && selectedBooking && (
         <BookingDetailsModal

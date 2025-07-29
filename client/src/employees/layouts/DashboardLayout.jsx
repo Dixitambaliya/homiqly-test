@@ -65,6 +65,11 @@ const DashboardLayout = () => {
       name: "Profile",
       icon: <FiUser className="w-5 h-5" />,
     },
+    {
+      path: "/employees/calendar",
+      name: "Calendar",
+      icon: <FiCalendar className="w-5 h-5" />,
+    },
     // {
     //   path: "/employees/supply-kits",
     //   name: "Supply Kits",
