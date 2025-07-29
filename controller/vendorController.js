@@ -860,33 +860,27 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
                 sb.created_at,
 
                 -- User Info
-                u.firstname AS user_firstname,
-                u.lastname AS user_lastname,
+                CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
+                u.email AS user_email,
+                u.phone AS user_phone
+
                 u.email AS user_email,
                 u.phone AS user_phone,
 
                 -- Vendor Info
                 v.vendorType,
 
-                -- Individual Vendor Info
-                idet.name AS individual_name,
-                idet.phone AS individual_phone,
-                idet.email AS individual_email,
-                idet.profileImage AS individual_profile_image,
-
-                -- Company Vendor Info
-                cdet.companyName,
                 cdet.contactPerson,
-                cdet.companyEmail AS company_email,
-                cdet.companyPhone AS company_phone,
-                cdet.profileImage AS company_profile_image,
+
+                COALESCE(idet.name, cdet.companyName) AS vendor_name,
+                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
+                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
                 -- Package Info
                 pkg.package_id,
                 pkg.packageName,
                 pkg.totalPrice,
-                pkg.totalTime,
-                pkg.packageMedia
+                pkg.totalTime
 
             FROM service_booking sb
 
