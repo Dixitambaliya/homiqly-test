@@ -16,6 +16,8 @@ import Bookings from "../pages/Bookings";
 import Profile from "../pages/Profile";
 import Calendar from "../pages/Calendar";
 import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
+import WorkHistory from "../pages/WorkHistory";
+import WorkHistoryDetails from "../pages/subpages/WorkHistoryDetails";
 // import SupplyKits from "../pages/SupplyKits";
 // import Contractors from "../pages/Contractors";
 // import Employees from "../pages/Employees";
@@ -82,7 +84,8 @@ const EmployeesRoutes = () => {
         <Route path="bookings/:bookingId" element={<BookingDetailsPage />} />
         <Route path="profile" element={<Profile />} />
         <Route path="calendar" element={<Calendar />} />
-
+        <Route path="workhistory" element={<WorkHistory />} />
+        <Route path="workhistory/:bookingId" element={<WorkHistoryDetails />} />
         {/* <Route path="vendors" element={<Vendors />} />
         <Route path="users" element={<Users />} />
         <Route path="services" element={<Services />} />

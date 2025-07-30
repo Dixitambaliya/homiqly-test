@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useEmployeesAuth } from "../contexts/EmployeesAuthContext";
-import { FiHelpCircle, FiMenu, FiUser, FiX } from "react-icons/fi";
+import { FiHelpCircle, FiList, FiMenu, FiUser, FiX } from "react-icons/fi";
 import {
   FiHome,
   FiUsers,
@@ -69,6 +69,11 @@ const DashboardLayout = () => {
       path: "/employees/calendar",
       name: "Calendar",
       icon: <FiCalendar className="w-5 h-5" />,
+    },
+    {
+      path: "/employees/workhistory",
+      name: "Work History",
+      icon: <FiList className="w-5 h-5" />,
     },
     // {
     //   path: "/employees/supply-kits",

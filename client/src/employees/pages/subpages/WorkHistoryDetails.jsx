@@ -1,6 +1,6 @@
-import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Button } from "../../../shared/components/Button";
 import {
   FiCalendar,
   FiClock,
@@ -9,67 +9,50 @@ import {
   FiPhone,
   FiMapPin,
 } from "react-icons/fi";
-import { Button } from "../../../shared/components/Button";
-import StatusBadge from "../../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import { toast } from "react-toastify";
-import RatingModal from "../../components/Modals/RatingModal";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
+import StatusBadge from "../../../shared/components/StatusBadge";
+import LoadingSlider from "../../../shared/components/LoadingSpinner";
 
-export default function BookingDetailsPage() {
+const WorkHistoryDetails = () => {
   const { bookingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [booking, setBooking] = useState(location.state?.booking || null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchBooking = async () => {
-      try {
-        const res = await axios.get("/api/employee/getbookingemployee");
-        const found = res.data.bookings.find(
-          (b) =>
-            b.booking_id === Number(bookingId) ||
-            b.bookingId === Number(bookingId)
-        );
-        if (found) {
-          setBooking(found);
-        } else {
-          toast.error("Booking not found");
-        }
-      } catch (err) {
-        console.error("Failed to fetch booking:", err);
-        toast.error("Failed to load booking");
-      }
-    };
-
-    fetchBooking();
-  }, [bookingId]);
-
-  const handleUpdateBookingStatus = async (status) => {
+  const fetchWorkHistoryDetails = async () => {
+    setLoading(true);
     try {
-      const response = await axios.put(`/api/employee/updatebookingstatus`, {
-        booking_id: bookingId,
-        status,
-      });
-
-      if (response.status === 200) {
-        toast.success(
-          `Booking ${status === 3 ? "started" : "completed"} successfully`
-        );
-        setBooking((prev) => ({ ...prev, bookingStatus: status }));
-      }
-      if (status === 4) {
-        setShowRatingModal(true);
+      const response = await axios.get("/api/employees/bookinghistory");
+      const found = response.data.bookings.find(
+        (b) => b.booking_id === Number(bookingId)
+      );
+      if (found) {
+        setBooking(found);
+      } else {
+        toast.error("Booking not found");
       }
     } catch (error) {
-      console.error("Error updating booking status:", error);
-      toast.error("Failed to update booking status");
+      console.error("Failed to fetch booking details:", error);
+      toast.error("Failed to load booking details");
+    } finally {
+      setLoading(false);
     }
   };
+  useEffect(() => {
+    if (!booking) {
+      fetchWorkHistoryDetails();
+    }
+  }, [booking, bookingId]);
 
-  if (!booking) {
-    return <div className="p-6">Loading booking details...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <LoadingSlider />
+      </div>
+    );
   }
 
   return (
@@ -77,13 +60,13 @@ export default function BookingDetailsPage() {
       <Breadcrumb
         links={[
           { label: "Dashboard", to: "/employees" },
-          { label: "Bookings", to: "/employees/bookings" },
-          { label: "Booking Details" },
+          { label: "Work Histoy", to: "/employees/workhistory" },
+          { label: "Work History Details" },
         ]}
       />
       <div className="max-w-5xl mx-auto px-4 py-6">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          Booking Details
+          Booking History
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -237,30 +220,13 @@ export default function BookingDetailsPage() {
 
         {/* Action Buttons */}
         <div className="flex gap-3 mt-4 pt-4 border-t">
-          <Button
-            variant="primary"
-            onClick={() => handleUpdateBookingStatus(3)}
-            disabled={booking.bookingStatus !== 1}
-          >
-            Start
-          </Button>
-          <Button
-            variant="success"
-            onClick={() => handleUpdateBookingStatus(4)}
-            disabled={booking.bookingStatus !== 3}
-          >
-            Complete
-          </Button>
           <Button variant="outline" onClick={() => navigate(-1)}>
             Back
           </Button>
         </div>
-        <RatingModal
-          isOpen={showRatingModal}
-          onClose={() => setShowRatingModal(false)}
-          bookingId={booking.booking_id}
-        />
       </div>
     </>
   );
-}
+};
+
+export default WorkHistoryDetails;
