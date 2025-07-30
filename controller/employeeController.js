@@ -573,9 +573,21 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 WHERE sp.booking_id = ?
             `, [bookingId]);
 
+            // 🔹 Fetch Vendor Rating
+            const [vendorRatingData] = await db.query(`
+                SELECT
+                      rating,
+                      review,
+                      created_at
+                 FROM vendor_service_ratings
+                 WHERE booking_id = ? AND user_id = ? AND vendor_id = ? AND service_id = ?
+                 LIMIT 1
+                    `, [bookingId, booking.user_id, booking.vendor_id, booking.service_id]);
+
             booking.packages = groupedPackages;
             booking.package_items = packageItems;
             booking.preferences = bookingPreferences;
+            booking.vendorRating = vendorRatingData.length > 0 ? vendorRatingData[0] : null;
 
             // 🔹 Clean nulls
             Object.keys(booking).forEach(key => {

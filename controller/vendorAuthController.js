@@ -6,7 +6,7 @@ const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
 const Mail = require("nodemailer/lib/mailer");
-
+const { sendVendorRegistrationNotification } = require("../config/fcmNotifications/adminNotification")
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 
@@ -174,7 +174,17 @@ const registerVendor = async (req, res) => {
         }
 
         await conn.commit();
-        // Admin email notification
+        // Send notification to vendor (custom function)
+        try {
+            await sendVendorRegistrationNotification(
+                vendorType,
+                vendorType === 'individual' ? name : companyName
+            );
+        } catch (err) {
+            console.error("⚠️ Failed to send vendor registration notification:", err.message);
+        }
+
+        // Send notification email to admins
         try {
             const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
             if (adminEmails.length > 0) {
