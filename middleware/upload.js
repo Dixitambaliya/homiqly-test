@@ -7,7 +7,15 @@ const bucket = admin.storage().bucket();
 // Setup Multer (memory storage)
 const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "application/pdf", "image/svg+xml", "video/mp4"];
+    const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/jpg",
+        "application/pdf",
+        "image/svg+xml",
+        "image/webp",
+        "video/mp4"
+    ];
     if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {

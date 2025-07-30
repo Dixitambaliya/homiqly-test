@@ -573,9 +573,21 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 WHERE sp.booking_id = ?
             `, [bookingId]);
 
+            // 🔹 Fetch Vendor Rating
+            const [vendorRatingData] = await db.query(`
+                SELECT
+                      rating,
+                      review,
+                      created_at
+                 FROM vendor_service_ratings
+                 WHERE booking_id = ? AND user_id = ? AND vendor_id = ? AND service_id = ?
+                 LIMIT 1
+                    `, [bookingId, booking.user_id, booking.vendor_id, booking.service_id]);
+
             booking.packages = groupedPackages;
             booking.package_items = packageItems;
             booking.preferences = bookingPreferences;
+            booking.vendorRating = vendorRatingData.length > 0 ? vendorRatingData[0] : null;
 
             // 🔹 Clean nulls
             Object.keys(booking).forEach(key => {
@@ -751,7 +763,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
 
             const [bookingPackages] = await db.query(`
                 SELECT
-                    p.package_id,
                     p.packageName,
                     p.totalPrice,
                     p.totalTime,
@@ -763,13 +774,11 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
 
             const [packageItems] = await db.query(`
                 SELECT
-                    sbsp.sub_package_id AS item_id,
                     pi.itemName,
                     sbsp.price,
                     sbsp.quantity,
                     pi.itemMedia,
-                    pi.timeRequired,
-                    pi.package_id
+                    pi.timeRequired
                 FROM service_booking_sub_packages sbsp
                 LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
                 WHERE sbsp.booking_id = ?
@@ -782,7 +791,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
 
             const [bookingPreferences] = await db.query(`
                 SELECT
-                    sp.preference_id,
                     bp.preferenceValue
                 FROM service_preferences sp
                 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
