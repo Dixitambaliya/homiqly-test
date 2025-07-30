@@ -4,6 +4,7 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
+const { sendServiceBookingNotification } = require("../config/fcmNotifications/adminNotification")
 const sendEmail = require('../config/mailer');
 
 const bookService = asyncHandler(async (req, res) => {
@@ -161,6 +162,17 @@ const bookService = asyncHandler(async (req, res) => {
                  WHERE payment_intent_id = ? AND user_id = ?`,
                 [paymentStatus, paymentIntentId, user_id]
             );
+        }
+
+        try {
+
+            await sendServiceBookingNotification(
+                booking_id,
+                service_type_id,
+                user_id
+            );
+        } catch (err) {
+            console.error("⚠️ Failed to send vendor registration notification:", err.message);
         }
 
         res.status(200).json({
