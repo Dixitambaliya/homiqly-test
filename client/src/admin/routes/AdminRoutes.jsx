@@ -23,6 +23,7 @@ import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
 import Packages from "../pages/Packages";
 import Tickets from "../pages/Tickets";
+import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -80,6 +81,7 @@ const AdminRoutes = () => {
         <Route path="services" element={<Services />} />
         <Route path="packages" element={<Packages />} />
         <Route path="bookings" element={<Bookings />} />
+        <Route path="bookings/:bookingId" element={<BookingDetailsPage />} />
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="contractors" element={<Contractors />} />
         <Route path="employees" element={<Employees />} />

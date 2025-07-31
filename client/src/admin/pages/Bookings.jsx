@@ -6,6 +6,7 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import StatusBadge from "../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../shared/utils/dateUtils";
 import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
+import { useNavigate } from "react-router-dom";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -17,6 +18,7 @@ const Bookings = () => {
   const [eligibleVendorsMap, setEligibleVendorsMap] = useState({});
   const [selectedVendorMap, setSelectedVendorMap] = useState({});
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchBookings();
@@ -271,10 +273,11 @@ const Bookings = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button
-                    onClick={() => {
-                      setSelectedBooking(booking);
-                      setShowDetailsModal(true);
-                    }}
+                    onClick={() =>
+                      navigate(`/admin/bookings/${booking.booking_id}`, {
+                        state: { booking },
+                      })
+                    }
                     className="text-primary-600 hover:text-primary-800"
                   >
                     <FiEye className="h-5 w-5" />
