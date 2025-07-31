@@ -5,7 +5,9 @@ const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { sendEmployeeCreationNotification } = require("../config/fcmNotifications/adminNotification");
+const { sendEmployeeCreationNotification,
+    sendBookingAssignedNotification
+} = require("../config/fcmNotifications/adminNotification");
 
 const createEmployee = asyncHandler(async (req, res) => {
     const { first_name, last_name, email, phone } = req.body;
@@ -118,7 +120,7 @@ const createEmployee = asyncHandler(async (req, res) => {
 });
 
 const employeeLogin = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, fcmToken } = req.body;
 
     if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -145,6 +147,18 @@ const employeeLogin = asyncHandler(async (req, res) => {
         const isMatch = await bcrypt.compare(password, employee.password);
         if (!isMatch) {
             return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        // Optional: Update FCM token
+        if (fcmToken && fcmToken.trim() !== "") {
+            try {
+                await db.query(
+                    "UPDATE company_employees SET fcmToken = ? WHERE employee_id  = ?",
+                    [fcmToken.trim(), employee.employee_id]
+                );
+            } catch (err) {
+                console.error("FCM token update error:", err.message);
+            }
         }
 
         const token = jwt.sign(
@@ -246,6 +260,11 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
             `UPDATE service_booking SET assigned_employee_id = ?, vendor_id = ? WHERE booking_id = ?`,
             [employee_id, vendor_id, booking_id]
         );
+        try {
+            sendBookingAssignedNotification(employee_id, booking_id);
+        } catch (err) {
+            console.error("⚠️ Failed to send booking assignment notification:", err.message);
+        }
 
         await connection.commit();
         connection.release();

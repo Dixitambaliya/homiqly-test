@@ -173,11 +173,42 @@ const sendBookingAssignedNotification = async (employee_id, booking_id) => {
     }
 };
 
+const sendBookingNotificationToUser = async (token, userName, booking_id, status) => {
+    if (!token) {
+        console.warn("⚠️ No FCM token for user.");
+        return;
+    }
+
+    const isApproved = status === 1;
+
+    const message = {
+        notification: {
+            title: isApproved ? "📅 Booking Approved" : "❌ Booking Cancelled",
+            body: isApproved
+                ? `Hi ${userName}, your booking #${booking_id} has been approved. Proceed to payment.`
+                : `Hi ${userName}, your booking #${booking_id} has been cancelled. Please contact support.`,
+        },
+        data: {
+            type: isApproved ? "booking_approved" : "booking_cancelled",
+            booking_id: String(booking_id),
+        },
+        token,
+    };
+
+    try {
+        const res = await admin.messaging().send(message);
+        console.log(`✅ FCM ${isApproved ? "Approval" : "Cancellation"} sent:`, res);
+    } catch (err) {
+        console.error("❌ Error sending FCM notification:", err.message);
+    }
+};
+
 
 
 module.exports = {
     sendVendorRegistrationNotification,
     sendServiceBookingNotification,
     sendEmployeeCreationNotification,
-    sendBookingAssignedNotification
+    sendBookingAssignedNotification,
+    sendBookingNotificationToUser
 };

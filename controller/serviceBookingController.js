@@ -4,7 +4,9 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
-const { sendServiceBookingNotification } = require("../config/fcmNotifications/adminNotification")
+const { sendServiceBookingNotification,
+    sendBookingNotificationToUser
+} = require("../config/fcmNotifications/adminNotification")
 const sendEmail = require('../config/mailer');
 
 const bookService = asyncHandler(async (req, res) => {
@@ -409,6 +411,7 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
         const [bookingData] = await db.query(`
             SELECT
             u.email,
+            u.fcmToken,
             CONCAT(u.firstName, ' ', u.lastName) AS name,
             sb.booking_id
         FROM service_booking sb
@@ -433,14 +436,31 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Booking not found" });
         }
 
-        // Compose email
-        const subject = status === 1 ? "Booking Approved" : "Booking Cancelled";
-        const message = status === 1
-            ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
-            : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
+        try {
+            // Send notification to user
+            await sendBookingNotificationToUser(
+                bookingData[0].fcmToken,
+                userName,
+                booking_id,
+                status
+            );
 
-        // Send the email
-        await sendEmail(userEmail, subject, message);
+        } catch (err) {
+            console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
+        }
+
+        // Compose email
+        try {
+            const subject = status === 1 ? "Booking Approved" : "Booking Cancelled";
+            const message = status === 1
+                ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
+                : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
+
+            // Send the email
+            await sendEmail(userEmail, subject, message);
+        } catch (err) {
+            console.error(`⚠️ Email sending failed for booking_id ${booking_id}:`, err.message);
+        }
 
         res.status(200).json({
             message: `Booking has been ${status === 1 ? 'approved' : 'cancelled'} successfully`,
