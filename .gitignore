@@ -32,7 +32,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.env
 
 /homiqly-cbc23-firebase-adminsdk-fbsvc-7e10f39740.json
-    

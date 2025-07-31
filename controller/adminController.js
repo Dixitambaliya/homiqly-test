@@ -383,16 +383,16 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
         const vendorType = vendorExists[0].vendorType;
 
-        // ✅ Check manual toggle status
-        const [toggleResult] = await connection.query(
-            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
-            [vendor_id]
-        );
+        // // ✅ Check manual toggle status
+        // const [toggleResult] = await connection.query(
+        //     `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
+        //     [vendor_id]
+        // );
 
-        const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1; // 1 = enabled
-        if (!isEnabled) {
-            throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
-        }
+        // const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1; // 1 = enabled
+        // if (!isEnabled) {
+        //     throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
+        // }
 
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [], preferences = [] } = pkg;
@@ -500,7 +500,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -535,65 +534,71 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 package_id
             ]);
 
-            const submittedItemIds = [];
-            for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
-                const sub = pkg.sub_packages[j];
-                const sub_id = sub.sub_package_id;
+            // ✅ Now using subPackages instead of sub_packages
+            if (Array.isArray(pkg.subPackages)) {
+                const submittedItemIds = [];
 
-                if (sub_id) {
-                    const [oldItem] = await connection.query(adminPutQueries.getPackageItemById, [sub_id]);
-                    if (!oldItem.length) continue;
-                    const old = oldItem[0];
+                for (let j = 0; j < pkg.subPackages.length; j++) {
+                    const sub = pkg.subPackages[j];
+                    const sub_id = sub.sub_package_id;
 
-                    const itemName = sub.item_name ?? old.itemName;
-                    const itemDesc = sub.description ?? old.description;
-                    const price = sub.price ?? old.price;
-                    const timeRequired = sub.time_required ?? old.timeRequired;
-                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
+                    if (sub_id) {
+                        const [oldItem] = await connection.query(adminPutQueries.getPackageItemById, [sub_id]);
+                        if (!oldItem.length) continue;
+                        const old = oldItem[0];
 
-                    await connection.query(adminPutQueries.updatePackageItem, [
-                        itemName,
-                        itemDesc,
-                        price,
-                        timeRequired,
-                        itemMedia,
-                        sub_id,
-                        package_id
-                    ]);
+                        const itemName = sub.item_name ?? old.itemName;
+                        const itemDesc = sub.description ?? old.description;
+                        const price = sub.price ?? old.price;
+                        const timeRequired = sub.time_required ?? old.timeRequired;
+                        const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
 
-                    submittedItemIds.push(sub_id);
-                } else {
-                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+                        await connection.query(adminPutQueries.updatePackageItem, [
+                            itemName,
+                            itemDesc,
+                            price,
+                            timeRequired,
+                            itemMedia,
+                            sub_id,
+                            package_id
+                        ]);
 
-                    const [newItem] = await connection.query(adminPutQueries.insertPackageItem, [
-                        package_id,
-                        sub.item_name,
-                        sub.description,
-                        sub.price,
-                        sub.time_required,
-                        itemMedia
-                    ]);
+                        submittedItemIds.push(sub_id);
+                    } else {
+                        const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
 
-                    submittedItemIds.push(newItem.insertId);
+                        const [newItem] = await connection.query(adminPutQueries.insertPackageItem, [
+                            package_id,
+                            sub.item_name,
+                            sub.description,
+                            sub.price,
+                            sub.time_required,
+                            itemMedia
+                        ]);
+
+                        submittedItemIds.push(newItem.insertId);
+                    }
                 }
+
+                // Optional cleanup logic - commented to preserve old items
+                // if (submittedItemIds.length > 0) {
+                //     await connection.query(adminPutQueries.deleteRemovedPackageItems, [package_id, submittedItemIds]);
+                // } else {
+                //     await connection.query(adminPutQueries.deleteAllPackageItems, [package_id]);
+                // }
             }
 
-            if (submittedItemIds.length > 0) {
-                await connection.query(adminPutQueries.deleteRemovedPackageItems, [package_id, submittedItemIds]);
-            } else {
-                await connection.query(adminPutQueries.deleteAllPackageItems, [package_id]);
-            }
+            if (Array.isArray(preferences)) {
+                await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
 
-            await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
+                for (const pref of preferences) {
+                    if (!pref.preference_value) continue;
 
-            const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-            for (const pref of parsedPrefs) {
-                if (!pref.preference_value) continue;
-
-                await connection.query(adminPutQueries.insertPackagePreference, [
-                    package_id,
-                    pref.preference_value.trim()
-                ]);
+                    await connection.query(adminPutQueries.insertPackagePreference, [
+                        package_id,
+                        pref.preference_value.trim()
+                    ]);
+                }
             }
         }
 
@@ -608,6 +613,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;

@@ -5,7 +5,7 @@ const { db, testConnection } = require("./config/db")
 const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
-
+const { sendVendorRegistrationNotification } = require("./config/fcmNotifications/adminNotification")
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
@@ -38,7 +38,7 @@ app.post(
     "/api/payment/stripe/webhook",
     express.raw({ type: "application/json" }),
     stripeController.stripeWebhook
-  );
+);
 
 app.use(express.json())
 app.use(bodyParser.json());
@@ -62,7 +62,8 @@ app.use("/api/payment", stripeRoutes)
 app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
 app.use("/api/rating", ratingRoutes)
-app.use("/api", emailRoutes)
+
+sendVendorRegistrationNotification("company", "TestCo Ltd");
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));

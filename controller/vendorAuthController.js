@@ -6,7 +6,7 @@ const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
 const Mail = require("nodemailer/lib/mailer");
-
+const { sendVendorRegistrationNotification } = require("../config/fcmNotifications/adminNotification")
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 
@@ -22,16 +22,13 @@ const generateResetCode = () =>
     Math.floor(Math.random() * 1_000_000)
         .toString()
         .padStart(6, "0");
-        
+
 // Create User
 const registerVendor = async (req, res) => {
     const conn = await db.getConnection();
     await conn.beginTransaction();
 
     try {
-        console.log("🚀 Incoming vendor registration request");
-        console.log("📦 Request body:", req.body);
-        console.log("📂 Uploaded files:", req.uploadedFiles);
 
         const {
             vendorType,
@@ -66,7 +63,6 @@ const registerVendor = async (req, res) => {
                     .json({ error: "Password is required for individual vendors." });
             }
             hashedPassword = await bcrypt.hash(password, 10);
-            console.log("🔐 Password hashed successfully");
         }
 
         // Insert vendor
@@ -75,7 +71,6 @@ const registerVendor = async (req, res) => {
             hashedPassword,
         ]);
         const vendor_id = vendorRes.insertId;
-        console.log("✅ Vendor inserted with ID:", vendor_id);
 
         // Upload documents
         if (vendorType.toLowerCase() === "company") {
@@ -91,7 +86,6 @@ const registerVendor = async (req, res) => {
             ]);
         } else if (vendorType.toLowerCase() === "individual") {
             const resume = req.uploadedFiles?.resume?.[0]?.url || null;
-            console.log("📄 Resume URL:", resume);
 
             if (!resume && req.files && req.files.some(f => f.fieldname === 'resume')) {
                 console.warn("❌ Resume upload failed");
@@ -100,7 +94,6 @@ const registerVendor = async (req, res) => {
                     .json({ error: "Resume upload failed. Please try again." });
             }
 
-            console.log("👤 Inserting individual details");
             await conn.query(vendorAuthQueries.insertIndividualDetails, [
                 vendor_id,
                 name,
@@ -109,17 +102,12 @@ const registerVendor = async (req, res) => {
                 resume,
             ]);
         }
-
-        // Parse services
-        console.log("🔍 Parsing services...");
         const parsedServices = JSON.parse(services);
-        console.log("🛠 Services parsed:", parsedServices);
 
         const processedCategories = new Set();
 
         for (const service of parsedServices) {
             const { serviceCategoryId, serviceId, serviceLocation } = service;
-            console.log("🔧 Processing service:", service);
 
             if (serviceCategoryId == null || serviceId == null) {
                 console.warn("❌ Missing serviceCategoryId or serviceId");
@@ -133,7 +121,6 @@ const registerVendor = async (req, res) => {
                     vendorAuthQueries.checkCategoryExits,
                     [serviceCategoryId]
                 );
-                console.log(`📂 Category check [${serviceCategoryId}]:`, categoryExists.length > 0);
 
                 if (categoryExists.length === 0) {
                     return res
@@ -156,14 +143,12 @@ const registerVendor = async (req, res) => {
                 }
 
                 processedCategories.add(serviceCategoryId);
-                console.log(`✅ Category ${serviceCategoryId} inserted`);
             }
 
             const [serviceExists] = await db.query(
                 vendorAuthQueries.checkserviceExits,
                 [serviceId, serviceCategoryId]
             );
-            console.log(`🔍 Service exists check [${serviceId}]:`, serviceExists.length > 0);
 
             if (serviceExists.length === 0) {
                 return res
@@ -186,14 +171,20 @@ const registerVendor = async (req, res) => {
                     serviceLocation,
                 ]);
             }
-
-            console.log(`✅ Service ${serviceId} inserted for vendor ${vendor_id}`);
         }
 
         await conn.commit();
-        console.log("✅ Transaction committed");
+        // Send notification to vendor (custom function)
+        try {
+            await sendVendorRegistrationNotification(
+                vendorType,
+                vendorType === 'individual' ? name : companyName
+            );
+        } catch (err) {
+            console.error("⚠️ Failed to send vendor registration notification:", err.message);
+        }
 
-        // Admin email notification
+        // Send notification email to admins
         try {
             const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
             if (adminEmails.length > 0) {
@@ -215,7 +206,6 @@ const registerVendor = async (req, res) => {
               <p>Please review and approve in the admin panel.</p>
             `
                 });
-                console.log("📧 Admin notification sent");
             }
         } catch (emailError) {
             console.error("⚠️ Failed to send admin notification:", emailError.message);
@@ -492,84 +482,38 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const changeVendorPassword = asyncHandler(async (req, res) => {
-    const { email, oldPassword, newPassword } = req.body;
+    const { newPassword } = req.body;
+    const vendor_id = req.user.vendor_id;
 
-    if (!email || !oldPassword || !newPassword) {
-        return res
-            .status(400)
-            .json({
-                error: "All fields are required: email, oldPassword, newPassword",
-            });
+    if (!vendor_id || !newPassword) {
+        return res.status(400).json({
+            error: "vendor_id (from token) and newPassword are required",
+        });
     }
 
     try {
-        // Step 1: Find vendor_id from individual or company
-        let vendorId;
+        // Optional: Check if vendor exists
+        const [vendor] = await db.query(vendorAuthQueries.selectPassword, [vendor_id]);
 
-        const [company] = await db.query(
-            vendorAuthQueries.getVendorIdbycompanyEmail,
-            [email]
-        );
-
-        if (company.length > 0) {
-            vendorId = company[0].vendor_id;
-        } else {
-            const [individual] = await db.query(
-                vendorAuthQueries.getVendorIdbyEmail,
-                [email]
-            );
-            if (individual.length > 0) {
-                vendorId = individual[0].vendor_id;
-            }
-        }
-
-        if (!vendorId) {
+        if (vendor.length === 0) {
             return res.status(404).json({ error: "Vendor not found" });
         }
 
-        // Step 2: Get current password from vendors table
-        const [vendor] = await db.query(vendorAuthQueries.selectPassword, [
-            vendorId,
-        ]);
-
-        if (vendor.length === 0) {
-            return res
-                .status(404)
-                .json({ error: "Vendor not found in vendors table" });
-        }
-
-        // For plain text password comparison (not recommended for production)
-        if (oldPassword === vendor[0].password) {
-            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-            await db.query(vendorAuthQueries.resetVendorPassword, [
-                hashedNewPassword,
-                vendorId,
-            ]);
-            return res.json({ message: "Password changed successfully" });
-        }
-
-        // For hashed password comparison
-        const isMatch = await bcrypt.compare(oldPassword, vendor[0].password);
-        if (!isMatch) {
-            return res.status(401).json({ error: "Old password is incorrect" });
-        }
-
-        // Step 3: Hash and update new password
+        // Hash and update new password
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
         await db.query(vendorAuthQueries.resetVendorPassword, [
             hashedNewPassword,
-            vendorId,
+            vendor_id,
         ]);
 
         res.json({ message: "Password changed successfully" });
     } catch (err) {
         console.error("Change Password Error:", err);
-        res
-            .status(500)
-            .json({ error: "Internal server error", details: err.message });
+        res.status(500).json({ error: "Internal server error", details: err.message });
     }
 });
+
 
 module.exports = {
     registerVendor,
