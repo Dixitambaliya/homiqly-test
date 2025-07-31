@@ -109,8 +109,6 @@ const loginAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const loginUpdateAdmin = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 

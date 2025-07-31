@@ -164,7 +164,16 @@ GROUP BY vendors.vendor_id;
     LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
     ORDER BY st.service_type_id DESC`,
 
-    getAllUsers: `SELECT user_id, firstName, lastName,profileImage, email address, state, postalcode, phone, created_at
+    getAllUsers: `SELECT 
+    user_id, 
+    firstName, 
+    lastName,
+    profileImage, 
+    email, 
+    state, 
+    postalcode, 
+    phone, 
+    created_at
     FROM users
     ORDER BY created_at DESC`,
 

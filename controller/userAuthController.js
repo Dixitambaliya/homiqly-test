@@ -77,16 +77,25 @@ const verifyCode = asyncHandler(async (req, res) => {
 
     const entry = resetCodes.get(email);
 
-    if (!entry || entry.code !== otp || Date.now() > entry.expiresAt) {
+    const OTP_VALIDITY_MINUTES = 10;
+
+    if (!entry) {
+        return res.status(400).json({ error: "No OTP found for this email." });
+    }
+
+    const otpExpiryTime = new Date(entry.createdAt).getTime() + OTP_VALIDITY_MINUTES * 60 * 1000;
+    const currentTime = new Date().getTime();
+
+    if (entry.code !== otp || currentTime > otpExpiryTime) {
         return res.status(400).json({ error: "Invalid or expired code." });
     }
-    // Remove code once used
+
+    // ✅ Remove code once used
     resetCodes.delete(email);
 
-    res
-        .status(200)
-        .json({ message: "Code verified. You can now set your password." });
+    res.status(200).json({ message: "Code verified. You can now set your password." });
 });
+
 
 const setPassword = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
@@ -119,7 +128,7 @@ const setPassword = asyncHandler(async (req, res) => {
 
 // User Login
 const loginUser = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, fcmToken } = req.body;
 
     if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
@@ -145,6 +154,18 @@ const loginUser = asyncHandler(async (req, res) => {
 
         if (!isPasswordValid) {
             return res.status(401).json({ error: "Invalid credentials" });
+        }
+
+        // Optional: Update FCM token
+        if (fcmToken && fcmToken.trim() !== "") {
+            try {
+                await db.query(
+                    "UPDATE users SET fcmToken = ? WHERE user_id = ?",
+                    [fcmToken.trim(), user.user_id]
+                );
+            } catch (err) {
+                console.error("FCM token update error:", err.message);
+            }
         }
 
         const token = jwt.sign(
