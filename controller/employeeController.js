@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const { sendEmployeeCreationNotification } = require("../config/fcmNotifications/adminNotification");
 
 const createEmployee = asyncHandler(async (req, res) => {
     const { first_name, last_name, email, phone } = req.body;
@@ -62,20 +63,29 @@ const createEmployee = asyncHandler(async (req, res) => {
             hashedPassword
         ]);
 
-        // 📧 5️⃣ Send password via email
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            }
-        });
+        try {
+            await sendEmployeeCreationNotification(vendor_id, `${first_name} ${last_name}`);
+        } catch (err) {
+            console.error("Error sending employee creation notification:", err.message);
+            // Don't fail the employee creation if notification fails
+            console.warn("Employee created but notification not sent:", err.message);
+        }
 
-        const mailOptions = {
-            from: `"${vendor.name}" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: 'Your Employee Login Credentials',
-            html: `
+        try {
+            // 📧 5️⃣ Send password via email
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                }
+            });
+
+            const mailOptions = {
+                from: `"${vendor.name}" <${process.env.EMAIL_USER}>`,
+                to: email,
+                subject: 'Your Employee Login Credentials',
+                html: `
                 <p>Hi ${first_name},</p>
                 <p>You’ve been added as an employee under our company.</p>
                 <p><strong>Login Credentials:</strong></p>
@@ -86,9 +96,15 @@ const createEmployee = asyncHandler(async (req, res) => {
                 <p>Please login and update your password after first login.</p>
                 <p>Thanks,<br/>${vendor.name}</p>
             `
-        };
+            };
 
-        await transporter.sendMail(mailOptions);
+            await transporter.sendMail(mailOptions);
+
+        } catch (err) {
+            console.error("Error sending email:", err.message);
+            // Don't fail the employee creation if email fails
+            console.warn("Employee created but email not sent:", err.message);
+        }
 
         res.status(201).json({
             message: "Employee created and login credentials sent to email",
@@ -696,12 +712,24 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
     try {
         // 🔐 Check if the booking is assigned to the current employee
         const [checkBooking] = await db.query(
-            `SELECT * FROM service_booking WHERE booking_id = ? AND assigned_employee_id = ?`,
+            `SELECT booking_id, 
+             assigned_employee_id, 
+             payment_status 
+             FROM 
+             service_booking 
+             WHERE 
+             booking_id = ? AND assigned_employee_id = ?`,
             [booking_id, employee_id]
         );
 
         if (checkBooking.length === 0) {
             return res.status(403).json({ message: "Unauthorized or booking not assigned to this employee" });
+        }
+
+        const { payment_status } = checkBooking[0];
+
+        if (payment_status !== 'completed') {
+            return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
         }
 
         // ✅ Determine completed_flag
