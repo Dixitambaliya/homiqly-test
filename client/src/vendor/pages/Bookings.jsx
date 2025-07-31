@@ -2,21 +2,20 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { FiRefreshCw } from "react-icons/fi";
 import BookingsTable from "../components/Tables/BookingsTable";
-import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
 import { Button } from "../../shared/components/Button";
 import { FormSelect } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filter, setFilter] = useState("all");
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeMap, setSelectedEmployeeMap] = useState({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchBookings();
@@ -132,8 +131,7 @@ const Bookings = () => {
   };
 
   const viewBookingDetails = (booking) => {
-    setSelectedBooking(booking);
-    setShowDetailsModal(true);
+    navigate(`/vendor/bookings/${booking.booking_id}`, { state: { booking } });
   };
 
   const handleFilterChange = (e) => {
@@ -146,6 +144,9 @@ const Bookings = () => {
         <LoadingSpinner />
       </div>
     );
+  }
+  if (error) {
+    return <div className="text-red-500">{error}</div>;
   }
 
   return (
@@ -188,12 +189,6 @@ const Bookings = () => {
         onAssignEmployee={handleAssignEmployee}
         onApproveBooking={(id) => handleUpdateStatus(id, 1)}
         onRejectBooking={(id) => handleUpdateStatus(id, 2)}
-      />
-
-      <BookingDetailsModal
-        isOpen={showDetailsModal}
-        onClose={() => setShowDetailsModal(false)}
-        booking={selectedBooking}
       />
     </div>
   );

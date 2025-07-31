@@ -13,10 +13,8 @@ const Bookings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  // const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filter, setFilter] = useState("all");
-  const [eligibleVendorsMap, setEligibleVendorsMap] = useState({});
-  const [selectedVendorMap, setSelectedVendorMap] = useState({});
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const navigate = useNavigate();
 
@@ -30,72 +28,11 @@ const Bookings = () => {
       const response = await api.get("/api/admin/getbookings");
       const bookingsList = response.data.bookings || [];
       setBookings(bookingsList);
-
-      const vendorsMap = {};
-      await Promise.all(
-        bookingsList.map(async (booking) => {
-          if (!booking.vendorName) {
-            try {
-              const res = await api.get(
-                `/api/booking/get-eligible-vendors/${booking.booking_id}`
-              );
-              vendorsMap[booking.booking_id] = res.data.eligibleVendors || [];
-            } catch {
-              vendorsMap[booking.booking_id] = [];
-            }
-          }
-        })
-      );
-      setEligibleVendorsMap(vendorsMap);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       setError("Failed to load bookings");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSelectVendor = (bookingId, vendorId) => {
-    setSelectedVendorMap((prev) => ({
-      ...prev,
-      [bookingId]: vendorId,
-    }));
-  };
-
-  const handleAssignVendor = async (bookingId) => {
-    const vendorId = selectedVendorMap[bookingId];
-    if (!vendorId) return;
-
-    try {
-      const res = await api.post("/api/booking/assignbooking", {
-        booking_id: bookingId,
-        vendor_id: vendorId,
-      });
-
-      const assignedVendor = eligibleVendorsMap[bookingId].find(
-        (v) => v.vendor_id === vendorId
-      );
-
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.booking_id === bookingId
-            ? { ...b, vendorName: assignedVendor?.vendorName }
-            : b
-        )
-      );
-
-      toast.success(res.data.message || "Vendor assigned successfully");
-
-      setSelectedVendorMap((prev) => {
-        const updated = { ...prev };
-        delete updated[bookingId];
-        return updated;
-      });
-
-      fetchBookings();
-    } catch (error) {
-      console.error("Failed to assign vendor:", error);
-      toast.error("Failed to assign vendor");
     }
   };
 
@@ -220,40 +157,10 @@ const Bookings = () => {
                 <td className="px-6 py-4">#{booking.booking_id}</td>
                 <td className="px-6 py-4">{booking.userName}</td>
                 <td className="px-6 py-4">
-                  {booking.vendorName ? (
-                    booking.vendorName
-                  ) : (
-                    <div className="flex gap-2">
-                      <select
-                        className="px-2 py-1 border rounded text-sm"
-                        value={selectedVendorMap[booking.booking_id] || ""}
-                        onChange={(e) =>
-                          handleSelectVendor(
-                            booking.booking_id,
-                            Number(e.target.value)
-                          )
-                        }
-                      >
-                        <option value="">Select Vendor</option>
-                        {(eligibleVendorsMap[booking.booking_id] || []).map(
-                          (vendor) => (
-                            <option
-                              key={vendor.vendor_id}
-                              value={vendor.vendor_id}
-                            >
-                              {vendor.vendorName} ({vendor.vendorType})
-                            </option>
-                          )
-                        )}
-                      </select>
-                      <button
-                        disabled={!selectedVendorMap[booking.booking_id]}
-                        onClick={() => handleAssignVendor(booking.booking_id)}
-                        className="bg-blue-600 text-white text-sm px-3 py-1 rounded"
-                      >
-                        Assign
-                      </button>
-                    </div>
+                  {booking.vendorName || (
+                    <span className="text-sm text-yellow-600 italic ">
+                      Not Assigned
+                    </span>
                   )}
                 </td>
                 <td className="px-6 py-4">
@@ -289,13 +196,13 @@ const Bookings = () => {
         </table>
       </div>
 
-      {showDetailsModal && selectedBooking && (
+      {/* {showDetailsModal && selectedBooking && (
         <BookingDetailsModal
           isOpen={showDetailsModal}
           onClose={() => setShowDetailsModal(false)}
           booking={selectedBooking}
         />
-      )}
+      )} */}
     </div>
   );
 };

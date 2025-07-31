@@ -490,92 +490,97 @@ const Profile = () => {
         </div>
       </Card>
 
-      <Card title="Services Offered">
-        <div className="space-y-6">
-          {services.map((service, idx) => (
-            <div key={idx} className="border rounded-lg p-4 shadow-sm bg-white">
-              <h2 className="text-xl font-semibold text-primary mb-1">
-                {service.service_type_name}
-              </h2>
-              <p className="text-gray-500 mb-2">
-                {service.service_category_name} / {service.service_name}
-              </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card title="Services Offered">
+          <div className="space-y-6">
+            {services.map((service, idx) => (
+              <div
+                key={idx}
+                className="border rounded-lg p-4 shadow-sm bg-white"
+              >
+                <h2 className="text-xl font-semibold text-primary mb-1">
+                  {service.service_type_name}
+                </h2>
+                <p className="text-gray-500 mb-2">
+                  {service.service_category_name} / {service.service_name}
+                </p>
 
-              {/* Packages */}
-              {service.packages?.map((pkg, pIdx) => (
-                <div
-                  key={pIdx}
-                  className="border rounded-md p-3 my-4 bg-gray-50"
-                >
-                  <div className="flex items-start gap-4">
-                    <img
-                      src={pkg.package_media}
-                      alt={pkg.title}
-                      className="w-32 h-24 object-cover rounded"
-                    />
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-800">
-                        {pkg.title}
-                      </h3>
-                      <p className="text-gray-600">{pkg.description}</p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        ₹ {pkg.price} • {pkg.time_required}
-                      </p>
+                {/* Packages */}
+                {service.packages?.map((pkg, pIdx) => (
+                  <div
+                    key={pIdx}
+                    className="border rounded-md p-3 my-4 bg-gray-50"
+                  >
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={pkg.package_media}
+                        alt={pkg.title}
+                        className="w-32 h-24 object-cover rounded"
+                      />
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-800">
+                          {pkg.title}
+                        </h3>
+                        <p className="text-gray-600">{pkg.description}</p>
+                        <p className="text-sm text-gray-500 mt-1">
+                          ₹ {pkg.price} • {pkg.time_required}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Preferences */}
-                  {pkg.preferences?.length > 0 && (
-                    <div className="mt-2 text-sm text-gray-700">
-                      <strong>Preferences:</strong>{" "}
-                      {pkg.preferences.map((pref, pi) => (
-                        <span
-                          key={pi}
-                          className="inline-block bg-gray-200 px-2 py-1 rounded text-xs mr-2"
-                        >
-                          {pref.preference_value}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                    {/* Preferences */}
+                    {pkg.preferences?.length > 0 && (
+                      <div className="mt-2 text-sm text-gray-700">
+                        <strong>Preferences:</strong>{" "}
+                        {pkg.preferences.map((pref, pi) => (
+                          <span
+                            key={pi}
+                            className="inline-block bg-gray-200 px-2 py-1 rounded text-xs mr-2"
+                          >
+                            {pref.preference_value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                  {/* Sub-packages */}
-                  <div className="mt-4">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      Sub-Packages
-                    </h4>
-                    <div className="space-y-2">
-                      {pkg.sub_packages?.map((sub, sIdx) => (
-                        <div
-                          key={sIdx}
-                          className="flex items-start gap-4 border p-2 rounded bg-white"
-                        >
-                          <img
-                            src={sub.item_media}
-                            alt={sub.title}
-                            className="w-16 h-16 object-cover rounded"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-800">
-                              {sub.title}
-                            </p>
-                            <p className="text-gray-600 text-sm">
-                              {sub.description}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ₹ {sub.price} • {sub.time_required}
-                            </p>
+                    {/* Sub-packages */}
+                    <div className="mt-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                        Sub-Packages
+                      </h4>
+                      <div className="space-y-2">
+                        {pkg.sub_packages?.map((sub, sIdx) => (
+                          <div
+                            key={sIdx}
+                            className="flex items-start gap-4 border p-2 rounded bg-white"
+                          >
+                            <img
+                              src={sub.item_media}
+                              alt={sub.title}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {sub.title}
+                              </p>
+                              <p className="text-gray-600 text-sm">
+                                {sub.description}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                ₹ {sub.price} • {sub.time_required}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </Card>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

@@ -24,6 +24,7 @@ import Settings from "../pages/Settings";
 import Packages from "../pages/Packages";
 import Tickets from "../pages/Tickets";
 import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
+import Rating from "../pages/Rating";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -87,6 +88,7 @@ const AdminRoutes = () => {
         <Route path="employees" element={<Employees />} />
         <Route path="payments" element={<Payments />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="rating" element={<Rating />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />

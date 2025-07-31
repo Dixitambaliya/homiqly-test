@@ -21,6 +21,7 @@ import Settings from "../pages/Settings";
 import SupportForm from "../pages/SupportForm";
 import Employees from "../pages/Employees";
 import PaymentDetails from "../pages/subpages/PaymentDetails";
+import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -82,6 +83,7 @@ const VendorRoutes = () => {
         <Route path="profile" element={<Profile />} />
         <Route path="services" element={<Services />} />
         <Route path="bookings" element={<Bookings />} />
+        <Route path="bookings/:bookingId" element={<BookingDetailsPage />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="employees" element={<Employees />} />
