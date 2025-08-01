@@ -24,6 +24,7 @@ const analyticsRoutes = require("./routes/analyticsRoutes")
 const notificationRoutes = require("./routes/notificationRoutes")
 const stripeRoutes = require("./routes/stripeRoutes")
 const ratingRoutes = require("./routes/ratingRoutes")
+const settingsRoutes = require("./routes/settingsRoutes")
 const emailRoutes = require("./routes/emailRoutes")
 
 const PORT = process.env.PORT || 8000
@@ -60,6 +61,7 @@ app.use("/api/employee", employeeRoutes)
 app.use("/api/payment", stripeRoutes)
 app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
+app.use("/api/settings", settingsRoutes)
 app.use("/api/rating", ratingRoutes)
 
 // Serve Vite build
