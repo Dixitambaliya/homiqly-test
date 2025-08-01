@@ -731,15 +731,15 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
     try {
         // 🔐 Check if the booking is assigned to the current employee
         const [checkBooking] = await db.query(
-            `SELECT booking_id, 
-             assigned_employee_id, 
-             payment_status 
-             FROM 
-             service_booking 
-             WHERE 
-             booking_id = ? AND assigned_employee_id = ?`,
+            `SELECT sb.booking_id, 
+            sb.assigned_employee_id, 
+            p.status AS payment_status
+            FROM service_booking sb
+            LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+            WHERE sb.booking_id = ? AND sb.assigned_employee_id = ?`,
             [booking_id, employee_id]
         );
+
 
         if (checkBooking.length === 0) {
             return res.status(403).json({ message: "Unauthorized or booking not assigned to this employee" });
@@ -750,6 +750,7 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
         if (payment_status !== 'completed') {
             return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
         }
+
 
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
