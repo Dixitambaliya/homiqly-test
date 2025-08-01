@@ -204,8 +204,8 @@ const getBookings = asyncHandler(async (req, res) => {
                 SELECT
                     sbsp.sub_package_id AS item_id,
                     pi.itemName,
-                    sbsp.price,
                     sbsp.quantity,
+                    (sbsp.price * sbsp.quantity) AS price,
                     pi.itemMedia,
                     pi.timeRequired,
                     pi.package_id

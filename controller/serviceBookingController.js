@@ -190,134 +190,152 @@ const bookService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorBookings = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id;
+  const vendor_id = req.user.vendor_id;
 
-    try {
-        const [bookings] = await db.query(`
-            SELECT
-                sb.*,
-                s.serviceName,
-                sc.serviceCategory,
-                st.serviceTypeName,
-                p.status AS payment_status,
-                p.amount AS payment_amount,
-                p.currency AS payment_currency,
-                CONCAT(u.firstName,' ', u.lastName) AS userName,
-                u.profileImage AS userProfileImage,
-                u.email AS userEmail,
-                u.phone AS userPhone,
-                u.address AS userAddress,
-                u.state AS userState,
-                u.postalcode AS userPostalCode,
+  try {
+    // 🔹 Fetch latest platform fee percentage
+    const [platformSettings] = await db.query(
+      "SELECT platform_fee_percentage FROM platform_settings ORDER BY id DESC LIMIT 1"
+    );
+    const platformFee = platformSettings[0]?.platform_fee_percentage || 0;
 
-                -- 🔹 Assigned Employee Info
-                e.employee_id AS assignedEmployeeId,
-                e.first_name AS employeeFirstName,
-                e.last_name AS employeeLastName,
-                e.email AS employeeEmail,
-                e.phone AS employeePhone
+    const [bookings] = await db.query(
+      `
+      SELECT
+          sb.*,
+          s.serviceName,
+          sc.serviceCategory,
+          st.serviceTypeName,
+          p.status AS payment_status,
+          p.amount AS payment_amount,
+          p.currency AS payment_currency,
+          CONCAT(u.firstName,' ', u.lastName) AS userName,
+          u.profileImage AS userProfileImage,
+          u.email AS userEmail,
+          u.phone AS userPhone,
+          u.address AS userAddress,
+          u.state AS userState,
+          u.postalcode AS userPostalCode,
 
-            FROM service_booking sb
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
-            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
-            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id -- Join employee
+          -- 🔹 Assigned Employee Info
+          e.employee_id AS assignedEmployeeId,
+          e.first_name AS employeeFirstName,
+          e.last_name AS employeeLastName,
+          e.email AS employeeEmail,
+          e.phone AS employeePhone
 
-            WHERE sb.vendor_id = ?
-            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-        `, [vendor_id]);
+      FROM service_booking sb
+      LEFT JOIN services s ON sb.service_id = s.service_id
+      LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+      LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+      LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+      LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+      LEFT JOIN users u ON sb.user_id = u.user_id
+      LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
+      WHERE sb.vendor_id = ?
+      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+      `,
+      [vendor_id]
+    );
 
-        for (const booking of bookings) {
-            const bookingId = booking.booking_id;
+    for (const booking of bookings) {
+      const bookingId = booking.booking_id;
 
-            // 🔹 Fetch Packages
-            const [bookingPackages] = await db.query(`
-                SELECT
-                    p.package_id,
-                    p.packageName,
-                    p.totalPrice,
-                    p.totalTime,
-                    p.packageMedia
-                FROM service_booking_packages sbp
-                JOIN packages p ON sbp.package_id = p.package_id
-                WHERE sbp.booking_id = ?
-            `, [bookingId]);
+      // 🔹 Fetch Packages
+      const [bookingPackages] = await db.query(
+        `
+        SELECT
+            p.package_id,
+            p.packageName,
+            p.totalPrice,
+            p.totalTime,
+            p.packageMedia
+        FROM service_booking_packages sbp
+        JOIN packages p ON sbp.package_id = p.package_id
+        WHERE sbp.booking_id = ?
+      `,
+        [bookingId]
+      );
 
-            // 🔹 Fetch Items
-            const [packageItems] = await db.query(`
-                SELECT
-                    sbsp.sub_package_id AS item_id,
-                    pi.itemName,
-                    sbsp.price,
-                    sbsp.quantity,
-                    pi.itemMedia,
-                    pi.timeRequired,
-                    pi.package_id
-                FROM service_booking_sub_packages sbsp
-                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                WHERE sbsp.booking_id = ?
-            `, [bookingId]);
+      // 🔹 Fetch Items with platform fee deducted from price
+      const [packageItems] = await db.query(
+        `
+        SELECT
+            sbsp.sub_package_id AS item_id,
+            pi.itemName,
+            sbsp.quantity,
+            ROUND((sbsp.price * sbsp.quantity) * (1 - ? / 100), 2) AS price,
+            pi.itemMedia,
+            pi.timeRequired,
+            pi.package_id
+        FROM service_booking_sub_packages sbsp
+        LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+        WHERE sbsp.booking_id = ?
+      `,
+        [platformFee, bookingId]
+      );
 
-            // 🔹 Group items under packages
-            const groupedPackages = bookingPackages.map(pkg => {
-                const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                return { ...pkg, items };
-            });
+      // 🔹 Group items under packages
+      const groupedPackages = bookingPackages.map((pkg) => {
+        const items = packageItems.filter(
+          (item) => item.package_id === pkg.package_id
+        );
+        return { ...pkg, items };
+      });
 
-            // 🔹 Fetch Preferences
-            const [bookingPreferences] = await db.query(`
-                SELECT
-                    sp.preference_id,
-                    bp.preferenceValue
-                FROM service_preferences sp
-                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-                WHERE sp.booking_id = ?
-            `, [bookingId]);
+      // 🔹 Fetch Preferences
+      const [bookingPreferences] = await db.query(
+        `
+        SELECT
+            sp.preference_id,
+            bp.preferenceValue
+        FROM service_preferences sp
+        JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+        WHERE sp.booking_id = ?
+      `,
+        [bookingId]
+      );
 
-            booking.packages = groupedPackages;
-            booking.package_items = packageItems;
-            booking.preferences = bookingPreferences;
+      booking.packages = groupedPackages;
+      booking.package_items = packageItems;
+      booking.preferences = bookingPreferences;
 
-            // 🔹 Combine employee info (optional)
-            if (booking.assignedEmployeeId) {
-                booking.assignedEmployee = {
-                    employee_id: booking.assignedEmployeeId,
-                    name: `${booking.employeeFirstName} ${booking.employeeLastName}`,
-                    email: booking.employeeEmail,
-                    phone: booking.employeePhone,
-                };
-            }
+      // 🔹 Combine employee info
+      if (booking.assignedEmployeeId) {
+        booking.assignedEmployee = {
+          employee_id: booking.assignedEmployeeId,
+          name: `${booking.employeeFirstName} ${booking.employeeLastName}`,
+          email: booking.employeeEmail,
+          phone: booking.employeePhone,
+        };
+      }
 
-            // 🔹 Clean unnecessary fields
-            delete booking.assignedEmployeeId;
-            delete booking.employeeFirstName;
-            delete booking.employeeLastName;
-            delete booking.employeeEmail;
-            delete booking.employeePhone;
+      // 🔹 Clean unnecessary fields
+      delete booking.assignedEmployeeId;
+      delete booking.employeeFirstName;
+      delete booking.employeeLastName;
+      delete booking.employeeEmail;
+      delete booking.employeePhone;
 
-            Object.keys(booking).forEach(key => {
-                if (booking[key] === null) delete booking[key];
-            });
-        }
-
-        res.status(200).json({
-            message: "Vendor bookings fetched successfully",
-            bookings
-        });
-
-    } catch (error) {
-        console.error("Error fetching vendor bookings:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+      Object.keys(booking).forEach((key) => {
+        if (booking[key] === null) delete booking[key];
+      });
     }
+
+    res.status(200).json({
+      message: "Vendor bookings fetched successfully",
+      bookings,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor bookings:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

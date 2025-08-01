@@ -540,8 +540,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 sc.serviceCategory,
                 st.serviceTypeName,
                 p.status AS payment_status,
-                p.amount AS payment_amount,
-                p.currency AS payment_currency,
                 CONCAT(u.firstName,' ', u.lastName) AS userName,
                 u.profileImage AS userProfileImage,
                 u.email AS userEmail,
@@ -569,7 +567,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 SELECT
                     p.package_id,
                     p.packageName,
-                    p.totalPrice,
                     p.totalTime,
                     p.packageMedia
                 FROM service_booking_packages sbp
@@ -582,7 +579,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 SELECT
                     sbsp.sub_package_id AS item_id,
                     pi.itemName,
-                    sbsp.price,
                     sbsp.quantity,
                     pi.itemMedia,
                     pi.timeRequired,
@@ -731,15 +727,15 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
     try {
         // 🔐 Check if the booking is assigned to the current employee
         const [checkBooking] = await db.query(
-            `SELECT booking_id, 
-             assigned_employee_id, 
-             payment_status 
-             FROM 
-             service_booking 
-             WHERE 
-             booking_id = ? AND assigned_employee_id = ?`,
+            `SELECT sb.booking_id, 
+            sb.assigned_employee_id, 
+            p.status AS payment_status
+            FROM service_booking sb
+            LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+            WHERE sb.booking_id = ? AND sb.assigned_employee_id = ?`,
             [booking_id, employee_id]
         );
+
 
         if (checkBooking.length === 0) {
             return res.status(403).json({ message: "Unauthorized or booking not assigned to this employee" });
@@ -750,6 +746,7 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
         if (payment_status !== 'completed') {
             return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
         }
+
 
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
@@ -784,7 +781,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
                 sc.serviceCategory,
                 st.serviceTypeName,
                 p.status AS payment_status,
-                p.amount AS payment_amount,
                 p.currency AS payment_currency,
                 CONCAT(u.firstName,' ', u.lastName) AS userName,
                 u.profileImage AS userProfileImage,
@@ -811,7 +807,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
             const [bookingPackages] = await db.query(`
                 SELECT
                     p.packageName,
-                    p.totalPrice,
                     p.totalTime,
                     p.packageMedia
                 FROM service_booking_packages sbp
@@ -822,7 +817,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
             const [packageItems] = await db.query(`
                 SELECT
                     pi.itemName,
-                    sbsp.price,
                     sbsp.quantity,
                     pi.itemMedia,
                     pi.timeRequired
