@@ -781,7 +781,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
                 sc.serviceCategory,
                 st.serviceTypeName,
                 p.status AS payment_status,
-                p.amount AS payment_amount,
                 p.currency AS payment_currency,
                 CONCAT(u.firstName,' ', u.lastName) AS userName,
                 u.profileImage AS userProfileImage,
@@ -808,7 +807,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
             const [bookingPackages] = await db.query(`
                 SELECT
                     p.packageName,
-                    p.totalPrice,
                     p.totalTime,
                     p.packageMedia
                 FROM service_booking_packages sbp
@@ -819,7 +817,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
             const [packageItems] = await db.query(`
                 SELECT
                     pi.itemName,
-                    sbsp.price,
                     sbsp.quantity,
                     pi.itemMedia,
                     pi.timeRequired
