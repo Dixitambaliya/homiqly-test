@@ -32,7 +32,6 @@ const setPlatformSettings = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Invalid platform fee percentage" });
     }
 
-    // Check if entry already exists for vendor_type
     const [existing] = await db.query(
         "SELECT * FROM platform_settings WHERE vendor_type = ? LIMIT 1",
         [vendor_type]
