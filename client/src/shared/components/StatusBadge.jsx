@@ -31,30 +31,30 @@ const StatusBadge = ({ status, text }) => {
   switch (status) {
     case 0:
     case "pending":
-      statusClass = "bg-yellow-100 text-yellow-800";
+      statusClass = "bg-amber-100 text-amber-700 border border-amber-200/50";
       break;
     case 1:
     case "approved":
-      statusClass = "bg-blue-100 text-blue-800";
+      statusClass = "bg-blue-100 text-blue-700 border border-blue-200/50";
       break;
     case 2:
     case "rejected":
     case "cancelled":
-      statusClass = "bg-red-100 text-red-800";
+      statusClass = "bg-red-100 text-red-700 border border-red-200/50";
       break;
     case 3:
-      statusClass = "bg-purple-100 text-purple-800";
+      statusClass = "bg-purple-100 text-purple-700 border border-purple-200/50";
       break;
     case 4:
-      statusClass = "bg-green-100 text-green-800";
+      statusClass = "bg-green-100 text-green-700 border border-green-200/50";
       break;
     default:
-      statusClass = "bg-gray-100 text-gray-800";
+      statusClass = "bg-gray-100 text-gray-700 border border-gray-200/50";
   }
 
   return (
     <span
-      className={`px-2 py-1 rounded-full text-xs font-medium ${statusClass}`}
+      className={`inline-flex items-center px-1.5 py-0.5 text-xs font-bold rounded-[6px] ${statusClass}`}
     >
       {statusText}
     </span>

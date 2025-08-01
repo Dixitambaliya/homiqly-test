@@ -100,6 +100,11 @@ const DashboardLayout = () => {
       name: "Support Tickets",
       icon: <FiHelpCircle className="w-5 h-5" />,
     },
+    {
+      path: "/admin/settings",
+      name: "Settings",
+      icon: <FiTool className="w-5 h-5" />,
+    },
   ];
 
   const getPageTitle = () => {
