@@ -309,6 +309,50 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllVendorRatings = asyncHandler(async (req, res) => {
+    try {
+        const [ratings] = await db.query(`
+        SELECT
+            vsr.rating_id,
+            vsr.booking_id,
+            vsr.user_id,
+            vsr.vendor_id,
+            vsr.service_id,
+            vsr.rating,
+            vsr.review,
+            vsr.created_at,
+
+            CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+            s.serviceName,
+            sc.serviceCategory,
+
+            v.vendorType,
+            
+            CONCAT_WS(' ', id.name, cd.companyName) AS vendor_name,
+            CONCAT_WS(' ', id.email, cd.companyEmail) AS vendor_email,
+            CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone
+
+
+        FROM vendor_service_ratings vsr
+        JOIN users u ON vsr.user_id = u.user_id
+        JOIN services s ON vsr.service_id = s.service_id
+        JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        JOIN vendors v ON vsr.vendor_id = v.vendor_id
+        LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id AND v.vendorType = 'individual'
+        LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id AND v.vendorType = 'company'
+        ORDER BY vsr.created_at DESC
+        `);
+
+        res.status(200).json({
+            message: "All vendor ratings fetched successfully",
+            ratings
+        });
+    } catch (error) {
+        console.error("Error fetching all vendor ratings:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 module.exports = {
     getVendorRatings,
@@ -319,5 +363,6 @@ module.exports = {
     getBookedPackagesForRating,
     getVendorServicesForReview,
     getPackageRatings,
-    getPackageAverageRating
+    getPackageAverageRating,
+    getAllVendorRatings
 };

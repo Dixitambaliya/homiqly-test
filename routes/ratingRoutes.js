@@ -9,7 +9,8 @@ const {
     getBookedPackagesForRating,
     getVendorServicesForReview,
     getPackageRatings,
-    getPackageAverageRating
+    getPackageAverageRating,
+    getAllVendorRatings
 } = require('../controller/ratingController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 
@@ -29,6 +30,8 @@ router.get('/getassignedservice', authenticationToken, getVendorServicesForRevie
 router.get('/getpackagebookedrating', authenticationToken, getPackageRatings);
 
 router.get('/packageaverage/:package_id', authenticationToken, getPackageAverageRating);
+
+router.get('/getallrating', authenticationToken, getAllVendorRatings);
 
 router.post('/addrating', authenticationToken, addRatingToServiceType);
 
