@@ -291,16 +291,18 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
     try {
-        // 1. Get package + average rating
+        // 1. Get package details with average rating and total review count
         const [packageRows] = await db.query(
             `SELECT 
-        p.*, 
-        AVG(r.rating) AS average_rating, 
-        COUNT(r.rating_id) AS total_reviews
-       FROM packages p
-       LEFT JOIN ratings r ON p.package_id = r.package_id
-       WHERE p.package_id = ?
-       GROUP BY p.package_id`,
+                p.packageName, 
+                p.description, 
+                p.packageMedia, 
+                AVG(r.rating) AS average_rating,
+                COUNT(r.rating_id) AS total_reviews
+            FROM packages p
+            LEFT JOIN ratings r ON p.package_id = r.package_id
+            WHERE p.package_id = ?
+            GROUP BY p.package_id`,
             [package_id]
         );
 
@@ -310,26 +312,37 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
 
         const packageData = packageRows[0];
 
-        // 2. Get items for the package
-        const [items] = await db.query(
-            `SELECT item_id, itemName, itemMedia, description, price, timeRequired
-       FROM package_items
-       WHERE package_id = ?`,
+        // 2. Get individual reviews with user names
+        const [reviews] = await db.query(
+            `SELECT 
+                r.rating_id,
+                r.user_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                r.rating,
+                r.review,
+                r.created_at
+            FROM ratings r
+            LEFT JOIN users u ON r.user_id = u.user_id
+            WHERE r.package_id = ?
+            ORDER BY r.created_at DESC`,
             [package_id]
         );
 
+        // 3. Send combined result
         res.status(200).json({
-            message: "Package details with ratings fetched successfully",
-            package: {
-                ...packageData,
-                items,
+            message: "Package reviews fetched successfully",
+            review: {
+                packageName: packageData.packageName,
+                description: packageData.description,
+                packageMedia: packageData.packageMedia,
                 average_rating: parseFloat(packageData.average_rating || 0).toFixed(2),
-                total_reviews: packageData.total_reviews || 0
+                total_reviews: packageData.total_reviews || 0,
+                rating: reviews || []
             }
         });
 
     } catch (error) {
-        console.error("Error fetching full package info:", error);
+        console.error("Error fetching full package review info:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });
