@@ -329,39 +329,68 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+function safeParse(str) {
+  try {
+    return JSON.parse(str || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
-    try {
-        const [rows] = await db.query(adminGetQueries.getAdminCreatedPackages);
-        console.log(rows);
+  try {
+    const [rows] = await db.query(adminGetQueries.getAdminCreatedPackages);
+    console.log(rows);
 
-        const result = rows.map(row => ({
+    const result = rows.map(row => {
+      let parsedPackages = [];
+      try {
+        parsedPackages = JSON.parse(row.packages || '[]');
+      } catch (e) {
+        console.error(
+          `❌ Invalid JSON in row.packages for service_type_id ${row.service_type_id}:`,
+          e.message
+        );
+      }
 
-            service_type_id: row.service_type_id,
-            service_type_name: row.serviceTypeName,
-            service_type_media: row.serviceTypeMedia,
+      const packages = parsedPackages.map(pkg => ({
+        ...pkg,
+        sub_packages: typeof pkg.sub_packages === 'string'
+          ? safeParse(pkg.sub_packages)
+          : [],
+        preferences: typeof pkg.preferences === 'string'
+          ? safeParse(pkg.preferences)
+          : [],
+      }));
 
-            service_id: row.service_id,
-            service_name: row.serviceName,
+      return {
+        service_type_id: row.service_type_id,
+        service_type_name: row.serviceTypeName,
+        service_type_media: row.serviceTypeMedia,
 
-            service_category_id: row.service_categories_id,
-            service_category_name: row.serviceCategory,
+        service_id: row.service_id,
+        service_name: row.serviceName,
 
-            packages: JSON.parse(row.packages || '[]').map(pkg => ({
-                ...pkg,
-                sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
-                preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
-            }))
-        }));
+        service_category_id: row.service_categories_id,
+        service_category_name: row.serviceCategory,
 
-        res.status(200).json({
-            message: "Admin-created packages fetched successfully",
-            result
-        });
-    } catch (err) {
-        console.error("Error fetching admin-created packages:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
-    }
+        packages,
+      };
+    });
+
+    res.status(200).json({
+      message: "Admin-created packages fetched successfully",
+      result,
+    });
+  } catch (err) {
+    console.error("❌ Error fetching admin-created packages:", err);
+    res.status(500).json({
+      error: "Database error",
+      details: err.message,
+    });
+  }
 });
+
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
