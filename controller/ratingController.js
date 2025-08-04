@@ -241,7 +241,7 @@ const getVendorServicesForReview = asyncHandler(async (req, res) => {
 const getPackageRatings = asyncHandler(async (req, res) => {
     try {
         const rating = await db.query(
-        `SELECT 
+            `SELECT 
          r.rating_id,
          CONCAT (u.firstName, ' ', u.lastName) AS userName,    
          r.package_id,
@@ -262,6 +262,54 @@ const getPackageRatings = asyncHandler(async (req, res) => {
     }
 });
 
+const getPackageAverageRating = asyncHandler(async (req, res) => {
+    const { package_id } = req.params;
+
+    try {
+        // 1. Get package + average rating
+        const [packageRows] = await db.query(
+            `SELECT 
+        p.*, 
+        AVG(r.rating) AS average_rating, 
+        COUNT(r.rating_id) AS total_reviews
+       FROM packages p
+       LEFT JOIN ratings r ON p.package_id = r.package_id
+       WHERE p.package_id = ?
+       GROUP BY p.package_id`,
+            [package_id]
+        );
+
+        if (packageRows.length === 0) {
+            return res.status(404).json({ message: "Package not found" });
+        }
+
+        const packageData = packageRows[0];
+
+        // 2. Get items for the package
+        const [items] = await db.query(
+            `SELECT item_id, itemName, itemMedia, description, price, timeRequired
+       FROM package_items
+       WHERE package_id = ?`,
+            [package_id]
+        );
+
+        res.status(200).json({
+            message: "Package details with ratings fetched successfully",
+            package: {
+                ...packageData,
+                items,
+                average_rating: parseFloat(packageData.average_rating || 0).toFixed(2),
+                total_reviews: packageData.total_reviews || 0
+            }
+        });
+
+    } catch (error) {
+        console.error("Error fetching full package info:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
 module.exports = {
     getVendorRatings,
     vendorRatesUser,
@@ -270,5 +318,6 @@ module.exports = {
     addRatingToPackages,
     getBookedPackagesForRating,
     getVendorServicesForReview,
-    getPackageRatings
+    getPackageRatings,
+    getPackageAverageRating
 };
