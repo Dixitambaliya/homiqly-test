@@ -31,7 +31,7 @@ router.get('/getpackagebookedrating', authenticationToken, getPackageRatings);
 
 router.get('/packageaverage/:package_id', authenticationToken, getPackageAverageRating);
 
-router.get('/getallrating', authenticationToken, getAllVendorRatings);
+router.get('/getallvendorsrating', authenticationToken, getAllVendorRatings);
 
 router.post('/addrating', authenticationToken, addRatingToServiceType);
 

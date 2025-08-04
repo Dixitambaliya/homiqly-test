@@ -735,7 +735,25 @@ const getAllPayments = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllPackages = asyncHandler(async (req, res) => {
+    try {
+        const [packages] = await db.query(`
+      SELECT 
+        package_id,
+        packageName
+      FROM packages
+      ORDER BY created_at DESC
+    `);
 
+        res.status(200).json({
+            message: "All packages fetched successfully",
+            packages,
+        });
+    } catch (error) {
+        console.error("Error fetching packages:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
 
 module.exports = {
     getVendor,
@@ -749,5 +767,6 @@ module.exports = {
     editPackageByAdmin,
     deletePackageByAdmin,
     deletePackageByAdmin,
-    getAllPayments
+    getAllPayments,
+    getAllPackages
 };
