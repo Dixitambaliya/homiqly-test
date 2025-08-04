@@ -4,6 +4,6 @@ const { getPlatformSettings, setPlatformSettings } = require("../controller/sett
 const { authenticationToken } = require("../middleware/authMiddleware")
 
 router.put("/setplatformfee", authenticationToken, setPlatformSettings);
-router.get("/getsettings", authenticationToken, getPlatformSettings);
+router.get("/getsettings/:vendor_type", authenticationToken, getPlatformSettings);
 
 module.exports = router;

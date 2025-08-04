@@ -130,6 +130,7 @@ const assignContractorToBooking = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 });
+
 const getContractorBookings = asyncHandler(async (req, res) => {
     const { contractor_id } = req.params;
 

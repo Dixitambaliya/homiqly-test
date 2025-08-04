@@ -238,6 +238,29 @@ const getVendorServicesForReview = asyncHandler(async (req, res) => {
     }
 });
 
+const getPackageRatings = asyncHandler(async (req, res) => {
+    try {
+        const rating = await db.query(
+        `SELECT 
+         r.rating_id,
+         CONCAT (u.firstName, ' ', u.lastName) AS userName,    
+         r.package_id,
+         p.packageName,
+         r.rating,
+         r.review,
+         r.created_at
+       FROM ratings r
+        JOIN users u ON r.user_id = u.user_id
+        JOIN packages p ON r.package_id = p.package_id
+       ORDER BY r.created_at DESC`
+        );
+
+        res.status(200).json({ message: "Package ratings fetched successfully", rating: rating[0] });
+    } catch (error) {
+        console.error("Error fetching package ratings:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
 
 module.exports = {
     getVendorRatings,
@@ -246,5 +269,6 @@ module.exports = {
     addRatingToServiceType,
     addRatingToPackages,
     getBookedPackagesForRating,
-    getVendorServicesForReview
+    getVendorServicesForReview,
+    getPackageRatings
 };
