@@ -1,19 +1,15 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import {
-  FiCalendar,
-  FiClock,
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiMapPin,
-} from "react-icons/fi";
+import { FiCalendar, FiClock, FiUser, FiMapPin } from "react-icons/fi";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import LoadingSlider from "../../../shared/components/LoadingSpinner";
 import api from "../../../lib/axiosConfig";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
 import PaymentBadge from "../../../shared/components/PaymentBadge";
+import { Button } from "../../../shared/components/Button";
+import axios from "axios";
+import { toast } from "react-toastify";
 
 const BookingDetailsPage = () => {
   const { bookingId } = useParams();
@@ -21,32 +17,66 @@ const BookingDetailsPage = () => {
   const navigate = useNavigate();
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [loading, setLoading] = useState(false);
+  const [vendorType, setVendorType] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
 
   useEffect(() => {
-    const fetchBooking = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem("vendorToken");
-        const res = await api.get("/api/booking/vendorassignedservices", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const found = res.data.bookings.find(
-          (b) => b.booking_id === Number(bookingId)
-        );
-        if (found) setBooking(found);
-      } catch (error) {
-        console.error("Failed to fetch booking:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (!booking) {
-      fetchBooking();
+    // Get vendor type from localStorage
+    const vendorData = localStorage.getItem("vendorData");
+    if (vendorData) {
+      const parsed = JSON.parse(vendorData);
+      setVendorType(parsed.vendor_type);
     }
+  }, []);
+
+  const fetchBooking = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vendorToken");
+      const res = await api.get("/api/booking/vendorassignedservices", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const found = res.data.bookings.find(
+        (b) => b.booking_id === Number(bookingId)
+      );
+      if (found) setBooking(found);
+    } catch (error) {
+      console.error("Failed to fetch booking:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (booking) fetchBooking();
   }, [bookingId]);
+
+  const handleUpdateBookingStatus = async (status) => {
+    try {
+      const response = await axios.put(`/api/vendor/updatebookingstatus`, {
+        booking_id: bookingId,
+        status,
+      });
+
+      if (response.status === 200) {
+        toast.success(
+          `Booking ${status === 3 ? "started" : "completed"} successfully`
+        );
+        setBooking((prev) => ({ ...prev, bookingStatus: status }));
+        fetchBooking(); // refresh
+      }
+      if (status === 4) {
+        setShowRatingModal(true);
+      }
+    } catch (error) {
+      console.error("Error updating booking status:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update booking status"
+      );
+    }
+  };
 
   if (loading || !booking) {
     return (
@@ -65,7 +95,7 @@ const BookingDetailsPage = () => {
           { label: `Booking #${booking.booking_id}` },
         ]}
       />
-      <div className="px-4  space-y-6">
+      <div className="px-4 space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">
             Booking #{booking.booking_id}
@@ -76,7 +106,6 @@ const BookingDetailsPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Section */}
           <div className="col-span-2 space-y-6">
-            {/* Service Info */}
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-1">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
                 Service Info
@@ -88,7 +117,6 @@ const BookingDetailsPage = () => {
               <p className="text-sm text-gray-500">{booking.serviceTypeName}</p>
             </div>
 
-            {/* Packages */}
             {booking.packages?.map((pkg) => (
               <div
                 key={pkg.package_id}
@@ -113,7 +141,6 @@ const BookingDetailsPage = () => {
                   </div>
                 </div>
 
-                {/* Items */}
                 {pkg.items?.length > 0 && (
                   <ul className="mt-2 space-y-2">
                     {pkg.items.map((item) => (
@@ -140,7 +167,6 @@ const BookingDetailsPage = () => {
               </div>
             ))}
 
-            {/* Notes */}
             {booking.notes && (
               <div className="bg-white rounded-xl shadow-sm border p-6">
                 <h4 className="text-sm font-semibold text-gray-500 mb-2">
@@ -150,7 +176,6 @@ const BookingDetailsPage = () => {
               </div>
             )}
 
-            {/* Preferences */}
             {booking.preferences?.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border p-6">
                 <h4 className="text-sm font-semibold text-gray-500 mb-2">
@@ -164,20 +189,18 @@ const BookingDetailsPage = () => {
               </div>
             )}
 
-            {/* Media */}
             {booking.bookingMedia && (
               <div className="bg-white rounded-xl shadow-sm border p-6">
                 <h4 className="text-sm font-semibold text-gray-500 mb-2">
                   Attached Media
                 </h4>
-                <img src={booking.bookingMedia}></img>
+                <img src={booking.bookingMedia} />
               </div>
             )}
           </div>
 
           {/* Right Section */}
           <div className="space-y-6">
-            {/* Customer Info */}
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-1">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
                 Customer Info
@@ -200,8 +223,7 @@ const BookingDetailsPage = () => {
               </div>
             </div>
 
-            {/* Schedule */}
-            <div className="bg-white rounded-xl shadow-sm border p-6 ">
+            <div className="bg-white rounded-xl shadow-sm border p-6">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
                 Schedule
               </h4>
@@ -215,7 +237,6 @@ const BookingDetailsPage = () => {
               </p>
             </div>
 
-            {/* Payment */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
                 Payment Info
@@ -232,15 +253,46 @@ const BookingDetailsPage = () => {
               )}
             </div>
 
-            {/* Assigned Employee */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Assigned Employee
-              </h4>
-              <p className="text-sm text-gray-800">
-                {booking.employeeName || "Not Assigned"}
-              </p>
-            </div>
+            {/* Conditionally render employee section */}
+            {vendorType !== "individual" && (
+              <div className="bg-white rounded-xl shadow-sm border p-6">
+                <h4 className="text-sm font-semibold text-gray-500 mb-2">
+                  Assigned Employee
+                </h4>
+                <p className="text-sm text-gray-800">
+                  {booking.employeeName || "Not Assigned"}
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons for Individual */}
+            {vendorType === "individual" && (
+              <div className="bg-white rounded-xl shadow-sm border p-6 space-y-3">
+                <Button
+                  variant="primary"
+                  onClick={() => handleUpdateBookingStatus(3)}
+                  disabled={booking.bookingStatus !== 1}
+                  className="w-full"
+                >
+                  Start
+                </Button>
+                <Button
+                  variant="success"
+                  onClick={() => handleUpdateBookingStatus(4)}
+                  disabled={booking.bookingStatus !== 3}
+                  className="w-full"
+                >
+                  Complete
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(-1)}
+                  className="w-full"
+                >
+                  Back
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

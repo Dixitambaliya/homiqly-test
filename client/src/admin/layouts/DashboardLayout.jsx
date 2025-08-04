@@ -92,6 +92,20 @@ const DashboardLayout = () => {
       path: "/admin/rating",
       name: "Rating",
       icon: <FiStar className="w-5 h-5" />,
+      children: [
+        {
+          path: "/admin/rating/user",
+          name: "User Ratings",
+        },
+        {
+          path: "/admin/rating/vendor",
+          name: "Vendor Ratings",
+        },
+        {
+          path: "/admin/rating/package",
+          name: "Package Ratings",
+        },
+      ],
     },
     {
       path: "/admin/notifications",
@@ -180,7 +194,7 @@ const DashboardLayout = () => {
                           const isLast = idx === item.children.length - 1;
 
                           return (
-                            <li key={child.path} className="relative pl-6">
+                            <li key={child.path} className="relative pl-6 py-1">
                               <Link
                                 to={child.path}
                                 className={`

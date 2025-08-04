@@ -24,9 +24,11 @@ import Settings from "../pages/Settings";
 import Packages from "../pages/Packages";
 import Tickets from "../pages/Tickets";
 import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
-import Rating from "../pages/Rating";
 import PlatformFees from "../pages/subpages/PlatformFees";
 import GeneralSettings from "../pages/subpages/GeneralSettings";
+import UserRating from "../pages/UserRating";
+import VendorRating from "../pages/VendorRating";
+import PackageRating from "../pages/PackageRating";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -90,7 +92,10 @@ const AdminRoutes = () => {
         <Route path="employees" element={<Employees />} />
         <Route path="payments" element={<Payments />} />
         <Route path="analytics" element={<Analytics />} />
-        <Route path="rating" element={<Rating />} />
+        {/* <Route path="rating" element={<UserRating />} /> */}
+        <Route path="rating/user" element={<UserRating />} />
+        <Route path="rating/vendor" element={<VendorRating />} />
+        <Route path="rating/package" element={<PackageRating />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
