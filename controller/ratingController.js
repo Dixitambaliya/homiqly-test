@@ -240,27 +240,52 @@ const getVendorServicesForReview = asyncHandler(async (req, res) => {
 
 const getPackageRatings = asyncHandler(async (req, res) => {
     try {
-        const rating = await db.query(
+        const [ratings] = await db.query(
             `SELECT 
-         r.rating_id,
-         CONCAT (u.firstName, ' ', u.lastName) AS userName,    
-         r.package_id,
-         p.packageName,
-         r.rating,
-         r.review,
-         r.created_at
-       FROM ratings r
-        JOIN users u ON r.user_id = u.user_id
-        JOIN packages p ON r.package_id = p.package_id
-       ORDER BY r.created_at DESC`
+                r.rating_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                r.package_id,
+                p.packageName,
+                r.rating,
+                r.review,
+                r.created_at,
+
+                -- Vendor ID and type from vendor_packages → vendors
+                v.vendor_id,
+                v.vendorType AS vendorType,
+
+                -- Unified vendor name, email, phone using CONCAT_WS
+                CONCAT_WS(' ', id.name, cd.companyName) AS vendor_name,
+                CONCAT_WS(' ', id.email, cd.companyEmail) AS vendor_email,
+                CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone
+
+            FROM ratings r
+            JOIN users u ON r.user_id = u.user_id
+            JOIN packages p ON r.package_id = p.package_id
+
+            -- New join to vendor_packages
+            JOIN vendor_packages vp ON p.package_id = vp.package_id
+
+            -- Join to vendors
+            JOIN vendors v ON vp.vendor_id = v.vendor_id
+
+            -- Optional vendor details
+            LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id
+            LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id
+
+            ORDER BY r.created_at DESC`
         );
 
-        res.status(200).json({ message: "Package ratings fetched successfully", rating: rating[0] });
+        res.status(200).json({
+            message: "Package ratings fetched successfully",
+            rating: ratings,
+        });
     } catch (error) {
         console.error("Error fetching package ratings:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });
+
 
 const getPackageAverageRating = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
