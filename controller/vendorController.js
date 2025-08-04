@@ -945,6 +945,60 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     }
 });
 
+const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const { booking_id, status } = req.body;
+
+    // ✅ Validate input
+    if (!booking_id || ![3, 4].includes(status)) {
+        return res.status(400).json({ message: "Invalid booking ID or status" });
+    }
+
+    try {
+        // 🔐 Check if the booking is assigned to the current vendor
+        const [checkBooking] = await db.query(
+            `SELECT sb.booking_id, 
+              sb.vendor_id, 
+              p.status AS payment_status
+       FROM service_booking sb
+       LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+       WHERE sb.booking_id = ? AND sb.vendor_id = ?`,
+            [booking_id, vendor_id]
+        );
+
+        if (checkBooking.length === 0) {
+            return res.status(403).json({ message: "Unauthorized or booking not assigned to this vendor" });
+        }
+
+        const { payment_status } = checkBooking[0];
+
+        if (payment_status !== 'completed') {
+            return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
+        }
+
+        // ✅ Determine completed_flag
+        const completed_flag = status === 4 ? 1 : 0;
+
+        // ✅ Update the booking status and completed flag
+        await db.query(
+            `UPDATE service_booking SET bookingStatus = ?, completed_flag = ? WHERE booking_id = ?`,
+            [status, completed_flag, booking_id]
+        );
+
+        res.status(200).json({
+            message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
+        });
+
+    } catch (error) {
+        console.error("Error updating booking status:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
+
+
 
 module.exports = {
     getVendorAssignedPackages,
@@ -961,5 +1015,6 @@ module.exports = {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorFullPaymentHistory
+    getVendorFullPaymentHistory,
+    updateBookingStatusByVendor
 };
