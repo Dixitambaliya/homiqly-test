@@ -100,27 +100,27 @@ exports.getStripeAccountStatus = asyncHandler(async (req, res) => {
 // 4. Admin retrieves vendor Stripe info
 exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
     const [rows] = await db.query(`
-    (
-  SELECT
-    vendor_stripe_accounts.*,
-    individual_details.name AS vendor_name,
-    individual_details.email AS vendor_email,
-    'individual' AS vendor_type
-  FROM vendor_stripe_accounts
-  JOIN individual_details ON individual_details.vendor_id = vendor_stripe_accounts.vendor_id
-)
-UNION ALL
-(
-  SELECT
-    vendor_stripe_accounts.*,
-    company_details.contactPerson AS vendor_name,
-    company_details.companyEmail AS vendor_email,
-    'company' AS vendor_type
-  FROM vendor_stripe_accounts
-  JOIN company_details ON company_details.vendor_id = vendor_stripe_accounts.vendor_id
-)`);
-    res.json(rows);
-});
+        (
+        SELECT
+            vendor_stripe_accounts.*,
+            individual_details.name AS vendor_name,
+            individual_details.email AS vendor_email,
+            'individual' AS vendor_type
+        FROM vendor_stripe_accounts
+        JOIN individual_details ON individual_details.vendor_id = vendor_stripe_accounts.vendor_id
+        )
+        UNION ALL
+        (
+        SELECT
+            vendor_stripe_accounts.*,
+            company_details.contactPerson AS vendor_name,
+            company_details.companyEmail AS vendor_email,
+            'company' AS vendor_type
+        FROM vendor_stripe_accounts
+        JOIN company_details ON company_details.vendor_id = vendor_stripe_accounts.vendor_id
+        )`);
+            res.json(rows);
+        });
 
 
 // 5. Create payment intent (user checkout)

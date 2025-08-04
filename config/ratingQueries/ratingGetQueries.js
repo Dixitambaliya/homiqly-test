@@ -34,7 +34,6 @@ const ratingGetQueries = {
     getAllRatings: `
         SELECT
             r.rating_id,
-            r.booking_id,
             r.rating,
             r.review,
             r.created_at,
