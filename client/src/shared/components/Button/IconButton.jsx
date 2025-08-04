@@ -38,9 +38,9 @@ const IconButton = ({
       disabled={disabled || isLoading}
       title={tooltip}
       className={`
-        inline-flex items-center justify-center rounded-full
+        inline-flex items-center justify-center rounded-full p-2
         transition-colors duration-200 ease-in-out
-        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
+        focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-primary
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}

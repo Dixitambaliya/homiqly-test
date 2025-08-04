@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
+import { requestFCMToken } from "../../firebase/firebase";
 
 const EmployeesAuthContext = createContext();
 
@@ -10,6 +11,7 @@ export const EmployeesAuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fcmToken, setFcmToken] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("employeesToken");
@@ -24,12 +26,19 @@ export const EmployeesAuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  useEffect(() => {
+    requestFCMToken().then((token) => {
+      if (token) setFcmToken(token);
+    });
+  }, []);
+
+  const login = async (email, password, fcmToken) => {
     try {
       setError(null);
       const response = await axios.post("/api/employee/login", {
         email,
         password,
+        fcmToken,
       });
 
       const { token, employees_id, name, role } = response.data;

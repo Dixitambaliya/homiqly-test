@@ -59,6 +59,7 @@ export default function BookingDetailsPage() {
           `Booking ${status === 3 ? "started" : "completed"} successfully`
         );
         setBooking((prev) => ({ ...prev, bookingStatus: status }));
+        fetchBooking(); // Refresh booking details
       }
       if (status === 4) {
         setShowRatingModal(true);
@@ -91,9 +92,9 @@ export default function BookingDetailsPage() {
           <StatusBadge status={booking.bookingStatus} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left Cards */}
-          <div className="col-span-2 space-y-6">
+          <div className="col-span-3 space-y-6">
             {/* Service Info */}
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-1">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
@@ -201,7 +202,7 @@ export default function BookingDetailsPage() {
           </div>
 
           {/* Right Cards */}
-          <div className="space-y-6 text-md">
+          <div className="col-span-2 space-y-6 text-md">
             {/* Customer Info */}
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-1">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">

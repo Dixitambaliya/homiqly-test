@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import api from "../../lib/axiosConfig";
+import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import Button from "../../shared/components/Button/Button";
+import Button from "../../../shared/components/Button/Button";
 
-const Settings = () => {
+const PlatformFees = () => {
   const [vendorType, setVendorType] = useState("company"); // default value
   const [platformFee, setPlatformFee] = useState("");
   const [loading, setLoading] = useState(false);
@@ -107,4 +107,4 @@ const Settings = () => {
   );
 };
 
-export default Settings;
+export default PlatformFees;

@@ -62,10 +62,8 @@ const BookingsTable = ({
     },
     {
       title: "Payment",
-      key: "payment_amount",
-      render: (row) => (
-        <div className="text-sm text-gray-900">{row.payment_amount}</div>
-      ),
+      key: "payment_status",
+      render: (row) => <StatusBadge status={row.bookingStatus} />,
     },
     {
       title: "Status",

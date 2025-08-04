@@ -7,17 +7,17 @@ const PaymentBadge = ({ status }) => {
   switch (status?.toLowerCase()) {
     case "pending":
       badgeText = "Pending";
-      badgeClass = "bg-amber-100 text-amber-700 border border-amber-200/50";
+      badgeClass = "bg-amber-200/65 text-amber-700 border border-amber-200/50";
       break;
     case "completed":
     case "success":
       badgeText = "Completed";
-      badgeClass = "bg-blue-100 text-blue-700 border border-blue-200/50";
+      badgeClass = "bg-green-200/65 text-green-700 border border-green-200/50";
       break;
     case "rejected":
     case "failed":
       badgeText = "Rejected";
-      badgeClass = "bg-red-100 text-red-700 border border-red-200/50";
+      badgeClass = "bg-red-200/65 text-red-700 border border-red-200/50";
       break;
   }
 

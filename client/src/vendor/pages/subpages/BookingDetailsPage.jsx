@@ -182,20 +182,22 @@ const BookingDetailsPage = () => {
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
                 Customer Info
               </h4>
-              <p className="flex items-center text-sm text-gray-800">
-                <FiUser className="mr-2" />
-                {booking.userName}
-              </p>
-              <p className="text-sm text-gray-500">{booking.userEmail}</p>
-              <p className="text-sm text-gray-500">{booking.userPhone}</p>
-              {booking.userAddress && (
-                <p className="flex items-center text-sm text-gray-500 mt-1">
-                  <FiMapPin className="mr-2" />
-                  {booking.userAddress}
-                  {booking.userState && `, ${booking.userState}`}
-                  {booking.userPostalCode && ` - ${booking.userPostalCode}`}
+              <div className="space-y-1">
+                <p className="flex items-center text-sm text-gray-800">
+                  <FiUser className="mr-2" />
+                  {booking.userName}
                 </p>
-              )}
+                <p className="text-sm text-gray-500">{booking.userEmail}</p>
+                <p className="text-sm text-gray-500">{booking.userPhone}</p>
+                {booking.userAddress && (
+                  <p className="flex items-center text-sm text-gray-500 mt-1">
+                    <FiMapPin className="mr-2" />
+                    {booking.userAddress}
+                    {booking.userState && `, ${booking.userState}`}
+                    {booking.userPostalCode && ` - ${booking.userPostalCode}`}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Schedule */}

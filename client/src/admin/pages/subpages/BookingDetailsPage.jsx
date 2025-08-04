@@ -107,89 +107,86 @@ const BookingDetailsPage = () => {
         <StatusBadge status={booking.bookingStatus} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* LEFT SECTION */}
-        <div className="col-span-2 space-y-6">
+        <div className="col-span-3 space-y-6">
           {/* Service Info */}
-          <div className="bg-white rounded-xl shadow-sm border p-6 space-y-2">
-            <h4 className="text-sm font-semibold text-gray-500 mb-1">
-              Service Info
-            </h4>
-            {booking.serviceTypeMedia && (
-              <img
-                src={booking.serviceTypeMedia}
-                alt="Service Type"
-                className="w-28 h-28 object-cover rounded-lg border"
-              />
-            )}
-            <p className="text-lg font-medium text-gray-900">
-              {booking.serviceName}
-            </p>
-            <p className="text-sm text-gray-500">{booking.serviceCategory}</p>
-            <p className="text-sm text-gray-500">{booking.serviceTypeName}</p>
-          </div>
-
-          {/* Packages */}
-          {booking.packages?.map((pkg) => (
-            <div
-              key={pkg.package_id}
-              className="bg-white rounded-xl shadow-sm border p-6 space-y-3"
-            >
+          <div className="flex flex-col lg:flex-col gap-6">
+            {/* Left: Service Info */}
+            <div className="w-full  bg-white rounded-xl shadow-sm border p-6 space-y-2">
+              <h4 className="text-sm font-semibold text-gray-500 mb-1">
+                Service Info
+              </h4>
               <div className="flex items-center gap-4">
-                {pkg.packageMedia && (
+                {booking.serviceTypeMedia && (
                   <img
-                    src={pkg.packageMedia}
-                    alt={pkg.packageName}
-                    className="w-20 h-20 object-cover rounded-lg border"
+                    src={booking.serviceTypeMedia}
+                    alt="Service Type"
+                    className="w-28 h-28 object-cover rounded-lg border"
                   />
                 )}
-                <div>
-                  <h4 className="text-base font-semibold text-gray-800">
-                    {pkg.packageName}
-                  </h4>
-                  <p className="text-sm text-gray-600">
-                    {pkg.totalTime} • ₹{pkg.totalPrice}
+                <div className="flex flex-col gap-1">
+                  <p className="text-lg font-medium text-gray-900">
+                    {booking.serviceName}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {booking.serviceCategory}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {booking.serviceTypeName}
                   </p>
                 </div>
               </div>
-              {pkg.items?.map((item) => (
-                <div
-                  key={item.item_id}
-                  className="flex gap-4 border-t pt-2 items-start"
-                >
-                  {item.itemMedia && (
-                    <img
-                      src={item.itemMedia}
-                      alt={item.itemName}
-                      className="w-14 h-14 object-cover rounded border"
-                    />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">
-                      {item.itemName} ({item.quantity}x)
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {item.timeRequired} • ₹{item.price}
-                    </p>
+            </div>
+              <div className="w-full space-y-4 p-6 bg-white rounded-xl shadow-sm border">
+                {booking.packages?.map((pkg) => (
+                  <div
+                    key={pkg.package_id}
+                    className="bg-white rounded-xl shadow-sm space-y-3"
+                  >
+                    <div className="flex items-center gap-4">
+                      {pkg.packageMedia && (
+                        <img
+                          src={pkg.packageMedia}
+                          alt={pkg.packageName}
+                          className="w-20 h-20 object-cover rounded-lg border"
+                        />
+                      )}
+                      <div>
+                        <h4 className="text-base font-semibold text-gray-800">
+                          {pkg.packageName}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {pkg.totalTime} • ₹{pkg.totalPrice}
+                        </p>
+                      </div>
+                    </div>
+                    {pkg.items?.map((item) => (
+                      <div
+                        key={item.item_id}
+                        className="flex gap-4 border-t pt-2 items-start"
+                      >
+                        {item.itemMedia && (
+                          <img
+                            src={item.itemMedia}
+                            alt={item.itemName}
+                            className="w-14 h-14 object-cover rounded border"
+                          />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">
+                            {item.itemName} ({item.quantity}x)
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {item.timeRequired} • ₹{item.price}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          ))}
-
-          {/* Booking Media */}
-          {booking.bookingMedia && (
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Attached Media
-              </h4>
-              <img
-                src={booking.bookingMedia}
-                alt="Booking Media"
-                className="w-full max-w-sm rounded-lg border"
-              />
-            </div>
-          )}
+                ))}
+              </div>
+          </div>
 
           {/* Notes */}
           {booking.notes && (
@@ -214,10 +211,24 @@ const BookingDetailsPage = () => {
               </ul>
             </div>
           )}
+
+          {/* Booking Media */}
+          {booking.bookingMedia && (
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+                Attached Media
+              </h4>
+              <img
+                src={booking.bookingMedia}
+                alt="Booking Media"
+                className="w-full max-w-sm rounded-lg border"
+              />
+            </div>
+          )}
         </div>
 
         {/* RIGHT SECTION */}
-        <div className="space-y-6">
+        <div className="col-span-2 space-y-6">
           {/* Customer Info */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <h4 className="text-sm font-semibold text-gray-500 mb-2">
@@ -276,10 +287,10 @@ const BookingDetailsPage = () => {
           </div>
 
           {/* Vendor Info or Assignment */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
+          <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
             <h4 className="text-sm font-semibold text-gray-500 mb-2">Vendor</h4>
             {booking.vendorName ? (
-              <div>
+              <div className="space-y-1">
                 <p className="text-sm text-gray-800 font-medium">
                   {booking.vendorName} ({booking.vendorType})
                 </p>

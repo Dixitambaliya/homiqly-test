@@ -14,6 +14,8 @@ import {
   FiCreditCard,
   FiBarChart2,
   FiBell,
+  FiChevronDown,
+  FiChevronRight,
 } from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
 
@@ -23,6 +25,7 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openSubmenu, setOpenSubmenu] = useState(null);
 
   const handleLogout = () => {
     logout();
@@ -104,6 +107,16 @@ const DashboardLayout = () => {
       path: "/admin/settings",
       name: "Settings",
       icon: <FiTool className="w-5 h-5" />,
+      children: [
+        {
+          path: "/admin/settings/general",
+          name: "General Settings",
+        },
+        {
+          path: "/admin/settings/platform-fees",
+          name: "Platform Fees",
+        },
+      ],
     },
   ];
 
@@ -131,17 +144,76 @@ const DashboardLayout = () => {
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.path}>
-                  <Link
-                    to={item.path}
-                    className={`flex items-center px-6 py-3 text-sm font-medium border-1 rounded-md ${
-                      location.pathname === item.path
-                        ? " bg-primary-light/15 text-primary "
-                        : "border-transparent text-text-muted hover:bg-backgroundTertiary/50 hover:text-text-primary"
-                    }`}
-                  >
-                    <span className="mr-3">{item.icon}</span>
-                    {item.name}
-                  </Link>
+                  {item.children ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenSubmenu(
+                            openSubmenu === item.name ? null : item.name
+                          )
+                        }
+                        className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium rounded-md ${
+                          location.pathname.startsWith(item.path)
+                            ? "bg-primary-light/15 text-primary"
+                            : "text-text-muted hover:bg-backgroundTertiary/50 hover:text-text-primary"
+                        }`}
+                      >
+                        <span className="flex items-center">
+                          <span className="mr-3">{item.icon}</span>
+                          {item.name}
+                        </span>
+                        {openSubmenu === item.name ? (
+                          <FiChevronDown className="w-4 h-4 transition-transform" />
+                        ) : (
+                          <FiChevronRight className="w-4 h-4 transition-transform" />
+                        )}
+                      </button>
+
+                      {/* Tree-style branch: vertical + horizontal lines */}
+                      <ul
+                        className={`ml-8 border-l border-gray-300 transition-all duration-300 overflow-hidden ${
+                          openSubmenu === item.name ? "max-h-60" : "max-h-0"
+                        }`}
+                      >
+                        {item.children.map((child, idx) => {
+                          const isLast = idx === item.children.length - 1;
+
+                          return (
+                            <li key={child.path} className="relative pl-6">
+                              <Link
+                                to={child.path}
+                                className={`
+          relative block py-2 pl-5 text-sm rounded-md transition
+          before:content-[''] before:absolute before:top-1/2 before:left-[-1.5rem] before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300
+          
+          ${
+            location.pathname === child.path
+              ? "text-primary bg-primary-light/10"
+              : "text-text-muted hover:text-text-primary hover:bg-backgroundTertiary/30"
+          }
+        `}
+                              >
+                                {child.name}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  ) : (
+                    <Link
+                      to={item.path}
+                      className={`flex items-center px-6 py-3 text-sm font-medium rounded-md ${
+                        location.pathname === item.path
+                          ? " bg-primary-light/15 text-primary"
+                          : "text-text-muted hover:bg-backgroundTertiary/50 hover:text-text-primary"
+                      }`}
+                    >
+                      <span className="mr-3">{item.icon}</span>
+                      {item.name}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

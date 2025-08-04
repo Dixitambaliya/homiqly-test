@@ -25,6 +25,8 @@ import Packages from "../pages/Packages";
 import Tickets from "../pages/Tickets";
 import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
 import Rating from "../pages/Rating";
+import PlatformFees from "../pages/subpages/PlatformFees";
+import GeneralSettings from "../pages/subpages/GeneralSettings";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -92,6 +94,8 @@ const AdminRoutes = () => {
         <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="settings/platform-fees" element={<PlatformFees />} />
+        <Route path="settings/general" element={<GeneralSettings />} />
         <Route path="tickets" element={<Tickets />} />
       </Route>
 
