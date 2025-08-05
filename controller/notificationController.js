@@ -1,6 +1,7 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const admin = require('../config/firebaseConfig');
+const notificationGetQueries = require('../config/notificationQueries/notificationGetQueries');
 
 const sendNotification = asyncHandler(async (req, res) => {
     const { user_type, user_ids, vendor_type, title, body, data } = req.body;
@@ -108,7 +109,6 @@ const sendNotification = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserNotifications = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id || req.user.vendor_id || req.user.admin_id;
     const user_type = req.user.role === 'admin' ? 'admin' :
@@ -153,8 +153,41 @@ const markNotificationAsRead = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllVendorsDetails = asyncHandler(async (req, res) => {
+    try {
+        const [vendors] = await db.query(notificationGetQueries.getAllVendors);
+
+        res.status(200).json({
+            message: "All vendors fetched successfully",
+            vendors,
+        });
+    } catch (error) {
+        console.error("Error fetching vendors:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+});
+
+const getAllUsers = asyncHandler(async (req, res) => {
+    try {
+        const [users] = await db.query(notificationGetQueries.getAllUsers);
+
+        res.status(200).json({
+            message: "Users fetched successfully",
+            users
+        });
+    } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 module.exports = {
     sendNotification,
     getUserNotifications,
-    markNotificationAsRead
+    markNotificationAsRead,
+    getAllVendorsDetails,
+    getAllUsers
 };

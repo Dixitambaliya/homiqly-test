@@ -1,18 +1,5 @@
 const adminGetQueries = {
 
-    getAllVendors: `
-      SELECT
-          v.vendor_id,
-          v.vendorType,
-          CONCAT_WS(' ' ,id.name, cd.companyName) AS vendorName
-
-      FROM vendors v
-      LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id
-      LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id
-      LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
-      ORDER BY v.vendor_id DESC
-    `,
-
     vendorDetails: `
 SELECT
     vendors.vendor_id,
