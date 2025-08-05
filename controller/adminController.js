@@ -391,8 +391,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
       ORDER BY st.service_type_id DESC
     `);
 
-        // ✅ Properly parse nested JSON strings
-        const parsedResult = rows.map(row => {
+        const parsedResult = rows.flatMap(row => {
             let parsedPackages = [];
 
             try {
@@ -428,10 +427,15 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 console.warn(`❌ Invalid packages JSON in service_type_id ${row.service_type_id}:`, e.message);
             }
 
-            return {
+            // ✅ Filter out rows with no valid packages
+            if (!parsedPackages || parsedPackages.length === 0) {
+                return []; // Remove this row entirely
+            }
+
+            return [{
                 ...row,
                 packages: parsedPackages
-            };
+            }];
         });
 
         res.status(200).json({
