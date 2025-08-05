@@ -393,15 +393,40 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
 
         // ✅ Properly parse nested JSON strings
         const parsedResult = rows.map(row => {
-            const parsedPackages = JSON.parse(row.packages).map(pkg => ({
-                ...pkg,
-                sub_packages: typeof pkg.sub_packages === "string"
-                    ? JSON.parse(pkg.sub_packages)
-                    : [],
-                preferences: typeof pkg.preferences === "string"
-                    ? JSON.parse(pkg.preferences)
-                    : []
-            }));
+            let parsedPackages = [];
+
+            try {
+                const rawPackages = JSON.parse(row.packages);
+
+                parsedPackages = rawPackages.map(pkg => {
+                    let sub_packages = [];
+                    let preferences = [];
+
+                    try {
+                        sub_packages = typeof pkg.sub_packages === "string"
+                            ? JSON.parse(pkg.sub_packages)
+                            : [];
+                    } catch (e) {
+                        console.warn(`❌ Invalid sub_packages JSON in package ${pkg.package_id}:`, e.message);
+                    }
+
+                    try {
+                        preferences = typeof pkg.preferences === "string"
+                            ? JSON.parse(pkg.preferences)
+                            : [];
+                    } catch (e) {
+                        console.warn(`❌ Invalid preferences JSON in package ${pkg.package_id}:`, e.message);
+                    }
+
+                    return {
+                        ...pkg,
+                        sub_packages,
+                        preferences
+                    };
+                });
+            } catch (e) {
+                console.warn(`❌ Invalid packages JSON in service_type_id ${row.service_type_id}:`, e.message);
+            }
 
             return {
                 ...row,
