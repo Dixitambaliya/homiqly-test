@@ -203,12 +203,82 @@ const getAllEmployeeNames = asyncHandler(async (req, res) => {
     }
 });
 
+const getEmployeeNames = asyncHandler(async (req, res) => {
+    try {
+        const [employees] = await db.query(
+            `SELECT 
+                employee_id, 
+                TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) AS fullName 
+             FROM company_employees 
+             ORDER BY created_at DESC`
+        );
+
+        res.status(200).json({
+            message: "All employee names fetched successfully",
+            employees,
+        });
+
+    } catch (error) {
+        console.error("Error fetching employee names:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const deleteRatingByAdmin = asyncHandler(async (req, res) => {
+    const { rating_id } = req.params;
+
+    if (!rating_id) {
+        return res.status(400).json({ message: "Rating ID is required" });
+    }
+
+    try {
+        const [existing] = await db.query(`SELECT * FROM ratings WHERE rating_id = ?`, [rating_id]);
+
+        if (existing.length === 0) {
+            return res.status(404).json({ message: "Rating not found" });
+        }
+
+        await db.query(`DELETE FROM ratings WHERE rating_id = ?`, [rating_id]);
+
+        res.status(200).json({ message: "Rating deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting rating:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const deleteVendorsRatingByAdmin = asyncHandler(async (req, res) => {
+    const { rating_id } = req.params;
+
+    if (!rating_id) {
+        return res.status(400).json({ message: "Rating ID is required" });
+    }
+
+    try {
+        const [existing] = await db.query(`SELECT * FROM vendor_service_ratings WHERE rating_id = ?`, [rating_id]);
+
+        if (existing.length === 0) {
+            return res.status(404).json({ message: "Rating not found" });
+        }
+
+        await db.query(`DELETE FROM vendor_service_ratings WHERE rating_id = ?`, [rating_id]);
+
+        res.status(200).json({ message: "Rating deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting rating:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 module.exports = {
     sendNotification,
     getUserNotifications,
     markNotificationAsRead,
     getAllVendorsDetails,
     getAllUsers,
-    getAllEmployeeNames
+    getAllEmployeeNames,
+    getEmployeeNames,
+    deleteRatingByAdmin,
+    deleteVendorsRatingByAdmin
 
 };

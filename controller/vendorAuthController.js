@@ -301,17 +301,22 @@ const loginVendor = asyncHandler(async (req, res) => {
             return res.status(403).json({ error: "Your account has been rejected." });
         }
 
-        // Save FCM token if present
-        if (fcmToken && fcmToken.trim() !== "") {
+        // Optional: Update FCM token
+        // ✅ Optional: Update FCM token
+        if (fcmToken && typeof fcmToken === "string" && fcmToken.trim() !== "") {
+            const trimmedToken = fcmToken.trim();
+
             try {
                 await db.query(
                     "UPDATE vendors SET fcmToken = ? WHERE vendor_id = ?",
-                    [fcmToken.trim(), vendorDetails.vendor_id]
+                    [trimmedToken, vendorDetails.vendor_id]
                 );
+                console.log("✅ FCM token updated for vendor:", vendorDetails.vendor_id);
             } catch (err) {
-                console.warn("FCM token update error:", err.message);
+                console.error("❌ FCM token update error:", err.message);
             }
         }
+
 
         // ✅ Build token payload with correct email
         const token = jwt.sign(
