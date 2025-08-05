@@ -47,7 +47,7 @@ const analyticsGetQueries = {
             CASE 
                 WHEN v.vendorType = 'individual' THEN ind.name
                 WHEN v.vendorType = 'company' THEN comp.companyName
-            END as vendor_name,
+               END as vendor_name,
             v.vendorType,
             COUNT(sb.booking_id) as total_bookings,
             AVG(CASE WHEN sb.bookingStatus = 1 THEN 5 ELSE 0 END) as avg_rating,

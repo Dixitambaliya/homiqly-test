@@ -119,8 +119,8 @@ exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
         FROM vendor_stripe_accounts
         JOIN company_details ON company_details.vendor_id = vendor_stripe_accounts.vendor_id
         )`);
-            res.json(rows);
-        });
+    res.json(rows);
+});
 
 
 // 5. Create payment intent (user checkout)
@@ -244,13 +244,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
     try {
         const sig = req.headers["stripe-signature"];
-
-        event = stripe.webhooks.constructEvent(
-            req.body, // ✅ must be raw body
-            sig,
-            process.env.STRIPE_WEBHOOK_SECRET
-        );
-
+        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
     } catch (err) {
         console.error("⚠️ Signature verification failed:", err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -263,61 +257,120 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const paymentIntentId = paymentIntent.id;
 
         try {
-            const [paymentResult] = await db.query(
-                `UPDATE payments
-                 SET status = 'completed'
-                 WHERE payment_intent_id = ?`,
+            // ✅ 1. Update DB payment status
+            await db.query(
+                `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
                 [paymentIntentId]
             );
 
-            console.log("💾 Payment status updated in DB:", paymentResult); // ✅
-
+            // ✅ 2. Get user and booking details
             const [userInfo] = await db.query(`
-                SELECT
-                    u.email,
-                    CONCAT(u.firstName, ' ', u.lastName) AS name,
-                    sb.bookingDate,
-                    sb.bookingTime
-                FROM users u
-                JOIN service_booking sb ON u.user_id = sb.user_id
-                WHERE sb.payment_intent_id = ?
-                LIMIT 1
-            `, [paymentIntentId]);
+                        SELECT 
+                            u.email,
+                            CONCAT(u.firstName, ' ', u.lastName) AS name,
+                            sb.bookingDate,
+                            sb.bookingTime,
+                            sb.booking_id,
+                            v.vendorType,
 
-            if (userInfo.length > 0) {
-                const user = userInfo[0];
-                const transporter = nodemailer.createTransport({
-                    service: "gmail",
-                    auth: {
-                        user: process.env.EMAIL_USER,
-                        pass: process.env.EMAIL_PASS
-                    }
-                });
+                            -- ✅ Fetch vendor name/email/phone dynamically
+                            CASE 
+                                WHEN v.vendorType = 'individual' THEN i.name
+                                ELSE c.companyName
+                            END AS vendor_name,
 
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: user.email,
-                    subject: "Your Booking is Confirmed!",
-                    html: `
-                        <h3>Hi ${user.name},</h3>
-                        <p>Your payment was successful and your booking is confirmed.</p>
-                        <p><strong>Booking Date:</strong> ${user.bookingDate}</p>
-                        <p><strong>Booking Time:</strong> ${user.bookingTime}</p>
-                        <p>Thank you for choosing us!</p>
-                    `
-                };
+                            CASE 
+                                WHEN v.vendorType = 'individual' THEN i.email
+                                ELSE c.companyEmail
+                            END AS vendor_email,
 
-                await transporter.sendMail(mailOptions);
+                            CASE 
+                                WHEN v.vendorType = 'individual' THEN i.phone
+                                ELSE c.companyPhone
+                            END AS vendor_phone
 
-            } else {
-                console.warn("⚠️ No user found for payment intent:", paymentIntentId); // ✅
+                        FROM service_booking sb
+                        JOIN users u ON sb.user_id = u.user_id
+                        JOIN vendors v ON sb.vendor_id = v.vendor_id
+
+                        -- ✅ Join both detail tables
+                        LEFT JOIN individual_details i ON i.vendor_id = v.vendor_id
+                        LEFT JOIN company_details c ON c.vendor_id = v.vendor_id
+
+                        WHERE sb.payment_intent_id = ?
+                        LIMIT 1
+                    `, [paymentIntentId]);
+
+            if (userInfo.length === 0) {
+                console.warn("⚠️ No user found for payment intent:", paymentIntentId);
+                return;
             }
 
+            const user = userInfo[0];
+
+            // ✅ 3. Get package details
+            const [packages] = await db.query(`
+                SELECT 
+                    p.packageName,
+                    p.totalPrice,
+                    p.totalTime,
+                    pi.itemName,
+                    pi.price AS itemPrice,
+                    pi.quantity,
+                    bp.preferenceValue
+                FROM service_booking sb
+                JOIN service_booking_items sbi ON sbi.booking_id = sb.booking_id
+                JOIN packages p ON sbi.package_id = p.package_id
+                LEFT JOIN package_items pi ON pi.package_id = p.package_id
+                LEFT JOIN booking_preferences bp ON bp.package_id = p.package_id
+                WHERE sb.payment_intent_id = ?
+            `, [paymentIntentId]);
+
+            const packageHTML = packages.map(pkg => `
+                <div style="border:1px solid #ccc; padding:10px; margin-bottom:10px;">
+                    <h4>Package: ${pkg.packageName}</h4>
+                    <p>Price: ${pkg.totalPrice} ${user.totalCurrency}</p>
+                    <p>Duration: ${pkg.totalTime}</p>
+                    <p>Sub-package: ${pkg.itemName || 'N/A'} - ${pkg.itemPrice || 'N/A'} x ${pkg.quantity || 1}</p>
+                    <p>Preference: ${pkg.preferenceValue || 'N/A'}</p>
+                </div>
+            `).join("");
+
+            // ✅ 4. Send email
+            const transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                }
+            });
+
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: user.email,
+                subject: "🎉 Your Booking Receipt - Homiqly",
+                html: `
+                    <h3>Hi ${user.name},</h3>
+                    <p>Your payment of <strong>${user.totalCurrency} ${user.totalAmount}</strong> was successful and your booking is confirmed.</p>
+                    <p><strong>Booking Date:</strong> ${user.bookingDate}</p>
+                    <p><strong>Booking Time:</strong> ${user.bookingTime}</p>
+                    <p><strong>Vendor:</strong> ${user.vendor_name}</p>
+                    <hr/>
+                    <h4>Package Details:</h4>
+                    ${packageHTML}
+                    <hr/>
+                    <p>Thank you for choosing <strong>Homiqly</strong>!</p>
+                `
+            };
+
+            await transporter.sendMail(mailOptions);
+            console.log(`📧 Receipt sent to ${user.email}`);
+
         } catch (err) {
-            console.error("Error during payment handling:", err.message);
+            console.error("❌ Error during payment webhook handling:", err.message);
         }
     } else {
-        console.log("ℹ️ Ignored event type:", event.type); // ✅
+        console.log("ℹ️ Ignored event type:", event.type);
     }
 });
 
