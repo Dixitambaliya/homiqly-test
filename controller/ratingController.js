@@ -240,27 +240,157 @@ const getVendorServicesForReview = asyncHandler(async (req, res) => {
 
 const getPackageRatings = asyncHandler(async (req, res) => {
     try {
-        const rating = await db.query(
-        `SELECT 
-         r.rating_id,
-         CONCAT (u.firstName, ' ', u.lastName) AS userName,    
-         r.package_id,
-         p.packageName,
-         r.rating,
-         r.review,
-         r.created_at
-       FROM ratings r
-        JOIN users u ON r.user_id = u.user_id
-        JOIN packages p ON r.package_id = p.package_id
-       ORDER BY r.created_at DESC`
+        const [ratings] = await db.query(
+            `SELECT 
+                r.rating_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                r.package_id,
+                p.packageName,
+                r.rating,
+                r.review,
+                r.created_at,
+
+                -- Vendor ID and type from vendor_packages → vendors
+                v.vendor_id,
+                v.vendorType AS vendorType,
+
+                -- Unified vendor name, email, phone using CONCAT_WS
+                CONCAT_WS(' ', id.name, cd.companyName) AS vendor_name,
+                CONCAT_WS(' ', id.email, cd.companyEmail) AS vendor_email,
+                CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone
+
+            FROM ratings r
+            JOIN users u ON r.user_id = u.user_id
+            JOIN packages p ON r.package_id = p.package_id
+
+            -- New join to vendor_packages
+            JOIN vendor_packages vp ON p.package_id = vp.package_id
+
+            -- Join to vendors
+            JOIN vendors v ON vp.vendor_id = v.vendor_id
+
+            -- Optional vendor details
+            LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id
+            LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id
+
+            ORDER BY r.created_at DESC`
         );
 
-        res.status(200).json({ message: "Package ratings fetched successfully", rating: rating[0] });
+        res.status(200).json({
+            message: "Package ratings fetched successfully",
+            rating: ratings,
+        });
     } catch (error) {
         console.error("Error fetching package ratings:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });
+
+
+const getPackageAverageRating = asyncHandler(async (req, res) => {
+    const { package_id } = req.params;
+
+    try {
+        // 1. Get package details with average rating and total review count
+        const [packageRows] = await db.query(
+            `SELECT 
+                p.packageName, 
+                p.description, 
+                p.packageMedia, 
+                AVG(r.rating) AS average_rating,
+                COUNT(r.rating_id) AS total_reviews
+            FROM packages p
+            LEFT JOIN ratings r ON p.package_id = r.package_id
+            WHERE p.package_id = ?
+            GROUP BY p.package_id`,
+            [package_id]
+        );
+
+        if (packageRows.length === 0) {
+            return res.status(404).json({ message: "Package not found" });
+        }
+
+        const packageData = packageRows[0];
+
+        // 2. Get individual reviews with user names
+        const [reviews] = await db.query(
+            `SELECT 
+                r.rating_id,
+                r.user_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                r.rating,
+                r.review,
+                r.created_at
+            FROM ratings r
+            LEFT JOIN users u ON r.user_id = u.user_id
+            WHERE r.package_id = ?
+            ORDER BY r.created_at DESC`,
+            [package_id]
+        );
+
+        // 3. Send combined result
+        res.status(200).json({
+            message: "Package reviews fetched successfully",
+            review: {
+                packageName: packageData.packageName,
+                description: packageData.description,
+                packageMedia: packageData.packageMedia,
+                average_rating: parseFloat(packageData.average_rating || 0).toFixed(2),
+                total_reviews: packageData.total_reviews || 0,
+                rating: reviews || []
+            }
+        });
+
+    } catch (error) {
+        console.error("Error fetching full package review info:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+const getAllVendorRatings = asyncHandler(async (req, res) => {
+    try {
+        const [ratings] = await db.query(`
+        SELECT
+            vsr.rating_id,
+            vsr.booking_id,
+            vsr.user_id,
+            vsr.vendor_id,
+            vsr.service_id,
+            vsr.rating,
+            vsr.review,
+            vsr.created_at,
+
+            CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+            s.serviceName,
+            sc.serviceCategory,
+
+            v.vendorType,
+            
+            CONCAT_WS(' ', id.name, cd.companyName) AS vendor_name,
+            CONCAT_WS(' ', id.email, cd.companyEmail) AS vendor_email,
+            CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone
+
+
+        FROM vendor_service_ratings vsr
+        JOIN users u ON vsr.user_id = u.user_id
+        JOIN services s ON vsr.service_id = s.service_id
+        JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        JOIN vendors v ON vsr.vendor_id = v.vendor_id
+        LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id AND v.vendorType = 'individual'
+        LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id AND v.vendorType = 'company'
+        ORDER BY vsr.created_at DESC
+        `);
+
+        res.status(200).json({
+            message: "All vendor ratings fetched successfully",
+            ratings
+        });
+    } catch (error) {
+        console.error("Error fetching all vendor ratings:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 
 module.exports = {
     getVendorRatings,
@@ -270,5 +400,7 @@ module.exports = {
     addRatingToPackages,
     getBookedPackagesForRating,
     getVendorServicesForReview,
-    getPackageRatings
+    getPackageRatings,
+    getPackageAverageRating,
+    getAllVendorRatings
 };

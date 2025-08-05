@@ -157,14 +157,21 @@ const loginUser = asyncHandler(async (req, res) => {
         }
 
         // Optional: Update FCM token
-        if (fcmToken && fcmToken.trim() !== "") {
-            try {
-                await db.query(
-                    "UPDATE users SET fcmToken = ? WHERE user_id = ?",
-                    [fcmToken.trim(), user.user_id]
-                );
-            } catch (err) {
-                console.error("FCM token update error:", err.message);
+        if (fcmToken && typeof fcmToken === "string" && fcmToken.trim() !== "") {
+            const trimmedToken = fcmToken.trim();
+
+            if (user.fcmToken !== trimmedToken) {
+                try {
+                    await db.query(
+                        "UPDATE users SET fcmToken = ? WHERE user_id = ?",
+                        [trimmedToken, user.user_id]
+                    );
+                    console.log("✅ FCM token updated for user:", user.user_id);
+                } catch (err) {
+                    console.error("❌ FCM token update error:", err.message);
+                }
+            } else {
+                console.log("ℹ️ FCM token already up-to-date for user:", user.user_id);
             }
         }
 

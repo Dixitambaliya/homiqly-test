@@ -10,7 +10,8 @@ const { getVendor,
     assignPackageToVendor,
     editPackageByAdmin,
     deletePackageByAdmin,
-    getAllPayments
+    getAllPayments,
+    getAllPackages
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -29,5 +30,6 @@ router.delete("/deletepackage/:package_id", authenticationToken, deletePackageBy
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 
 router.get("/getpayments", authenticationToken, getAllPayments)
+router.get("/getallpackages", authenticationToken, getAllPackages)
 
 module.exports = router
