@@ -265,19 +265,41 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             // ✅ 2. Get user and booking details
             const [userInfo] = await db.query(`
-                SELECT 
-                    u.email,
-                    CONCAT(u.firstName, ' ', u.lastName) AS name,
-                    sb.bookingDate,
-                    sb.bookingTime,
-                    sb.booking_id,
-                    v.vendor_name
-                FROM service_booking sb
-                JOIN users u ON sb.user_id = u.user_id
-                JOIN vendors v ON sb.vendor_id = v.vendor_id
-                WHERE sb.payment_intent_id = ?
-                LIMIT 1
-            `, [paymentIntentId]);
+                        SELECT 
+                            u.email,
+                            CONCAT(u.firstName, ' ', u.lastName) AS name,
+                            sb.bookingDate,
+                            sb.bookingTime,
+                            sb.booking_id,
+                            v.vendorType,
+
+                            -- ✅ Fetch vendor name/email/phone dynamically
+                            CASE 
+                                WHEN v.vendorType = 'individual' THEN i.name
+                                ELSE c.companyName
+                            END AS vendor_name,
+
+                            CASE 
+                                WHEN v.vendorType = 'individual' THEN i.email
+                                ELSE c.companyEmail
+                            END AS vendor_email,
+
+                            CASE 
+                                WHEN v.vendorType = 'individual' THEN i.phone
+                                ELSE c.companyPhone
+                            END AS vendor_phone
+
+                        FROM service_booking sb
+                        JOIN users u ON sb.user_id = u.user_id
+                        JOIN vendors v ON sb.vendor_id = v.vendor_id
+
+                        -- ✅ Join both detail tables
+                        LEFT JOIN individual_details i ON i.vendor_id = v.vendor_id
+                        LEFT JOIN company_details c ON c.vendor_id = v.vendor_id
+
+                        WHERE sb.payment_intent_id = ?
+                        LIMIT 1
+                    `, [paymentIntentId]);
 
             if (userInfo.length === 0) {
                 console.warn("⚠️ No user found for payment intent:", paymentIntentId);
