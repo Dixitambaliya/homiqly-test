@@ -18,8 +18,8 @@ const Employees = () => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("vendorToken");
-      const response = await axios.get("/api/employee/getemployee", {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.get("/api/admin/getallemployees", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -95,7 +95,7 @@ const Employees = () => {
                       {employee.employee_id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {employee.first_name} {employee.last_name}
+                      {employee.employee_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {employee.email}
