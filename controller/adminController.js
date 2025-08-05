@@ -100,6 +100,28 @@ const getUsers = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
+    try {
+        const [employees] = await db.query(`
+      SELECT
+        ce.employee_id,
+        CONCAT(ce.first_name, ' ', ce.last_name) AS employee_name,
+        ce.profile_image,
+        ce.email,
+        ce.phone,
+        ce.is_active,
+        ce.created_at
+      FROM company_employees ce
+    `);
+
+        res.status(200).json({
+            employees,
+        });
+    } catch (error) {
+        console.error("Error fetching all employees for admin:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
 
 const updateUserByAdmin = asyncHandler(async (req, res) => {
     const { user_id } = req.params;
@@ -859,5 +881,6 @@ module.exports = {
     deletePackageByAdmin,
     deletePackageByAdmin,
     getAllPayments,
-    getAllPackages
+    getAllPackages,
+    getAllEmployeesForAdmin
 };
