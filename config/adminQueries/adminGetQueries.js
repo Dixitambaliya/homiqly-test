@@ -1,5 +1,17 @@
 const adminGetQueries = {
 
+    getAllVendors: `
+      SELECT
+          v.vendor_id,
+          v.vendorType,
+          CONCAT_WS(' ' ,id.name, cd.companyName) AS vendorName
+
+      FROM vendors v
+      LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id
+      LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id
+      LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
+      ORDER BY v.vendor_id DESC
+    `,
 
     vendorDetails: `
 SELECT
@@ -162,20 +174,16 @@ GROUP BY vendors.vendor_id;
     JOIN services s ON st.service_id = s.service_id
     LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
     LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
-    ORDER BY st.service_type_id DESC`,
+    ORDER BY st.service_type_id DESC
+`,
 
-    getAllUsers: `SELECT 
+    getAllUsers: `
+SELECT 
     user_id, 
-    firstName, 
-    lastName,
-    profileImage, 
-    email, 
-    state, 
-    postalcode, 
-    phone, 
-    created_at
+    TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS fullName
     FROM users
-    ORDER BY created_at DESC`,
+    ORDER BY created_at DESC
+`,
 
     getAllBookings: `
 SELECT
@@ -265,7 +273,8 @@ SELECT
         -- Ratings
         LEFT JOIN rating r ON r.package_id = pk.package_id AND r.user_id = u.user_id
 
-        ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
+        ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+`,
 
     getAdminCreatedPackages: `
     SELECT
@@ -323,12 +332,12 @@ SELECT
     JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
 
     ORDER BY st.service_type_id DESC
-  `,
+`,
     getManualAssignmentStatus: `
     SELECT setting_value FROM settings
     WHERE setting_key = 'manual_vendor_assignment'
     LIMIT 1
-  `
+`
 
 }
 

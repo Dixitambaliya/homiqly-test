@@ -2,6 +2,8 @@ const express = require("express")
 const router = express.Router()
 const { getVendor,
     getAllServiceType,
+    getAllVendorsDetails,
+    getAllUsers,
     getUsers,
     updateUserByAdmin,
     getBookings,
@@ -30,7 +32,9 @@ router.delete("/deletepackage/:package_id", authenticationToken, deletePackageBy
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 
 router.get("/getpayments", authenticationToken, getAllPayments)
-
 router.get("/getallpackages", authenticationToken, getAllPackages)
+
+router.get("/getvendorslist", authenticationToken, getAllVendorsDetails)
+router.get("/getuserslist", authenticationToken, getAllUsers)
 
 module.exports = router

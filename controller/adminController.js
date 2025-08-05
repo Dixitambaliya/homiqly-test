@@ -43,6 +43,23 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllVendorsDetails = asyncHandler(async (req, res) => {
+    try {
+        const [vendors] = await db.query(adminGetQueries.getAllVendors);
+
+        res.status(200).json({
+            message: "All vendors fetched successfully",
+            vendors,
+        });
+    } catch (error) {
+        console.error("Error fetching vendors:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+});
+
 const getAllServiceType = asyncHandler(async (req, res) => {
 
     try {
@@ -92,6 +109,20 @@ const getUsers = asyncHandler(async (req, res) => {
         res.status(200).json({
             message: "Users fetched successfully",
             count: users.length,
+            users
+        });
+    } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const getAllUsers = asyncHandler(async (req, res) => {
+    try {
+        const [users] = await db.query(adminGetQueries.getAllUsers);
+
+        res.status(200).json({
+            message: "Users fetched successfully",
             users
         });
     } catch (error) {
@@ -755,8 +786,12 @@ const getAllPackages = asyncHandler(async (req, res) => {
     }
 });
 
+
+
 module.exports = {
     getVendor,
+    getAllVendorsDetails,
+    getAllUsers,
     getAllServiceType,
     getUsers,
     updateUserByAdmin,

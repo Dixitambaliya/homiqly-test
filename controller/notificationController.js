@@ -109,7 +109,6 @@ const sendNotification = asyncHandler(async (req, res) => {
 });
 
 
-
 const getUserNotifications = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id || req.user.vendor_id || req.user.admin_id;
     const user_type = req.user.role === 'admin' ? 'admin' :
