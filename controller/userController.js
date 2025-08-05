@@ -108,7 +108,12 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
-                    slug: row.slug
+                    slug: row.slug,
+
+                    // Newly added for package relation
+                    service_type_id: row.service_type_id,
+                    serviceTypeName: row.serviceTypeName,
+                    serviceTypeMedia: row.serviceTypeMedia
                 });
             }
         });
@@ -121,6 +126,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -459,6 +465,103 @@ const deleteBooking = asyncHandler(async (req, res) => {
     }
 });
 
+const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
+  const { serviceTypeId } = req.params;
+
+  if (!serviceTypeId) {
+    return res.status(400).json({ message: "Service Type ID is required" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `
+      SELECT
+        vp.vendor_packages_id,
+        vp.vendor_id,
+        p.package_id,
+        p.packageName,
+        p.description,
+        p.totalPrice,
+        p.totalTime,
+        p.packageMedia,
+
+        -- Ratings
+        IFNULL((
+          SELECT ROUND(AVG(r.rating), 1)
+          FROM ratings r
+          WHERE r.package_id = p.package_id
+        ), 0) AS averageRating,
+
+        IFNULL((
+          SELECT COUNT(r.rating_id)
+          FROM ratings r
+          WHERE r.package_id = p.package_id
+        ), 0) AS totalReviews,
+
+        -- Sub-packages
+        COALESCE((
+          SELECT CONCAT('[', GROUP_CONCAT(
+            JSON_OBJECT(
+              'sub_package_id', pi.item_id,
+              'title', pi.itemName,
+              'description', pi.description,
+              'price', pi.price,
+              'time_required', pi.timeRequired,
+              'item_media', pi.itemMedia
+            )
+          ), ']')
+          FROM package_items pi
+          INNER JOIN vendor_package_items vpi ON vpi.package_item_id = pi.item_id
+          WHERE vpi.vendor_id = vp.vendor_id AND vpi.package_id = p.package_id
+        ), '[]') AS sub_packages,
+
+        -- Preferences
+        COALESCE((
+          SELECT CONCAT('[', GROUP_CONCAT(
+            JSON_OBJECT(
+              'preference_id', bp.preference_id,
+              'preference_value', bp.preferenceValue
+            )
+          ), ']')
+          FROM booking_preferences bp
+          INNER JOIN vendor_package_preferences vpp ON vpp.preference_id = bp.preference_id
+          WHERE vpp.vendor_id = vp.vendor_id AND vpp.package_id = p.package_id
+        ), '[]') AS preferences
+
+      FROM vendor_packages vp
+      INNER JOIN packages p ON vp.package_id = p.package_id
+      WHERE p.service_type_id = ?
+      ORDER BY vp.vendor_packages_id DESC
+    `,
+      [serviceTypeId]
+    );
+
+    const data = rows.map((row) => ({
+      vendor_packages_id: row.vendor_packages_id,
+      vendor_id: row.vendor_id,
+      package_id: row.package_id,
+      packageName: row.packageName,
+      description: row.description,
+      totalPrice: row.totalPrice,
+      totalTime: row.totalTime,
+      packageMedia: row.packageMedia,
+      averageRating: row.averageRating,
+      totalReviews: row.totalReviews,
+      sub_packages: JSON.parse(row.sub_packages || "[]"),
+      preferences: JSON.parse(row.preferences || "[]"),
+    }));
+
+    res.status(200).json({
+      message: "Vendor packages fetched successfully by service type ID",
+      packages: data,
+    });
+  } catch (err) {
+    console.error("Error fetching vendor packages by service type ID:", err);
+    res.status(500).json({ error: "Database error", details: err.message });
+  }
+});
+
+
 
 module.exports = {
     getServiceCategories,
@@ -472,5 +575,6 @@ module.exports = {
     addUserData,
     getPackagesByServiceTypeId,
     getVendorPackagesDetailed,
-    deleteBooking
+    deleteBooking,
+    getVendorPackagesByServiceTypeId
 }

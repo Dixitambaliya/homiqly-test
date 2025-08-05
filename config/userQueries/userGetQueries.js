@@ -23,15 +23,21 @@ const userGetQueries = {
 
     getAllServicesWithCategory: `
         SELECT
-        service_categories.serviceCategory AS categoryName,
-        service_categories.service_categories_id AS serviceCategoryId,
-        services.service_id AS serviceId,
-        services.serviceName,
-        services.serviceDescription,
-        services.serviceImage,
-        services.slug
-                FROM service_categories
-                LEFT JOIN services services ON service_categories.service_categories_id = services.service_categories_id`,
+        sc.serviceCategory AS categoryName,
+        sc.service_categories_id AS serviceCategoryId,
+        s.service_id AS serviceId,
+        s.serviceName,
+        s.serviceDescription,
+        s.serviceImage,
+        s.slug,
+        st.service_type_id,
+        st.serviceTypeName,
+        st.serviceTypeMedia
+
+    FROM service_categories sc
+    LEFT JOIN services s ON sc.service_categories_id = s.service_categories_id
+    LEFT JOIN service_type st ON st.service_id = s.service_id
+`,
 
     getCategoriesById: `SELECT
                         service_id,

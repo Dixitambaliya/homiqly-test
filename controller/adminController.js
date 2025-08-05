@@ -87,7 +87,7 @@ const getAllServiceType = asyncHandler(async (req, res) => {
 
 const getUsers = asyncHandler(async (req, res) => {
     try {
-        const [users] = await db.query(adminGetQueries.getAllUsers);
+        const [users] = await db.query(adminGetQueries.getAllUserDetails);
 
         res.status(200).json({
             message: "Users fetched successfully",
