@@ -21,7 +21,7 @@ SELECT
     company_details.companyEmail AS company_companyEmail,
     company_details.companyPhone AS company_companyPhone,
     company_details.companyAddress AS company_companyAddress,
-    company_details.contactPerson AS company_contactPerson
+    company_details.contactPerson AS company_contactPerson,
 
     -- Vendor settings
     vendor_settings.manual_assignment_enabled AS status,
