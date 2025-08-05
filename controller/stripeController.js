@@ -270,8 +270,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     CONCAT(u.firstName, ' ', u.lastName) AS name,
                     sb.bookingDate,
                     sb.bookingTime,
-                    sb.totalAmount,
-                    sb.totalCurrency,
                     sb.booking_id,
                     v.vendor_name
                 FROM service_booking sb
