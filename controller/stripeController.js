@@ -349,22 +349,26 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 from: process.env.EMAIL_USER,
                 to: user.email,
                 subject: "🎉 Your Booking Receipt - Homiqly",
-                html: `
-                    <h3>Hi ${user.name},</h3>
-                    <p>Your payment of <strong>${user.totalCurrency} ${user.totalAmount}</strong> was successful and your booking is confirmed.</p>
-                    <p><strong>Booking Date:</strong> ${user.bookingDate}</p>
-                    <p><strong>Booking Time:</strong> ${user.bookingTime}</p>
-                    <p><strong>Vendor:</strong> ${user.vendor_name}</p>
-                    <hr/>
-                    <h4>Package Details:</h4>
-                    ${packageHTML}
-                    <hr/>
-                    <p>Thank you for choosing <strong>Homiqly</strong>!</p>
-                `
+                html: `<h3>Hi ${user.name},</h3>
+                        <p>Your payment of <strong>${user.totalCurrency} ${user.totalAmount}</strong> was successful and your booking is confirmed.</p>
+                        <p><strong>Booking Date:</strong> ${user.bookingDate}</p>
+                        <p><strong>Booking Time:</strong> ${user.bookingTime}</p>
+                        <p><strong>Vendor:</strong> ${user.vendor_name}</p>
+                        <hr/>
+                        <h4>Package Details:</h4>
+                        ${packageHTML}
+                        <hr/>
+                        <p>Thank you for choosing <strong>Homiqly</strong>!</p>`
             };
 
-            await transporter.sendMail(mailOptions);
-            console.log(`📧 Receipt sent to ${user.email}`);
+            console.log(`📨 Attempting to send email to ${user.email}...`);
+
+            try {
+                const info = await transporter.sendMail(mailOptions);
+                console.log(`✅ Email sent to ${user.email}: ${info.messageId}`);
+            } catch (emailErr) {
+                console.error(`❌ Failed to send email to ${user.email}:`, emailErr.message);
+            }
 
         } catch (err) {
             console.error("❌ Error during payment webhook handling:", err.message);
