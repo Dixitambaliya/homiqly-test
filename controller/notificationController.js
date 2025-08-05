@@ -280,5 +280,4 @@ module.exports = {
     getEmployeeNames,
     deleteRatingByAdmin,
     deleteVendorsRatingByAdmin
-
 };

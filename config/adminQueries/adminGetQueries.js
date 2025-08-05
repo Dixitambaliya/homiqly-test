@@ -164,10 +164,18 @@ GROUP BY vendors.vendor_id;
     ORDER BY st.service_type_id DESC
 `,
 
-    getAllUsers: `
+    getAllUserDetails: `
 SELECT 
     user_id, 
-    TRIM(CONCAT(COALESCE(firstName, ''), ' ', COALESCE(lastName, ''))) AS fullName
+    firstName, 
+    lastName,
+    profileImage,
+    email,
+    phone,
+    address,
+    state,
+    postalcode,
+    created_at
     FROM users
     ORDER BY created_at DESC
 `,
@@ -320,6 +328,7 @@ SELECT
 
     ORDER BY st.service_type_id DESC
 `,
+
     getManualAssignmentStatus: `
     SELECT setting_value FROM settings
     WHERE setting_key = 'manual_vendor_assignment'
