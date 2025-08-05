@@ -19,7 +19,7 @@ const IconButton = ({
     danger: 'bg-error hover:bg-red-600 text-white',
     success: 'bg-success hover:bg-green-600 text-white',
     warning: 'bg-warning hover:bg-yellow-600 text-white',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-700',
+    ghost: 'bg-transparent hover:bg-gray-200 text-gray-700',
   };
   
   // Size classes
@@ -39,7 +39,7 @@ const IconButton = ({
       title={tooltip}
       className={`
         inline-flex items-center justify-center rounded-full p-2
-        transition-colors duration-200 ease-in-out
+        transition-colors duration-300 ease-in-out
         focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-primary
         ${variantClasses[variant]}
         ${sizeClasses[size]}

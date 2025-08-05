@@ -54,7 +54,7 @@ const Employees = () => {
 
   if (accessDenied) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-red-600 text-lg font-semibold">
+      <div className="flex items-center justify-center h-96 text-red-600 text-lg font-semibold">
         Access denied. This page is only available for company profiles.
       </div>
     );

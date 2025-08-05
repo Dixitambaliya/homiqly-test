@@ -20,7 +20,7 @@ const Button = ({
     danger: 'bg-error hover:bg-red-600 text-white',
     success: 'bg-success hover:bg-green-600 text-white',
     warning: 'bg-warning hover:bg-yellow-600 text-white',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-700',
+    ghost: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
   };
   
   // Size classes

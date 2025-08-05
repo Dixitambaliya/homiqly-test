@@ -7,6 +7,8 @@ import StatusBadge from "../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../shared/utils/dateUtils";
 import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
 import { useNavigate } from "react-router-dom";
+import Button from "../../shared/components/Button/Button";
+import BookingsTable from "../components/Tables/BookingsTable";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -77,13 +79,14 @@ const Bookings = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Booking Management</h2>
-        <button
+        <Button
           onClick={fetchBookings}
-          className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+          variant="secondary"
+          className="flex items-center"
         >
           <FiRefreshCw className="mr-2" />
           Refresh
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -124,85 +127,30 @@ const Bookings = () => {
                 className="border px-3 py-2 rounded text-sm"
               />
             </div>
-            <button
+            <Button
+              variant="ghost"
+              className="mt-4 md:mt-4"
               onClick={() => {
                 setFilter("all");
                 setDateRange({ startDate: "", endDate: "" });
               }}
-              className="px-3 py-2 border rounded text-sm text-gray-700"
             >
               Clear
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Bookings Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-            <tr>
-              <th className="px-6 py-3 text-left">ID</th>
-              <th className="px-6 py-3 text-left">Customer</th>
-              <th className="px-6 py-3 text-left">Vendor</th>
-              <th className="px-6 py-3 text-left">Service</th>
-              <th className="px-6 py-3 text-left">Date & Time</th>
-              <th className="px-6 py-3 text-left">Status</th>
-              <th className="px-6 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredBookings.map((booking) => (
-              <tr key={booking.booking_id}>
-                <td className="px-6 py-4">#{booking.booking_id}</td>
-                <td className="px-6 py-4">{booking.userName}</td>
-                <td className="px-6 py-4">
-                  {booking.vendorName || (
-                    <span className="text-sm text-yellow-600 italic ">
-                      Not Assigned
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  {booking.serviceName}
-                  <div className="text-xs text-gray-500">
-                    {booking.serviceCategory}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  {formatDate(booking.bookingDate)} <br />
-                  <span className="text-xs text-gray-500">
-                    {formatTime(booking.bookingTime)}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <StatusBadge status={booking.bookingStatus} />
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <button
-                    onClick={() =>
-                      navigate(`/admin/bookings/${booking.booking_id}`, {
-                        state: { booking },
-                      })
-                    }
-                    className="text-primary-600 hover:text-primary-800"
-                  >
-                    <FiEye className="h-5 w-5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* {showDetailsModal && selectedBooking && (
-        <BookingDetailsModal
-          isOpen={showDetailsModal}
-          onClose={() => setShowDetailsModal(false)}
-          booking={selectedBooking}
-        />
-      )} */}
+      <BookingsTable
+        bookings={filteredBookings}
+        isLoading={loading}
+        onViewBooking={(booking) =>
+          navigate(`/admin/bookings/${booking.booking_id}`, {
+            state: { booking },
+          })
+        }
+      />
     </div>
   );
 };
