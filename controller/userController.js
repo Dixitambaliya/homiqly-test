@@ -466,15 +466,15 @@ const deleteBooking = asyncHandler(async (req, res) => {
 });
 
 const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
-  const { serviceTypeId } = req.params;
+    const { service_type_id } = req.params;
 
-  if (!serviceTypeId) {
-    return res.status(400).json({ message: "Service Type ID is required" });
-  }
+    if (!service_type_id) {
+        return res.status(400).json({ message: "Service Type ID is required" });
+    }
 
-  try {
-    const [rows] = await db.query(
-      `
+    try {
+        const [rows] = await db.query(
+            `
       SELECT
         vp.vendor_packages_id,
         vp.vendor_id,
@@ -533,32 +533,32 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
       WHERE p.service_type_id = ?
       ORDER BY vp.vendor_packages_id DESC
     `,
-      [serviceTypeId]
-    );
+            [service_type_id]
+        );
 
-    const data = rows.map((row) => ({
-      vendor_packages_id: row.vendor_packages_id,
-      vendor_id: row.vendor_id,
-      package_id: row.package_id,
-      packageName: row.packageName,
-      description: row.description,
-      totalPrice: row.totalPrice,
-      totalTime: row.totalTime,
-      packageMedia: row.packageMedia,
-      averageRating: row.averageRating,
-      totalReviews: row.totalReviews,
-      sub_packages: JSON.parse(row.sub_packages || "[]"),
-      preferences: JSON.parse(row.preferences || "[]"),
-    }));
+        const data = rows.map((row) => ({
+            vendor_packages_id: row.vendor_packages_id,
+            vendor_id: row.vendor_id,
+            package_id: row.package_id,
+            packageName: row.packageName,
+            description: row.description,
+            totalPrice: row.totalPrice,
+            totalTime: row.totalTime,
+            packageMedia: row.packageMedia,
+            averageRating: row.averageRating,
+            totalReviews: row.totalReviews,
+            sub_packages: JSON.parse(row.sub_packages || "[]"),
+            preferences: JSON.parse(row.preferences || "[]"),
+        }));
 
-    res.status(200).json({
-      message: "Vendor packages fetched successfully by service type ID",
-      packages: data,
-    });
-  } catch (err) {
-    console.error("Error fetching vendor packages by service type ID:", err);
-    res.status(500).json({ error: "Database error", details: err.message });
-  }
+        res.status(200).json({
+            message: "Vendor packages fetched successfully by service type ID",
+            packages: data,
+        });
+    } catch (err) {
+        console.error("Error fetching vendor packages by service type ID:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
 });
 
 
