@@ -330,37 +330,96 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
-        const [rows] = await db.query(adminGetQueries.getAdminCreatedPackages);
-        console.log(rows);
+        const [rows] = await db.query(`
+      SELECT
+        st.service_type_id,
+        st.serviceTypeName AS service_type_name,
+        st.serviceTypeMedia AS service_type_media,
 
-        const result = rows.map(row => ({
+        s.service_id,
+        s.serviceName AS service_name,
 
-            service_type_id: row.service_type_id,
-            service_type_name: row.serviceTypeName,
-            service_type_media: row.serviceTypeMedia,
+        sc.service_categories_id AS service_category_id,
+        sc.serviceCategory AS service_category_name,
 
-            service_id: row.service_id,
-            service_name: row.serviceName,
+        COALESCE((
+          SELECT CONCAT('[', GROUP_CONCAT(
+            JSON_OBJECT(
+              'package_id', p.package_id,
+              'title', p.packageName,
+              'description', p.description,
+              'price', p.totalPrice,
+              'time_required', p.totalTime,
+              'package_media', p.packageMedia,
+              'sub_packages', IFNULL((
+                SELECT CONCAT('[', GROUP_CONCAT(
+                  JSON_OBJECT(
+                    'sub_package_id', pi.item_id,
+                    'item_name', pi.itemName,
+                    'description', pi.description,
+                    'price', pi.price,
+                    'time_required', pi.timeRequired,
+                    'item_media', pi.itemMedia
+                  )
+                ), ']')
+                FROM package_items pi
+                WHERE pi.package_id = p.package_id
+              ), '[]'),
+              'preferences', IFNULL((
+                SELECT CONCAT('[', GROUP_CONCAT(
+                  JSON_OBJECT(
+                    'preference_id', bp.preference_id,
+                    'preference_value', bp.preferenceValue
+                  )
+                ), ']')
+                FROM booking_preferences bp
+                WHERE bp.package_id = p.package_id
+              ), '[]')
+            )
+          ), ']')
+          FROM packages p
+          WHERE p.service_type_id = st.service_type_id
+        ), '[]') AS packages
 
-            service_category_id: row.service_categories_id,
-            service_category_name: row.serviceCategory,
+      FROM service_type st
+      JOIN services s ON s.service_id = st.service_id
+      JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
 
-            packages: JSON.parse(row.packages || '[]').map(pkg => ({
+      ORDER BY st.service_type_id DESC
+    `);
+
+        // ✅ Properly parse nested JSON strings
+        const parsedResult = rows.map(row => {
+            const parsedPackages = JSON.parse(row.packages).map(pkg => ({
                 ...pkg,
-                sub_packages: typeof pkg.sub_packages === 'string' ? JSON.parse(pkg.sub_packages || '[]') : [],
-                preferences: typeof pkg.preferences === 'string' ? JSON.parse(pkg.preferences || '[]') : []
-            }))
-        }));
+                sub_packages: typeof pkg.sub_packages === "string"
+                    ? JSON.parse(pkg.sub_packages)
+                    : [],
+                preferences: typeof pkg.preferences === "string"
+                    ? JSON.parse(pkg.preferences)
+                    : []
+            }));
+
+            return {
+                ...row,
+                packages: parsedPackages
+            };
+        });
 
         res.status(200).json({
-            message: "Admin-created packages fetched successfully",
-            result
+            message: "Admin packages fetched successfully",
+            result: parsedResult
         });
-    } catch (err) {
-        console.error("Error fetching admin-created packages:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+
+    } catch (error) {
+        console.error("Error fetching admin-created packages:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
     }
 });
 

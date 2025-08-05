@@ -328,6 +328,7 @@ SELECT
 
     ORDER BY st.service_type_id DESC
 `,
+
     getManualAssignmentStatus: `
     SELECT setting_value FROM settings
     WHERE setting_key = 'manual_vendor_assignment'
