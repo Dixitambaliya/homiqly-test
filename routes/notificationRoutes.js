@@ -5,7 +5,8 @@ const {
     getUserNotifications,
     markNotificationAsRead,
     getAllVendorsDetails,
-    getAllUsers
+    getAllUsers,
+    getAllEmployeeNames
 
 } = require('../controller/notificationController');
 const { authenticationToken } = require('../middleware/authMiddleware');
@@ -16,5 +17,6 @@ router.put('/:notification_id/read', authenticationToken, markNotificationAsRead
 
 router.get("/getvendorslist", authenticationToken, getAllVendorsDetails)
 router.get("/getuserslist", authenticationToken, getAllUsers)
+router.get("/getemployeelist/:vendor_id", authenticationToken, getAllEmployeeNames)
 
 module.exports = router;

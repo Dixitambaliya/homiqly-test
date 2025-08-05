@@ -184,10 +184,31 @@ const getAllUsers = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllEmployeeNames = asyncHandler(async (req, res) => {
+    const vendor_id = req.params.vendor_id;
+
+    try {
+        const [employees] = await db.query(notificationGetQueries.getAllEmployee,
+            [vendor_id]
+        );
+
+        res.status(200).json({
+            message: "Employee names fetched successfully",
+            employees,
+        });
+
+    } catch (error) {
+        console.error("Error fetching employee names:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 module.exports = {
     sendNotification,
     getUserNotifications,
     markNotificationAsRead,
     getAllVendorsDetails,
-    getAllUsers
+    getAllUsers,
+    getAllEmployeeNames
+
 };
