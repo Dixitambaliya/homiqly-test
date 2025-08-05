@@ -1,47 +1,135 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import { FiSend, FiX } from 'react-icons/fi';
-import LoadingSpinner from '../../shared/components/LoadingSpinner';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import { FiSend } from "react-icons/fi";
+import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import Select from "react-select";
 
 const Notifications = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [userList, setUserList] = useState([]);
+
   const [formData, setFormData] = useState({
-    user_type: '',
-    title: '',
-    body: '',
-    data: {}
+    user_type: "",
+    vendor_type: "",
+    target_type: "all", // 'all' or 'specific'
+    user_ids: [],
+    title: "",
+    body: "",
+    data: {},
   });
+
+  // Load users/vendors/employees based on user_type
+  useEffect(() => {
+    const fetchRecipients = async () => {
+      if (formData.target_type !== "specific" || !formData.user_type) return;
+
+      setLoading(true);
+      try {
+        let response;
+        let users = [];
+
+        switch (formData.user_type) {
+          case "users":
+            response = await axios.get("/api/notification/getuserslist");
+            users = (response.data.users || []).map((user) => ({
+              value: user.user_id.toString(),
+              label: user.fullName || `User ${user.user_id}`,
+            }));
+            break;
+
+          case "vendor":
+            if (!formData.vendor_type) {
+              toast.warn("Please select a Vendor Type first.");
+              return;
+            }
+            response = await axios.get(
+              `/api/notification/getvendorslist?vendor_type=${formData.vendor_type}`
+            );
+            users = (response.data.vendors || []).map((vendor) => ({
+              value: vendor.vendor_id.toString(),
+              label: vendor.vendorName || `Vendor ${vendor.vendor_id}`,
+            }));
+            break;
+
+          case "employees":
+            response = await axios.get("/api/notification/getemployeeslist");
+            users = (response.data.employees || []).map((emp) => ({
+              value: emp.employee_id.toString(),
+              label: emp.name || `Employee ${emp.employee_id}`,
+            }));
+            break;
+
+          case "admin":
+            response = await axios.get("/api/notification/getadminslist");
+            users = (response.data.admins || []).map((admin) => ({
+              value: admin.admin_id.toString(),
+              label: admin.name || `Admin ${admin.admin_id}`,
+            }));
+            break;
+
+          default:
+            users = [];
+        }
+
+        setUserList(users);
+      } catch (error) {
+        console.error("Error loading recipient list", error);
+        toast.error("Failed to load recipients");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecipients();
+  }, [formData.user_type, formData.vendor_type, formData.target_type]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.user_type || !formData.title || !formData.body) {
-      toast.error('Please fill all required fields');
+      toast.error("Please fill all required fields");
       return;
     }
-    
+
+    const payload = {
+      user_type: formData.user_type,
+      title: formData.title,
+      body: formData.body,
+      data: formData.data,
+    };
+
+    if (formData.user_type === "vendor") {
+      payload.vendor_type = formData.vendor_type;
+    }
+
+    if (formData.target_type === "specific") {
+      payload.user_ids = formData.user_ids;
+    }
+
     try {
       setSubmitting(true);
-      
-      const response = await axios.post('/api/notification/send', formData);
-      
+      const response = await axios.post("/api/notification/send", payload);
       if (response.status === 200) {
-        toast.success(`Notification sent to ${response.data.success_count} recipients`);
+        toast.success(
+          `Notification sent to ${response.data.success_count} recipients`
+        );
         resetForm();
       }
     } catch (error) {
-      console.error('Error sending notification:', error);
-      toast.error(error.response?.data?.message || 'Failed to send notification');
+      console.error("Error sending notification:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to send notification"
+      );
     } finally {
       setSubmitting(false);
     }
@@ -49,140 +137,186 @@ const Notifications = () => {
 
   const resetForm = () => {
     setFormData({
-      user_type: '',
-      title: '',
-      body: '',
-      data: {}
+      user_type: "",
+      vendor_type: "",
+      target_type: "all",
+      user_ids: [],
+      title: "",
+      body: "",
+      data: {},
     });
+    setUserList([]);
   };
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Send Notifications</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">
+        Send Notifications
+      </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Notification Form */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Compose Notification</h3>
-          
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            Compose Notification
+          </h3>
+
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
+              {/* Recipient Type */}
               <div>
-                <label htmlFor="user_type" className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Recipient Type*
                 </label>
                 <select
-                  id="user_type"
                   name="user_type"
                   value={formData.user_type}
                   onChange={handleInputChange}
                   required
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
+                  className="w-full border px-3 py-2 rounded"
                 >
                   <option value="">Select Recipient Type</option>
-                  <option value="users">All Users</option>
-                  <option value="vendors">All Vendors</option>
-                  <option value="admin">All Admins</option>
+                  <option value="users">Users</option>
+                  <option value="vendor">Vendors</option>
+                  <option value="employees">Employees</option>
+                  <option value="admin">Admins</option>
                 </select>
               </div>
-              
+
+              {/* Vendor Type */}
+              {formData.user_type === "vendor" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Vendor Type*
+                  </label>
+                  <select
+                    name="vendor_type"
+                    value={formData.vendor_type}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full border px-3 py-2 rounded"
+                  >
+                    <option value="">Select Vendor Type</option>
+                    <option value="individual">Individual</option>
+                    <option value="company">Company</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Target Type */}
               <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1">
+                  Target*
+                </label>
+                <select
+                  name="target_type"
+                  value={formData.target_type}
+                  onChange={handleInputChange}
+                  className="w-full border px-3 py-2 rounded"
+                >
+                  <option value="all">All</option>
+                  <option value="specific">Specific</option>
+                </select>
+              </div>
+
+              {/* Multi Select for Specific Users */}
+              {formData.target_type === "specific" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Select Recipients*
+                  </label>
+                  <Select
+                    isMulti
+                    options={userList}
+                    value={userList.filter((user) =>
+                      formData.user_ids.includes(user.value)
+                    )}
+                    onChange={(selectedOptions) => {
+                      const ids = selectedOptions.map((option) => option.value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        user_ids: ids,
+                      }));
+                    }}
+                    isLoading={loading}
+                    placeholder="Search & select recipients"
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                  />
+                </div>
+              )}
+
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
                   Notification Title*
                 </label>
                 <input
                   type="text"
-                  id="title"
                   name="title"
                   value={formData.title}
                   onChange={handleInputChange}
                   required
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
-                  placeholder="Enter notification title"
+                  className="w-full border px-3 py-2 rounded"
                 />
               </div>
-              
+
+              {/* Body */}
               <div>
-                <label htmlFor="body" className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Notification Message*
                 </label>
                 <textarea
-                  id="body"
                   name="body"
                   value={formData.body}
                   onChange={handleInputChange}
-                  required
                   rows="4"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
-                  placeholder="Enter notification message"
+                  required
+                  className="w-full border px-3 py-2 rounded"
                 ></textarea>
               </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark disabled:opacity-50 flex items-center"
-              >
-                {submitting ? (
-                  <>
-                    <LoadingSpinner size="sm" color="white" />
-                    <span className="ml-2">Sending...</span>
-                  </>
-                ) : (
-                  <>
-                    <FiSend className="mr-2" />
-                    Send Notification
-                  </>
-                )}
-              </button>
+
+              {/* Submit Button */}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                >
+                  {submitting ? (
+                    <>
+                      <LoadingSpinner size="sm" color="white" />
+                      <span className="ml-2">Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiSend className="mr-2" />
+                      Send Notification
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>
 
-        {/* Notification Guidelines */}
+        {/* Guidelines */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Notification Guidelines</h3>
-          
-          <div className="space-y-4 text-gray-700">
-            <div>
-              <h4 className="font-medium text-gray-900 mb-1">Best Practices</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Keep notification titles short and clear</li>
-                <li>Provide specific and actionable information in the message</li>
-                <li>Avoid sending too many notifications in a short period</li>
-                <li>Use notifications for important updates only</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-900 mb-1">Notification Types</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li><strong>Users</strong> - Sent to all registered customers</li>
-                <li><strong>Vendors</strong> - Sent to all registered service providers</li>
-                <li><strong>Admins</strong> - Sent to all admin users</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-900 mb-1">Example Use Cases</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>New feature announcements</li>
-                <li>Maintenance notifications</li>
-                <li>Special promotions or offers</li>
-                <li>Important policy updates</li>
-                <li>Service disruption alerts</li>
-              </ul>
-            </div>
-            
-            <div className="bg-blue-50 p-4 rounded-md">
-              <h4 className="font-medium text-blue-700 mb-1">Note</h4>
-              <p className="text-sm text-blue-600">
-                Notifications are sent via Firebase Cloud Messaging (FCM). Recipients must have a registered FCM token to receive push notifications.
-              </p>
-            </div>
-          </div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            Notification Guidelines 
+          </h3>
+          <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
+            <li>Keep messages concise and clear</li>
+            <li>Only use notifications for important updates</li>
+            <li>Avoid sending too frequently</li>
+            <li>
+              When targeting specific users, recipient list will be fetched from
+              backend.
+            </li>
+            <li>
+              Vendor type (individual/company) is required only when sending to
+              vendors.
+            </li>
+          </ul>
         </div>
       </div>
     </div>

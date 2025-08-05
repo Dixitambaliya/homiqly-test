@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
-import { requestFCMToken } from "../../firebase/firebase"
+import { requestFCMToken } from "../../firebase/firebase";
 
 const VendorAuthContext = createContext();
 
@@ -33,13 +33,14 @@ export const VendorAuthProvider = ({ children }) => {
     });
   }, []);
 
-  const login = async (email, password, fcmToken) => {
+  const login = async (email, password) => {
     try {
       setError(null);
+
       const response = await axios.post("/api/vendor/login", {
         email,
         password,
-        fcmToken,
+        fcmToken, // directly using from state
       });
 
       const { token, vendor_id, vendor_type, name, role } = response.data;
