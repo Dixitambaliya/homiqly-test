@@ -27,6 +27,8 @@ router.put("/editpackage", authenticationToken, multiUpload, handleUploads, edit
 router.post("/addpackages", authenticationToken, multiUpload, handleUploads, createPackageByAdmin)
 router.post("/assignpackage", authenticationToken, assignPackageToVendor)
 router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
+
+
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 
 router.get("/getpayments", authenticationToken, getAllPayments)

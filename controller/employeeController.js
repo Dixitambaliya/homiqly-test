@@ -149,17 +149,25 @@ const employeeLogin = asyncHandler(async (req, res) => {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // Optional: Update FCM token
+        // ✅ Optional: Update FCM token if new and different
         if (fcmToken && fcmToken.trim() !== "") {
-            try {
-                await db.query(
-                    "UPDATE company_employees SET fcmToken = ? WHERE employee_id  = ?",
-                    [fcmToken.trim(), employee.employee_id]
-                );
-            } catch (err) {
-                console.error("FCM token update error:", err.message);
+            const trimmedToken = fcmToken.trim();
+
+            if (employee.fcmToken !== trimmedToken) {
+                try {
+                    await db.query(
+                        "UPDATE company_employees SET fcmToken = ? WHERE employee_id = ?",
+                        [trimmedToken, employee.employee_id]
+                    );
+                    console.log("✅ FCM token updated for employee:", employee.employee_id);
+                } catch (err) {
+                    console.error("❌ FCM token update error:", err.message);
+                }
+            } else {
+                console.log("ℹ️ FCM token already up to date for employee:", employee.employee_id);
             }
         }
+
 
         const token = jwt.sign(
             {
