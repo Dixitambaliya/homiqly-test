@@ -32,7 +32,7 @@ export const EmployeesAuthProvider = ({ children }) => {
     });
   }, []);
 
-  const login = async (email, password, fcmToken) => {
+  const login = async (email, password) => {
     try {
       setError(null);
       const response = await axios.post("/api/employee/login", {

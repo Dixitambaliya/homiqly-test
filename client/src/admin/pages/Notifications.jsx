@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import { FiSend } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import Select from "react-select";
-
+import Button from "../../shared/components/Button/Button";
 const Notifications = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -54,10 +54,10 @@ const Notifications = () => {
             break;
 
           case "employees":
-            response = await axios.get("/api/notification/getemployeeslist");
+            response = await axios.get("/api/notification/getemployees");
             users = (response.data.employees || []).map((emp) => ({
               value: emp.employee_id.toString(),
-              label: emp.name || `Employee ${emp.employee_id}`,
+              label: emp.fullName || `Employee ${emp.employee_id}`,
             }));
             break;
 
@@ -277,7 +277,7 @@ const Notifications = () => {
 
               {/* Submit Button */}
               <div className="flex justify-end">
-                <button
+                <Button
                   type="submit"
                   disabled={submitting}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center"
@@ -293,7 +293,7 @@ const Notifications = () => {
                       Send Notification
                     </>
                   )}
-                </button>
+                </Button>
               </div>
             </div>
           </form>
@@ -302,7 +302,7 @@ const Notifications = () => {
         {/* Guidelines */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            Notification Guidelines 
+            Notification Guidelines
           </h3>
           <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
             <li>Keep messages concise and clear</li>

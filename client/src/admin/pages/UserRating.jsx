@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FiStar, FiUser, FiCalendar } from "react-icons/fi";
-import LoadingSpinner from "../../shared/components/LoadingSpinner";
-import { formatDate } from "../../shared/utils/dateUtils";
+import { FiStar, FiUser, FiCalendar, FiTrash2 } from "react-icons/fi";
 import LoadingSlider from "../../shared/components/LoadingSpinner";
+import { formatDate } from "../../shared/utils/dateUtils";
+import IconButton from "../../shared/components/Button/IconButton";
 
 const UserRating = () => {
   const [ratings, setRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("all"); // Rating filter: all, 5-1
-  const [searchTerm, setSearchTerm] = useState(""); // Search by user name
+  const [filter, setFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     fetchRatings();
@@ -26,6 +26,21 @@ const UserRating = () => {
       setError("Failed to load ratings");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (ratingId) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this rating?"
+    );
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`/api/notification/deleterating/${ratingId}`);
+      fetchRatings(); // Refresh list after deletion
+    } catch (err) {
+      alert("Failed to delete rating.");
+      console.error(err);
     }
   };
 
@@ -173,9 +188,19 @@ const UserRating = () => {
             {filteredRatings.map((rating) => (
               <div
                 key={rating.rating_id}
-                className="bg-white border rounded-lg p-5 shadow-sm space-y-2"
+                className="bg-white border rounded-lg p-5 shadow-sm space-y-2 relative"
               >
-                <div className="flex justify-between items-start mb-2 ">
+                {/* Delete Button */}
+                <IconButton
+                  aria-label="Delete Rating"
+                  icon={<FiTrash2 className="h-5 w-5" />}
+                  variant="danger"
+                  onClick={() => handleDelete(rating.rating_id)}
+                  className="absolute bottom-3 right-3 "
+                  title="Delete Rating"
+                ></IconButton>
+
+                <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">
                     <div className="mr-3 bg-gray-100 rounded-full p-2">
                       <FiUser className="h-5 w-5 text-gray-500" />

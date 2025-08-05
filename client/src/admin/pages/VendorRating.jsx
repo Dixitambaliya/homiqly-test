@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FiStar, FiUser, FiCalendar, FiPhone, FiMail } from "react-icons/fi";
+import {
+  FiStar,
+  FiUser,
+  FiCalendar,
+  FiPhone,
+  FiMail,
+  FiTrash2,
+} from "react-icons/fi";
 import LoadingSlider from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
+import IconButton from "../../shared/components/Button/IconButton";
 
 const VendorRating = () => {
   const [ratings, setRatings] = useState([]);
@@ -25,6 +33,21 @@ const VendorRating = () => {
       setError("Failed to load vendor ratings.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (ratingId) => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this rating?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await axios.delete(`/api/notification/deletevendorsrating/${ratingId}`);
+      fetchRatings(); // Refresh list
+    } catch (err) {
+      alert("Failed to delete rating.");
+      console.error("Delete error:", err);
     }
   };
 
@@ -166,8 +189,19 @@ const VendorRating = () => {
             {filteredRatings.map((r) => (
               <div
                 key={r.rating_id}
-                className="bg-white border rounded-lg p-5 shadow-sm space-y-2"
+                className="bg-white border rounded-lg p-5 shadow-sm space-y-2 relative"
               >
+                {/* Delete button */}
+                <IconButton
+                  aria-label="Delete Rating"
+                  variant="danger"
+                  onClick={() => handleDelete(r.rating_id)}
+                  className="absolute bottom-3 right-3 "
+                  title="Delete Rating"
+                  icon={<FiTrash2 className="h-5 w-5" />}
+                >
+                </IconButton>
+
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">
                     <div className="mr-3 bg-gray-100 rounded-full p-2">
@@ -195,7 +229,9 @@ const VendorRating = () => {
                   <div className="text-sm text-gray-600">
                     User: {r.user_name}
                   </div>
-                  <div className="text-sm text-gray-500">Vendor Type : {r.vendorType}</div>
+                  <div className="text-sm text-gray-500">
+                    Vendor Type: {r.vendorType}
+                  </div>
                   <div className="text-sm text-gray-500">
                     Service: {r.serviceName} - {r.serviceCategory}
                   </div>
