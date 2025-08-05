@@ -8,23 +8,23 @@ SELECT
 
     -- Individual Vendor Details
     individual_details.vendor_id AS individual_id,
-    ANY_VALUE(individual_details.name) AS individual_name,
-    ANY_VALUE(individual_details.email) AS individual_email,
-    ANY_VALUE(individual_details.phone) AS individual_phone,
-    ANY_VALUE(individual_details.otherInfo) AS individual_otherInfo,
-    ANY_VALUE(individual_details.resume) AS individual_resume,
+    individual_details.name AS individual_name,
+    individual_details.email AS individual_email,
+    individual_details.phone AS individual_phone,
+    individual_details.otherInfo AS individual_otherInfo,
+    individual_details.resume AS individual_resume,
 
     -- Company Vendor Details
     company_details.vendor_id AS company_id,
-    ANY_VALUE(company_details.companyName) AS company_companyName,
-    ANY_VALUE(company_details.googleBusinessProfileLink) AS company_googleBusinessProfileLink,
-    ANY_VALUE(company_details.companyEmail) AS company_companyEmail,
-    ANY_VALUE(company_details.companyPhone) AS company_companyPhone,
-    ANY_VALUE(company_details.companyAddress) AS company_companyAddress,
-    ANY_VALUE(company_details.contactPerson) AS company_contactPerson,
+    company_details.companyName AS company_companyName,
+    company_details.googleBusinessProfileLink AS company_googleBusinessProfileLink,
+    company_details.companyEmail AS company_companyEmail,
+    company_details.companyPhone AS company_companyPhone,
+    company_details.companyAddress AS company_companyAddress,
+    company_details.contactPerson AS company_contactPerson
 
     -- Vendor settings
-    ANY_VALUE(vendor_settings.manual_assignment_enabled) AS status,
+    vendor_settings.manual_assignment_enabled AS status,
 
     -- Services JSON Array
     COALESCE(

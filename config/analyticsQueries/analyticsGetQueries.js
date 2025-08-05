@@ -42,28 +42,27 @@ const analyticsGetQueries = {
     `,
 
     getVendorPerformance: `
-       SELECT 
-        v.vendor_id,
-        ANY_VALUE(
+        SELECT 
+            v.vendor_id,
             CASE 
                 WHEN v.vendorType = 'individual' THEN ind.name
                 WHEN v.vendorType = 'company' THEN comp.companyName
-            END
-        ) AS vendor_name,
-        v.vendorType,
-        COUNT(sb.booking_id) AS total_bookings,
-        AVG(CASE WHEN sb.bookingStatus = 1 THEN 5 ELSE 0 END) AS avg_rating,
-        SUM(p.totalPrice) AS total_earnings
-    FROM vendors v
-    LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
-    LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
-    LEFT JOIN service_booking sb ON v.vendor_id = sb.vendor_id
-    LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-    LEFT JOIN packages p ON sbp.package_id = p.package_id
-    WHERE v.is_authenticated = 1
-    GROUP BY v.vendor_id
-    ORDER BY total_bookings DESC
-    LIMIT 20`,
+               END as vendor_name,
+            v.vendorType,
+            COUNT(sb.booking_id) as total_bookings,
+            AVG(CASE WHEN sb.bookingStatus = 1 THEN 5 ELSE 0 END) as avg_rating,
+            SUM(p.totalPrice) as total_earnings
+        FROM vendors v
+        LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
+        LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
+        LEFT JOIN service_booking sb ON v.vendor_id = sb.vendor_id
+        LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
+        LEFT JOIN packages p ON sbp.package_id = p.package_id
+        WHERE v.is_authenticated = 1
+        GROUP BY v.vendor_id
+        ORDER BY total_bookings DESC
+        LIMIT 20
+    `,
 
     getRevenueAnalytics: `
         SELECT 
