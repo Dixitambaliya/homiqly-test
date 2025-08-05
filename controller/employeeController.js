@@ -151,13 +151,14 @@ const employeeLogin = asyncHandler(async (req, res) => {
 
         // ✅ Optional: Update FCM token if new and different
         if (fcmToken && fcmToken.trim() !== "") {
-            const trimmedToken = fcmToken.trim();
+            const rawToken = fcmToken.trim();
+            const cleanToken = rawToken.includes(":") ? rawToken.split(":")[1] : rawToken;
 
-            if (employee.fcmToken !== trimmedToken) {
+            if (employee.fcmToken !== cleanToken) {
                 try {
                     await db.query(
                         "UPDATE company_employees SET fcmToken = ? WHERE employee_id = ?",
-                        [trimmedToken, employee.employee_id]
+                        [cleanToken, employee.employee_id]
                     );
                     console.log("✅ FCM token updated for employee:", employee.employee_id);
                 } catch (err) {
