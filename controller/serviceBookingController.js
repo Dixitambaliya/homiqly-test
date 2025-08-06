@@ -70,7 +70,7 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 2. Prevent duplicate bookings for same package unless completed (bookingStatus = 4)
+        // ✅ 2. Prevent duplicate bookings for same package unless status is 'completed' (4) or 'rejected' (2)
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
@@ -83,14 +83,14 @@ const bookService = asyncHandler(async (req, res) => {
                     WHERE sb.user_id = ? 
                     AND sbt.service_type_id = ? 
                     AND sbp.package_id = ? 
-                    AND sb.bookingStatus != 4
+                    AND sb.bookingStatus NOT IN (2, 4)
                     LIMIT 1`,
                 [user_id, service_type_id, package_id]
             );
 
             if (existing.length > 0) {
                 return res.status(409).json({
-                    message: `You have already booked package ID ${package_id} for this service type and it is not yet completed.`,
+                    message: `You have already booked package ID ${package_id} for this service type and it is not yet completed or rejected.`,
                 });
             }
         }
