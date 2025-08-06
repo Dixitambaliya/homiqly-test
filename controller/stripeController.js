@@ -238,6 +238,9 @@ exports.confirmBooking = asyncHandler(async (req, res) => {
     res.json({ message: "Booking confirmed." });
 });
 
+
+
+
 // 7. Stripe webhook handler
 exports.stripeWebhook = asyncHandler(async (req, res) => {
     let event;
