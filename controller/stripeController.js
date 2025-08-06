@@ -127,7 +127,7 @@ exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
 exports.createPaymentIntent = asyncHandler(async (req, res) => {
     const { packages, currency = "cad", metadata = {}, booking_id } = req.body;
 
-    if (!packages || !booking_id) {
+    if (!packages) {
         return res.status(400).json({ error: "'packages' and 'booking_id' are required" });
     }
 
