@@ -170,6 +170,7 @@ const getBookings = asyncHandler(async (req, res) => {
                 sb.notes,
                 sb.bookingMedia,
                 sb.payment_intent_id,
+                sb.payment_status,
 
                 u.user_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
@@ -188,7 +189,6 @@ const getBookings = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
-                p.status AS payment_status,
                 p.amount AS payment_amount,
                 p.currency AS payment_currency
 

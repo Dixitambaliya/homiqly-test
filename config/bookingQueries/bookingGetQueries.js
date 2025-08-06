@@ -26,6 +26,7 @@ const bookingGetQueries = {
                 sb.notes,
                 sb.bookingMedia,
                 sb.payment_intent_id,
+                sb.payment_status,
 
                 sc.serviceCategory,
                 s.serviceName,
@@ -40,7 +41,6 @@ const bookingGetQueries = {
                 COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
                 COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
-                p.status AS payment_status,
                 p.amount AS payment_amount,
                 p.currency AS payment_currency
 
