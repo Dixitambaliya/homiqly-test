@@ -68,7 +68,6 @@ const getAllSupportTickets = asyncHandler(async (req, res) => {
                 st.status,
                 st.created_at
             FROM support_tickets st
-            JOIN vendors v ON st.vendor_id = v.vendor_id
             ORDER BY st.created_at DESC
         `);
 
