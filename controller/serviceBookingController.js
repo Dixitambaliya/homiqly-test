@@ -168,7 +168,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
           s.serviceName,
           sc.serviceCategory,
           st.serviceTypeName,
-          p.status AS payment_status,
+          sb.payment_status AS payment_status,
           p.amount AS payment_amount,
           p.currency AS payment_currency,
           CONCAT(u.firstName,' ', u.lastName) AS userName,
