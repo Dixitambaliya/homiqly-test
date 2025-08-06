@@ -254,16 +254,24 @@ const BookingDetailsPage = () => {
             </div>
 
             {/* Conditionally render employee section */}
-            {vendorType !== "individual" && (
+            {/* {vendorType !== "individual" && (
               <div className="bg-white rounded-xl shadow-sm border p-6">
                 <h4 className="text-sm font-semibold text-gray-500 mb-2">
                   Assigned Employee
                 </h4>
-                <p className="text-sm text-gray-800">
-                  {booking.employeeName || "Not Assigned"}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-800">
+                    {booking.assignedEmployee.name || "Not Assigned"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {booking.assignedEmployee.email || "N/A"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {booking.assignedEmployee.phone || "N/A"}
+                  </p>
+                </div>
               </div>
-            )}
+            )} */}
 
             {/* Action Buttons for Individual */}
             {vendorType === "individual" && (

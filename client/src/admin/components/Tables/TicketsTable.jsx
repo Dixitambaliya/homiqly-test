@@ -1,5 +1,5 @@
 import React from "react";
-import { FiEye } from "react-icons/fi";
+import { FiDelete, FiEye, FiTrash } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
 
@@ -20,7 +20,7 @@ const StatusBadge = ({ status }) => {
 };
 
 // ✅ TicketsTable component
-const TicketsTable = ({ tickets, isLoading, onViewTicket }) => {
+const TicketsTable = ({ tickets, isLoading, onViewTicket, onDeleteTicket }) => {
   const columns = [
     {
       title: "ID",
@@ -36,7 +36,7 @@ const TicketsTable = ({ tickets, isLoading, onViewTicket }) => {
           <div className="text-sm font-medium text-gray-900">
             {row.user_name}
           </div>
-          <div className="text-xs text-gray-500">{row.user_email}</div>
+          <div className="text-sm text-gray-900">{row.vendor_email}</div>
         </div>
       ),
     },
@@ -72,7 +72,7 @@ const TicketsTable = ({ tickets, isLoading, onViewTicket }) => {
       title: "Actions",
       align: "right",
       render: (row) => (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
           <IconButton
             icon={<FiEye className="h-4 w-4" />}
             variant="ghost"
@@ -82,6 +82,20 @@ const TicketsTable = ({ tickets, isLoading, onViewTicket }) => {
               onViewTicket(row);
             }}
             tooltip="View Ticket"
+          />
+          <IconButton
+            icon={<FiTrash className="h-4 w-4" />}
+            variant="danger"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (
+                window.confirm("Are you sure you want to delete this ticket?")
+              ) {
+                onDeleteTicket(row.ticket_id);
+              }
+            }}
+            tooltip="Delete Ticket"
           />
         </div>
       ),

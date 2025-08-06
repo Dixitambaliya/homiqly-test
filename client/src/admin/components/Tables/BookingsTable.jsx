@@ -4,6 +4,7 @@ import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
+import PaymentBadge from "../../../shared/components/PaymentBadge";
 
 const BookingsTable = ({
   bookings,
@@ -62,6 +63,13 @@ const BookingsTable = ({
       title: "Status",
       key: "bookingStatus",
       render: (row) => <StatusBadge status={row.bookingStatus} />,
+    },
+    {
+      title: "Payment Status",
+      key: "paymentStatus",
+      render: (row) => (
+        <PaymentBadge status={row.payment_status} />
+      ),
     },
     {
       title: "Actions",

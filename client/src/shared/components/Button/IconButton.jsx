@@ -19,7 +19,19 @@ const IconButton = ({
     danger: 'bg-error hover:bg-red-600 text-white',
     success: 'bg-success hover:bg-green-600 text-white',
     warning: 'bg-warning hover:bg-yellow-600 text-white',
-    ghost: 'bg-transparent hover:bg-gray-200 text-gray-700',
+    ghost: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
+
+    inherit: 'bg-transparent text-current hover:bg-gray-100',
+    light: 'bg-gray-50 text-gray-700 hover:bg-gray-100',
+    lightPrimary: 'bg-green-100 text-green-700 hover:bg-green-200',
+    lightSecondary: 'bg-purple-100 text-purple-700 hover:bg-purple-200',  
+    lightInfo: 'bg-sky-100 text-sky-700 hover:bg-sky-200',
+    lightSuccess: 'bg-green-100 text-green-700 hover:bg-green-200',
+    lightWarning: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200',
+    lightDanger: 'bg-red-100 text-red-700 hover:bg-red-200',
+    lightBlack: 'bg-gray-200 text-black hover:bg-gray-300',
+    lightWhite: 'bg-white text-black hover:bg-gray-100',
+    lightGhost: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
   };
   
   // Size classes

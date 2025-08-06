@@ -167,6 +167,7 @@ const Bookings = () => {
             className="mb-0 w-40"
           />
           <Button
+            className="h-9"
             onClick={fetchBookings}
             variant="outline"
             icon={<FiRefreshCw className="mr-2" />}

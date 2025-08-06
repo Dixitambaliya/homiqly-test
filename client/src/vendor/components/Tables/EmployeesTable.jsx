@@ -3,6 +3,7 @@ import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { FiTrash2 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
+import { IconButton } from "../../../shared/components/Button";
 
 const EmployeesTable = ({ employees, isLoading, onDelete }) => {
   const handleDelete = async (employee_id) => {
@@ -63,13 +64,15 @@ const EmployeesTable = ({ employees, isLoading, onDelete }) => {
       title: "Actions",
       key: "actions",
       render: (row) => (
-        <button
+        <IconButton
           className="text-red-600 hover:text-red-800 p-1"
           onClick={() => handleDelete(row.employee_id)}
           title="Delete employee"
+          icon={<FiTrash2 className="h-5 w-5" />}
+          variant="lightDanger"
         >
-          <FiTrash2 />
-        </button>
+          {/* <FiTrash2 /> */}
+        </IconButton>
       ),
     },
   ];

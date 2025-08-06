@@ -170,9 +170,15 @@ const Profile = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Vendor Profile</h2>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Vendor Profile</h1>
+          <p className="text-sm text-gray-500">
+            View or update your account information
+          </p>
+        </div>
         <Button
           onClick={toggleEdit}
           variant={editing ? "outline" : "primary"}
@@ -184,389 +190,237 @@ const Profile = () => {
         </Button>
       </div>
 
-      <Card>
-        <form onSubmit={handleSubmit}>
-          <div className="flex flex-col md:flex-row gap-8">
-            {/* Image Section */}
-            <div className="flex flex-col items-center space-y-4">
-              <div className="h-40 w-40 rounded-full overflow-hidden border-2 border-primary">
+      <div>
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        >
+          {/* Left Profile Info */}
+          <div className="col-span-1 bg-white rounded-xl p-6 shadow border">
+            <div className="flex flex-col items-center space-y-4  justify-between">
+              {/* Profile Image */}
+              <div className="w-32 h-32 rounded-full overflow-hidden border">
                 <img
                   src={
-                    profile?.profileImage ||
-                    "https://via.placeholder.com/150?text=No+Image"
+                    profileImage
+                      ? URL.createObjectURL(profileImage)
+                      : profile?.profileImage ||
+                        "https://via.placeholder.com/150"
                   }
                   alt="Profile"
-                  className="h-full w-full object-cover"
+                  className="w-full h-full object-cover"
                 />
               </div>
+
+              {/* Image Upload */}
               {editing && (
                 <FormFileInput
                   name="profileImageVendor"
                   accept="image/*"
                   onChange={handleImageChange}
-                  showPreview={false}
-                  className="mt-2"
                 />
               )}
-              <div className="text-center">
-                <h3 className="text-xl font-semibold">
-                  {profile?.name || "Vendor Name"}
-                </h3>
-                <p className="text-gray-500 capitalize">
-                  {profile?.vendorType || "Vendor"}
+
+              {/* Name and Type */}
+              {/* <div className="text-center">
+                <h3 className="text-lg font-semibold">{profile?.name}</h3>
+                <p className="text-sm text-gray-500 capitalize">
+                  {profile?.vendorType}
                 </p>
+              </div> */}
+
+              {/* Account Info */}
+              <div className="w-full space-y-3 text-center">
+                <div>
+                  <h4 className="text-sm text-gray-500 font-medium">
+                    Account Type
+                  </h4>
+                  <p className="text-gray-800 capitalize">
+                    {profile?.vendorType}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm text-gray-500 font-medium">
+                    Member Since
+                  </h4>
+                  <p className="text-gray-800">
+                    {new Date(profile?.created_at).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Details Section */}
-            <div className="flex-1 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormInput
-                  label={
-                    profile?.vendorType === "company"
-                      ? "Company Name"
-                      : "Full Name"
-                  }
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<FiUser className="h-5 w-5 text-gray-400" />}
-                />
+          {/* Right Side Form Inputs */}
+          <div className="col-span-2 bg-white rounded-xl p-6 shadow border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormInput
+                label="Name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                disabled={!editing}
+                icon={<FiUser />}
+              />
+              <FormInput
+                label="Email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                disabled={!editing}
+                icon={<FiMail />}
+              />
+              <FormInput
+                label="Phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                disabled={!editing}
+                icon={<FiPhone />}
+              />
+              <FormInput
+                label="Date of Birth"
+                name="birthDate"
+                type="date"
+                value={formData.birthDate}
+                onChange={handleInputChange}
+                disabled={!editing}
+                icon={<FiUser />}
+              />
 
-                <FormInput
-                  label="Email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<FiMail className="h-5 w-5 text-gray-400" />}
-                />
-
-                <FormInput
-                  label="Phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<FiPhone className="h-5 w-5 text-gray-400" />}
-                />
-
-                <FormInput
-                  label="Date of Birth"
-                  name="birthDate"
-                  type="date"
-                  value={formData.birthDate}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<FiUser className="h-5 w-5 text-gray-400" />}
-                />
-
-                {/* <FormInput
-                  label="Address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<FiMapPin className="h-5 w-5 text-gray-400" />}
-                /> */}
-
-                {!editing && certificates?.length > 0 && (
-                  <div className="md:col-span-2 space-y-2 mt-4">
-                    <h4 className="text-md font-semibold text-gray-700 mb-2">
-                      Certificates
-                    </h4>
-                    {certificates.map((cert, index) =>
-                      cert.name && cert.file ? (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between border p-3 rounded-md bg-gray-50"
-                        >
-                          <span className="text-sm font-medium text-gray-700">
-                            {cert.name}
-                          </span>
-                          <a
-                            href={cert.file}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline"
-                          >
-                            View File
-                          </a>
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-                )}
-
-                {editing && (
-                  <div className="space-y-4 border-t pt-6 mt-6">
-                    <h4 className="text-lg font-semibold text-gray-800">
-                      Certificates
-                    </h4>
-
-                    {certificates.map((cert, index) => (
-                      <div
-                        key={index}
-                        className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center"
-                      >
-                        <FormInput
-                          label="Certificate Name"
-                          name={`certificateName_${index}`}
-                          value={cert.name}
-                          onChange={(e) =>
-                            handleCertificateChange(
-                              index,
-                              "name",
-                              e.target.value
-                            )
-                          }
-                        />
-                        <FormFileInput
-                          name={`certificateFile_${index}`}
-                          accept="application/pdf,image/*"
-                          onChange={(e) =>
-                            handleCertificateChange(
-                              index,
-                              "file",
-                              e.target.files[0]
-                            )
-                          }
-                        />
-                        {typeof cert.file === "string" && (
-                          <a
-                            href={cert.file}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline"
-                          >
-                            View Existing File
-                          </a>
-                        )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => removeCertificate(index)}
-                          className="text-red-500"
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={addCertificate}
-                    >
-                      Add Certificate
-                    </Button>
-                  </div>
-                )}
-
-                {profile?.vendorType === "company" && (
-                  <>
-                    <FormInput
-                      label="Contact Person"
-                      name="contactPerson"
-                      value={formData.contactPerson}
+              {profile?.vendorType === "company" && (
+                <>
+                  <FormInput
+                    label="Contact Person"
+                    name="contactPerson"
+                    value={formData.contactPerson}
+                    onChange={handleInputChange}
+                    disabled={!editing}
+                    icon={<FiUser />}
+                  />
+                  <FormInput
+                    label="Google Business Profile"
+                    name="googleBusinessProfileLink"
+                    value={formData.googleBusinessProfileLink}
+                    onChange={handleInputChange}
+                    disabled={!editing}
+                  />
+                  <div className="col-span-2">
+                    <FormTextarea
+                      label="Company Address"
+                      name="companyAddress"
+                      value={formData.companyAddress}
                       onChange={handleInputChange}
                       disabled={!editing}
-                      icon={<FiUser className="h-5 w-5 text-gray-400" />}
+                      rows={2}
                     />
-                    <div className="md:col-span-2">
-                      <FormTextarea
-                        label="Company Address"
-                        name="companyAddress"
-                        value={formData.companyAddress}
-                        onChange={handleInputChange}
-                        disabled={!editing}
-                        rows={3}
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <FormInput
-                        label="Google Business Profile Link"
-                        name="googleBusinessProfileLink"
-                        type="url"
-                        value={formData.googleBusinessProfileLink}
-                        onChange={handleInputChange}
-                        disabled={!editing}
-                      />
-                    </div>
-                  </>
-                )}
+                  </div>
+                </>
+              )}
 
-                {profile?.vendorType === "individual" && (
-                  <>
+              {profile?.vendorType === "individual" && (
+                <>
+                  <div className="col-span-2">
                     <FormTextarea
-                      label="Other Information"
+                      label="Other Info"
                       name="otherInfo"
                       value={formData.otherInfo}
                       onChange={handleInputChange}
                       disabled={!editing}
-                      rows={3}
+                      rows={2}
                     />
+                  </div>
+                  <div className="col-span-2">
                     <FormTextarea
                       label="Address"
                       name="address"
                       value={formData.address}
                       onChange={handleInputChange}
                       disabled={!editing}
-                      rows={3}
-                      icon={<FiMapPin className="h-5 w-5 text-gray-400" />}
+                      rows={2}
                     />
-                  </>
-                )}
-              </div>
-
-              {editing && (
-                <div className="flex justify-end pt-4">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={updating}
-                    isLoading={updating}
-                    icon={<FiSave className="mr-2" />}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
+                  </div>
+                </>
               )}
             </div>
+
+            {editing && (
+              <div className="flex justify-end mt-6">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isLoading={updating}
+                  icon={<FiSave className="mr-2" />}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            )}
           </div>
         </form>
-      </Card>
+      </div>
 
-      <Card title="Account Information">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">
-              Account Type
-            </h4>
-            <p className="text-gray-900 capitalize">
-              {profile?.vendorType || "Vendor"}
-            </p>
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">
-              Account Status
-            </h4>
-            <p>
-              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Active
-              </span>
-            </p>
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">
-              Member Since
-            </h4>
-            <p className="text-gray-800">
-              {profile?.created_at
-                ? new Date(profile.created_at).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                : "Not available"}
-            </p>
-          </div>
-          {profile?.vendorType === "individual" && profile?.resume && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1">Resume</h4>
-              <a
-                href={profile.resume}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:text-primary-dark"
-              >
-                View Resume
-              </a>
-            </div>
-          )}
-        </div>
-      </Card>
+      {/* Services */}
+      <Card title="Services Offered">
+        <div className="space-y-6">
+          {services.map((service, idx) => (
+            <div key={idx} className="border rounded-lg p-4 bg-white">
+              <h3 className="text-lg font-semibold text-primary mb-1">
+                {service.service_type_name}
+              </h3>
+              <p className="text-sm text-gray-500 mb-3">
+                {service.service_category_name} / {service.service_name}
+              </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card title="Services Offered">
-          <div className="space-y-6">
-            {services.map((service, idx) => (
-              <div
-                key={idx}
-                className="border rounded-lg p-4 shadow-sm bg-white"
-              >
-                <h2 className="text-xl font-semibold text-primary mb-1">
-                  {service.service_type_name}
-                </h2>
-                <p className="text-gray-500 mb-2">
-                  {service.service_category_name} / {service.service_name}
-                </p>
-
-                {/* Packages */}
-                {service.packages?.map((pkg, pIdx) => (
-                  <div
-                    key={pIdx}
-                    className="border rounded-md p-3 my-4 bg-gray-50"
-                  >
-                    <div className="flex items-start gap-4">
-                      <img
-                        src={pkg.package_media}
-                        alt={pkg.title}
-                        className="w-32 h-24 object-cover rounded"
-                      />
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-800">
-                          {pkg.title}
-                        </h3>
-                        <p className="text-gray-600">{pkg.description}</p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          ₹ {pkg.price} • {pkg.time_required}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Preferences */}
-                    {pkg.preferences?.length > 0 && (
-                      <div className="mt-2 text-sm text-gray-700">
-                        <strong>Preferences:</strong>{" "}
-                        {pkg.preferences.map((pref, pi) => (
-                          <span
-                            key={pi}
-                            className="inline-block bg-gray-200 px-2 py-1 rounded text-xs mr-2"
-                          >
-                            {pref.preference_value}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Sub-packages */}
-                    <div className="mt-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                        Sub-Packages
+              {service.packages?.map((pkg, pIdx) => (
+                <div
+                  key={pIdx}
+                  className="bg-gray-50 border rounded-md p-4 mb-4"
+                >
+                  <div className="flex gap-4">
+                    <img
+                      src={pkg.package_media}
+                      alt={pkg.title}
+                      className="w-24 h-20 object-cover rounded"
+                    />
+                    <div>
+                      <h4 className="font-semibold text-gray-800">
+                        {pkg.title}
                       </h4>
-                      <div className="space-y-2">
-                        {pkg.sub_packages?.map((sub, sIdx) => (
+                      <p className="text-sm text-gray-600">{pkg.description}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        ₹ {pkg.price} • {pkg.time_required}
+                      </p>
+                    </div>
+                  </div>
+                  {pkg.sub_packages?.length > 0 && (
+                    <div className="mt-3">
+                      <h5 className="text-sm font-medium text-gray-700">
+                        Sub-Packages
+                      </h5>
+                      <div className="space-y-2 mt-1">
+                        {pkg.sub_packages.map((sub, sIdx) => (
                           <div
                             key={sIdx}
-                            className="flex items-start gap-4 border p-2 rounded bg-white"
+                            className="flex items-start gap-4 bg-white border p-2 rounded"
                           >
                             <img
                               src={sub.item_media}
                               alt={sub.title}
-                              className="w-16 h-16 object-cover rounded"
+                              className="w-14 h-14 object-cover rounded"
                             />
                             <div>
-                              <p className="font-medium text-gray-800">
+                              <p className="font-medium text-sm text-gray-800">
                                 {sub.title}
                               </p>
-                              <p className="text-gray-600 text-sm">
+                              <p className="text-sm text-gray-500">
                                 {sub.description}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-400">
                                 ₹ {sub.price} • {sub.time_required}
                               </p>
                             </div>
@@ -574,13 +428,13 @@ const Profile = () => {
                         ))}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 };

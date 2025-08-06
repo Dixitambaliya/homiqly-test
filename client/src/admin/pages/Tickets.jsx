@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useAdminAuth } from "../contexts/AdminAuthContext";
 import api from "../../lib/axiosConfig";
 import TicketsTable from "../components/Tables/TicketsTable"; // Update the path as needed
+import axios from "axios";
+import { toast } from "react-toastify";
 
 const Tickets = () => {
   const { currentUser } = useAdminAuth();
@@ -25,6 +27,26 @@ const Tickets = () => {
     }
   };
 
+  const handleDeleteTicket = async (ticketId) => {
+    if (!window.confirm("Are you sure you want to delete this ticket?")) return;
+
+    try {
+      setLoading(true);
+      await axios.delete(`/api/deleteticket/${ticketId}`);
+      setTickets((prev) =>
+        prev.filter((ticket) => ticket.ticket_id !== ticketId)
+      );
+      toast.success("Ticket deleted successfully.");
+      fetchTickets(); // Refresh the ticket list
+    } catch (error) {
+      toast.error("Failed to delete ticket.");
+      console.error("Error deleting ticket:", error);
+      alert("Failed to delete ticket.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewTicket = (ticket) => {
     console.log("View Ticket:", ticket);
     // Optionally open a modal or route to ticket detail
@@ -41,6 +63,7 @@ const Tickets = () => {
         tickets={tickets}
         isLoading={loading}
         onViewTicket={handleViewTicket}
+        onDeleteTicket={handleDeleteTicket}
       />
     </div>
   );
