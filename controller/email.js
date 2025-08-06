@@ -59,14 +59,25 @@ const sendMessageToAdmins = asyncHandler(async (req, res) => {
 const getAllSupportTickets = asyncHandler(async (req, res) => {
     try {
         const [tickets] = await db.query(`
-            SELECT * FROM support_tickets ORDER BY created_at DESC
+            SELECT 
+                st.ticket_id,
+                st.user_email AS vendor_email,
+                st.user_name AS vendor_name,
+                st.subject,
+                st.message,
+                st.status,
+                st.created_at
+            FROM support_tickets st
+            ORDER BY st.created_at DESC
         `);
+
         res.status(200).json({ tickets });
     } catch (err) {
         console.error("Failed to fetch support tickets:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deleteTicket = asyncHandler(async (req, res) => {
     const { ticket_id } = req.params;
