@@ -5,7 +5,8 @@ const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries'
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
-    sendBookingNotificationToUser
+    sendBookingNotificationToUser,
+    sendBookingAssignedNotificationToVendor
 } = require("../config/fcmNotifications/adminNotification")
 const sendEmail = require('../config/mailer');
 
@@ -532,6 +533,11 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
         );
 
         await connection.commit();
+        try {
+            await sendBookingAssignedNotificationToVendor(vendor_id, booking_id);
+        } catch (err) {
+            console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
+        }
         res.status(200).json({ message: `Booking ${booking_id} successfully assigned to vendor ${vendor_id}.` });
     } catch (err) {
         await connection.rollback();
