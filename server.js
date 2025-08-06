@@ -63,7 +63,7 @@ app.use("/api/analytics", analyticsRoutes)
 app.use("/api/notification", notificationRoutes)
 app.use("/api/settings", settingsRoutes)
 app.use("/api/rating", ratingRoutes)
-app.use("/api/email", emailRoutes)
+app.use("/api", emailRoutes)
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));
