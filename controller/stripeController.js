@@ -316,10 +316,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     p.totalTime,
                     pi.itemName,
                     pi.price AS itemPrice,
-                    pi.quantity,
                     bp.preferenceValue
                 FROM service_booking sb
-                JOIN service_booking_items sbi ON sbi.booking_id = sb.booking_id
+                JOIN service_booking_packages sbi ON sbi.booking_id = sb.booking_id
                 JOIN packages p ON sbi.package_id = p.package_id
                 LEFT JOIN package_items pi ON pi.package_id = p.package_id
                 LEFT JOIN booking_preferences bp ON bp.package_id = p.package_id
