@@ -70,24 +70,27 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 2. Prevent duplicate bookings for same package
+        // ✅ 2. Prevent duplicate bookings for same package unless completed (bookingStatus = 4)
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
 
             const [existing] = await db.query(
                 `SELECT sb.booking_id
-                 FROM service_booking sb
-                 JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-                 JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-                 WHERE sb.user_id = ? AND sbt.service_type_id = ? AND sbp.package_id = ?
-                 LIMIT 1`,
+                    FROM service_booking sb
+                    JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
+                    JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+                    WHERE sb.user_id = ? 
+                    AND sbt.service_type_id = ? 
+                    AND sbp.package_id = ? 
+                    AND sb.bookingStatus != 4
+                    LIMIT 1`,
                 [user_id, service_type_id, package_id]
             );
 
             if (existing.length > 0) {
                 return res.status(409).json({
-                    message: `You have already booked package ID ${package_id} for this service type.`,
+                    message: `You have already booked package ID ${package_id} for this service type and it is not yet completed.`,
                 });
             }
         }
@@ -191,17 +194,17 @@ const bookService = asyncHandler(async (req, res) => {
 });
 
 const getVendorBookings = asyncHandler(async (req, res) => {
-  const vendor_id = req.user.vendor_id;
+    const vendor_id = req.user.vendor_id;
 
-  try {
-    // 🔹 Fetch latest platform fee percentage
-    const [platformSettings] = await db.query(
-      "SELECT platform_fee_percentage FROM platform_settings ORDER BY id DESC LIMIT 1"
-    );
-    const platformFee = platformSettings[0]?.platform_fee_percentage || 0;
+    try {
+        // 🔹 Fetch latest platform fee percentage
+        const [platformSettings] = await db.query(
+            "SELECT platform_fee_percentage FROM platform_settings ORDER BY id DESC LIMIT 1"
+        );
+        const platformFee = platformSettings[0]?.platform_fee_percentage || 0;
 
-    const [bookings] = await db.query(
-      `
+        const [bookings] = await db.query(
+            `
       SELECT
           sb.*,
           s.serviceName,
@@ -236,15 +239,15 @@ const getVendorBookings = asyncHandler(async (req, res) => {
       WHERE sb.vendor_id = ?
       ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
       `,
-      [vendor_id]
-    );
+            [vendor_id]
+        );
 
-    for (const booking of bookings) {
-      const bookingId = booking.booking_id;
+        for (const booking of bookings) {
+            const bookingId = booking.booking_id;
 
-      // 🔹 Fetch Packages
-      const [bookingPackages] = await db.query(
-        `
+            // 🔹 Fetch Packages
+            const [bookingPackages] = await db.query(
+                `
         SELECT
             p.package_id,
             p.packageName,
@@ -255,12 +258,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         JOIN packages p ON sbp.package_id = p.package_id
         WHERE sbp.booking_id = ?
       `,
-        [bookingId]
-      );
+                [bookingId]
+            );
 
-      // 🔹 Fetch Items with platform fee deducted from price
-      const [packageItems] = await db.query(
-        `
+            // 🔹 Fetch Items with platform fee deducted from price
+            const [packageItems] = await db.query(
+                `
         SELECT
             sbsp.sub_package_id AS item_id,
             pi.itemName,
@@ -273,20 +276,20 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
         WHERE sbsp.booking_id = ?
       `,
-        [platformFee, bookingId]
-      );
+                [platformFee, bookingId]
+            );
 
-      // 🔹 Group items under packages
-      const groupedPackages = bookingPackages.map((pkg) => {
-        const items = packageItems.filter(
-          (item) => item.package_id === pkg.package_id
-        );
-        return { ...pkg, items };
-      });
+            // 🔹 Group items under packages
+            const groupedPackages = bookingPackages.map((pkg) => {
+                const items = packageItems.filter(
+                    (item) => item.package_id === pkg.package_id
+                );
+                return { ...pkg, items };
+            });
 
-      // 🔹 Fetch Preferences
-      const [bookingPreferences] = await db.query(
-        `
+            // 🔹 Fetch Preferences
+            const [bookingPreferences] = await db.query(
+                `
         SELECT
             sp.preference_id,
             bp.preferenceValue
@@ -294,46 +297,46 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
         WHERE sp.booking_id = ?
       `,
-        [bookingId]
-      );
+                [bookingId]
+            );
 
-      booking.packages = groupedPackages;
-      booking.package_items = packageItems;
-      booking.preferences = bookingPreferences;
+            booking.packages = groupedPackages;
+            booking.package_items = packageItems;
+            booking.preferences = bookingPreferences;
 
-      // 🔹 Combine employee info
-      if (booking.assignedEmployeeId) {
-        booking.assignedEmployee = {
-          employee_id: booking.assignedEmployeeId,
-          name: `${booking.employeeFirstName} ${booking.employeeLastName}`,
-          email: booking.employeeEmail,
-          phone: booking.employeePhone,
-        };
-      }
+            // 🔹 Combine employee info
+            if (booking.assignedEmployeeId) {
+                booking.assignedEmployee = {
+                    employee_id: booking.assignedEmployeeId,
+                    name: `${booking.employeeFirstName} ${booking.employeeLastName}`,
+                    email: booking.employeeEmail,
+                    phone: booking.employeePhone,
+                };
+            }
 
-      // 🔹 Clean unnecessary fields
-      delete booking.assignedEmployeeId;
-      delete booking.employeeFirstName;
-      delete booking.employeeLastName;
-      delete booking.employeeEmail;
-      delete booking.employeePhone;
+            // 🔹 Clean unnecessary fields
+            delete booking.assignedEmployeeId;
+            delete booking.employeeFirstName;
+            delete booking.employeeLastName;
+            delete booking.employeeEmail;
+            delete booking.employeePhone;
 
-      Object.keys(booking).forEach((key) => {
-        if (booking[key] === null) delete booking[key];
-      });
+            Object.keys(booking).forEach((key) => {
+                if (booking[key] === null) delete booking[key];
+            });
+        }
+
+        res.status(200).json({
+            message: "Vendor bookings fetched successfully",
+            bookings,
+        });
+    } catch (error) {
+        console.error("Error fetching vendor bookings:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message,
+        });
     }
-
-    res.status(200).json({
-      message: "Vendor bookings fetched successfully",
-      bookings,
-    });
-  } catch (error) {
-    console.error("Error fetching vendor bookings:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
 });
 
 
