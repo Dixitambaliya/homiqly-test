@@ -19,6 +19,7 @@ import {
 } from "chart.js";
 import { Link } from "react-router-dom";
 import ToggleButton from "../components/ToggleButton";
+import StatusBadge from "../../shared/components/StatusBadge";
 
 // Register ChartJS components
 ChartJS.register(
@@ -198,11 +199,13 @@ const Dashboard = () => {
                         {booking.bookingTime}
                       </p>
                     </div>
-                    <span
+                    {/* <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${statusClass}`}
                     >
                       {statusText}
-                    </span>
+                    </span> */}
+                    <StatusBadge status={booking.bookingStatus}
+                     />
                   </div>
                 );
               })}
