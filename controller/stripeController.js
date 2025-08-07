@@ -214,6 +214,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object;
     const paymentIntentId = paymentIntent.id;
+    const charge = paymentIntent?.charges?.data?.[0];
 
     try {
       const [rows] = await db.query(
@@ -228,6 +229,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       const booking_id = rows[0].booking_id;
 
+      // ✅ Update statuses
       await db.query(
         `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
         [paymentIntentId]
@@ -239,15 +241,153 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       );
 
       console.log(`✅ Payment confirmed and booking updated: ${booking_id}`);
+
+      // ✅ Fetch booking metadata
+      const [[bookingInfo]] = await db.query(`
+        SELECT 
+          sb.booking_id, sb.bookingDate, sb.bookingTime, sb.payment_status,
+          u.firstName, u.lastName, u.email,
+          v.vendor_name, v.vendor_email, v.vendor_phone,
+          st.serviceName,
+          pay.payment_amount, pay.payment_currency
+        FROM service_booking sb
+        LEFT JOIN users u ON sb.user_id = u.user_id
+        LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+        LEFT JOIN service_type st ON sb.service_id = st.service_id
+        LEFT JOIN payments pay ON sb.booking_id = pay.booking_id
+        WHERE sb.booking_id = ?
+      `, [booking_id]);
+
+      if (!bookingInfo) {
+        console.warn("⚠️ No booking info found for receipt email.");
+        return;
+      }
+
+      // ✅ Packages
+      const [packages] = await db.query(`
+        SELECT
+          p.package_id,
+          p.packageName,
+          p.totalPrice,
+          p.totalTime,
+          p.packageMedia
+        FROM service_booking_packages sbp
+        JOIN packages p ON sbp.package_id = p.package_id
+        WHERE sbp.booking_id = ?
+      `, [booking_id]);
+
+      // ✅ Sub-packages
+      const [items] = await db.query(`
+        SELECT
+          sbsp.sub_package_id AS item_id,
+          pi.itemName,
+          sbsp.price,
+          sbsp.quantity,
+          pi.itemMedia,
+          pi.timeRequired,
+          pi.package_id
+        FROM service_booking_sub_packages sbsp
+        LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+        WHERE sbsp.booking_id = ?
+      `, [booking_id]);
+
+      // ✅ Preferences
+      const [preferences] = await db.query(`
+        SELECT
+          bp.preferenceValue
+        FROM booking_preferences bp
+        JOIN service_preferences sp ON bp.preference_id = sp.preference_id
+        WHERE sp.booking_id = ?
+      `, [booking_id]);
+
+      const grouped = packages.map(pkg => {
+        const relatedItems = items.filter(i => i.package_id === pkg.package_id);
+        return { ...pkg, items: relatedItems };
+      });
+
+      const preferenceText = preferences.map(p => p.preferenceValue).join(', ') || 'None';
+
+      // ✅ Stripe charge details
+      const stripeMetadata = {
+        cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+        last4: charge?.payment_method_details?.card?.last4 || "****",
+        paymentMethodType: charge?.payment_method_details?.type || "card",
+        receiptEmail: charge?.receipt_email || bookingInfo.email,
+        chargeId: charge?.id || "N/A",
+        paidAt: new Date((charge?.created || Date.now()) * 1000).toLocaleString("en-US", {
+          timeZone: "Asia/Kolkata",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        receiptUrl: charge?.receipt_url || null,
+      };
+
+      // ✅ Build HTML
+      const receiptHtml = `
+        <h2>Hi ${bookingInfo.firstName} ${bookingInfo.lastName},</h2>
+        <p>Thank you for your payment. Here is your booking receipt:</p>
+        <p><strong>Booking ID:</strong> ${bookingInfo.booking_id}</p>
+        <p><strong>Date:</strong> ${bookingInfo.bookingDate}</p>
+        <p><strong>Time:</strong> ${bookingInfo.bookingTime}</p>
+        <p><strong>Service:</strong> ${bookingInfo.serviceName}</p>
+        <p><strong>Vendor:</strong> ${bookingInfo.vendor_name} (${bookingInfo.vendor_email}, ${bookingInfo.vendor_phone})</p>
+        <hr />
+        ${grouped.map(pkg => `
+          <h3>Package: ${pkg.packageName}</h3>
+          <ul>
+            ${pkg.items.map(item => `
+              <li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity}</li>
+            `).join('')}
+          </ul>
+        `).join('')}
+        <hr />
+        <p><strong>Preferences:</strong> ${preferenceText}</p>
+        <p><strong>Total Paid:</strong> ${bookingInfo.payment_currency?.toUpperCase()} $${bookingInfo.payment_amount}</p>
+        <hr />
+        <p><strong>Paid At:</strong> ${stripeMetadata.paidAt}</p>
+        <p><strong>Payment Method:</strong> ${stripeMetadata.cardBrand.toUpperCase()} ending in ${stripeMetadata.last4}</p>
+        <p><strong>Stripe PaymentIntent ID:</strong> ${paymentIntent.id}</p>
+        <p><strong>Stripe Charge ID:</strong> ${stripeMetadata.chargeId}</p>
+        ${stripeMetadata.receiptUrl ? `<p><a href="${stripeMetadata.receiptUrl}" target="_blank">🔗 View Stripe Receipt</a></p>` : ""}
+        <hr />
+        <p>We appreciate your business. If you have any questions, please contact support at <a href="mailto:support@example.com">support@example.com</a>.</p>
+      `;
+
+      // ✅ Email transport
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      const receiptMailOptions = {
+        from: `"Your App Name" <${process.env.EMAIL_USER}>`,
+        to: bookingInfo.email,
+        subject: `Receipt for Booking #${bookingInfo.booking_id}`,
+        html: receiptHtml,
+      };
+
+      transporter.sendMail(receiptMailOptions, (error, info) => {
+        if (error) {
+          console.error("❌ Failed to send receipt email:", error.message);
+        } else {
+          console.log("📧 Receipt email sent:", info.response);
+        }
+      });
+
     } catch (err) {
       console.error("❌ Error processing Stripe webhook:", err.message);
     }
+
   } else {
     console.log("ℹ️ Ignored event type:", event.type);
   }
 });
-
-
 
 
 
