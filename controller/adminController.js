@@ -828,7 +828,11 @@ const getAllPayments = asyncHandler(async (req, res) => {
                         expand: ['charges.data.payment_method_details'],
                     });
 
-                    const charge = paymentIntent?.charges?.data?.[0];
+                    const charges = await stripe.charges.list({
+                        payment_intent: payment.payment_intent_id,
+                        limit: 1,
+                    });
+                    const charge = charges.data?.[0];
 
                     const stripeMetadata = {
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
