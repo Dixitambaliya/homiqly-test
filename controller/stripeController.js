@@ -214,7 +214,14 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object;
     const paymentIntentId = paymentIntent.id;
-    const charge = paymentIntent?.charges?.data?.[0];
+    const chargeId = paymentIntent?.charges?.data?.[0]?.id;
+
+    if (!chargeId) {
+      console.warn("⚠️ No charge ID found in paymentIntent.");
+      return;
+    }
+    const charge = await stripe.charges.retrieve(chargeId);
+
 
     try {
       const [rows] = await db.query(
@@ -307,11 +314,10 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       const preferenceText = preferences.map((p) => p.preferenceValue).join(", ") || "None";
 
-      // ✅ Stripe Metadata
       const stripeMetadata = {
         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
         last4: charge?.payment_method_details?.card?.last4 || "****",
-        receiptEmail: charge?.billing_details?.email || "N/A",
+        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || bookingInfo?.email || "N/A",
         chargeId: charge?.id || "N/A",
         paidAt: charge?.created
           ? new Date(charge.created * 1000).toLocaleString("en-US", {
@@ -326,6 +332,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         receiptUrl: charge?.receipt_url || null,
         paymentIntentId: charge?.payment_intent || "N/A",
       };
+
+
       // ✅ Build receipt HTML
       const transporter = nodemailer.createTransport({
         service: "gmail",
