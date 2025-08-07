@@ -253,7 +253,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
           IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
           st.serviceTypeName,
-          pay.amount, pay.currency AS payment_currency
+          pay.amount AS payment_amount, 
+          pay.currency AS payment_currency
         FROM service_booking sb
         LEFT JOIN users u ON sb.user_id = u.user_id
         LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
@@ -310,62 +311,22 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       const stripeMetadata = {
         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
         last4: charge?.payment_method_details?.card?.last4 || "****",
-        receiptEmail: charge?.receipt_email || bookingInfo.email,
+        receiptEmail: charge?.billing_details?.email || "N/A",
         chargeId: charge?.id || "N/A",
-        paidAt: new Date((charge?.created || Date.now()) * 1000).toLocaleString("en-US", {
-          timeZone: "Asia/Kolkata",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        paidAt: charge?.created
+          ? new Date(charge.created * 1000).toLocaleString("en-US", {
+            timeZone: "Asia/Kolkata",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+          : "N/A",
         receiptUrl: charge?.receipt_url || null,
+        paymentIntentId: charge?.payment_intent || "N/A",
       };
-
       // ✅ Build receipt HTML
-      const receiptHtml = `
-        <h2>Hi ${bookingInfo.firstName} ${bookingInfo.lastName},</h2>
-        <p>Thank you for your payment. Here is your booking receipt:</p>
-        <p><strong>Booking ID:</strong> ${bookingInfo.booking_id}</p>
-        <p><strong>Date:</strong> ${bookingInfo.bookingDate}</p>
-        <p><strong>Time:</strong> ${bookingInfo.bookingTime}</p>
-        <p><strong>Service:</strong> ${bookingInfo.serviceName}</p>
-        <p><strong>Vendor:</strong> ${bookingInfo.vendorName} (${bookingInfo.vendorEmail}, ${bookingInfo.vendorPhone})</p>
-        ${bookingInfo.vendorContactPerson ? `<p><strong>Contact Person:</strong> ${bookingInfo.vendorContactPerson}</p>` : ""}
-        <hr />
-        ${grouped
-          .map(
-            (pkg) => `
-            <h3>Package: ${pkg.packageName}</h3>
-            <ul>
-              ${pkg.items
-                .map(
-                  (item) =>
-                    `<li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity}</li>`
-                )
-                .join("")}
-            </ul>
-          `
-          )
-          .join("")}
-        <hr />
-        <p><strong>Preferences:</strong> ${preferenceText}</p>
-        <p><strong>Total Paid:</strong> ${bookingInfo.payment_currency?.toUpperCase()} $${bookingInfo.payment_amount}</p>
-        <hr />
-        <p><strong>Paid At:</strong> ${stripeMetadata.paidAt}</p>
-        <p><strong>Payment Method:</strong> ${stripeMetadata.cardBrand.toUpperCase()} ending in ${stripeMetadata.last4}</p>
-        <p><strong>Stripe PaymentIntent ID:</strong> ${paymentIntent.id}</p>
-        <p><strong>Stripe Charge ID:</strong> ${stripeMetadata.chargeId}</p>
-        ${stripeMetadata.receiptUrl
-          ? `<p><a href="${stripeMetadata.receiptUrl}" target="_blank">🔗 View Stripe Receipt</a></p>`
-          : ""
-        }
-        <hr />
-        <p>We appreciate your business. If you have any questions, please contact support at <a href="mailto:support@example.com">support@example.com</a>.</p>
-      `;
-
-      // ✅ Send receipt email
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
@@ -374,12 +335,64 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         },
       });
 
+      // ✅ Include inline image using cid
+      const receiptHtml = `
+            <div style="text-align: center;">
+              <img src="cid:headerlogoblack" alt="Homiqly Logo" style="width: 150px; margin-bottom: 20px;" />
+            </div>
+            <h2>Hi ${bookingInfo.firstName} ${bookingInfo.lastName},</h2>
+            <p>Thank you for your payment. Here is your booking receipt:</p>
+            <p><strong>Booking ID:</strong> ${bookingInfo.booking_id}</p>
+            <p><strong>Date:</strong> ${bookingInfo.bookingDate}</p>
+            <p><strong>Time:</strong> ${bookingInfo.bookingTime}</p>
+            <p><strong>Service:</strong> ${bookingInfo.serviceTypeName}</p>
+            <p><strong>Vendor:</strong> ${bookingInfo.vendorName} (${bookingInfo.vendorEmail}, ${bookingInfo.vendorPhone})</p>
+            ${bookingInfo.vendorContactPerson ? `<p><strong>Contact Person:</strong> ${bookingInfo.vendorContactPerson}</p>` : ""}
+            <hr />
+  ${grouped
+          .map(
+            (pkg) => `
+      <h3>Package: ${pkg.packageName}</h3>
+      <ul>
+        ${pkg.items
+                .map(
+                  (item) =>
+                    `<li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity}</li>`
+                )
+                .join("")}
+      </ul>
+    `
+          )
+          .join("")}
+              <hr />
+              <p><strong>Preferences:</strong> ${preferenceText}</p>
+              <p><strong>Total Paid:</strong> ${bookingInfo.payment_currency?.toUpperCase()} $${bookingInfo.payment_amount}</p>
+              <hr />
+              <p><strong>Paid At:</strong> ${stripeMetadata.paidAt}</p>
+              <p><strong>Payment Method:</strong> ${stripeMetadata.cardBrand.toUpperCase()} ending in ${stripeMetadata.last4}</p>
+              <p><strong>Stripe PaymentIntent ID:</strong> ${stripeMetadata.paymentIntentId}</p>
+              <p><strong>Stripe Charge ID:</strong> ${stripeMetadata.chargeId}</p>
+              ${stripeMetadata.receiptUrl
+          ? `<p><a href="${stripeMetadata.receiptUrl}" target="_blank">🔗 View Stripe Receipt</a></p>`
+          : ""
+        }
+              <hr />
+              <p>We appreciate your business. If you have any questions, please contact support at <a href="mailto:support@example.com">support@example.com</a>.</p>
+            `;
+
       transporter.sendMail(
         {
-          from: `"Your App Name" <${process.env.EMAIL_USER}>`,
+          from: `"Homiqly" <${process.env.EMAIL_USER}>`,
           to: bookingInfo.email,
           subject: `Receipt for Booking #${bookingInfo.booking_id}`,
           html: receiptHtml,
+          attachments: [
+            {
+              filename: "homiqly-logo.png",
+              path: "./public/assets/headerlogoblack.png", // 🔁 Adjust path based on your project
+              cid: "headerlogoblack", // must match the cid used in the img src
+            },
+          ],
         },
         (error, info) => {
           if (error) {
@@ -389,6 +402,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
       );
+
     } catch (err) {
       console.error("❌ Error processing Stripe webhook:", err.message);
     }
