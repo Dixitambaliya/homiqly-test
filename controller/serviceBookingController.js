@@ -5,13 +5,13 @@ const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries'
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
-    sendBookingNotificationToUser
+    sendBookingNotificationToUser,
+    sendBookingAssignedNotificationToVendor
 } = require("../config/fcmNotifications/adminNotification")
 const sendEmail = require('../config/mailer');
 
 const bookService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-
     const {
         service_categories_id,
         serviceId,
@@ -20,8 +20,7 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate,
         bookingTime,
         notes,
-        preferences,
-        paymentIntentId
+        preferences
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -52,39 +51,19 @@ const bookService = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ 1. Validate payment intent (if provided)
-        let paymentStatus = 'pending';
-        if (paymentIntentId) {
-            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-            if (!paymentIntent) {
-                return res.status(400).json({ message: "Invalid payment intent ID." });
-            }
-
-            const allowedStatuses = ['succeeded', 'requires_payment_method', 'requires_confirmation', 'requires_action'];
-            if (!allowedStatuses.includes(paymentIntent.status)) {
-                return res.status(402).json({ message: `Invalid payment intent status: ${paymentIntent.status}` });
-            }
-
-            if (paymentIntent.status === 'succeeded') {
-                paymentStatus = 'completed';
-            }
-        }
-
-        // ✅ 2. Prevent duplicate bookings for same package unless status is 'completed' (4) or 'rejected' (2)
+        // ✅ Prevent duplicate bookings
         for (const pkg of parsedPackages) {
             const { package_id } = pkg;
             if (!package_id) continue;
 
             const [existing] = await db.query(
                 `SELECT sb.booking_id
-                    FROM service_booking sb
-                    JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-                    JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-                    WHERE sb.user_id = ? 
-                    AND sbt.service_type_id = ? 
-                    AND sbp.package_id = ? 
-                    AND sb.bookingStatus NOT IN (2, 4)
-                    LIMIT 1`,
+         FROM service_booking sb
+         JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
+         JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+         WHERE sb.user_id = ? AND sbt.service_type_id = ? AND sbp.package_id = ? 
+         AND sb.bookingStatus NOT IN (2, 4)
+         LIMIT 1`,
                 [user_id, service_type_id, package_id]
             );
 
@@ -95,14 +74,14 @@ const bookService = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ 3. Insert booking
+        // ✅ Create booking (no paymentIntentId yet)
         const [insertBooking] = await db.query(
             `INSERT INTO service_booking (
-                service_categories_id, service_id, user_id,
-                bookingDate, bookingTime, vendor_id,
-                notes, bookingMedia, payment_intent_id
-            )
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        service_categories_id, service_id, user_id,
+        bookingDate, bookingTime, vendor_id,
+        notes, bookingMedia, payment_status
+      )
+      VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
             [
                 service_categories_id,
                 serviceId,
@@ -111,19 +90,19 @@ const bookService = asyncHandler(async (req, res) => {
                 bookingTime,
                 notes || null,
                 bookingMedia || null,
-                paymentIntentId || null
+                "pending"
             ]
         );
 
         const booking_id = insertBooking.insertId;
 
-        // ✅ 4. Link service type
+        // Link service type
         await db.query(
             "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
             [booking_id, service_type_id]
         );
 
-        // ✅ 5. Link packages and sub-packages
+        // Link packages + sub-packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
@@ -135,20 +114,17 @@ const bookService = asyncHandler(async (req, res) => {
             for (const item of sub_packages) {
                 if (!item.sub_package_id || item.price == null) continue;
 
-                const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0
-                    ? item.quantity
-                    : 1;
+                const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1;
 
                 await db.query(
-                    `INSERT INTO service_booking_sub_packages
-                     (booking_id, sub_package_id, price, quantity)
-                     VALUES (?, ?, ?, ?)`,
+                    `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
+           VALUES (?, ?, ?, ?)`,
                     [booking_id, item.sub_package_id, item.price, quantity]
                 );
             }
         }
 
-        // ✅ 6. Link preferences
+        // Link preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -159,32 +135,13 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ 7. Update payments table
-        if (paymentIntentId) {
-            await db.query(
-                `UPDATE payments
-                 SET status = ?, vendor_id = NULL
-                 WHERE payment_intent_id = ? AND user_id = ?`,
-                [paymentStatus, paymentIntentId, user_id]
-            );
-        }
-
-        try {
-
-            await sendServiceBookingNotification(
-                booking_id,
-                service_type_id,
-                user_id
-            );
-        } catch (err) {
-            console.error("⚠️ Failed to send vendor registration notification:", err.message);
-        }
+        await sendServiceBookingNotification(booking_id, service_type_id, user_id);
 
         res.status(200).json({
             message: "Booking created successfully.",
             booking_id,
             vendor_assigned: false,
-            payment_status: paymentStatus
+            payment_status: "pending"
         });
 
     } catch (err) {
@@ -192,6 +149,7 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -210,7 +168,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
           s.serviceName,
           sc.serviceCategory,
           st.serviceTypeName,
-          p.status AS payment_status,
+          sb.payment_status AS payment_status,
           p.amount AS payment_amount,
           p.currency AS payment_currency,
           CONCAT(u.firstName,' ', u.lastName) AS userName,
@@ -575,6 +533,11 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
         );
 
         await connection.commit();
+        try {
+            await sendBookingAssignedNotificationToVendor(vendor_id, booking_id);
+        } catch (err) {
+            console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
+        }
         res.status(200).json({ message: `Booking ${booking_id} successfully assigned to vendor ${vendor_id}.` });
     } catch (err) {
         await connection.rollback();

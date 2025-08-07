@@ -4,6 +4,7 @@ const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const asyncHandler = require("express-async-handler");
 
 const getVendor = asyncHandler(async (req, res) => {
@@ -170,6 +171,7 @@ const getBookings = asyncHandler(async (req, res) => {
                 sb.notes,
                 sb.bookingMedia,
                 sb.payment_intent_id,
+                sb.payment_status,
 
                 u.user_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
@@ -188,7 +190,6 @@ const getBookings = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
-                p.status AS payment_status,
                 p.amount AS payment_amount,
                 p.currency AS payment_currency
 
@@ -769,82 +770,144 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
         const [payments] = await db.query(`
-            SELECT
-                p.payment_id,
-                p.payment_intent_id,
-                p.amount,
-                p.currency,
-                p.created_at,
-                p.status,
+      SELECT
+          p.payment_id,
+          p.payment_intent_id,
+          p.amount,
+          p.currency,
+          p.created_at,
+          p.status,
 
-                -- User Info
-                u.user_id,
-                u.firstname AS user_firstname,
-                u.lastname AS user_lastname,
-                u.email AS user_email,
-                u.phone AS user_phone,
+          -- User Info
+          u.user_id,
+          u.firstname AS user_firstname,
+          u.lastname AS user_lastname,
+          u.email AS user_email,
+          u.phone AS user_phone,
 
-                -- Vendor Info
-                v.vendor_id,
-                v.vendorType,
+          -- Vendor Info
+          v.vendor_id,
+          v.vendorType,
 
-                -- Individual Vendor Info
-                idet.name AS individual_name,
-                idet.phone AS individual_phone,
-                idet.email AS individual_email,
-                idet.profileImage AS individual_profile_image,
+          -- Individual Vendor Info
+          idet.name AS individual_name,
+          idet.phone AS individual_phone,
+          idet.email AS individual_email,
+          idet.profileImage AS individual_profile_image,
 
-                -- Company Vendor Info
-                cdet.companyName,
-                cdet.contactPerson,
-                cdet.companyEmail AS email,
-                cdet.companyPhone AS phone,
-                cdet.profileImage AS company_profile_image,
+          -- Company Vendor Info
+          cdet.companyName,
+          cdet.contactPerson,
+          cdet.companyEmail AS email,
+          cdet.companyPhone AS phone,
+          cdet.profileImage AS company_profile_image,
 
-                -- Package Info
-                pkg.package_id,
-                pkg.packageName,
-                pkg.totalPrice,
-                pkg.totalTime,
-                pkg.packageMedia
+          -- Package Info
+          pkg.package_id,
+          pkg.packageName,
+          pkg.totalPrice,
+          pkg.totalTime,
+          pkg.packageMedia
 
-            FROM payments p
+      FROM payments p
+      JOIN users u ON p.user_id = u.user_id
+      JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+      JOIN vendors v ON sb.vendor_id = v.vendor_id
+      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+      JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
+      JOIN packages pkg ON pkg.package_id = sbp.package_id
 
-            -- Join user
-            JOIN users u ON p.user_id = u.user_id
+      ORDER BY p.created_at DESC
+    `);
 
-            -- Join service_booking using payment_intent_id
-            JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+        const enhancedPayments = await Promise.all(
+            payments.map(async (payment, index) => {
+                console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
+                console.log(`👉 Payment ID: ${payment.payment_id}`);
+                console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
 
-            -- Join vendor from booking
-            JOIN vendors v ON sb.vendor_id = v.vendor_id
+                try {
+                    const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id);
+                    console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
 
-            -- Join individual and company details based on vendor type
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+                    const charges = await stripe.charges.list({
+                        payment_intent: payment.payment_intent_id,
+                        limit: 1,
+                    });
+                    const charge = charges.data?.[0];
 
-            -- Join package from booking
-            JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-            JOIN packages pkg ON pkg.package_id = sbp.package_id
+                    if (!charge) {
+                        console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
+                    } else {
+                        console.log(`✅ Retrieved Charge ID: ${charge.id}`);
+                        console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
+                        console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
+                        console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
+                        console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
+                        console.log(`🕒 Paid At (raw): ${charge.created}`);
+                    }
 
-            ORDER BY p.created_at DESC`);
+                    const stripeMetadata = {
+                        cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+                        last4: charge?.payment_method_details?.card?.last4 || "****",
+                        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
+                        chargeId: charge?.id || "N/A",
+                        paidAt: charge?.created
+                            ? new Date(charge.created * 1000).toLocaleString("en-US", {
+                                timeZone: "Asia/Kolkata",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            })
+                            : "N/A",
+                        receiptUrl: charge?.receipt_url || null,
+                        paymentIntentId: charge?.payment_intent || "N/A",
+                    };
 
-        const filteredPayments = payments.map(payment => {
-            return Object.fromEntries(
-                Object.entries(payment).filter(([_, value]) => value !== null)
-            );
-        });
+                    console.log(`✅ Final Stripe Metadata:`, stripeMetadata);
+
+                    return {
+                        ...payment,
+                        ...stripeMetadata,
+                    };
+                } catch (stripeError) {
+                    console.error(`❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
+                    return {
+                        ...payment,
+                        cardBrand: "N/A",
+                        last4: "****",
+                        receiptEmail: payment.user_email,
+                        chargeId: "N/A",
+                        paidAt: "N/A",
+                        receiptUrl: null,
+                        paymentIntentId: payment.payment_intent_id,
+                    };
+                }
+            })
+        );
+
+        // ✅ Remove null fields from final response
+        const filteredPayments = enhancedPayments.map((payment) =>
+            Object.fromEntries(
+                Object.entries(payment).filter(([_, value]) => value !== null && value !== "")
+            )
+        );
+
 
         res.status(200).json({
             success: true,
-            payments: filteredPayments
+            payments: filteredPayments,
         });
-
     } catch (error) {
-        console.error("Error fetching payments:", error);
+        console.error("❌ Error fetching payments:", error);
         res.status(500).json({ success: false, message: "Failed to fetch payments" });
     }
 });
+
+
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {

@@ -203,12 +203,49 @@ const sendBookingNotificationToUser = async (token, userName, booking_id, status
     }
 };
 
+const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id) => {
+    try {
+        // 🔹 1. Get vendor FCM token and name
+        const [[vendor]] = await db.query(
+            `SELECT fcmToken, name FROM vendors WHERE vendor_id = ? AND fcmToken IS NOT NULL`,
+            [vendor_id]
+        );
 
+        if (!vendor) {
+            console.warn(`⚠️ No FCM token found for vendor ${vendor_id}`);
+            return;
+        }
+
+        const vendorName = vendor.name;
+        const token = vendor.fcmToken;
+
+        // 🔹 2. Prepare FCM message
+        const message = {
+            notification: {
+                title: "📢 New Booking Assigned",
+                body: `Hi ${vendorName}, a new booking (ID: ${booking_id}) has been assigned to you.`,
+            },
+            data: {
+                type: "booking_assigned",
+                bookingId: String(booking_id),
+                vendorId: String(vendor_id),
+            },
+            token,
+        };
+
+        // 🔹 3. Send FCM message
+        const response = await admin.messaging().send(message);
+        console.log(`✅ Booking assignment notification sent to vendor ${vendor_id}: ${response}`);
+    } catch (err) {
+        console.error("❌ Failed to send booking assigned notification to vendor:", err.message);
+    }
+};
 
 module.exports = {
     sendVendorRegistrationNotification,
     sendServiceBookingNotification,
     sendEmployeeCreationNotification,
     sendBookingAssignedNotification,
-    sendBookingNotificationToUser
+    sendBookingNotificationToUser,
+    sendBookingAssignedNotificationToVendor
 };
