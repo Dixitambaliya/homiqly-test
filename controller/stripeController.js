@@ -241,20 +241,24 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       console.log(`✅ Payment confirmed and booking updated: ${booking_id}`);
 
-      // ✅ Fetch booking metadata (supporting both individual and company vendors)
+      // ✅ Fetch full booking info including conditional vendor info
       const [[bookingInfo]] = await db.query(
         `
         SELECT 
           sb.booking_id, sb.bookingDate, sb.bookingTime, sb.payment_status,
           u.firstName, u.lastName, u.email,
-          v.name AS individual_name, v.email AS individual_email, v.phone AS individual_phone,
-          cd.companyName, cd.contactPerson, cd.companyEmail, cd.companyPhone,
+          v.vendorType,
+          IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+          IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+          IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+          IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
           st.serviceName,
-          pay.payment_amount, pay.payment_currency
+          pay.payment_amount, pay.currency AS payment_currency
         FROM service_booking sb
         LEFT JOIN users u ON sb.user_id = u.user_id
         LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-        LEFT JOIN company_details cd ON sb.vendor_id = cd.vendor_id
+        LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+        LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
         LEFT JOIN service_type st ON sb.service_id = st.service_id
         LEFT JOIN payments pay ON sb.booking_id = pay.booking_id
         WHERE sb.booking_id = ?
@@ -267,71 +271,45 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return;
       }
 
-      // ✅ Determine vendor type
-      const isCompanyVendor = bookingInfo.companyName !== null;
-      const vendorName = isCompanyVendor ? bookingInfo.companyName : bookingInfo.individual_name;
-      const vendorEmail = isCompanyVendor ? bookingInfo.companyEmail : bookingInfo.individual_email;
-      const vendorPhone = isCompanyVendor ? bookingInfo.companyPhone : bookingInfo.individual_phone;
-      const vendorContact = isCompanyVendor ? bookingInfo.contactPerson : "";
-
       // ✅ Packages
       const [packages] = await db.query(
-        `
-        SELECT
-          p.package_id,
-          p.packageName,
-          p.totalPrice,
-          p.totalTime,
-          p.packageMedia
-        FROM service_booking_packages sbp
-        JOIN packages p ON sbp.package_id = p.package_id
-        WHERE sbp.booking_id = ?
-        `,
+        `SELECT p.package_id, p.packageName, p.totalPrice, p.totalTime, p.packageMedia
+         FROM service_booking_packages sbp
+         JOIN packages p ON sbp.package_id = p.package_id
+         WHERE sbp.booking_id = ?`,
         [booking_id]
       );
 
       // ✅ Sub-packages
       const [items] = await db.query(
-        `
-        SELECT
-          sbsp.sub_package_id AS item_id,
-          pi.itemName,
-          sbsp.price,
-          sbsp.quantity,
-          pi.itemMedia,
-          pi.timeRequired,
-          pi.package_id
-        FROM service_booking_sub_packages sbsp
-        LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-        WHERE sbsp.booking_id = ?
-        `,
+        `SELECT sbsp.sub_package_id AS item_id, pi.itemName, sbsp.price, sbsp.quantity,
+                pi.itemMedia, pi.timeRequired, pi.package_id
+         FROM service_booking_sub_packages sbsp
+         LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+         WHERE sbsp.booking_id = ?`,
         [booking_id]
       );
 
       // ✅ Preferences
       const [preferences] = await db.query(
-        `
-        SELECT
-          bp.preferenceValue
-        FROM booking_preferences bp
-        JOIN service_preferences sp ON bp.preference_id = sp.preference_id
-        WHERE sp.booking_id = ?
-        `,
+        `SELECT bp.preferenceValue
+         FROM booking_preferences bp
+         JOIN service_preferences sp ON bp.preference_id = sp.preference_id
+         WHERE sp.booking_id = ?`,
         [booking_id]
       );
 
-      const grouped = packages.map((pkg) => {
-        const relatedItems = items.filter((i) => i.package_id === pkg.package_id);
-        return { ...pkg, items: relatedItems };
-      });
+      const grouped = packages.map((pkg) => ({
+        ...pkg,
+        items: items.filter((i) => i.package_id === pkg.package_id),
+      }));
 
       const preferenceText = preferences.map((p) => p.preferenceValue).join(", ") || "None";
 
-      // ✅ Stripe charge details
+      // ✅ Stripe Metadata
       const stripeMetadata = {
         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
         last4: charge?.payment_method_details?.card?.last4 || "****",
-        paymentMethodType: charge?.payment_method_details?.type || "card",
         receiptEmail: charge?.receipt_email || bookingInfo.email,
         chargeId: charge?.id || "N/A",
         paidAt: new Date((charge?.created || Date.now()) * 1000).toLocaleString("en-US", {
@@ -345,7 +323,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         receiptUrl: charge?.receipt_url || null,
       };
 
-      // ✅ Build HTML
+      // ✅ Build receipt HTML
       const receiptHtml = `
         <h2>Hi ${bookingInfo.firstName} ${bookingInfo.lastName},</h2>
         <p>Thank you for your payment. Here is your booking receipt:</p>
@@ -353,23 +331,22 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         <p><strong>Date:</strong> ${bookingInfo.bookingDate}</p>
         <p><strong>Time:</strong> ${bookingInfo.bookingTime}</p>
         <p><strong>Service:</strong> ${bookingInfo.serviceName}</p>
-        <p><strong>Vendor:</strong> ${vendorName} (${vendorEmail}, ${vendorPhone})</p>
-        ${vendorContact ? `<p><strong>Contact Person:</strong> ${vendorContact}</p>` : ""}
+        <p><strong>Vendor:</strong> ${bookingInfo.vendorName} (${bookingInfo.vendorEmail}, ${bookingInfo.vendorPhone})</p>
+        ${bookingInfo.vendorContactPerson ? `<p><strong>Contact Person:</strong> ${bookingInfo.vendorContactPerson}</p>` : ""}
         <hr />
         ${grouped
           .map(
             (pkg) => `
-          <h3>Package: ${pkg.packageName}</h3>
-          <ul>
-            ${pkg.items
+            <h3>Package: ${pkg.packageName}</h3>
+            <ul>
+              ${pkg.items
                 .map(
                   (item) =>
-                    `<li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity
-                    }</li>`
+                    `<li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity}</li>`
                 )
                 .join("")}
-          </ul>
-        `
+            </ul>
+          `
           )
           .join("")}
         <hr />
@@ -388,7 +365,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         <p>We appreciate your business. If you have any questions, please contact support at <a href="mailto:support@example.com">support@example.com</a>.</p>
       `;
 
-      // ✅ Email transport
+      // ✅ Send receipt email
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
@@ -397,20 +374,21 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         },
       });
 
-      const receiptMailOptions = {
-        from: `"Your App Name" <${process.env.EMAIL_USER}>`,
-        to: bookingInfo.email,
-        subject: `Receipt for Booking #${bookingInfo.booking_id}`,
-        html: receiptHtml,
-      };
-
-      transporter.sendMail(receiptMailOptions, (error, info) => {
-        if (error) {
-          console.error("❌ Failed to send receipt email:", error.message);
-        } else {
-          console.log("📧 Receipt email sent:", info.response);
+      transporter.sendMail(
+        {
+          from: `"Your App Name" <${process.env.EMAIL_USER}>`,
+          to: bookingInfo.email,
+          subject: `Receipt for Booking #${bookingInfo.booking_id}`,
+          html: receiptHtml,
+        },
+        (error, info) => {
+          if (error) {
+            console.error("❌ Failed to send receipt email:", error.message);
+          } else {
+            console.log("📧 Receipt email sent:", info.response);
+          }
         }
-      });
+      );
     } catch (err) {
       console.error("❌ Error processing Stripe webhook:", err.message);
     }
@@ -418,6 +396,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     console.log("ℹ️ Ignored event type:", event.type);
   }
 });
+
 
 
 
