@@ -845,105 +845,116 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     try {
         const [bookings] = await db.query(
             `SELECT
-                sb.booking_id,
-                sb.service_categories_id,
-                sb.service_id,
-                sb.vendor_id,
-                sb.assigned_employee_id,
-                sb.user_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.payment_intent_id,
-                sb.notes,
-                sb.bookingMedia,
-                sb.created_at,
+          sb.booking_id,
+          sb.service_categories_id,
+          sb.service_id,
+          sb.vendor_id,
+          sb.assigned_employee_id,
+          sb.user_id,
+          sb.bookingDate,
+          sb.bookingTime,
+          sb.bookingStatus,
+          sb.payment_intent_id,
+          sb.notes,
+          sb.bookingMedia,
+          sb.created_at,
 
-                -- User Info
-                CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
-                u.email AS user_email,
-                u.phone AS user_phone,
-                
-                -- Vendor Info
-                v.vendorType,
+          -- User Info
+          CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
+          u.email AS user_email,
+          u.phone AS user_phone,
+          
+          -- Vendor Info
+          v.vendorType,
+          cdet.contactPerson,
+          COALESCE(idet.name, cdet.companyName) AS vendor_name,
+          COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
+          COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
-                cdet.contactPerson,
+          -- Package Info
+          pkg.package_id,
+          pkg.packageName,
+          pkg.totalPrice,
+          pkg.totalTime
 
-                COALESCE(idet.name, cdet.companyName) AS vendor_name,
-                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
-                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
-
-                -- Package Info
-                pkg.package_id,
-                pkg.packageName,
-                pkg.totalPrice,
-                pkg.totalTime
-
-            FROM service_booking sb
-
-            JOIN users u ON sb.user_id = u.user_id
-            JOIN vendors v ON sb.vendor_id = v.vendor_id
-
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-
-            LEFT JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-            LEFT JOIN packages pkg ON pkg.package_id = sbp.package_id
-
-            WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
-
-            ORDER BY sb.created_at DESC`,
+      FROM service_booking sb
+      JOIN users u ON sb.user_id = u.user_id
+      JOIN vendors v ON sb.vendor_id = v.vendor_id
+      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+      LEFT JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
+      LEFT JOIN packages pkg ON pkg.package_id = sbp.package_id
+      WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
+      ORDER BY sb.created_at DESC`,
             [vendor_id]
         );
 
-        const enriched = [];
+        const enriched = await Promise.all(
+            bookings.map(async (booking, index) => {
+                try {
+                    const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id);
+                    const charges = await stripe.charges.list({
+                        payment_intent: booking.payment_intent_id,
+                        limit: 1,
+                    });
+                    const charge = charges.data?.[0];
 
-        for (const booking of bookings) {
-            let stripeData = null;
-
-            try {
-                const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id, {
-                    expand: ['charges.data.payment_method_details']
-                });
-
-                const charge = paymentIntent.charges?.data?.[0];
-
-                if (charge) {
-                    stripeData = {
-                        charge_id: charge.id,
-                        amount: charge.amount / 100,
-                        currency: charge.currency,
-                        status: charge.status,
-                        receipt_url: charge.receipt_url,
-                        card_brand: charge.payment_method_details?.card?.brand,
-                        last4: charge.payment_method_details?.card?.last4,
-                        card_country: charge.payment_method_details?.card?.country,
-                        billing_name: charge.billing_details?.name,
-                        billing_email: charge.billing_details?.email,
-                        metadata: charge.metadata || {}
+                    const stripeMetadata = {
+                        cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+                        last4: charge?.payment_method_details?.card?.last4 || "****",
+                        receiptEmail:
+                            charge?.receipt_email ||
+                            charge?.billing_details?.email ||
+                            booking.user_email ||
+                            "N/A",
+                        chargeId: charge?.id || "N/A",
+                        paidAt: charge?.created
+                            ? new Date(charge.created * 1000).toLocaleString("en-US", {
+                                timeZone: "Asia/Kolkata",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            })
+                            : "N/A",
+                        receiptUrl: charge?.receipt_url || null,
+                        paymentIntentId: charge?.payment_intent || "N/A",
                     };
-                }
-            } catch (err) {
-                console.warn(`Stripe error for intent ${booking.payment_intent_id}: ${err.message}`);
-            }
 
-            enriched.push({
-                ...booking,
-                stripe_payment: stripeData
-            });
-        }
+                    const combined = { ...booking, ...stripeMetadata };
+
+                    // Remove null fields
+                    return Object.fromEntries(Object.entries(combined).filter(([_, v]) => v !== null));
+                } catch (err) {
+                    console.error(`❌ Failed to retrieve Stripe data for ${booking.payment_intent_id}:`, err.message);
+                    const fallbackStripe = {
+                        cardBrand: "N/A",
+                        last4: "****",
+                        receiptEmail: booking.user_email,
+                        chargeId: "N/A",
+                        paidAt: "N/A",
+                        receiptUrl: null,
+                        paymentIntentId: booking.payment_intent_id,
+                    };
+
+                    const combined = { ...booking, ...fallbackStripe };
+                    return Object.fromEntries(Object.entries(combined).filter(([_, v]) => v !== null));
+                }
+            })
+        );
 
         res.status(200).json({
             vendor_id,
             total: enriched.length,
-            bookings: enriched
+            bookings: enriched,
         });
-
     } catch (err) {
-        console.error("Error fetching vendor history:", err);
+        console.error("❌ Error fetching vendor payment history:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
