@@ -5,6 +5,8 @@ const { db, testConnection } = require("./config/db")
 const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
+require("./croj-jobs/reminder"); // import at top of server.js or app.js
+
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
