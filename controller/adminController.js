@@ -810,7 +810,6 @@ const getAllPayments = asyncHandler(async (req, res) => {
           pkg.packageMedia
 
       FROM payments p
-
       JOIN users u ON p.user_id = u.user_id
       JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
       JOIN vendors v ON sb.vendor_id = v.vendor_id
@@ -822,71 +821,64 @@ const getAllPayments = asyncHandler(async (req, res) => {
       ORDER BY p.created_at DESC
     `);
 
-        try {
-            // ✅ Enhance each payment with live Stripe metadata
-            const enhancedPayments = await Promise.all(
-                payments.map(async (payment) => {
-                    try {
-                        // Fetch full payment intent
-                        const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id, {
-                            expand: ['charges.data.payment_method_details'],
-                        });
+        const enhancedPayments = await Promise.all(
+            payments.map(async (payment) => {
+                try {
+                    const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id, {
+                        expand: ['charges.data.payment_method_details'],
+                    });
 
-                        const charge = paymentIntent?.charges?.data?.[0];
+                    const charge = paymentIntent?.charges?.data?.[0];
 
-                        const stripeMetadata = {
-                            cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
-                            last4: charge?.payment_method_details?.card?.last4 || "****",
-                            receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
-                            chargeId: charge?.id || "N/A",
-                            paidAt: charge?.created
-                                ? new Date(charge.created * 1000).toLocaleString("en-US", {
-                                    timeZone: "Asia/Kolkata",
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })
-                                : "N/A",
-                            receiptUrl: charge?.receipt_url || null,
-                            paymentIntentId: charge?.payment_intent || "N/A",
-                        };
+                    const stripeMetadata = {
+                        cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+                        last4: charge?.payment_method_details?.card?.last4 || "****",
+                        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
+                        chargeId: charge?.id || "N/A",
+                        paidAt: charge?.created
+                            ? new Date(charge.created * 1000).toLocaleString("en-US", {
+                                timeZone: "Asia/Kolkata",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            })
+                            : "N/A",
+                        receiptUrl: charge?.receipt_url || null,
+                        paymentIntentId: charge?.payment_intent || "N/A",
+                    };
 
-                        return {
-                            ...payment,
-                            ...stripeMetadata,
-                        };
-                    } catch (stripeError) {
-                        console.warn(`⚠️ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
-                        return {
-                            ...payment,
-                            cardBrand: "N/A",
-                            last4: "****",
-                            receiptEmail: payment.user_email,
-                            chargeId: "N/A",
-                            paidAt: "N/A",
-                            receiptUrl: null,
-                            paymentIntentId: payment.payment_intent_id,
-                        };
-                    }
-                })
-            );
-        } catch (error) {
-            console.error("Error fetching payments:", error);
-            return res.status(500).json({ success: false, message: "Failed to fetch payments" });
-
-        }
+                    return {
+                        ...payment,
+                        ...stripeMetadata,
+                    };
+                } catch (stripeError) {
+                    console.warn(`⚠️ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
+                    return {
+                        ...payment,
+                        cardBrand: "N/A",
+                        last4: "****",
+                        receiptEmail: payment.user_email,
+                        chargeId: "N/A",
+                        paidAt: "N/A",
+                        receiptUrl: null,
+                        paymentIntentId: payment.payment_intent_id,
+                    };
+                }
+            })
+        );
 
         res.status(200).json({
             success: true,
             payments: enhancedPayments,
         });
     } catch (error) {
-        console.error("Error fetching payments:", error);
+        console.error("❌ Error fetching payments:", error);
         res.status(500).json({ success: false, message: "Failed to fetch payments" });
     }
 });
+
 
 
 const getAllPackages = asyncHandler(async (req, res) => {
