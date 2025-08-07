@@ -4,6 +4,7 @@ const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const asyncHandler = require("express-async-handler");
 
 const getVendor = asyncHandler(async (req, res) => {
@@ -769,82 +770,124 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
         const [payments] = await db.query(`
-            SELECT
-                p.payment_id,
-                p.payment_intent_id,
-                p.amount,
-                p.currency,
-                p.created_at,
-                p.status,
+      SELECT
+          p.payment_id,
+          p.payment_intent_id,
+          p.amount,
+          p.currency,
+          p.created_at,
+          p.status,
 
-                -- User Info
-                u.user_id,
-                u.firstname AS user_firstname,
-                u.lastname AS user_lastname,
-                u.email AS user_email,
-                u.phone AS user_phone,
+          -- User Info
+          u.user_id,
+          u.firstname AS user_firstname,
+          u.lastname AS user_lastname,
+          u.email AS user_email,
+          u.phone AS user_phone,
 
-                -- Vendor Info
-                v.vendor_id,
-                v.vendorType,
+          -- Vendor Info
+          v.vendor_id,
+          v.vendorType,
 
-                -- Individual Vendor Info
-                idet.name AS individual_name,
-                idet.phone AS individual_phone,
-                idet.email AS individual_email,
-                idet.profileImage AS individual_profile_image,
+          -- Individual Vendor Info
+          idet.name AS individual_name,
+          idet.phone AS individual_phone,
+          idet.email AS individual_email,
+          idet.profileImage AS individual_profile_image,
 
-                -- Company Vendor Info
-                cdet.companyName,
-                cdet.contactPerson,
-                cdet.companyEmail AS email,
-                cdet.companyPhone AS phone,
-                cdet.profileImage AS company_profile_image,
+          -- Company Vendor Info
+          cdet.companyName,
+          cdet.contactPerson,
+          cdet.companyEmail AS email,
+          cdet.companyPhone AS phone,
+          cdet.profileImage AS company_profile_image,
 
-                -- Package Info
-                pkg.package_id,
-                pkg.packageName,
-                pkg.totalPrice,
-                pkg.totalTime,
-                pkg.packageMedia
+          -- Package Info
+          pkg.package_id,
+          pkg.packageName,
+          pkg.totalPrice,
+          pkg.totalTime,
+          pkg.packageMedia
 
-            FROM payments p
+      FROM payments p
 
-            -- Join user
-            JOIN users u ON p.user_id = u.user_id
+      JOIN users u ON p.user_id = u.user_id
+      JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+      JOIN vendors v ON sb.vendor_id = v.vendor_id
+      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+      JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
+      JOIN packages pkg ON pkg.package_id = sbp.package_id
 
-            -- Join service_booking using payment_intent_id
-            JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+      ORDER BY p.created_at DESC
+    `);
 
-            -- Join vendor from booking
-            JOIN vendors v ON sb.vendor_id = v.vendor_id
+        try {
+            // ✅ Enhance each payment with live Stripe metadata
+            const enhancedPayments = await Promise.all(
+                payments.map(async (payment) => {
+                    try {
+                        // Fetch full payment intent
+                        const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id, {
+                            expand: ['charges.data.payment_method_details'],
+                        });
 
-            -- Join individual and company details based on vendor type
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+                        const charge = paymentIntent?.charges?.data?.[0];
 
-            -- Join package from booking
-            JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-            JOIN packages pkg ON pkg.package_id = sbp.package_id
+                        const stripeMetadata = {
+                            cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+                            last4: charge?.payment_method_details?.card?.last4 || "****",
+                            receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
+                            chargeId: charge?.id || "N/A",
+                            paidAt: charge?.created
+                                ? new Date(charge.created * 1000).toLocaleString("en-US", {
+                                    timeZone: "Asia/Kolkata",
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })
+                                : "N/A",
+                            receiptUrl: charge?.receipt_url || null,
+                            paymentIntentId: charge?.payment_intent || "N/A",
+                        };
 
-            ORDER BY p.created_at DESC`);
-
-        const filteredPayments = payments.map(payment => {
-            return Object.fromEntries(
-                Object.entries(payment).filter(([_, value]) => value !== null)
+                        return {
+                            ...payment,
+                            ...stripeMetadata,
+                        };
+                    } catch (stripeError) {
+                        console.warn(`⚠️ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
+                        return {
+                            ...payment,
+                            cardBrand: "N/A",
+                            last4: "****",
+                            receiptEmail: payment.user_email,
+                            chargeId: "N/A",
+                            paidAt: "N/A",
+                            receiptUrl: null,
+                            paymentIntentId: payment.payment_intent_id,
+                        };
+                    }
+                })
             );
-        });
+        } catch (error) {
+            console.error("Error fetching payments:", error);
+            return res.status(500).json({ success: false, message: "Failed to fetch payments" });
+
+        }
 
         res.status(200).json({
             success: true,
-            payments: filteredPayments
+            payments: enhancedPayments,
         });
-
     } catch (error) {
         console.error("Error fetching payments:", error);
         res.status(500).json({ success: false, message: "Failed to fetch payments" });
     }
 });
+
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
