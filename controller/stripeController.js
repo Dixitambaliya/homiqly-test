@@ -252,8 +252,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
           IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
           IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
-          st.serviceName,
-          pay.payment_amount, pay.currency AS payment_currency
+          st.serviceTypeName,
+          pay.amount, pay.currency AS payment_currency
         FROM service_booking sb
         LEFT JOIN users u ON sb.user_id = u.user_id
         LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
