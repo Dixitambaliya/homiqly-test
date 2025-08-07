@@ -230,10 +230,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       const booking_id = rows[0].booking_id;
 
       // ✅ Update statuses
-      await db.query(
-        `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
-        [paymentIntentId]
-      );
+      await db.query(`UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`, [
+        paymentIntentId,
+      ]);
 
       await db.query(
         `UPDATE service_booking SET payment_status = 'completed', payment_intent_id = ? WHERE booking_id = ?`,
@@ -242,29 +241,42 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       console.log(`✅ Payment confirmed and booking updated: ${booking_id}`);
 
-      // ✅ Fetch booking metadata
-      const [[bookingInfo]] = await db.query(`
+      // ✅ Fetch booking metadata (supporting both individual and company vendors)
+      const [[bookingInfo]] = await db.query(
+        `
         SELECT 
           sb.booking_id, sb.bookingDate, sb.bookingTime, sb.payment_status,
           u.firstName, u.lastName, u.email,
-          v.vendor_name, v.vendor_email, v.vendor_phone,
+          v.name AS individual_name, v.email AS individual_email, v.phone AS individual_phone,
+          cd.companyName, cd.contactPerson, cd.companyEmail, cd.companyPhone,
           st.serviceName,
           pay.payment_amount, pay.payment_currency
         FROM service_booking sb
         LEFT JOIN users u ON sb.user_id = u.user_id
         LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+        LEFT JOIN company_details cd ON sb.vendor_id = cd.vendor_id
         LEFT JOIN service_type st ON sb.service_id = st.service_id
         LEFT JOIN payments pay ON sb.booking_id = pay.booking_id
         WHERE sb.booking_id = ?
-      `, [booking_id]);
+        `,
+        [booking_id]
+      );
 
       if (!bookingInfo) {
         console.warn("⚠️ No booking info found for receipt email.");
         return;
       }
 
+      // ✅ Determine vendor type
+      const isCompanyVendor = bookingInfo.companyName !== null;
+      const vendorName = isCompanyVendor ? bookingInfo.companyName : bookingInfo.individual_name;
+      const vendorEmail = isCompanyVendor ? bookingInfo.companyEmail : bookingInfo.individual_email;
+      const vendorPhone = isCompanyVendor ? bookingInfo.companyPhone : bookingInfo.individual_phone;
+      const vendorContact = isCompanyVendor ? bookingInfo.contactPerson : "";
+
       // ✅ Packages
-      const [packages] = await db.query(`
+      const [packages] = await db.query(
+        `
         SELECT
           p.package_id,
           p.packageName,
@@ -274,10 +286,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         FROM service_booking_packages sbp
         JOIN packages p ON sbp.package_id = p.package_id
         WHERE sbp.booking_id = ?
-      `, [booking_id]);
+        `,
+        [booking_id]
+      );
 
       // ✅ Sub-packages
-      const [items] = await db.query(`
+      const [items] = await db.query(
+        `
         SELECT
           sbsp.sub_package_id AS item_id,
           pi.itemName,
@@ -289,23 +304,28 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         FROM service_booking_sub_packages sbsp
         LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
         WHERE sbsp.booking_id = ?
-      `, [booking_id]);
+        `,
+        [booking_id]
+      );
 
       // ✅ Preferences
-      const [preferences] = await db.query(`
+      const [preferences] = await db.query(
+        `
         SELECT
           bp.preferenceValue
         FROM booking_preferences bp
         JOIN service_preferences sp ON bp.preference_id = sp.preference_id
         WHERE sp.booking_id = ?
-      `, [booking_id]);
+        `,
+        [booking_id]
+      );
 
-      const grouped = packages.map(pkg => {
-        const relatedItems = items.filter(i => i.package_id === pkg.package_id);
+      const grouped = packages.map((pkg) => {
+        const relatedItems = items.filter((i) => i.package_id === pkg.package_id);
         return { ...pkg, items: relatedItems };
       });
 
-      const preferenceText = preferences.map(p => p.preferenceValue).join(', ') || 'None';
+      const preferenceText = preferences.map((p) => p.preferenceValue).join(", ") || "None";
 
       // ✅ Stripe charge details
       const stripeMetadata = {
@@ -333,16 +353,25 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         <p><strong>Date:</strong> ${bookingInfo.bookingDate}</p>
         <p><strong>Time:</strong> ${bookingInfo.bookingTime}</p>
         <p><strong>Service:</strong> ${bookingInfo.serviceName}</p>
-        <p><strong>Vendor:</strong> ${bookingInfo.vendor_name} (${bookingInfo.vendor_email}, ${bookingInfo.vendor_phone})</p>
+        <p><strong>Vendor:</strong> ${vendorName} (${vendorEmail}, ${vendorPhone})</p>
+        ${vendorContact ? `<p><strong>Contact Person:</strong> ${vendorContact}</p>` : ""}
         <hr />
-        ${grouped.map(pkg => `
+        ${grouped
+          .map(
+            (pkg) => `
           <h3>Package: ${pkg.packageName}</h3>
           <ul>
-            ${pkg.items.map(item => `
-              <li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity}</li>
-            `).join('')}
+            ${pkg.items
+                .map(
+                  (item) =>
+                    `<li>${item.itemName} - $${item.price} × ${item.quantity} = $${item.price * item.quantity
+                    }</li>`
+                )
+                .join("")}
           </ul>
-        `).join('')}
+        `
+          )
+          .join("")}
         <hr />
         <p><strong>Preferences:</strong> ${preferenceText}</p>
         <p><strong>Total Paid:</strong> ${bookingInfo.payment_currency?.toUpperCase()} $${bookingInfo.payment_amount}</p>
@@ -351,7 +380,10 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         <p><strong>Payment Method:</strong> ${stripeMetadata.cardBrand.toUpperCase()} ending in ${stripeMetadata.last4}</p>
         <p><strong>Stripe PaymentIntent ID:</strong> ${paymentIntent.id}</p>
         <p><strong>Stripe Charge ID:</strong> ${stripeMetadata.chargeId}</p>
-        ${stripeMetadata.receiptUrl ? `<p><a href="${stripeMetadata.receiptUrl}" target="_blank">🔗 View Stripe Receipt</a></p>` : ""}
+        ${stripeMetadata.receiptUrl
+          ? `<p><a href="${stripeMetadata.receiptUrl}" target="_blank">🔗 View Stripe Receipt</a></p>`
+          : ""
+        }
         <hr />
         <p>We appreciate your business. If you have any questions, please contact support at <a href="mailto:support@example.com">support@example.com</a>.</p>
       `;
@@ -379,15 +411,14 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           console.log("📧 Receipt email sent:", info.response);
         }
       });
-
     } catch (err) {
       console.error("❌ Error processing Stripe webhook:", err.message);
     }
-
   } else {
     console.log("ℹ️ Ignored event type:", event.type);
   }
 });
+
 
 
 
