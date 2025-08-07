@@ -211,17 +211,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
   res.status(200).json({ received: true });
 
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntent = event.data.object;
-    const paymentIntentId = paymentIntent.id;
-    const chargeId = paymentIntent?.charges?.data?.[0]?.id;
-
-    if (!chargeId) {
-      console.warn("⚠️ No charge ID found in paymentIntent.");
-      return;
-    }
-    const charge = await stripe.charges.retrieve(chargeId);
-
+  if (event.type === "charge.succeeded") {
+    const charge = event.data.object;
+    const paymentIntentId = charge.payment_intent;
 
     try {
       const [rows] = await db.query(
