@@ -1,55 +1,66 @@
-import React from 'react';
+import React from "react";
 
 const FormSelect = ({
   label,
   name,
-  options,
   value,
   onChange,
+  options = [],
   required = false,
   disabled = false,
   error,
-  placeholder = 'Select an option',
-  className = '',
+  placeholder = "Select an option",
+  icon,
+  className = "",
   ...rest
 }) => {
   return (
-    <div className={`mb-4 ${className}`}>
-      {label && (
-        <label 
-          htmlFor={name} 
-          className="block text-sm font-medium text-gray-700 mb-1"
+    <div className={`w-full ${className}`}>
+      <div className="relative">
+        {label && (
+          <label
+            htmlFor={name}
+            className="block mb-1 text-sm font-medium text-gray-700"
+          >
+            {label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+        )}
+
+        <div
+          className={`relative flex items-center rounded-lg border ${
+            error ? "border-red-400" : "border-gray-300"
+          } shadow-sm bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all`}
         >
-          {label}
-          {required && <span className="text-error ml-1">*</span>}
-        </label>
-      )}
-      
-      <select
-        id={name}
-        name={name}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        required={required}
-        className={`
-          block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary rounded-md shadow-sm sm:text-sm
-          ${disabled ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-          ${error ? 'border-error' : 'border-gray-300'}
-        `}
-        {...rest}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      
-      {error && (
-        <p className="mt-1 text-sm text-error">{error}</p>
-      )}
+          {icon && (
+            <div className="pl-3 text-gray-400 pointer-events-none">{icon}</div>
+          )}
+
+          <select
+            id={name}
+            name={name}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            required={required}
+            className={`w-full text-sm text-gray-900 outline-none bg-transparent py-3 ${
+              icon ? "pl-2 pr-4" : "px-4"
+            } ${disabled ? "text-gray-400 bg-gray-50" : "text-gray-900"}`}
+            {...rest}
+          >
+            <option value="">{placeholder}</option>
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-500 mt-1 font-medium">{error}</p>
+        )}
+      </div>
     </div>
   );
 };

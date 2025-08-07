@@ -3,6 +3,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { FiEye, FiX } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import EmployeesTable from "../components/Tables/EmployeesTable";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
@@ -41,7 +42,7 @@ const Employees = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <LoadingSpinner  />
+        <LoadingSpinner />
       </div>
     );
   }
@@ -62,132 +63,81 @@ const Employees = () => {
         </h2>
       </div>
 
-      {employees.length > 0 ? (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {employees.map((employee) => (
-                  <tr key={employee.employee_id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {employee.employee_id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {employee.employee_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {employee.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {employee.phone || "N/A"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          employee.is_active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {employee.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => viewEmployeeDetails(employee)}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        <FiEye className="h-5 w-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-600">No employees found.</p>
-        </div>
-      )}
+      <EmployeesTable
+        employees={employees}
+        isLoading={loading}
+        onViewEmployee={viewEmployeeDetails}
+      />
 
       {showDetailsModal && selectedEmployee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">Employee Details</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-xl font-semibold text-gray-800">
+                Employee Details
+              </h2>
               <button
                 onClick={() => setShowDetailsModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-400 hover:text-gray-600 transition"
               >
-                <FiX className="h-5 w-5" />
+                <FiX className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">ID</p>
-                <p className="text-gray-900 font-medium">
-                  {selectedEmployee.employee_id}
-                </p>
+
+            {/* Body */}
+            <div className="p-6 space-y-6">
+              {/* Row 1 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-lg p-4 border">
+                  <p className="text-sm text-gray-500 mb-1">Employee ID</p>
+                  <p className="text-gray-800 font-medium">
+                    {selectedEmployee.employee_id}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 border">
+                  <p className="text-sm text-gray-500 mb-1">Status</p>
+                  <p
+                    className={`font-medium ${
+                      selectedEmployee.is_active
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {selectedEmployee.is_active ? "Active" : "Inactive"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Status</p>
-                <p
-                  className={`font-medium ${
-                    selectedEmployee.is_active
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {selectedEmployee.is_active ? "Active" : "Inactive"}
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-sm text-gray-500">Full Name</p>
-                <p className="text-gray-900 font-medium">
-                  {selectedEmployee.first_name} {selectedEmployee.last_name}
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="text-gray-900 font-medium">
-                  {selectedEmployee.email}
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-sm text-gray-500">Phone</p>
-                <p className="text-gray-900 font-medium">
-                  {selectedEmployee.phone || "N/A"}
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-sm text-gray-500">Created At</p>
-                <p className="text-gray-900 font-medium">
-                  {new Date(selectedEmployee.created_at).toLocaleString()}
-                </p>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-1">Full Name</p>
+                  <p className="text-gray-800 font-medium">
+                    {selectedEmployee.employee_name}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-1">Email</p>
+                  <p className="text-gray-800 font-medium">
+                    {selectedEmployee.email}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-1">Phone</p>
+                  <p className="text-gray-800 font-medium">
+                    {selectedEmployee.phone || "N/A"}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-1">Created At</p>
+                  <p className="text-gray-800 font-medium">
+                    {new Date(selectedEmployee.created_at).toLocaleString()}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

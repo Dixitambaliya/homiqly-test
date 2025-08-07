@@ -4,6 +4,10 @@ import { FiDownload, FiFilter } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import { formatCurrency } from "../../shared/utils/formatUtils";
+import { Button } from "../../shared/components/Button";
+import FormSelect from "../../shared/components/Form/FormSelect";
+import PaymentsTable from "../components/Tables/PaymentsTable";
+import { useNavigate } from "react-router-dom";
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -11,6 +15,7 @@ const Payments = () => {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all"); // all, individual, company
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchPayments();
@@ -21,10 +26,10 @@ const Payments = () => {
       setLoading(true);
       const response = await axios.get("/api/admin/getpayments");
       setPayments(response.data.payments || []);
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching payments:", error);
       setError("Failed to load payment history");
+    } finally {
       setLoading(false);
     }
   };
@@ -109,13 +114,13 @@ const Payments = () => {
         <h2 className="text-2xl font-bold text-gray-800">
           Admin Payment History
         </h2>
-        <button
+        <Button
           onClick={exportToCSV}
-          className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark flex items-center"
+          // className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark flex items-center"
         >
           <FiDownload className="mr-2" />
           Export CSV
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -177,95 +182,29 @@ const Payments = () => {
               />
             </div>
             <div className="flex items-end">
-              <button
+              <Button
                 onClick={() => {
                   setFilter("all");
                   setDateRange({ startDate: "", endDate: "" });
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                variant="ghost"
               >
                 Clear Filters
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      {filteredPayments.length > 0 ? (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Payment ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Vendor
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Package
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Currency
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPayments.map((payment) => (
-                  <tr key={payment.payment_id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      #{payment.payment_id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {payment.user_firstname} {payment.user_lastname}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {payment.user_email}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {payment.individual_name}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {payment.vendorType}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {payment.packageName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                      {formatCurrency(payment.amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {payment.currency.toUpperCase()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(payment.created_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-600">No payment records found.</p>
-        </div>
-      )}
+      <PaymentsTable
+        payouts={filteredPayments}
+        isLoading={loading}
+        onViewPayment={(payment) =>
+          navigate(`/admin/payments/${payment.payment_id}`, {
+            state: { payment },
+          })
+        }
+      />
     </div>
   );
 };

@@ -1,5 +1,7 @@
 import React from 'react';
 import { FiEye, FiEdit } from 'react-icons/fi';
+import { MdEdit } from "react-icons/md";
+
 import DataTable from '../../../shared/components/Table/DataTable';
 import { IconButton } from '../../../shared/components/Button';
 import { formatDate } from '../../../shared/utils/dateUtils';
@@ -64,7 +66,7 @@ const UsersTable = ({
       render: (row) => (
         <div className="flex items-center justify-end space-x-2">
           <IconButton
-            icon={<FiEye className="h-4 w-4" />}
+            icon={<FiEye  />}
             variant="ghost"
             size="sm"
             onClick={(e) => {
@@ -74,7 +76,7 @@ const UsersTable = ({
             tooltip="View details"
           />
           <IconButton
-            icon={<FiEdit className="h-4 w-4" />}
+            icon={<MdEdit  />}
             variant="primary"
             size="sm"
             onClick={(e) => {

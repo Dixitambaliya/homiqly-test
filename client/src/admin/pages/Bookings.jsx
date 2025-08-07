@@ -81,7 +81,7 @@ const Bookings = () => {
         <h2 className="text-2xl font-bold text-gray-800">Booking Management</h2>
         <Button
           onClick={fetchBookings}
-          variant="secondary"
+          variant="lightInherit"
           className="flex items-center"
         >
           <FiRefreshCw className="mr-2" />

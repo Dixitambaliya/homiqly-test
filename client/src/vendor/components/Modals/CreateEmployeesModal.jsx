@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { Button } from "../../../shared/components/Button";
 import { FormInput } from "../../../shared/components/Form";
 import Loader from "../../../shared/components/LoadingSpinner";
+import LoadingSlider from "../../../shared/components/LoadingSpinner";
 
 const CreateEmployeesModal = ({ isOpen, onClose, onEmployeeCreated }) => {
   const [form, setForm] = useState({
@@ -43,7 +44,7 @@ const CreateEmployeesModal = ({ isOpen, onClose, onEmployeeCreated }) => {
   if (!isOpen) return null;
 
   if (loading) {
-    <Loader />;
+    <LoadingSlider />;
   }
 
   return (
@@ -83,7 +84,7 @@ const CreateEmployeesModal = ({ isOpen, onClose, onEmployeeCreated }) => {
           <div className="flex justify-end gap-2">
             <Button
               type="button"
-              variant="secondary"
+              variant="lightInherit"
               onClick={onClose}
               //   className="px-4 py-2 bg-gray-300 rounded"
             >

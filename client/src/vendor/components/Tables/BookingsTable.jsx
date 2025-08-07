@@ -2,7 +2,7 @@ import React from "react";
 import { FiEye, FiCheckCircle, FiXCircle } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
-import { IconButton } from "../../../shared/components/Button";
+import { Button, IconButton } from "../../../shared/components/Button";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 
 const BookingsTable = ({
@@ -75,13 +75,12 @@ const BookingsTable = ({
                       ))}
                     </select>
 
-                    <button
+                    <Button
                       onClick={() => onAssignEmployee(row.booking_id)}
                       disabled={!row.selectedEmployeeId}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
                     >
-                    Assign
-                    </button>
+                      Assign
+                    </Button>
                   </div>
                 )}
               </div>

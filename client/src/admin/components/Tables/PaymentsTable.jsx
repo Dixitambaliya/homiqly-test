@@ -1,77 +1,95 @@
-import React from 'react';
-import { FiCheck } from 'react-icons/fi';
-import DataTable from '../../../shared/components/Table/DataTable';
-import { IconButton } from '../../../shared/components/Button';
-import { formatCurrency } from '../../../shared/utils/formatUtils';
-import { formatDate } from '../../../shared/utils/dateUtils';
+import React from "react";
+import { FiCheck, FiEye } from "react-icons/fi";
+import DataTable from "../../../shared/components/Table/DataTable";
+import { IconButton } from "../../../shared/components/Button";
+import { formatCurrency } from "../../../shared/utils/formatUtils";
+import { formatDate } from "../../../shared/utils/dateUtils";
 
-const PaymentsTable = ({ 
-  payouts, 
-  isLoading, 
-  onApprovePayment,
-  processingPayment
-}) => {
+const PaymentsTable = ({ payouts, isLoading, onViewPayment }) => {
   const columns = [
     {
-      title: 'ID',
-      key: 'id',
-      render: (row) => <div className="text-sm text-gray-900">#{row.id}</div>
-    },
-    {
-      title: 'Provider',
-      key: 'provider_name',
-      render: (row) => <div className="text-sm font-medium text-gray-900">{row.provider_name}</div>
-    },
-    {
-      title: 'Type',
-      key: 'payout_type',
+      title: "Payment ID",
+      key: "payment_id",
       render: (row) => (
-        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-          row.payout_type === 'vendor' 
-            ? 'bg-blue-100 text-blue-800' 
-            : 'bg-purple-100 text-purple-800'
-        }`}>
-          {row.payout_type === 'vendor' ? 'Vendor' : 'Contractor'}
-        </span>
-      )
+        <div className="text-sm font-medium text-gray-900">
+          #{row.payment_id}
+        </div>
+      ),
     },
     {
-      title: 'Amount',
-      key: 'net_amount',
+      title: "User",
+      key: "user_firstname",
       render: (row) => (
-        <div className="text-sm font-medium text-gray-900">{formatCurrency(row.net_amount)}</div>
-      )
+        <div>
+          <div className="text-sm text-gray-900">
+            {row.user_firstname} {row.user_lastname}
+          </div>
+          <div className="text-xs text-gray-500">{row.user_email}</div>
+        </div>
+      ),
     },
     {
-      title: 'Service',
-      key: 'serviceName',
-      render: (row) => <div className="text-sm text-gray-900">{row.serviceName}</div>
-    },
-    {
-      title: 'Date',
-      key: 'payment_date',
+      title: "Vendor",
+      key: "individual_name",
       render: (row) => (
-        <div className="text-sm text-gray-900">{formatDate(row.payment_date)}</div>
-      )
+        <div>
+          <div className="text-sm text-gray-900">
+            {row.individual_name || row.companyName}
+          </div>
+          <div className="text-xs text-gray-500">{row.vendorType}</div>
+        </div>
+      ),
     },
     {
-      title: 'Actions',
-      align: 'right',
+      title: "Package",
+      key: "packageName",
+      render: (row) => (
+        <div className="text-sm text-gray-900">{row.packageName}</div>
+      ),
+    },
+    {
+      title: "Amount",
+      key: "amount",
+      render: (row) => (
+        <div className="text-sm font-medium text-green-600">
+          {formatCurrency(row.amount)}
+        </div>
+      ),
+    },
+    {
+      title: "Currency",
+      key: "currency",
+      render: (row) => (
+        <div className="text-sm text-gray-700">
+          {row.currency?.toUpperCase()}
+        </div>
+      ),
+    },
+    {
+      title: "Date",
+      key: "created_at",
+      render: (row) => (
+        <div className="text-sm text-gray-900">
+          {formatDate(row.created_at)}
+        </div>
+      ),
+    },
+    {
+      title: "Actions",
+      align: "right",
       render: (row) => (
         <IconButton
-          icon={<FiCheck className="h-4 w-4" />}
+          icon={<FiEye className="h-4 w-4" />}
           variant="success"
           size="sm"
           onClick={(e) => {
             e.stopPropagation();
-            onApprovePayment(row.id, row.payout_type);
+            onViewPayment(row); // ✅ Pass full payment row
           }}
-          disabled={processingPayment === row.id}
-          isLoading={processingPayment === row.id}
-          tooltip="Approve payment"
+          tooltip="View details"
         />
-      )
-    }
+      ),
+    },
   ];
 
   return (
@@ -79,7 +97,7 @@ const PaymentsTable = ({
       columns={columns}
       data={payouts}
       isLoading={isLoading}
-      emptyMessage="No pending payouts found."
+      emptyMessage="No payment records found."
     />
   );
 };

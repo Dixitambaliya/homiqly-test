@@ -29,6 +29,7 @@ import GeneralSettings from "../pages/subpages/GeneralSettings";
 import UserRating from "../pages/UserRating";
 import VendorRating from "../pages/VendorRating";
 import PackageRating from "../pages/PackageRating";
+import PaymentDetails from "../pages/subpages/PaymentDetails";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -91,6 +92,7 @@ const AdminRoutes = () => {
         <Route path="contractors" element={<Contractors />} />
         <Route path="employees" element={<Employees />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="payments/:paymentId" element={<PaymentDetails />} />
         <Route path="analytics" element={<Analytics />} />
         {/* <Route path="rating" element={<UserRating />} /> */}
         <Route path="rating/user" element={<UserRating />} />

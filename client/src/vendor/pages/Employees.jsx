@@ -73,7 +73,7 @@ const Employees = () => {
         <h1 className="text-xl font-semibold">Employees</h1>
         <Button
           type="button"
-          variant="secondary"
+          variant="lightInherit"
           onClick={() => setShowModal(true)}
         >
           + Create Employee
