@@ -822,17 +822,33 @@ const getAllPayments = asyncHandler(async (req, res) => {
     `);
 
         const enhancedPayments = await Promise.all(
-            payments.map(async (payment) => {
-                try {
-                    const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id, {
-                        expand: ['charges.data.payment_method_details'],
-                    });
+            payments.map(async (payment, index) => {
+                console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
+                console.log(`👉 Payment ID: ${payment.payment_id}`);
+                console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
 
+                try {
+                    // Optional: retrieve paymentIntent (can be removed if not used)
+                    const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id);
+                    console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
+
+                    // Fetch charge using paymentIntent
                     const charges = await stripe.charges.list({
                         payment_intent: payment.payment_intent_id,
                         limit: 1,
                     });
                     const charge = charges.data?.[0];
+
+                    if (!charge) {
+                        console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
+                    } else {
+                        console.log(`✅ Retrieved Charge ID: ${charge.id}`);
+                        console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
+                        console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
+                        console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
+                        console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
+                        console.log(`🕒 Paid At (raw): ${charge.created}`);
+                    }
 
                     const stripeMetadata = {
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
@@ -853,12 +869,14 @@ const getAllPayments = asyncHandler(async (req, res) => {
                         paymentIntentId: charge?.payment_intent || "N/A",
                     };
 
+                    console.log(`✅ Final Stripe Metadata:`, stripeMetadata);
+
                     return {
                         ...payment,
                         ...stripeMetadata,
                     };
                 } catch (stripeError) {
-                    console.warn(`⚠️ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
+                    console.error(`❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
                     return {
                         ...payment,
                         cardBrand: "N/A",
@@ -872,6 +890,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
                 }
             })
         );
+
 
         res.status(200).json({
             success: true,
