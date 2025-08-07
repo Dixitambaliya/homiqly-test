@@ -779,34 +779,35 @@ const getAllPayments = asyncHandler(async (req, res) => {
           p.status,
 
           -- User Info
-           u.user_id,
-        COALESCE(u.firstname, '') AS user_firstname,
-        COALESCE(u.lastname, '') AS user_lastname,
-        COALESCE(u.email, '') AS user_email,
-        COALESCE(u.phone, '') AS user_phone,
+          u.user_id,
+          u.firstname AS user_firstname,
+          u.lastname AS user_lastname,
+          u.email AS user_email,
+          u.phone AS user_phone,
 
           -- Vendor Info
           v.vendor_id,
           v.vendorType,
 
           -- Individual Vendor Info
-        COALESCE(idet.name, '') AS individual_name,
-        COALESCE(idet.phone, '') AS individual_phone,
-        COALESCE(idet.email, '') AS individual_email,
-        COALESCE(idet.profileImage, '') AS individual_profile_image,
+          idet.name AS individual_name,
+          idet.phone AS individual_phone,
+          idet.email AS individual_email,
+          idet.profileImage AS individual_profile_image,
 
           -- Company Vendor Info
-            COALESCE(cdet.companyName, '') AS companyName,
-            COALESCE(cdet.contactPerson, '') AS contactPerson,
-            COALESCE(cdet.companyEmail, '') AS email,
-            COALESCE(cdet.companyPhone, '') AS phone,
-            COALESCE(cdet.profileImage, '') AS company_profile_image,
+          cdet.companyName,
+          cdet.contactPerson,
+          cdet.companyEmail AS email,
+          cdet.companyPhone AS phone,
+          cdet.profileImage AS company_profile_image,
+
           -- Package Info
           pkg.package_id,
-            COALESCE(pkg.packageName, '') AS packageName,
-            COALESCE(pkg.totalPrice, '') AS totalPrice,
-            COALESCE(pkg.totalTime, '') AS totalTime,
-            COALESCE(pkg.packageMedia, '') AS packageMedia
+          pkg.packageName,
+          pkg.totalPrice,
+          pkg.totalTime,
+          pkg.packageMedia
 
       FROM payments p
       JOIN users u ON p.user_id = u.user_id
@@ -890,7 +891,9 @@ const getAllPayments = asyncHandler(async (req, res) => {
 
         // ✅ Remove null fields from final response
         const filteredPayments = enhancedPayments.map((payment) =>
-            Object.fromEntries(Object.entries(payment).filter(([_, value]) => value !== null))
+            Object.fromEntries(
+                Object.entries(payment).filter(([_, value]) => value !== null && value !== "")
+            )
         );
 
 
