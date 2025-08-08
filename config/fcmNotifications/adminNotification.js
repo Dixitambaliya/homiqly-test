@@ -203,23 +203,40 @@ const sendBookingNotificationToUser = async (token, userName, booking_id, status
     }
 };
 
-const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id) => {
+const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, service_id) => {
+    const connection = await db.getConnection();
     try {
-        // 🔹 1. Get vendor FCM token and name
-        const [[vendor]] = await db.query(
-            `SELECT fcmToken, name FROM vendors WHERE vendor_id = ? AND fcmToken IS NOT NULL`,
+        // 🔹 1. Get vendor FCM token, name, and type
+        const [[vendorInfo]] = await connection.query(
+            `SELECT fcmToken, vendorType FROM vendors WHERE vendor_id = ? AND fcmToken IS NOT NULL`,
             [vendor_id]
         );
 
-        if (!vendor) {
-            console.warn(`⚠️ No FCM token found for vendor ${vendor_id}`);
+        if (!vendorInfo) {
+            console.warn(`⚠️ No FCM token or vendor info found for vendor ${vendor_id}`);
             return;
         }
 
-        const vendorName = vendor.name;
-        const token = vendor.fcmToken;
+        const { fcmToken: token, name: vendorName, vendorType } = vendorInfo;
 
-        // 🔹 2. Prepare FCM message
+        // 🔹 2. Check if vendor is linked to this service
+        let vendorEligible = [];
+
+        if (vendorType === 'individual') {
+            [vendorEligible] = await connection.query(
+                `SELECT 1 FROM individual_services WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+        } else if (vendorType === 'company') {
+            [vendorEligible] = await connection.query(
+                `SELECT 1 FROM company_services WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+        } else {
+            console.warn(`❌ Invalid vendorType for vendor ${vendor_id}: ${vendorType}`);
+            return;
+        }
+        // 🔹 3. Prepare FCM message
         const message = {
             notification: {
                 title: "📢 New Booking Assigned",
@@ -233,13 +250,16 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id) =>
             token,
         };
 
-        // 🔹 3. Send FCM message
+        // 🔹 4. Send FCM message
         const response = await admin.messaging().send(message);
         console.log(`✅ Booking assignment notification sent to vendor ${vendor_id}: ${response}`);
     } catch (err) {
         console.error("❌ Failed to send booking assigned notification to vendor:", err.message);
+    } finally {
+        connection.release();
     }
 };
+
 
 module.exports = {
     sendVendorRegistrationNotification,

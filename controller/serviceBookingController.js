@@ -427,26 +427,31 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
     }
 
     try {
-        // First, get user email for this booking
-        const [bookingData] = await db.query(`
-            SELECT
-            u.email,
-            u.fcmToken,
-            CONCAT(u.firstName, ' ', u.lastName) AS name,
-            sb.booking_id
-        FROM service_booking sb
-        JOIN users u ON sb.user_id = u.user_id
-        WHERE sb.booking_id = ?`,
-            [booking_id]);
+        // Get user info for this booking (need user_id for notification)
+        const [bookingData] = await db.query(
+            `
+      SELECT
+        u.user_id,
+        u.email,
+        u.fcmToken,
+        CONCAT(u.firstName, ' ', u.lastName) AS name,
+        sb.booking_id
+      FROM service_booking sb
+      JOIN users u ON sb.user_id = u.user_id
+      WHERE sb.booking_id = ?
+      `,
+            [booking_id]
+        );
 
         if (!bookingData || bookingData.length === 0) {
             return res.status(404).json({ message: "Booking not found" });
         }
 
+        const userId = bookingData[0].user_id;
         const userEmail = bookingData[0].email;
         const userName = bookingData[0].name;
 
-        // Update status
+        // Update status in DB
         const [result] = await db.query(
             `UPDATE service_booking SET bookingStatus = ? WHERE booking_id = ?`,
             [status, booking_id]
@@ -456,30 +461,47 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Booking not found" });
         }
 
+        // Send FCM notification (optional)
         try {
-            // Send notification to user
             await sendBookingNotificationToUser(
                 bookingData[0].fcmToken,
                 userName,
                 booking_id,
                 status
             );
-
         } catch (err) {
             console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
         }
 
-        // Compose email
+        // Send email (optional)
         try {
             const subject = status === 1 ? "Booking Approved" : "Booking Cancelled";
-            const message = status === 1
-                ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
-                : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
+            const message =
+                status === 1
+                    ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
+                    : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
 
-            // Send the email
             await sendEmail(userEmail, subject, message);
         } catch (err) {
             console.error(`⚠️ Email sending failed for booking_id ${booking_id}:`, err.message);
+        }
+
+        // Add DB notification for the user
+        try {
+            const notifTitle = status === 1
+                ? "Booking Approved"
+                : "Booking Cancelled";
+            const notifBody = status === 1
+                ? `Admin approved your booking #${booking_id}`
+                : `Admin cancelled your booking #${booking_id}`;
+
+            await db.query(
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+         VALUES ('users', ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [userId, notifTitle, notifBody]
+            );
+        } catch (err) {
+            console.error(`⚠️ DB notification insert failed for booking_id ${booking_id}:`, err.message);
         }
 
         res.status(200).json({
@@ -492,6 +514,7 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const assignBookingToVendor = asyncHandler(async (req, res) => {
     const { booking_id, vendor_id } = req.body;
@@ -574,6 +597,66 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
         );
 
         await connection.commit();
+
+        try {
+            // ✅ 2. Get service_id and user_id from booking
+            const [bookingInfo] = await connection.query(
+                `SELECT service_id, user_id FROM service_booking WHERE booking_id = ?`,
+                [booking_id]
+            );
+
+            const service_id = bookingInfo[0]?.service_id;
+            const user_id = bookingInfo[0]?.user_id;
+
+            if (!service_id || !user_id) {
+                return res.status(404).json({ message: "Service ID or user ID not found for this booking." });
+            }
+
+
+            // Fetch vendor name
+            let vendorName = `Vendor #${vendor_id}`;
+            console.log("vendor_id:", vendor_id, "vendorType:", vendorType);
+
+            let query = '';
+            if (vendorType === 'individual') {
+                query = `SELECT name FROM individual_details WHERE vendor_id = ?`;
+            } else if (vendorType === 'company') {
+                query = `SELECT companyName AS name FROM company_details WHERE vendor_id = ?`;
+            }
+
+            if (query) {
+                const [rows] = await connection.query(query, [vendor_id]);
+                console.log("Fetched vendor rows:", rows);
+
+                if (rows.length > 0) {
+                    vendorName = rows[0].name;
+                }
+            }
+
+            console.log("Final vendorName:", vendorName);
+
+            // ✅ 7. Insert notification for user with vendor name in body
+            await connection.query(
+                `INSERT INTO notifications (
+                user_type,
+                user_id,
+                title,
+                body,
+                is_read,
+                sent_at
+            ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'users',
+                    user_id,
+                    'Vendor Assigned',
+                    `Hi! ${vendorName} (Vendor ID: ${vendor_id}) has been assigned to your booking (#${booking_id}).`
+                ]
+            );
+
+        } catch (err) {
+            console.error(`⚠️ Failed to insert admin notification for booking_id ${booking_id}:`, err.message);
+        }
+
         try {
             await sendBookingAssignedNotificationToVendor(vendor_id, booking_id);
         } catch (err) {
