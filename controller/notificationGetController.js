@@ -106,5 +106,31 @@ const getEmployeeNotifications = asyncHandler(async (req, res) => {
     });
 });
 
+const readNotification = asyncHandler(async (req, res) => {
+    const { notification_id } = req.params;
 
-module.exports = { getAdminNotifications, getUserNotifications, getVendorNotifications, getEmployeeNotifications };
+    if (!notification_id) {
+        return res.status(400).json({ message: "Missing 'notification_id' parameter" });
+    }
+
+    const [result] = await db.query(
+        `UPDATE notifications
+         SET is_read = 1
+         WHERE notification_id = ?`,
+        [notification_id]
+    );
+    console.log(result);
+    if (result.affectedRows === 0) {
+        return res.status(400).json({ message: "Notification not found" });
+    }
+
+    return res.status(200).json({ message: "Notification marked as read" });
+});
+
+module.exports = {
+    getAdminNotifications,
+    getUserNotifications,
+    getVendorNotifications,
+    getEmployeeNotifications,
+    readNotification
+};
