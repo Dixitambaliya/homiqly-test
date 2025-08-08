@@ -190,8 +190,6 @@ const bookService = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -337,7 +335,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -514,7 +511,6 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const assignBookingToVendor = asyncHandler(async (req, res) => {
     const { booking_id, vendor_id } = req.body;
