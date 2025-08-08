@@ -799,6 +799,22 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
                 manual_assignment_enabled = VALUES(manual_assignment_enabled)
         `, [vendor_id, value]);
 
+
+        try {
+            const messageText = `Vendor ID ${vendor_id} has turned manual assignment ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}.`;
+
+            await db.query(`
+            INSERT INTO notifications (title, body, is_read, sent_at, user_type)
+            VALUES (?, ?, 0, NOW(), 'admin')
+        `, [
+                'Vendor Manual Assignment Update',
+                messageText
+            ]);
+        } catch (err) {
+            console.error("Failed to create admin notification:", err);
+        }
+
+
         res.status(200).json({
             message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
             vendor_id,

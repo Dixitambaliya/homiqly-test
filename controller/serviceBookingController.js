@@ -2,13 +2,13 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
+const sendEmail = require('../config/mailer');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
     sendBookingNotificationToUser,
     sendBookingAssignedNotificationToVendor
 } = require("../config/fcmNotifications/adminNotification")
-const sendEmail = require('../config/mailer');
 
 
 const bookService = asyncHandler(async (req, res) => {
@@ -194,11 +194,16 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        // 🔹 Fetch latest platform fee percentage
+        // 🔹 Fetch latest platform fee % for this vendor type
+        // Fallback to 0 if not found
         const [platformSettings] = await db.query(
-            "SELECT platform_fee_percentage FROM platform_settings ORDER BY id DESC LIMIT 1"
+            "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
+            [vendorType]
         );
-        const platformFee = platformSettings[0]?.platform_fee_percentage || 0;
+        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+
+        // Precompute factor (1 - fee%)
+        const netFactor = 1 - platformFee / 100;
 
         const [bookings] = await db.query(
             `
@@ -234,8 +239,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
       LEFT JOIN users u ON sb.user_id = u.user_id
       LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
       WHERE sb.vendor_id = ?
-      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-      `,
+      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
             [vendor_id]
         );
 
@@ -245,35 +249,33 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             // 🔹 Fetch Packages
             const [bookingPackages] = await db.query(
                 `
-        SELECT
-            p.package_id,
-            p.packageName,
-            p.totalPrice,
-            p.totalTime,
-            p.packageMedia
-        FROM service_booking_packages sbp
-        JOIN packages p ON sbp.package_id = p.package_id
-        WHERE sbp.booking_id = ?
-      `,
+                SELECT
+                    p.package_id,
+                    p.packageName,
+                    p.totalPrice,
+                    p.totalTime,
+                    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?`,
                 [bookingId]
             );
 
             // 🔹 Fetch Items with platform fee deducted from price
             const [packageItems] = await db.query(
                 `
-        SELECT
-            sbsp.sub_package_id AS item_id,
-            pi.itemName,
-            sbsp.quantity,
-            ROUND((sbsp.price * sbsp.quantity) * (1 - ? / 100), 2) AS price,
-            pi.itemMedia,
-            pi.timeRequired,
-            pi.package_id
-        FROM service_booking_sub_packages sbsp
-        LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-        WHERE sbsp.booking_id = ?
-      `,
-                [platformFee, bookingId]
+                SELECT
+                    sbsp.sub_package_id AS item_id,
+                    pi.itemName,
+                    sbsp.quantity,
+                    ROUND((sbsp.price * sbsp.quantity) * ?, 2) AS price,  
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?`,
+                [netFactor, bookingId]
             );
 
             // 🔹 Group items under packages
@@ -287,13 +289,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             // 🔹 Fetch Preferences
             const [bookingPreferences] = await db.query(
                 `
-        SELECT
-            sp.preference_id,
-            bp.preferenceValue
-        FROM service_preferences sp
-        JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-        WHERE sp.booking_id = ?
-      `,
+                SELECT
+                    sp.preference_id,
+                    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?`,
                 [bookingId]
             );
 
