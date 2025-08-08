@@ -143,31 +143,36 @@ const bookService = asyncHandler(async (req, res) => {
         // NOTIFICATIONS: include WHO booked (only booking_id, user_id, name)
 
         // Fetch who booked
-        const [userRows] = await db.query(
-            `SELECT firstname, lastname FROM users WHERE user_id = ? LIMIT 1`,
-            [user_id]
-        );
+        try {
+            const [userRows] = await db.query(
+                `SELECT firstname, lastname FROM users WHERE user_id = ? LIMIT 1`,
+                [user_id]
+            );
 
-        const bookedBy = userRows?.[0] || {};
-        const userFullName = [bookedBy.firstname, bookedBy.lastname].filter(Boolean).join(" ") || `User #${user_id}`;
+            const bookedBy = userRows?.[0] || {};
+            const userFullName = [bookedBy.firstname, bookedBy.lastname].filter(Boolean).join(" ") || `User #${user_id}`;
 
-        // Admin broadcast notification (NO data field)
-        await db.query(
-            `INSERT INTO notifications (
-                user_type,
-                user_id,
-                title,
-                body,
-                is_read,
-                sent_at
-            ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-            [
-                'admin',
-                user_id,
-                'New service booking',
-                `${userFullName} booked a service (Booking #${booking_id}).`
-            ]
-        );
+            // Admin broadcast notification (NO data field)
+            await db.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'admin',
+                    user_id,
+                    'New service booking',
+                    `${userFullName} booked a service (Booking #${booking_id}).`
+                ]
+            );
+
+        } catch (err) {
+            console.error("Error fetching user name for notification:", err.message);
+        }
 
         // (Keep your existing email/push/etc.)
         await sendServiceBookingNotification(booking_id, service_type_id, user_id);
