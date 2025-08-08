@@ -18,6 +18,7 @@ import {
   FiChevronRight,
 } from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
+import NotificationIcon from "../components/NotificationIcon";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useAdminAuth();
@@ -262,13 +263,17 @@ const DashboardLayout = () => {
               </h1>
             </div>
 
-            <HeaderMenu
-              userName={currentUser?.name || "Admin User"}
-              userRole={currentUser?.role || "admin"}
-              onLogout={handleLogout}
-              profilePath="/admin/profile"
-              settingsPath="/admin/settings"
-            />
+            <div className="flex items-center space-x-4">
+              {" "}
+              <HeaderMenu
+                userName={currentUser?.name || "Admin User"}
+                userRole={currentUser?.role || "admin"}
+                onLogout={handleLogout}
+                profilePath="/admin/profile"
+                settingsPath="/admin/settings"
+              />
+              <NotificationIcon />
+            </div>
           </div>
 
           {/* Mobile menu */}

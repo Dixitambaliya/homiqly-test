@@ -12,6 +12,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
+import NotificationIcon from "../components/NotificationIcon";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useVendorAuth();
@@ -147,13 +148,16 @@ const DashboardLayout = () => {
               </h1>
             </div>
 
-            <HeaderMenu
-              userName={currentUser?.name || "Vendor User"}
-              userRole={currentUser?.vendor_type || "vendor"}
-              onLogout={handleLogout}
-              profilePath="/vendor/profile"
-              settingsPath="/vendor/settings"
-            />
+            <div className="flex items-center space-x-4">
+              <HeaderMenu
+                userName={currentUser?.name || "Vendor User"}
+                userRole={currentUser?.vendor_type || "vendor"}
+                onLogout={handleLogout}
+                profilePath="/vendor/profile"
+                settingsPath="/vendor/settings"
+              />
+              <NotificationIcon />
+            </div>
           </div>
 
           {/* Mobile menu */}

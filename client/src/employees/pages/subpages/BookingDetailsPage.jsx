@@ -24,26 +24,25 @@ export default function BookingDetailsPage() {
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [showRatingModal, setShowRatingModal] = useState(false);
 
-  useEffect(() => {
-    const fetchBooking = async () => {
-      try {
-        const res = await axios.get("/api/employee/getbookingemployee");
-        const found = res.data.bookings.find(
-          (b) =>
-            b.booking_id === Number(bookingId) ||
-            b.bookingId === Number(bookingId)
-        );
-        if (found) {
-          setBooking(found);
-        } else {
-          toast.error("Booking not found");
-        }
-      } catch (err) {
-        console.error("Failed to fetch booking:", err);
-        toast.error("Failed to load booking");
+  const fetchBooking = async () => {
+    try {
+      const res = await axios.get("/api/employee/getbookingemployee");
+      const found = res.data.bookings.find(
+        (b) =>
+          b.booking_id === Number(bookingId) ||
+          b.bookingId === Number(bookingId)
+      );
+      if (found) {
+        setBooking(found);
+      } else {
+        toast.error("Booking not found");
       }
-    };
-
+    } catch (err) {
+      console.error("Failed to fetch booking:", err);
+      toast.error("Failed to load booking");
+    }
+  };
+  useEffect(() => {
     fetchBooking();
   }, [bookingId]);
 

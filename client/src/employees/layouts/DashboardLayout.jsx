@@ -16,6 +16,7 @@ import {
   FiBell,
 } from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
+import NotificationIcon from "../components/NotificationIcon";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useEmployeesAuth();
@@ -181,13 +182,16 @@ const DashboardLayout = () => {
               </h1>
             </div>
 
-            <HeaderMenu
-              userName={currentUser?.name || "Employees User"}
-              userRole={currentUser?.role || "Employees"}
-              onLogout={handleLogout}
-              profilePath="/employees/profile"
-              settingsPath="/employees/settings"
-            />
+            <div className="flex items-center space-x-4">
+              <HeaderMenu
+                userName={currentUser?.name || "Employees User"}
+                userRole={currentUser?.role || "Employees"}
+                onLogout={handleLogout}
+                profilePath="/employees/profile"
+                settingsPath="/employees/settings"
+              />
+              <NotificationIcon />
+            </div>
           </div>
 
           {/* Mobile menu */}
