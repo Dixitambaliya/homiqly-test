@@ -847,6 +847,24 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
             [status, completed_flag, booking_id]
         );
 
+        // 🔔 Create USER notification (best-effort)
+        try {
+            const notifTitle = status === 3 ? "Service Started" : "Service Completed";
+            const notifBody = status === 3
+                ? `Employee has started your service for booking #${booking_id}.`
+                : `Employee has completed your service for booking #${booking_id}.`;
+            // const notifData = { booking_id, user_id, name: user_name || `User #${user_id}` };
+
+            await db.query(
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+         VALUES ('users', ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [user_id, notifTitle, notifBody]
+            );
+        } catch (err) {
+            console.error(`⚠️ DB notification insert failed for booking_id ${booking_id}:`, err.message);
+            // don’t fail the main request if notification fails
+        }
+
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
         });

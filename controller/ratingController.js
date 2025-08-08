@@ -286,7 +286,6 @@ const getPackageRatings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackageAverageRating = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 

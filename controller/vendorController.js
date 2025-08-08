@@ -959,6 +959,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         const [checkBooking] = await db.query(
             `SELECT sb.booking_id, 
               sb.vendor_id, 
+              sb.user_id,
               p.status AS payment_status
        FROM service_booking sb
        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
@@ -970,11 +971,11 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             return res.status(403).json({ message: "Unauthorized or booking not assigned to this vendor" });
         }
 
-        const { payment_status } = checkBooking[0];
+        const { payment_status, user_id } = checkBooking[0];
 
-        if (payment_status !== 'completed') {
-            return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
-        }
+        // if (payment_status !== 'completed') {
+        //     return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
+        // }
 
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
@@ -984,6 +985,27 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             `UPDATE service_booking SET bookingStatus = ?, completed_flag = ? WHERE booking_id = ?`,
             [status, completed_flag, booking_id]
         );
+
+        try {
+            // ✅ Create notification
+            const notificationTitle = status === 3
+                ? "Your service has started"
+                : "Your service has been completed";
+
+            const notificationBody = status === 3
+                ? `Your service for booking ID ${booking_id} has been started by the vendor.`
+                : `Your service for booking ID ${booking_id} has been completed by the vendor.`;
+
+
+            await db.query(
+                `INSERT INTO notifications (user_type, user_id, title, body)
+             VALUES (?, ?, ?, ?)`,
+                ['users', user_id, notificationTitle, notificationBody]
+            );
+
+        } catch (err) {
+            console.error("Error creating notification:", err)
+        }
 
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
