@@ -49,5 +49,60 @@ const getUserNotifications = asyncHandler(async (req, res) => {
     });
 });
 
+const getVendorNotifications = asyncHandler(async (req, res) => {
+    const { vendor_id } = req.user;
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Missing 'vendor_id' parameter" });
+    }
+    console.log(vendor_id);
 
-module.exports = { getAdminNotifications, getUserNotifications };
+    const [notificationsRaw] = await db.query(
+        `SELECT notification_id, user_id, title, body, is_read, sent_at
+         FROM notifications
+         WHERE user_type = 'vendors' AND user_id = ?
+         ORDER BY sent_at DESC`,
+        [vendor_id]
+    );
+    // Map to rename user_id to vendor_id
+    const notifications = notificationsRaw.map(n => ({
+        ...n,
+        vendor_id: n.user_id,
+        user_id: undefined // optionally remove user_id from the object
+    }));
+    return res.status(200).json({
+        count: notifications.length,
+        notifications,
+    });
+}
+)
+
+const getEmployeeNotifications = asyncHandler(async (req, res) => {
+    const { employee_id } = req.user;
+
+    if (!employee_id) {
+        return res.status(400).json({ message: "Missing 'employee_id' parameter" });
+    }
+
+    const [notificationsRaw] = await db.query(
+        `SELECT notification_id, user_id, title, body, is_read, sent_at
+         FROM notifications
+         WHERE user_type = 'employee' AND user_id = ?
+         ORDER BY sent_at DESC`,
+        [employee_id]
+    );
+
+    // Rename user_id to employee_id for response clarity
+    const notifications = notificationsRaw.map(n => ({
+        ...n,
+        employee_id: n.user_id,
+        user_id: undefined // optionally hide user_id
+    }));
+
+    return res.status(200).json({
+        count: notifications.length,
+        notifications,
+    });
+});
+
+
+module.exports = { getAdminNotifications, getUserNotifications, getVendorNotifications, getEmployeeNotifications };

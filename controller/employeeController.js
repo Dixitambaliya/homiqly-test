@@ -287,26 +287,47 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
             employeeName = employeeNameRow[0]?.name || employeeName;
 
             // ✅ 6. Insert notification for user
+            const notificationMessage = `Hi! ${employeeName} (Employee ID: ${employee_id}) has been assigned to your booking (#${booking_id}).`;
+
             await connection.query(
                 `INSERT INTO notifications (
-                user_type,
-                user_id,
-                title,
-                body,
-                is_read,
-                sent_at
-            ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 [
                     'users',
                     user_id,
                     'Employee Assigned',
-                    `Hi! ${employeeName} (Employee ID: ${employee_id}) has been assigned to your booking (#${booking_id}).`
+                    notificationMessage
+                ]
+            );
+
+            // ✅ 7. Insert notification for employee
+            await connection.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'employee',
+                    employee_id,
+                    'Booking Assigned',
+                    `Hi ${employeeName}, you have been assigned to booking ID: ${booking_id}.`,
                 ]
             );
 
         } catch (err) {
-            console.error("⚠️ Failed to insert notification for user:", err.message);
+            console.error("⚠️ Failed to insert notification:", err.message);
         }
+
         connection.release();
 
         res.status(200).json({

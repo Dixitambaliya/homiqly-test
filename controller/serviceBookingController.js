@@ -649,6 +649,23 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
                 ]
             );
 
+            await connection.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'vendors',
+                    vendor_id,
+                    'New Booking Assigned',
+                    `Hi ${vendorName}, ${vendor_id} you have been assigned a new booking (#${booking_id}).`,
+                ]
+            );
+
         } catch (err) {
             console.error(`⚠️ Failed to insert admin notification for booking_id ${booking_id}:`, err.message);
         }
