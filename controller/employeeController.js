@@ -66,6 +66,35 @@ const createEmployee = asyncHandler(async (req, res) => {
         ]);
 
         try {
+            const employeeFullName = `${first_name} ${last_name}`;
+            const [vendorInfo] = await db.query(
+                `SELECT companyName FROM company_details WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+
+            const vendorName = vendorInfo[0]?.companyName || `Vendor #${vendor_id}`;
+
+            await db.query(
+                `INSERT INTO notifications (
+            user_type,
+            user_id,
+            title,
+            body,
+            is_read,
+            sent_at
+        ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'admin',
+                    null,
+                    'New Employee Added',
+                    `Vendor ${vendorName} (Vendor ID: ${vendor_id}) has added a new employee: ${employeeFullName}.`
+                ]
+            );
+        } catch (err) {
+            console.error("⚠️ Failed to insert admin notification:", err.message);
+        }
+
+        try {
             await sendEmployeeCreationNotification(vendor_id, `${first_name} ${last_name}`);
         } catch (err) {
             console.error("Error sending employee creation notification:", err.message);
@@ -84,7 +113,7 @@ const createEmployee = asyncHandler(async (req, res) => {
             });
 
             const mailOptions = {
-                from: `"${vendor.name}" <${process.env.EMAIL_USER}>`,
+                from: `"${vendorName}" <${process.env.EMAIL_USER}>`,
                 to: email,
                 subject: 'Your Employee Login Credentials',
                 html: `

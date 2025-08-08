@@ -9,7 +9,7 @@ const getAdminNotifications = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Invalid or missing 'userType' parameter" });
     }
 
-    const [notification] = await db.query(
+    const [notificationsRaw] = await db.query(
         `SELECT notification_id, user_id, title, body, is_read, sent_at
      FROM notifications
      WHERE user_type = ?
@@ -17,14 +17,16 @@ const getAdminNotifications = asyncHandler(async (req, res) => {
         [userType]
     );
 
-    // // Convert `data` (JSON string) -> real JSON
-    // const notifications = rows.map(r => ({
-    //     ...r,
-    // }));
+    // Map to rename user_id to vendor_id
+    const notifications = notificationsRaw.map(n => ({
+        ...n,
+        user_id: undefined // optionally remove user_id from the object
+
+    }));
 
     return res.status(200).json({
-        count: notification.length,
-        notification, // <-- proper JSON array with parsed `data`
+        count: notifications.length,
+        notifications, // <-- proper JSON array with parsed `data`
     });
 });
 

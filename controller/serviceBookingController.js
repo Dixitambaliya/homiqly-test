@@ -662,7 +662,7 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
                     'vendors',
                     vendor_id,
                     'New Booking Assigned',
-                    `Hi ${vendorName}, ${vendor_id} you have been assigned a new booking (#${booking_id}).`,
+                    `Hi ${vendorName}, You have been assigned a new booking (#${booking_id}).`,
                 ]
             );
 
