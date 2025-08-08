@@ -10,6 +10,7 @@ const { sendServiceBookingNotification,
 } = require("../config/fcmNotifications/adminNotification")
 const sendEmail = require('../config/mailer');
 
+
 const bookService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const {
@@ -62,7 +63,7 @@ const bookService = asyncHandler(async (req, res) => {
          JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
          JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
          WHERE sb.user_id = ? AND sbt.service_type_id = ? AND sbp.package_id = ? 
-         AND sb.bookingStatus NOT IN (2, 4)
+           AND sb.bookingStatus NOT IN (2, 4)
          LIMIT 1`,
                 [user_id, service_type_id, package_id]
             );
@@ -114,7 +115,10 @@ const bookService = asyncHandler(async (req, res) => {
             for (const item of sub_packages) {
                 if (!item.sub_package_id || item.price == null) continue;
 
-                const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+                const quantity =
+                    item.quantity && Number.isInteger(item.quantity) && item.quantity > 0
+                        ? item.quantity
+                        : 1;
 
                 await db.query(
                     `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
@@ -135,6 +139,37 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
+        // 🔔 ────────────────────────────────────────────────────────────────
+        // NOTIFICATIONS: include WHO booked (only booking_id, user_id, name)
+
+        // Fetch who booked
+        const [userRows] = await db.query(
+            `SELECT firstname, lastname FROM users WHERE user_id = ? LIMIT 1`,
+            [user_id]
+        );
+
+        const bookedBy = userRows?.[0] || {};
+        const userFullName = [bookedBy.firstname, bookedBy.lastname].filter(Boolean).join(" ") || `User #${user_id}`;
+
+        // Admin broadcast notification (NO data field)
+        await db.query(
+            `INSERT INTO notifications (
+                user_type,
+                user_id,
+                title,
+                body,
+                is_read,
+                sent_at
+            ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+            [
+                'admin',
+                user_id,
+                'New service booking',
+                `${userFullName} booked a service (Booking #${booking_id}).`
+            ]
+        );
+
+        // (Keep your existing email/push/etc.)
         await sendServiceBookingNotification(booking_id, service_type_id, user_id);
 
         res.status(200).json({
@@ -149,6 +184,7 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 const getVendorBookings = asyncHandler(async (req, res) => {
