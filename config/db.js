@@ -13,10 +13,12 @@ const db = mysql.createPool({
     charset: 'utf8mb4',
 });
 
-// Hook: Increase GROUP_CONCAT limit for large JSON in every session
-db.on('connection', (connection) => {
-    connection.query("SET SESSION group_concat_max_len = 1000000")
-        .catch(err => console.error("❌ Failed to set group_concat_max_len:", err.message));
+db.on('connection', async (connection) => {
+    try {
+        await connection.promise().query("SET SESSION group_concat_max_len = 1000000");
+    } catch (err) {
+        console.error("❌ Failed to set group_concat_max_len:", err.message);
+    }
 });
 
 // Test connection function
