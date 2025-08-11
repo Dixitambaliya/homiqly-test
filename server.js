@@ -5,7 +5,7 @@ const { db, testConnection } = require("./config/db")
 const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
-require("./croj-jobs/reminder"); // import at top of server.js or app.js
+require("./controller/reminder")
 
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
@@ -43,6 +43,7 @@ app.post(
     stripeController.stripeWebhook
 );
 
+app.use("/public", express.static("public"));
 app.use(express.json())
 app.use(bodyParser.json());
 
