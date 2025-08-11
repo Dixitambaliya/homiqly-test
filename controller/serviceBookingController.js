@@ -196,9 +196,17 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     try {
         // 🔹 Fetch latest platform fee % for this vendor type
         // Fallback to 0 if not found
+
+        const [[vendorRow]] = await db.query(
+            "SELECT vendorType FROM vendors WHERE vendor_id = ?",
+            [vendor_id]
+        );
+
+        const vendorType = vendorRow?.vendor_type || null;
+
         const [platformSettings] = await db.query(
             "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
-            [vendor_type]
+            [vendorType]
         );
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
