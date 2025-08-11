@@ -202,7 +202,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             [vendor_id]
         );
 
-        const vendorType = vendorRow?.vendor_type || null;
+        const vendorType = vendorRow?.vendorType || null;
 
         const [platformSettings] = await db.query(
             "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
@@ -260,13 +260,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 SELECT
                     p.package_id,
                     p.packageName,
-                    p.totalPrice,
+                    ROUND(p.totalPrice * ?, 2) AS totalPrice,
                     p.totalTime,
                     p.packageMedia
                 FROM service_booking_packages sbp
                 JOIN packages p ON sbp.package_id = p.package_id
                 WHERE sbp.booking_id = ?`,
-                [bookingId]
+                [netFactor, bookingId]
             );
 
             // 🔹 Fetch Items with platform fee deducted from price
