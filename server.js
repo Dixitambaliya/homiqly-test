@@ -28,6 +28,7 @@ const stripeRoutes = require("./routes/stripeRoutes")
 const ratingRoutes = require("./routes/ratingRoutes")
 const settingsRoutes = require("./routes/settingsRoutes")
 const emailRoutes = require("./routes/emailRoutes")
+const notificationGetRoutes = require("./routes/notificationGetRoutes");
 
 const PORT = process.env.PORT || 8000
 
@@ -66,6 +67,7 @@ app.use("/api/notification", notificationRoutes)
 app.use("/api/settings", settingsRoutes)
 app.use("/api/rating", ratingRoutes)
 app.use("/api", emailRoutes)
+app.use("/api/notifications", notificationGetRoutes)
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));

@@ -66,6 +66,35 @@ const createEmployee = asyncHandler(async (req, res) => {
         ]);
 
         try {
+            const employeeFullName = `${first_name} ${last_name}`;
+            const [vendorInfo] = await db.query(
+                `SELECT companyName FROM company_details WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+
+            const vendorName = vendorInfo[0]?.companyName || `Vendor #${vendor_id}`;
+
+            await db.query(
+                `INSERT INTO notifications (
+            user_type,
+            user_id,
+            title,
+            body,
+            is_read,
+            sent_at
+        ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'admin',
+                    null,
+                    'New Employee Added',
+                    `Vendor ${vendorName} (Vendor ID: ${vendor_id}) has added a new employee: ${employeeFullName}.`
+                ]
+            );
+        } catch (err) {
+            console.error("⚠️ Failed to insert admin notification:", err.message);
+        }
+
+        try {
             await sendEmployeeCreationNotification(vendor_id, `${first_name} ${last_name}`);
         } catch (err) {
             console.error("Error sending employee creation notification:", err.message);
@@ -84,7 +113,7 @@ const createEmployee = asyncHandler(async (req, res) => {
             });
 
             const mailOptions = {
-                from: `"${vendor.name}" <${process.env.EMAIL_USER}>`,
+                from: `"${vendorName}" <${process.env.EMAIL_USER}>`,
                 to: email,
                 subject: 'Your Employee Login Credentials',
                 html: `
@@ -207,11 +236,12 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
     try {
         // ✅ 1. Get booking info (including service_id)
         const [bookingInfo] = await connection.query(
-            `SELECT service_id FROM service_booking WHERE booking_id = ?`,
+            `SELECT service_id, user_id FROM service_booking WHERE booking_id = ?`,
             [booking_id]
         );
 
         const service_id = bookingInfo[0]?.service_id;
+        const user_id = bookingInfo[0]?.user_id;
         if (!service_id) {
             await connection.rollback();
             connection.release();
@@ -275,6 +305,58 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         }
 
         await connection.commit();
+
+        try {
+            // ✅ 5. Fetch employee name
+            let employeeName = `Employee #${employee_id}`;
+            const [employeeNameRow] = await connection.query(
+                `SELECT CONCAT(first_name , ' ' , last_name) AS name FROM company_employees WHERE employee_id = ?`,
+                [employee_id]
+            );
+            employeeName = employeeNameRow[0]?.name || employeeName;
+
+            // ✅ 6. Insert notification for user
+            const notificationMessage = `Hi! ${employeeName} (Employee ID: ${employee_id}) has been assigned to your booking (#${booking_id}).`;
+
+            await connection.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'users',
+                    user_id,
+                    'Employee Assigned',
+                    notificationMessage
+                ]
+            );
+
+            // ✅ 7. Insert notification for employee
+            await connection.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'employee',
+                    employee_id,
+                    'Booking Assigned',
+                    `Hi ${employeeName}, you have been assigned to booking ID: ${booking_id}.`,
+                ]
+            );
+
+        } catch (err) {
+            console.error("⚠️ Failed to insert notification:", err.message);
+        }
+
         connection.release();
 
         res.status(200).json({
@@ -764,6 +846,24 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
             `UPDATE service_booking SET bookingStatus = ?, completed_flag = ? WHERE booking_id = ?`,
             [status, completed_flag, booking_id]
         );
+
+        // 🔔 Create USER notification (best-effort)
+        try {
+            const notifTitle = status === 3 ? "Service Started" : "Service Completed";
+            const notifBody = status === 3
+                ? `Employee has started your service for booking #${booking_id}.`
+                : `Employee has completed your service for booking #${booking_id}.`;
+            // const notifData = { booking_id, user_id, name: user_name || `User #${user_id}` };
+
+            await db.query(
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+         VALUES ('users', ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [user_id, notifTitle, notifBody]
+            );
+        } catch (err) {
+            console.error(`⚠️ DB notification insert failed for booking_id ${booking_id}:`, err.message);
+            // don’t fail the main request if notification fails
+        }
 
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`

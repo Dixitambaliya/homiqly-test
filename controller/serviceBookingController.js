@@ -2,13 +2,14 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
+const sendEmail = require('../config/mailer');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
     sendBookingNotificationToUser,
     sendBookingAssignedNotificationToVendor
 } = require("../config/fcmNotifications/adminNotification")
-const sendEmail = require('../config/mailer');
+
 
 const bookService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -62,7 +63,7 @@ const bookService = asyncHandler(async (req, res) => {
          JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
          JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
          WHERE sb.user_id = ? AND sbt.service_type_id = ? AND sbp.package_id = ? 
-         AND sb.bookingStatus NOT IN (2, 4)
+           AND sb.bookingStatus NOT IN (2, 4)
          LIMIT 1`,
                 [user_id, service_type_id, package_id]
             );
@@ -114,7 +115,10 @@ const bookService = asyncHandler(async (req, res) => {
             for (const item of sub_packages) {
                 if (!item.sub_package_id || item.price == null) continue;
 
-                const quantity = item.quantity && Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+                const quantity =
+                    item.quantity && Number.isInteger(item.quantity) && item.quantity > 0
+                        ? item.quantity
+                        : 1;
 
                 await db.query(
                     `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
@@ -135,6 +139,42 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
+        // 🔔 ────────────────────────────────────────────────────────────────
+        // NOTIFICATIONS: include WHO booked (only booking_id, user_id, name)
+
+        // Fetch who booked
+        try {
+            const [userRows] = await db.query(
+                `SELECT firstname, lastname FROM users WHERE user_id = ? LIMIT 1`,
+                [user_id]
+            );
+
+            const bookedBy = userRows?.[0] || {};
+            const userFullName = [bookedBy.firstname, bookedBy.lastname].filter(Boolean).join(" ") || `User #${user_id}`;
+
+            // Admin broadcast notification (NO data field)
+            await db.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'admin',
+                    user_id,
+                    'New service booking',
+                    `${userFullName} booked a service (Booking #${booking_id}).`
+                ]
+            );
+
+        } catch (err) {
+            console.error("Error fetching user name for notification:", err.message);
+        }
+
+        // (Keep your existing email/push/etc.)
         await sendServiceBookingNotification(booking_id, service_type_id, user_id);
 
         res.status(200).json({
@@ -150,16 +190,20 @@ const bookService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        // 🔹 Fetch latest platform fee percentage
+        // 🔹 Fetch latest platform fee % for this vendor type
+        // Fallback to 0 if not found
         const [platformSettings] = await db.query(
-            "SELECT platform_fee_percentage FROM platform_settings ORDER BY id DESC LIMIT 1"
+            "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
+            [vendor_type]
         );
-        const platformFee = platformSettings[0]?.platform_fee_percentage || 0;
+        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+
+        // Precompute factor (1 - fee%)
+        const netFactor = 1 - platformFee / 100;
 
         const [bookings] = await db.query(
             `
@@ -195,8 +239,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
       LEFT JOIN users u ON sb.user_id = u.user_id
       LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
       WHERE sb.vendor_id = ?
-      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-      `,
+      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
             [vendor_id]
         );
 
@@ -206,35 +249,33 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             // 🔹 Fetch Packages
             const [bookingPackages] = await db.query(
                 `
-        SELECT
-            p.package_id,
-            p.packageName,
-            p.totalPrice,
-            p.totalTime,
-            p.packageMedia
-        FROM service_booking_packages sbp
-        JOIN packages p ON sbp.package_id = p.package_id
-        WHERE sbp.booking_id = ?
-      `,
+                SELECT
+                    p.package_id,
+                    p.packageName,
+                    p.totalPrice,
+                    p.totalTime,
+                    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?`,
                 [bookingId]
             );
 
             // 🔹 Fetch Items with platform fee deducted from price
             const [packageItems] = await db.query(
                 `
-        SELECT
-            sbsp.sub_package_id AS item_id,
-            pi.itemName,
-            sbsp.quantity,
-            ROUND((sbsp.price * sbsp.quantity) * (1 - ? / 100), 2) AS price,
-            pi.itemMedia,
-            pi.timeRequired,
-            pi.package_id
-        FROM service_booking_sub_packages sbsp
-        LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-        WHERE sbsp.booking_id = ?
-      `,
-                [platformFee, bookingId]
+                SELECT
+                    sbsp.sub_package_id AS item_id,
+                    pi.itemName,
+                    sbsp.quantity,
+                    ROUND((sbsp.price * sbsp.quantity) * ?, 2) AS price,  
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?`,
+                [netFactor, bookingId]
             );
 
             // 🔹 Group items under packages
@@ -248,13 +289,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             // 🔹 Fetch Preferences
             const [bookingPreferences] = await db.query(
                 `
-        SELECT
-            sp.preference_id,
-            bp.preferenceValue
-        FROM service_preferences sp
-        JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-        WHERE sp.booking_id = ?
-      `,
+                SELECT
+                    sp.preference_id,
+                    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?`,
                 [bookingId]
             );
 
@@ -296,7 +336,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -386,26 +425,31 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
     }
 
     try {
-        // First, get user email for this booking
-        const [bookingData] = await db.query(`
-            SELECT
-            u.email,
-            u.fcmToken,
-            CONCAT(u.firstName, ' ', u.lastName) AS name,
-            sb.booking_id
-        FROM service_booking sb
-        JOIN users u ON sb.user_id = u.user_id
-        WHERE sb.booking_id = ?`,
-            [booking_id]);
+        // Get user info for this booking (need user_id for notification)
+        const [bookingData] = await db.query(
+            `
+      SELECT
+        u.user_id,
+        u.email,
+        u.fcmToken,
+        CONCAT(u.firstName, ' ', u.lastName) AS name,
+        sb.booking_id
+      FROM service_booking sb
+      JOIN users u ON sb.user_id = u.user_id
+      WHERE sb.booking_id = ?
+      `,
+            [booking_id]
+        );
 
         if (!bookingData || bookingData.length === 0) {
             return res.status(404).json({ message: "Booking not found" });
         }
 
+        const userId = bookingData[0].user_id;
         const userEmail = bookingData[0].email;
         const userName = bookingData[0].name;
 
-        // Update status
+        // Update status in DB
         const [result] = await db.query(
             `UPDATE service_booking SET bookingStatus = ? WHERE booking_id = ?`,
             [status, booking_id]
@@ -415,30 +459,47 @@ const approveOrRejectBooking = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Booking not found" });
         }
 
+        // Send FCM notification (optional)
         try {
-            // Send notification to user
             await sendBookingNotificationToUser(
                 bookingData[0].fcmToken,
                 userName,
                 booking_id,
                 status
             );
-
         } catch (err) {
             console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
         }
 
-        // Compose email
+        // Send email (optional)
         try {
             const subject = status === 1 ? "Booking Approved" : "Booking Cancelled";
-            const message = status === 1
-                ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
-                : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
+            const message =
+                status === 1
+                    ? `Hi ${userName},\n\nYour booking (ID: ${booking_id}) has been approved. You can now proceed with the payment.\n\nThank you!`
+                    : `Hi ${userName},\n\nUnfortunately, your booking (ID: ${booking_id}) has been cancelled. Please contact support if you need further assistance.`;
 
-            // Send the email
             await sendEmail(userEmail, subject, message);
         } catch (err) {
             console.error(`⚠️ Email sending failed for booking_id ${booking_id}:`, err.message);
+        }
+
+        // Add DB notification for the user
+        try {
+            const notifTitle = status === 1
+                ? "Booking Approved"
+                : "Booking Cancelled";
+            const notifBody = status === 1
+                ? `Admin approved your booking #${booking_id}`
+                : `Admin cancelled your booking #${booking_id}`;
+
+            await db.query(
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+         VALUES ('users', ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [userId, notifTitle, notifBody]
+            );
+        } catch (err) {
+            console.error(`⚠️ DB notification insert failed for booking_id ${booking_id}:`, err.message);
         }
 
         res.status(200).json({
@@ -533,6 +594,83 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
         );
 
         await connection.commit();
+
+        try {
+            // ✅ 2. Get service_id and user_id from booking
+            const [bookingInfo] = await connection.query(
+                `SELECT service_id, user_id FROM service_booking WHERE booking_id = ?`,
+                [booking_id]
+            );
+
+            const service_id = bookingInfo[0]?.service_id;
+            const user_id = bookingInfo[0]?.user_id;
+
+            if (!service_id || !user_id) {
+                return res.status(404).json({ message: "Service ID or user ID not found for this booking." });
+            }
+
+
+            // Fetch vendor name
+            let vendorName = `Vendor #${vendor_id}`;
+            console.log("vendor_id:", vendor_id, "vendorType:", vendorType);
+
+            let query = '';
+            if (vendorType === 'individual') {
+                query = `SELECT name FROM individual_details WHERE vendor_id = ?`;
+            } else if (vendorType === 'company') {
+                query = `SELECT companyName AS name FROM company_details WHERE vendor_id = ?`;
+            }
+
+            if (query) {
+                const [rows] = await connection.query(query, [vendor_id]);
+                console.log("Fetched vendor rows:", rows);
+
+                if (rows.length > 0) {
+                    vendorName = rows[0].name;
+                }
+            }
+
+            console.log("Final vendorName:", vendorName);
+
+            // ✅ 7. Insert notification for user with vendor name in body
+            await connection.query(
+                `INSERT INTO notifications (
+                user_type,
+                user_id,
+                title,
+                body,
+                is_read,
+                sent_at
+            ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'users',
+                    user_id,
+                    'Vendor Assigned',
+                    `Hi! ${vendorName} (Vendor ID: ${vendor_id}) has been assigned to your booking (#${booking_id}).`
+                ]
+            );
+
+            await connection.query(
+                `INSERT INTO notifications (
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                [
+                    'vendors',
+                    vendor_id,
+                    'New Booking Assigned',
+                    `Hi ${vendorName}, You have been assigned a new booking (#${booking_id}).`,
+                ]
+            );
+
+        } catch (err) {
+            console.error(`⚠️ Failed to insert admin notification for booking_id ${booking_id}:`, err.message);
+        }
+
         try {
             await sendBookingAssignedNotificationToVendor(vendor_id, booking_id);
         } catch (err) {

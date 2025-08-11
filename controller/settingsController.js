@@ -20,7 +20,6 @@ const getPlatformSettings = asyncHandler(async (req, res) => {
     res.status(200).json(settings[0]);
 });
 
-
 const setPlatformSettings = asyncHandler(async (req, res) => {
     const { vendor_type, platform_fee_percentage } = req.body;
 
