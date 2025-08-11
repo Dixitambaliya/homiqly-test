@@ -198,7 +198,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         // Fallback to 0 if not found
         const [platformSettings] = await db.query(
             "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
-            [vendorType]
+            [vendor_type]
         );
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
