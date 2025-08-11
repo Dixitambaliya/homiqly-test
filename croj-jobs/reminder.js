@@ -4,7 +4,7 @@ const nodemailer = require("nodemailer");
 const { db } = require("../config/db"); // Update with your actual DB path
 
 // Runs every 10 seconds for testing
-cron.schedule("*/10 * * * * *", async () => {
+cron.schedule("*/5 * * * *", async () => {
     console.log("⏰ Running vendor booking reminder job...");
 
     const transporter = nodemailer.createTransport({
