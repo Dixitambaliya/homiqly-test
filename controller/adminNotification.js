@@ -261,6 +261,74 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, se
     }
 };
 
+const sendVendorAssignedNotificationToUser = async (user_id, booking_id, vendor_id) => {
+    const connection = await db.getConnection();
+    try {
+        // 🔹 1. Get user FCM token, name
+        const [[userInfo]] = await connection.query(
+            `SELECT 
+                u.fcmToken, 
+                CONCAT(u.firstName, ' ', u.lastName) AS userName
+            FROM users u
+            WHERE u.user_id = ? 
+              AND u.fcmToken IS NOT NULL 
+              AND u.fcmToken != ''`,
+            [user_id]
+        );
+
+        if (!userInfo) {
+            console.warn(`⚠️ No FCM token or user info found for user ${user_id}`);
+            return;
+        }
+
+        const { fcmToken: token, userName } = userInfo;
+
+        if (!token) {
+            console.warn(`⚠️ User ${user_id} has empty FCM token`);
+            return;
+        }
+
+        // 🔹 2. Get vendor name
+        const [[vendorInfo]] = await connection.query(
+            `SELECT 
+                CASE 
+                    WHEN vendorType = 'individual' THEN idet.name
+                    WHEN vendorType = 'company' THEN cdet.companyName
+                END AS vendorName
+            FROM vendors v
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            WHERE v.vendor_id = ?`,
+            [vendor_id]
+        );
+
+        const vendorName = vendorInfo?.vendorName || "your vendor";
+
+        // 🔹 3. Prepare FCM message
+        const message = {
+            notification: {
+                title: "✅ Vendor Assigned",
+                body: `Hi ${userName}, ${vendorName} has been assigned to your booking (ID: ${booking_id}).`,
+            },
+            data: {
+                type: "vendor_assigned",
+                bookingId: String(booking_id),
+                vendorId: String(vendor_id),
+            },
+            token: token.trim(),
+        };
+
+        // 🔹 4. Send FCM message
+        const response = await admin.messaging().send(message);
+        console.log(`✅ Vendor assignment notification sent to user ${user_id}: ${response}`);
+    } catch (err) {
+        console.error("❌ Failed to send vendor assignment notification to user:", err.message);
+    } finally {
+        connection.release();
+    }
+};
+
+
 
 module.exports = {
     sendVendorRegistrationNotification,
@@ -268,5 +336,6 @@ module.exports = {
     sendEmployeeCreationNotification,
     sendBookingAssignedNotification,
     sendBookingNotificationToUser,
-    sendBookingAssignedNotificationToVendor
+    sendBookingAssignedNotificationToVendor,
+    sendVendorAssignedNotificationToUser
 };

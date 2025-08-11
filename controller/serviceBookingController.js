@@ -7,7 +7,8 @@ const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
     sendBookingNotificationToUser,
-    sendBookingAssignedNotificationToVendor
+    sendBookingAssignedNotificationToVendor,
+    sendVendorAssignedNotificationToUser
 } = require("./adminNotification")
 
 
@@ -679,11 +680,14 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
             console.error(`⚠️ Failed to insert admin notification for booking_id ${booking_id}:`, err.message);
         }
 
+        // ✅ Send FCM push notifications
         try {
             await sendBookingAssignedNotificationToVendor(vendor_id, booking_id);
+            await sendVendorAssignedNotificationToUser(user_id, booking_id, vendor_id);
         } catch (err) {
             console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
         }
+
         res.status(200).json({ message: `Booking ${booking_id} successfully assigned to vendor ${vendor_id}.` });
     } catch (err) {
         await connection.rollback();
