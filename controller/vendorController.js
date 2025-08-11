@@ -6,14 +6,6 @@ const asyncHandler = require("express-async-handler");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 
-const transport = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const { service_id } = req.params;
 
