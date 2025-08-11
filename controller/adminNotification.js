@@ -1,5 +1,5 @@
-const { db } = require("../db");
-const admin = require("../../config/firebaseConfig");
+const { db } = require("../config/db");
+const admin = require("../config/firebaseConfig");
 
 const sendVendorRegistrationNotification = async (vendorType, nameOrCompany) => {
     try {

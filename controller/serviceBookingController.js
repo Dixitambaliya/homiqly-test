@@ -8,7 +8,7 @@ const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
     sendBookingNotificationToUser,
     sendBookingAssignedNotificationToVendor
-} = require("../config/fcmNotifications/adminNotification")
+} = require("./adminNotification")
 
 
 const bookService = asyncHandler(async (req, res) => {
