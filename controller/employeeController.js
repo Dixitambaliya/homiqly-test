@@ -7,7 +7,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { sendEmployeeCreationNotification,
     sendBookingAssignedNotification
-} = require("../config/fcmNotifications/adminNotification");
+} = require("./adminNotification");
 
 const createEmployee = asyncHandler(async (req, res) => {
     const { first_name, last_name, email, phone } = req.body;

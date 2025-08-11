@@ -4,7 +4,7 @@ const nodemailer = require("nodemailer");
 const { db } = require("../config/db"); // Update with your actual DB path
 
 const REMINDER_INTERVAL_MINUTES = 120; // 2 hours
-const CRON_EVERY_5_MIN = "*/5 * * * *"; // run every 5 minutes (change as needed)
+const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 5 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
@@ -226,8 +226,6 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
         console.error("❌ Service start reminder cron error:", err.message);
     }
 });
-
-
 
 cron.schedule('* * * * *', async () => {
     try {
