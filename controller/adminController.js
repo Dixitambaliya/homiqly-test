@@ -441,7 +441,12 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                     }
 
                     return {
-                        ...pkg,
+                        package_id: pkg.package_id,
+                        title: pkg.title,
+                        description: pkg.description,
+                        price: pkg.price,
+                        time_required: pkg.time_required,
+                        package_media: pkg.package_media,
                         sub_packages,
                         preferences
                     };
