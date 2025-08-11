@@ -13,12 +13,26 @@ const db = mysql.createPool({
     charset: 'utf8mb4',
 });
 
-db.on('connection', async (connection) => {
+
+async function applySessionSettings(connection) {
     try {
-        await connection.promise().query("SET SESSION group_concat_max_len = 1000000");
+
+        await connection.promise().query(
+            "SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))"
+        );
+
+        await connection.promise().query(
+            "SET SESSION group_concat_max_len = 1000000"
+        );
+
     } catch (err) {
-        console.error("❌ Failed to set group_concat_max_len:", err.message);
+        console.error("❌ Failed to apply session settings:", err.message);
     }
+}
+
+// Apply on every new connection
+db.on('connection', async (connection) => {
+    await applySessionSettings(connection);
 });
 
 // Test connection function
