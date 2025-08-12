@@ -175,6 +175,7 @@ const getBookings = asyncHandler(async (req, res) => {
 
                 u.user_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                u.email AS user_email,
 
                 sc.serviceCategory,
                 s.serviceName,
@@ -207,66 +208,115 @@ const getBookings = asyncHandler(async (req, res) => {
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `);
 
-        for (const booking of allBookings) {
-            const bookingId = booking.booking_id;
+        const enrichedBookings = await Promise.all(
+            allBookings.map(async (booking) => {
+                const bookingId = booking.booking_id;
 
-            // Fetch Packages
-            const [bookingPackages] = await db.query(`
-                SELECT
-                    p.package_id,
-                    p.packageName,
-                    p.totalPrice,
-                    p.totalTime,
-                    p.packageMedia
-                FROM service_booking_packages sbp
-                JOIN packages p ON sbp.package_id = p.package_id
-                WHERE sbp.booking_id = ?
-            `, [bookingId]);
+                // ===== Fetch Packages =====
+                const [bookingPackages] = await db.query(`
+                    SELECT
+                        p.package_id,
+                        p.packageName,
+                        p.totalPrice,
+                        p.totalTime,
+                        p.packageMedia
+                    FROM service_booking_packages sbp
+                    JOIN packages p ON sbp.package_id = p.package_id
+                    WHERE sbp.booking_id = ?
+                `, [bookingId]);
 
-            // Fetch Items
-            const [packageItems] = await db.query(`
-                SELECT
-                    sbsp.sub_package_id AS item_id,
-                    pi.itemName,
-                    sbsp.quantity,
-                    (sbsp.price * sbsp.quantity) AS price,
-                    pi.itemMedia,
-                    pi.timeRequired,
-                    pi.package_id
-                FROM service_booking_sub_packages sbsp
-                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                WHERE sbsp.booking_id = ?
-            `, [bookingId]);
+                // ===== Fetch Items =====
+                const [packageItems] = await db.query(`
+                    SELECT
+                        sbsp.sub_package_id AS item_id,
+                        pi.itemName,
+                        sbsp.quantity,
+                        (sbsp.price * sbsp.quantity) AS price,
+                        pi.itemMedia,
+                        pi.timeRequired,
+                        pi.package_id
+                    FROM service_booking_sub_packages sbsp
+                    LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                    WHERE sbsp.booking_id = ?
+                `, [bookingId]);
 
-            // Group items under packages
-            const groupedPackages = bookingPackages.map(pkg => {
-                const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                return { ...pkg, items };
-            });
+                // Group items under packages
+                const groupedPackages = bookingPackages.map(pkg => {
+                    const items = packageItems.filter(item => item.package_id === pkg.package_id);
+                    return { ...pkg, items };
+                });
 
-            // Fetch Preferences
-            const [bookingPreferences] = await db.query(`
-                SELECT
-                    sp.preference_id,
-                    bp.preferenceValue
-                FROM service_preferences sp
-                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-                WHERE sp.booking_id = ?
-            `, [bookingId]);
+                // ===== Fetch Preferences =====
+                const [bookingPreferences] = await db.query(`
+                    SELECT
+                        sp.preference_id,
+                        bp.preferenceValue
+                    FROM service_preferences sp
+                    JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                    WHERE sp.booking_id = ?
+                `, [bookingId]);
 
-            booking.packages = groupedPackages;
-            booking.package_items = packageItems;
-            booking.preferences = bookingPreferences;
+                booking.packages = groupedPackages;
+                booking.package_items = packageItems;
+                booking.preferences = bookingPreferences;
 
-            // Remove nulls
-            Object.keys(booking).forEach(key => {
-                if (booking[key] === null) delete booking[key];
-            });
-        }
+                // ===== Stripe Metadata Enrichment =====
+                if (booking.payment_intent_id) {
+                    try {
+                        const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id);
+
+                        const charges = await stripe.charges.list({
+                            payment_intent: booking.payment_intent_id,
+                            limit: 1,
+                        });
+                        const charge = charges.data?.[0];
+
+                        const stripeMetadata = {
+                            cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+                            last4: charge?.payment_method_details?.card?.last4 || "****",
+                            receiptEmail: charge?.receipt_email || charge?.billing_details?.email || booking.user_email || "N/A",
+                            chargeId: charge?.id || "N/A",
+                            paidAt: charge?.created
+                                ? new Date(charge.created * 1000).toLocaleString("en-US", {
+                                    timeZone: "Asia/Kolkata",
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })
+                                : "N/A",
+                            receiptUrl: charge?.receipt_url || null,
+                            paymentIntentId: charge?.payment_intent || "N/A",
+                        };
+
+                        booking.stripeMetadata = stripeMetadata;
+                    } catch (err) {
+                        console.error(`❌ Stripe fetch failed for booking ${booking.booking_id}:`, err.message);
+                        booking.stripeMetadata = {
+                            cardBrand: "N/A",
+                            last4: "****",
+                            receiptEmail: booking.user_email || "N/A",
+                            chargeId: "N/A",
+                            paidAt: "N/A",
+                            receiptUrl: null,
+                            paymentIntentId: booking.payment_intent_id,
+                        };
+                    }
+                }
+
+                // Remove null values
+                Object.keys(booking).forEach(key => {
+                    if (booking[key] === null) delete booking[key];
+                });
+
+                return booking;
+            })
+        );
 
         res.status(200).json({
             message: "All bookings fetched successfully",
-            bookings: allBookings
+            bookings: enrichedBookings
         });
 
     } catch (error) {
@@ -352,7 +402,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -731,7 +780,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -912,8 +960,6 @@ const getAllPayments = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
         const [packages] = await db.query(`
@@ -934,6 +980,107 @@ const getAllPackages = asyncHandler(async (req, res) => {
     }
 });
 
+const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
+    try {
+        const [applications] = await db.query(`
+            SELECT 
+                vpa.application_id,
+                vpa.vendor_id,
+                vpa.package_id,
+                vpa.status,
+                vpa.applied_at,
+
+                v.vendorType,
+                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+
+                p.packageName,
+                p.totalPrice,
+                p.totalTime,
+                p.packageMedia
+            FROM vendor_package_applications vpa
+            JOIN vendors v ON vpa.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            JOIN packages p ON vpa.package_id = p.package_id
+            ORDER BY vpa.applied_at DESC
+        `);
+
+        // Fetch sub-packages & preferences for each application
+        for (const app of applications) {
+            const [subPackages] = await db.query(`
+                SELECT vpsp.sub_package_id, pi.itemName, pi.itemMedia, pi.timeRequired
+                FROM vendor_sub_packages_application vpsp
+                JOIN package_items pi ON vpsp.sub_package_id = pi.item_id
+                WHERE vpsp.application_id = ?
+            `, [app.application_id]);
+
+            const [preferences] = await db.query(`
+                SELECT vpp.preference_id, bp.preferenceValue
+                FROM vendor_preferences_application vpp
+                JOIN booking_preferences bp ON vpp.preference_id = bp.preference_id
+                WHERE vpp.application_id = ?
+            `, [app.application_id]);
+
+            app.sub_packages = subPackages;
+            app.preferences = preferences;
+        }
+
+        res.status(200).json({
+            message: "All vendor package requests fetched successfully",
+            applications
+        });
+
+    } catch (err) {
+        console.error("Error fetching vendor package requests:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+});
+
+const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
+    try {
+        const { application_id } = req.params;
+        const { status } = req.body; // 1 for approved, 2 for rejected
+
+        if (!application_id || status === undefined) {
+            return res.status(400).json({ message: "application_id and status are required" });
+        }
+
+        if (![0, 1, 2].includes(Number(status))) {
+            return res.status(400).json({ message: "Invalid status. Use 0 (pending), 1 (approved), or 2 (rejected)." });
+        }
+
+        const [result] = await db.query(
+            `
+            UPDATE vendor_package_applications
+            SET status = ?, 
+                approved_at = CASE WHEN ? = 1 THEN NOW() ELSE NULL END
+            WHERE application_id = ?
+            `,
+            [status, status, application_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Application not found" });
+        }
+
+        res.status(200).json({
+            message: `Application ${application_id} status updated to ${status}.`
+        });
+
+    } catch (err) {
+        console.error("Error updating application status:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+});
+
 
 
 module.exports = {
@@ -950,5 +1097,7 @@ module.exports = {
     deletePackageByAdmin,
     getAllPayments,
     getAllPackages,
-    getAllEmployeesForAdmin
+    getAllEmployeesForAdmin,
+    getAllVendorPackageRequests,
+    updateVendorPackageRequestStatus
 };

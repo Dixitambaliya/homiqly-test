@@ -1,5 +1,5 @@
-const { db } = require("../db");
-const admin = require("../../config/firebaseConfig");
+const { db } = require("../config/db");
+const admin = require("../config/firebaseConfig");
 
 const sendVendorRegistrationNotification = async (vendorType, nameOrCompany) => {
     try {
@@ -208,7 +208,19 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, se
     try {
         // 🔹 1. Get vendor FCM token, name, and type
         const [[vendorInfo]] = await connection.query(
-            `SELECT fcmToken, vendorType FROM vendors WHERE vendor_id = ? AND fcmToken IS NOT NULL`,
+            `SELECT 
+                fcmToken, 
+                vendorType,
+                CASE 
+                    WHEN vendorType = 'individual' THEN idet.name
+                    WHEN vendorType = 'company' THEN cdet.companyName
+                END AS vendorName
+            FROM vendors v
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            WHERE v.vendor_id = ? 
+              AND v.fcmToken IS NOT NULL 
+              AND v.fcmToken != ''`,
             [vendor_id]
         );
 
@@ -217,25 +229,14 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, se
             return;
         }
 
-        const { fcmToken: token, name: vendorName, vendorType } = vendorInfo;
+        const { fcmToken: token, vendorName, vendorType } = vendorInfo;
 
-        // 🔹 2. Check if vendor is linked to this service
-        let vendorEligible = [];
-
-        if (vendorType === 'individual') {
-            [vendorEligible] = await connection.query(
-                `SELECT 1 FROM individual_services WHERE vendor_id = ?`,
-                [vendor_id]
-            );
-        } else if (vendorType === 'company') {
-            [vendorEligible] = await connection.query(
-                `SELECT 1 FROM company_services WHERE vendor_id = ?`,
-                [vendor_id]
-            );
-        } else {
-            console.warn(`❌ Invalid vendorType for vendor ${vendor_id}: ${vendorType}`);
+        // 🔹 2. Extra safeguard — skip if token is empty
+        if (!token) {
+            console.warn(`⚠️ Vendor ${vendor_id} has empty FCM token`);
             return;
         }
+
         // 🔹 3. Prepare FCM message
         const message = {
             notification: {
@@ -247,7 +248,7 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, se
                 bookingId: String(booking_id),
                 vendorId: String(vendor_id),
             },
-            token,
+            token: token.trim(),
         };
 
         // 🔹 4. Send FCM message
@@ -260,6 +261,74 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, se
     }
 };
 
+const sendVendorAssignedNotificationToUser = async (user_id, booking_id, vendor_id) => {
+    const connection = await db.getConnection();
+    try {
+        // 🔹 1. Get user FCM token, name
+        const [[userInfo]] = await connection.query(
+            `SELECT 
+                u.fcmToken, 
+                CONCAT(u.firstName, ' ', u.lastName) AS userName
+            FROM users u
+            WHERE u.user_id = ? 
+              AND u.fcmToken IS NOT NULL 
+              AND u.fcmToken != ''`,
+            [user_id]
+        );
+
+        if (!userInfo) {
+            console.warn(`⚠️ No FCM token or user info found for user ${user_id}`);
+            return;
+        }
+
+        const { fcmToken: token, userName } = userInfo;
+
+        if (!token) {
+            console.warn(`⚠️ User ${user_id} has empty FCM token`);
+            return;
+        }
+
+        // 🔹 2. Get vendor name
+        const [[vendorInfo]] = await connection.query(
+            `SELECT 
+                CASE 
+                    WHEN vendorType = 'individual' THEN idet.name
+                    WHEN vendorType = 'company' THEN cdet.companyName
+                END AS vendorName
+            FROM vendors v
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            WHERE v.vendor_id = ?`,
+            [vendor_id]
+        );
+
+        const vendorName = vendorInfo?.vendorName || "your vendor";
+
+        // 🔹 3. Prepare FCM message
+        const message = {
+            notification: {
+                title: "✅ Vendor Assigned",
+                body: `Hi ${userName}, ${vendorName} has been assigned to your booking (ID: ${booking_id}).`,
+            },
+            data: {
+                type: "vendor_assigned",
+                bookingId: String(booking_id),
+                vendorId: String(vendor_id),
+            },
+            token: token.trim(),
+        };
+
+        // 🔹 4. Send FCM message
+        const response = await admin.messaging().send(message);
+        console.log(`✅ Vendor assignment notification sent to user ${user_id}: ${response}`);
+    } catch (err) {
+        console.error("❌ Failed to send vendor assignment notification to user:", err.message);
+    } finally {
+        connection.release();
+    }
+};
+
+
 
 module.exports = {
     sendVendorRegistrationNotification,
@@ -267,5 +336,6 @@ module.exports = {
     sendEmployeeCreationNotification,
     sendBookingAssignedNotification,
     sendBookingNotificationToUser,
-    sendBookingAssignedNotificationToVendor
+    sendBookingAssignedNotificationToVendor,
+    sendVendorAssignedNotificationToUser
 };

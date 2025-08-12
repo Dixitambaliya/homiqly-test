@@ -7,8 +7,9 @@ const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
 const { sendServiceBookingNotification,
     sendBookingNotificationToUser,
-    sendBookingAssignedNotificationToVendor
-} = require("../config/fcmNotifications/adminNotification")
+    sendBookingAssignedNotificationToVendor,
+    sendVendorAssignedNotificationToUser
+} = require("./adminNotification")
 
 
 const bookService = asyncHandler(async (req, res) => {
@@ -202,7 +203,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             [vendor_id]
         );
 
-        const vendorType = vendorRow?.vendor_type || null;
+        const vendorType = vendorRow?.vendorType || null;
 
         const [platformSettings] = await db.query(
             "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
@@ -260,13 +261,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 SELECT
                     p.package_id,
                     p.packageName,
-                    p.totalPrice,
+                    ROUND(p.totalPrice * ?, 2) AS totalPrice,
                     p.totalTime,
                     p.packageMedia
                 FROM service_booking_packages sbp
                 JOIN packages p ON sbp.package_id = p.package_id
                 WHERE sbp.booking_id = ?`,
-                [bookingId]
+                [netFactor, bookingId]
             );
 
             // 🔹 Fetch Items with platform fee deducted from price
@@ -679,11 +680,14 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
             console.error(`⚠️ Failed to insert admin notification for booking_id ${booking_id}:`, err.message);
         }
 
+        // ✅ Send FCM push notifications
         try {
             await sendBookingAssignedNotificationToVendor(vendor_id, booking_id);
+            await sendVendorAssignedNotificationToUser(user_id, booking_id, vendor_id);
         } catch (err) {
             console.error(`⚠️ FCM notification failed for booking_id ${booking_id}:`, err.message);
         }
+
         res.status(200).json({ message: `Booking ${booking_id} successfully assigned to vendor ${vendor_id}.` });
     } catch (err) {
         await connection.rollback();

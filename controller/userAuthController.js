@@ -292,7 +292,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-    const { email, name, picture } = req.body;
+    const { email, name, picture, fcmToken } = req.body;
 
     if (!email) {
         return res.status(400).json({ error: "Email is required" });
@@ -312,13 +312,27 @@ const googleLogin = asyncHandler(async (req, res) => {
             email,
             "",        // phone
             picture,
+            fcmToken
         ]);
         user_id = result.insertId;
     } else {
         user_id = existingUser[0].user_id;
+
+        // ✅ Update FCM token for returning user
+        if (fcmToken) {
+            await db.query(
+                "UPDATE users SET fcmToken = ? WHERE user_id = ?",
+                [fcmToken, user_id]
+            );
+        }
     }
 
-    const jwtToken = jwt.sign({ user_id, email, status: "active" }, process.env.JWT_SECRET);
+    const jwtToken = jwt.sign({
+        user_id, email,
+        status: "active"
+    },
+        process.env.JWT_SECRET
+    );
 
     res.status(200).json({
         message: "Login successful via Google",

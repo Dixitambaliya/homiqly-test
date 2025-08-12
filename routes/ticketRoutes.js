@@ -4,7 +4,7 @@ const router = express.Router();
 const { sendMessageToAdmins,
     getAllSupportTickets,
     deleteTicket
-} = require("../controller/email");
+} = require("../controller/ticket");
 const { authenticationToken } = require('../middleware/authMiddleware');
 
 router.post("/contact", authenticationToken, sendMessageToAdmins)
