@@ -78,7 +78,6 @@ const getAllSupportTickets = asyncHandler(async (req, res) => {
     }
 });
 
-
 const deleteTicket = asyncHandler(async (req, res) => {
     const { ticket_id } = req.params;
 

@@ -54,7 +54,6 @@ exports.refreshStripeOnboarding = asyncHandler(async (req, res) => {
   res.json({ url: accountLink.url });
 });
 
-
 // 3. Get vendor account status
 exports.getStripeAccountStatus = asyncHandler(async (req, res) => {
   const vendorId = req.user.vendor_id;
@@ -96,7 +95,6 @@ exports.getStripeAccountStatus = asyncHandler(async (req, res) => {
   });
 });
 
-
 // 4. Admin retrieves vendor Stripe info
 exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
   const [rows] = await db.query(`
@@ -121,7 +119,6 @@ exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
         )`);
   res.json(rows);
 });
-
 
 // ✅ createPaymentIntent.js
 exports.createPaymentIntent = asyncHandler(async (req, res) => {
@@ -412,9 +409,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 });
 
 
-
-
-
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;
   if (!paymentIntentId) return res.status(400).json({ message: "Missing paymentIntentId" });
@@ -452,7 +446,6 @@ exports.confirmBooking = asyncHandler(async (req, res) => {
   res.json({ message: "Booking confirmed." });
 });
 
-
 // 8. Vendor sees their bookings
 exports.getVendorBookings = asyncHandler(async (req, res) => {
   const vendorId = req.user.vendor_id;
@@ -463,61 +456,3 @@ exports.getVendorBookings = asyncHandler(async (req, res) => {
   res.json(rows);
 });
 
-// 9. Admin gets vendor-wise booking summary
-exports.getBookingsByVendor = asyncHandler(async (req, res) => {
-  const { vendorId } = req.query;
-  const [rows] = await db.query(
-    "SELECT * FROM bookings WHERE vendor_id = ? ORDER BY created_at DESC",
-    [vendorId]
-  );
-  res.json(rows);
-});
-
-// 10. Vendor earnings summary
-exports.getVendorEarnings = asyncHandler(async (req, res) => {
-  const vendorId = req.user.vendor_id;
-  const [summary] = await db.query(
-    `SELECT COUNT(*) as total_bookings, SUM(amount) as total_earned
-     FROM bookings
-     WHERE vendor_id = ? AND status = 'confirmed'`,
-    [vendorId]
-  );
-  res.json(summary[0]);
-});
-
-// 11. Admin gets vendor payment summary
-exports.adminGetVendorPaymentSummary = asyncHandler(async (req, res) => {
-  const [rows] = await db.query(`
-    SELECT v.vendor_id, v.name, COUNT(b.booking_id) as total_bookings, SUM(b.amount) as total_earned
-    FROM vendors v
-    LEFT JOIN bookings b ON v.vendor_id = b.vendor_id AND b.status = 'confirmed'
-    GROUP BY v.vendor_id
-  `);
-  res.json(rows);
-});
-
-// 12. Mark vendor as paid
-exports.markVendorPaid = asyncHandler(async (req, res) => {
-  const { vendorId, bookings } = req.body;
-  if (!vendorId || !bookings || !bookings.length) {
-    return res.status(400).json({ error: "Missing vendorId or bookings array." });
-  }
-  await db.query(
-    "UPDATE bookings SET status = 'paid' WHERE vendor_id = ? AND booking_id IN (?)",
-    [vendorId, bookings]
-  );
-  res.json({ message: "Vendor marked as paid." });
-});
-
-// 13. Manual payout log
-exports.logManualPayout = asyncHandler(async (req, res) => {
-  const { vendorId, amount, reference } = req.body;
-  if (!vendorId || !amount) {
-    return res.status(400).json({ error: "Missing vendorId or amount." });
-  }
-  await db.query(
-    "INSERT INTO payouts (vendor_id, amount, reference) VALUES (?, ?, ?)",
-    [vendorId, amount, reference || null]
-  );
-  res.json({ message: "Payout logged." });
-});

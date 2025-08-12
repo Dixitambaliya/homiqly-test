@@ -6,14 +6,6 @@ const asyncHandler = require("express-async-handler");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 
-const transport = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const { service_id } = req.params;
 
@@ -35,6 +27,8 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
+//====================================================================================================
+
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -44,14 +38,15 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         const { selectedPackages } = req.body;
 
         if (!Array.isArray(selectedPackages) || selectedPackages.length === 0) {
-            throw new Error("At least one package with sub-packages must be provided.");
+            throw new Error("At least one package must be provided.");
         }
 
         for (const pkg of selectedPackages) {
-            const { package_id } = pkg;
+            const { package_id, sub_package_ids = [], preference_ids = [] } = pkg;
 
             if (!package_id) throw new Error("Each package must include package_id");
 
+            // ✅ Check package exists
             const [packageExists] = await connection.query(
                 `SELECT package_id FROM packages WHERE package_id = ?`,
                 [package_id]
@@ -61,10 +56,32 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
             }
 
             // ✅ Store application for admin approval
-            await connection.query(
+            const [result] = await connection.query(
                 `INSERT INTO vendor_package_applications (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
+
+            const application_id = result.insertId;
+
+            // ✅ Store sub-packages (if any)
+            if (Array.isArray(sub_package_ids) && sub_package_ids.length > 0) {
+                for (const subId of sub_package_ids) {
+                    await connection.query(
+                        `INSERT INTO vendor_sub_packages_application (application_id, sub_package_id) VALUES (?, ?)`,
+                        [application_id, subId]
+                    );
+                }
+            }
+
+            // ✅ Store preferences (if any)
+            if (Array.isArray(preference_ids) && preference_ids.length > 0) {
+                for (const prefId of preference_ids) {
+                    await connection.query(
+                        `INSERT INTO vendor_preferences_application (application_id, preference_id) VALUES (?, ?)`,
+                        [application_id, prefId]
+                    );
+                }
+            }
         }
 
         await connection.commit();
@@ -72,7 +89,7 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
 
         // ✅ Send email notification to admin
         const transporter = nodemailer.createTransport({
-            service: "Gmail", // or use your SMTP config
+            service: "gmail",
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
@@ -81,13 +98,19 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
 
         await transporter.sendMail({
             from: `"Vendor System" <${process.env.EMAIL_USER}>`,
-            to: process.env.EMAIL_USER, // Admin's real email
+            to: process.env.EMAIL_USER,
             subject: "New Package Application Submitted",
             html: `
                 <p><strong>Vendor ID:</strong> ${vendor_id}</p>
                 <p>has applied for the following packages:</p>
                 <ul>
-                    ${selectedPackages.map(p => `<li>Package ID: ${p.package_id}</li>`).join("")}
+                    ${selectedPackages.map(p => `
+                        <li>
+                            Package ID: ${p.package_id} <br>
+                            Sub-packages: ${p.sub_package_ids?.join(", ") || "None"} <br>
+                            Preferences: ${p.preference_ids?.join(", ") || "None"}
+                        </li>
+                    `).join("")}
                 </ul>
             `
         });
@@ -104,6 +127,9 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+//====================================================================================================
+
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
