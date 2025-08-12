@@ -902,6 +902,77 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
     }
 });
 
+const getAvailableVendorsSimple = asyncHandler(async (req, res) => {
+    try {
+        const { date, time, service_id = null } = req.query;
+
+        if (!date || !time) {
+            return res
+                .status(400)
+                .json({ message: "date (YYYY-MM-DD) and time are required" });
+        }
+
+        // Which booking statuses block a slot
+        const blocking = [1, 3, 4];
+
+        const sql = `
+      SELECT DISTINCT   
+        v.vendor_id,
+        v.vendorType,
+        IF(v.vendorType = 'company', cdet.companyName, idet.name)  AS vendorName,
+        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+        ROUND(AVG(r.rating), 1) AS avgRating,
+        COUNT(r.rating_id) AS totalRatings
+      FROM vendors v
+      LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
+      LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
+      LEFT JOIN individual_services vs  ON vs.vendor_id = v.vendor_id
+      LEFT JOIN company_services    cs  ON cs.vendor_id = v.vendor_id
+      LEFT JOIN vendor_service_ratings r 
+        ON r.vendor_id = v.vendor_id
+        AND r.service_id = COALESCE(vs.service_id, cs.service_id)
+
+        WHERE (
+            ? IS NULL 
+            OR (v.vendorType = 'individual' AND vs.service_id = ?)
+            OR (v.vendorType = 'company'    AND cs.service_id = ?)
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM service_booking sb
+          WHERE sb.vendor_id = v.vendor_id
+            AND sb.bookingDate = ?
+            AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
+            AND sb.bookingTime = ?
+        )
+    GROUP BY 
+    v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
+      ORDER BY vendorName ASC
+    `;
+
+        const params = [
+            service_id, service_id, service_id,// service type filter
+            date,                              // bookingDate
+            ...blocking,                       // booking statuses
+            time                               // exact booking time match
+        ];
+
+        const [vendors] = await db.query(sql, params);
+
+        res.status(200).json({
+            message: "Available vendors fetched successfully",
+            requested: { date, time, service_id },
+            vendors
+        });
+    } catch (err) {
+        console.error("getAvailableVendorsSimple error:", err);
+        res
+            .status(500)
+            .json({ message: "Internal server error", error: err.message });
+    }
+});
+
 module.exports = {
     bookService,
     getVendorBookings,
@@ -909,5 +980,6 @@ module.exports = {
     approveOrRejectBooking,
     assignBookingToVendor,
     getEligiblevendors,
-    approveOrAssignBooking
+    approveOrAssignBooking,
+    getAvailableVendorsSimple
 };

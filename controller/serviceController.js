@@ -256,10 +256,10 @@ const getcity = asyncHandler(async (req, res) => {
         const [rows] = await db.query(serviceGetQueries.getCities);
 
         const city = rows.map(row => ({
-            serviceCityId: row.serviceCityId,
-            serviceCity: row.serviceCityName,
+            service_city_id: row.service_city_id,
+            cityName: row.serviceCityName,
         }))
-
+        
         res.status(200).json({
             message: "Cities fetched successfully",
             city
@@ -397,17 +397,17 @@ const editServiceCity = asyncHandler(async (req, res) => {
 })
 
 const deleteServiceCity = asyncHandler(async (req, res) => {
-    const { serviceCityId } = req.body;
+    const { service_city_id } = req.params;
 
-    if (!serviceCityId) {
+    if (!service_city_id) {
         return res.json(400).json({ message: "City ID is required" })
     }
     try {
-        const [existingCity] = await db.query(serviceDeleteQueries.checkCityById, [serviceCityId]);
+        const [existingCity] = await db.query(serviceDeleteQueries.checkCityById, [service_city_id]);
         if (existingCity.length === 0) {
             return res.status(404).json({ message: "City not found" });
         }
-        await db.query(serviceDeleteQueries.deleteCity, [serviceCityId]);
+        await db.query(serviceDeleteQueries.deleteCity, [service_city_id]);
         res.status(200).json({ message: "City deleted successfully" });
     } catch (err) {
         console.error("City deletion failed:", err);
