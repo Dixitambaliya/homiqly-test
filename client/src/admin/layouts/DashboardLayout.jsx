@@ -90,6 +90,11 @@ const DashboardLayout = () => {
       icon: <FiBarChart2 className="w-5 h-5" />,
     },
     {
+      path: "/admin/vendorapplications",
+      name: "Vendor Applications",
+      icon: <FiUsers className="w-5 h-5" />,
+    },
+    {
       path: "/admin/rating",
       name: "Rating",
       icon: <FiStar className="w-5 h-5" />,
@@ -130,6 +135,10 @@ const DashboardLayout = () => {
         {
           path: "/admin/settings/platform-fees",
           name: "Platform Fees",
+        },
+        {
+          path: "/admin/settings/city",
+          name: "Add City",
         },
       ],
     },

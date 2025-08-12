@@ -30,6 +30,8 @@ import UserRating from "../pages/UserRating";
 import VendorRating from "../pages/VendorRating";
 import PackageRating from "../pages/PackageRating";
 import PaymentDetails from "../pages/subpages/PaymentDetails";
+import ServiceCities from "../pages/subpages/ServiceCities";
+import VendorApplications from "../pages/VendorApplications";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -91,6 +93,7 @@ const AdminRoutes = () => {
         <Route path="supply-kits" element={<SupplyKits />} />
         <Route path="contractors" element={<Contractors />} />
         <Route path="employees" element={<Employees />} />
+        <Route path="vendorapplications" element={<VendorApplications />} />
         <Route path="payments" element={<Payments />} />
         <Route path="payments/:paymentId" element={<PaymentDetails />} />
         <Route path="analytics" element={<Analytics />} />
@@ -103,6 +106,7 @@ const AdminRoutes = () => {
         <Route path="settings" element={<Settings />} />
         <Route path="settings/platform-fees" element={<PlatformFees />} />
         <Route path="settings/general" element={<GeneralSettings />} />
+        <Route path="settings/city" element={<ServiceCities />} />
         <Route path="tickets" element={<Tickets />} />
       </Route>
 

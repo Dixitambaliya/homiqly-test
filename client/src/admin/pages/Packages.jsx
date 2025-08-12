@@ -197,7 +197,7 @@ const Packages = () => {
                           </Button>
                           <Button
                             size="sm"
-                            variant="danger"
+                            variant="error"
                             color="red"
                             onClick={() => handleDeletePackage(pkg.package_id)}
                             icon={<FiTrash2 />}

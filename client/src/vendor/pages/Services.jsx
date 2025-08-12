@@ -3,12 +3,14 @@ import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button } from "../../shared/components/Button";
 import { toast } from "react-toastify";
+import ApplyServiceModal from "../components/Modals/ApplyServiceModal";
 
 const Services = () => {
   const [groupedPackages, setGroupedPackages] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [requestingPackages, setRequestingPackages] = useState({});
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -73,17 +75,22 @@ const Services = () => {
         <h2 className="text-2xl font-bold text-gray-800">Apply for Services</h2>
 
         {/* Dropdown */}
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="w-full md:w-60 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {categoryList.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between">
+          <Button onClick={() => setShowModal(true)}>
+            Request New Services
+          </Button>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full md:w-60 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {categoryList.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -217,6 +224,11 @@ const Services = () => {
             </div>
           ))
       )}
+
+      <ApplyServiceModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+      />
     </div>
   );
 };

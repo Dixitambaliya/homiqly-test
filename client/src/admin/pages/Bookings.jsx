@@ -59,6 +59,30 @@ const Bookings = () => {
     return true;
   });
 
+  const handleUpdateStatus = async (bookingId, status) => {
+    try {
+      const response = await api.put("/api/booking/approveorrejectbooking", {
+        booking_id: bookingId,
+        status,
+      });
+      if (response.status === 200) {
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.booking_id === bookingId || b.bookingId === bookingId
+              ? { ...b, bookingStatus: status }
+              : b
+          )
+        );
+        toast.success(
+          `Booking ${status === 1 ? "approved" : "rejected"} successfully`
+        );
+      }
+    } catch (error) {
+      console.error("Error updating booking status:", error);
+      toast.error("Failed to update booking status");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -150,6 +174,8 @@ const Bookings = () => {
             state: { booking },
           })
         }
+        onApprove={(bookingId) => handleUpdateStatus(bookingId, 1)}
+        onReject={(bookingId) => handleUpdateStatus(bookingId, 2)}
       />
     </div>
   );

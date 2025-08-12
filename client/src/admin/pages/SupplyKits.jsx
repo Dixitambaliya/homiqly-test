@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import { FiPlus, FiEdit, FiTrash2, FiPackage, FiX } from 'react-icons/fi';
-import LoadingSpinner from '../../shared/components/LoadingSpinner';
-import { formatCurrency } from '../../shared/utils/formatUtils';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import { FiPlus, FiEdit, FiTrash2, FiPackage, FiX } from "react-icons/fi";
+import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { formatCurrency } from "../../shared/utils/formatUtils";
+import { Button } from "../../shared/components/Button";
 
 const SupplyKits = () => {
   const [supplyKits, setSupplyKits] = useState([]);
@@ -14,12 +15,14 @@ const SupplyKits = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedKit, setSelectedKit] = useState(null);
   const [formData, setFormData] = useState({
-    kit_name: '',
-    kit_description: '',
-    kit_price: '',
-    service_categories_id: '',
+    kit_name: "",
+    kit_description: "",
+    kit_price: "",
+    service_categories_id: "",
     kit_image: null,
-    items: [{ item_name: '', item_description: '', quantity: 1, unit_price: '' }]
+    items: [
+      { item_name: "", item_description: "", quantity: 1, unit_price: "" },
+    ],
   });
   const [submitting, setSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -31,39 +34,41 @@ const SupplyKits = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch supply kits
-      const kitsResponse = await axios.get('/api/supplykit/all');
+      const kitsResponse = await axios.get("/api/supplykit/all");
       setSupplyKits(kitsResponse.data.supply_kits || []);
-      
+
       // Fetch categories for dropdown
-      const categoriesResponse = await axios.get('/api/service/getservicecategories');
+      const categoriesResponse = await axios.get(
+        "/api/service/getservicecategories"
+      );
       setCategories(categoriesResponse.data.categories || []);
-      
+
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching supply kits data:', error);
-      setError('Failed to load supply kits');
+      console.error("Error fetching supply kits data:", error);
+      setError("Failed to load supply kits");
       setLoading(false);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        kit_image: file
+        kit_image: file,
       }));
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -76,16 +81,19 @@ const SupplyKits = () => {
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...formData.items];
     updatedItems[index][field] = value;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: updatedItems
+      items: updatedItems,
     }));
   };
 
   const addItem = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, { item_name: '', item_description: '', quantity: 1, unit_price: '' }]
+      items: [
+        ...prev.items,
+        { item_name: "", item_description: "", quantity: 1, unit_price: "" },
+      ],
     }));
   };
 
@@ -93,69 +101,85 @@ const SupplyKits = () => {
     if (formData.items.length > 1) {
       const updatedItems = [...formData.items];
       updatedItems.splice(index, 1);
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        items: updatedItems
+        items: updatedItems,
       }));
     } else {
-      toast.warning('Supply kit must have at least one item');
+      toast.warning("Supply kit must have at least one item");
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.kit_name || !formData.kit_price || !formData.service_categories_id) {
-      toast.error('Please fill all required fields');
+
+    if (
+      !formData.kit_name ||
+      !formData.kit_price ||
+      !formData.service_categories_id
+    ) {
+      toast.error("Please fill all required fields");
       return;
     }
-    
-    if (!formData.items.every(item => item.item_name && item.unit_price)) {
-      toast.error('Please fill all required item fields');
+
+    if (!formData.items.every((item) => item.item_name && item.unit_price)) {
+      toast.error("Please fill all required item fields");
       return;
     }
-    
+
     try {
       setSubmitting(true);
-      
+
       const formDataToSend = new FormData();
-      formDataToSend.append('kit_name', formData.kit_name);
-      formDataToSend.append('kit_description', formData.kit_description || '');
-      formDataToSend.append('kit_price', formData.kit_price);
-      formDataToSend.append('service_categories_id', formData.service_categories_id);
-      
+      formDataToSend.append("kit_name", formData.kit_name);
+      formDataToSend.append("kit_description", formData.kit_description || "");
+      formDataToSend.append("kit_price", formData.kit_price);
+      formDataToSend.append(
+        "service_categories_id",
+        formData.service_categories_id
+      );
+
       if (formData.kit_image) {
-        formDataToSend.append('kit_image', formData.kit_image);
+        formDataToSend.append("kit_image", formData.kit_image);
       }
-      
-      formDataToSend.append('items', JSON.stringify(formData.items));
-      
+
+      formDataToSend.append("items", JSON.stringify(formData.items));
+
       let response;
       if (showAddModal) {
-        response = await axios.post('/api/supplykit/create', formDataToSend, {
+        response = await axios.post("/api/supplykit/create", formDataToSend, {
           headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+            "Content-Type": "multipart/form-data",
+          },
         });
       } else {
-        formDataToSend.append('kit_id', selectedKit.kit_id);
-        response = await axios.put(`/api/supplykit/update/${selectedKit.kit_id}`, formDataToSend, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
+        formDataToSend.append("kit_id", selectedKit.kit_id);
+        response = await axios.put(
+          `/api/supplykit/update/${selectedKit.kit_id}`,
+          formDataToSend,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
           }
-        });
+        );
       }
-      
+
       if (response.status === 200 || response.status === 201) {
-        toast.success(`Supply kit ${showAddModal ? 'created' : 'updated'} successfully`);
+        toast.success(
+          `Supply kit ${showAddModal ? "created" : "updated"} successfully`
+        );
         setShowAddModal(false);
         setShowEditModal(false);
         resetForm();
         fetchData(); // Refresh the list
       }
     } catch (error) {
-      console.error('Error submitting supply kit:', error);
-      toast.error(error.response?.data?.message || `Failed to ${showAddModal ? 'create' : 'update'} supply kit`);
+      console.error("Error submitting supply kit:", error);
+      toast.error(
+        error.response?.data?.message ||
+          `Failed to ${showAddModal ? "create" : "update"} supply kit`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -163,12 +187,14 @@ const SupplyKits = () => {
 
   const resetForm = () => {
     setFormData({
-      kit_name: '',
-      kit_description: '',
-      kit_price: '',
-      service_categories_id: '',
+      kit_name: "",
+      kit_description: "",
+      kit_price: "",
+      service_categories_id: "",
       kit_image: null,
-      items: [{ item_name: '', item_description: '', quantity: 1, unit_price: '' }]
+      items: [
+        { item_name: "", item_description: "", quantity: 1, unit_price: "" },
+      ],
     });
     setImagePreview(null);
   };
@@ -177,11 +203,13 @@ const SupplyKits = () => {
     setSelectedKit(kit);
     setFormData({
       kit_name: kit.kit_name,
-      kit_description: kit.kit_description || '',
+      kit_description: kit.kit_description || "",
       kit_price: kit.kit_price,
       service_categories_id: kit.service_categories_id,
       kit_image: null,
-      items: kit.items || [{ item_name: '', item_description: '', quantity: 1, unit_price: '' }]
+      items: kit.items || [
+        { item_name: "", item_description: "", quantity: 1, unit_price: "" },
+      ],
     });
     setImagePreview(kit.kit_image);
     setShowEditModal(true);
@@ -206,27 +234,31 @@ const SupplyKits = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Supply Kit Management</h2>
-        <button
+        <h2 className="text-2xl font-bold text-gray-800">
+          Supply Kit Management
+        </h2>
+        <Button
           onClick={() => {
             resetForm();
             setShowAddModal(true);
           }}
-          className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark flex items-center"
         >
           <FiPlus className="mr-2" />
           Add Supply Kit
-        </button>
+        </Button>
       </div>
 
       {supplyKits.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {supplyKits.map(kit => (
-            <div key={kit.kit_id} className="bg-white rounded-lg shadow overflow-hidden">
+          {supplyKits.map((kit) => (
+            <div
+              key={kit.kit_id}
+              className="bg-white rounded-lg shadow overflow-hidden"
+            >
               {kit.kit_image && (
-                <img 
-                  src={kit.kit_image} 
-                  alt={kit.kit_name} 
+                <img
+                  src={kit.kit_image}
+                  alt={kit.kit_name}
                   className="w-full h-48 object-cover"
                 />
               )}
@@ -242,24 +274,32 @@ const SupplyKits = () => {
                     </button>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 mb-3">{kit.kit_description}</p>
+                <p className="text-sm text-gray-600 mb-3">
+                  {kit.kit_description}
+                </p>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(kit.kit_price)}</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {formatCurrency(kit.kit_price)}
+                  </span>
                   <span className="text-xs bg-blue-100 text-blue-800 rounded-full px-2 py-1">
                     {kit.serviceCategory}
                   </span>
                 </div>
-                
+
                 {kit.items && kit.items.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
                       <FiPackage className="mr-1" /> Kit Contents
                     </h4>
                     <ul className="text-sm text-gray-600 space-y-1">
-                      {kit.items.map(item => (
+                      {kit.items.map((item) => (
                         <li key={item.item_id} className="flex justify-between">
-                          <span>{item.item_name} ({item.quantity}x)</span>
-                          <span className="text-gray-500">{formatCurrency(item.unit_price)}</span>
+                          <span>
+                            {item.item_name} ({item.quantity}x)
+                          </span>
+                          <span className="text-gray-500">
+                            {formatCurrency(item.unit_price)}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -281,9 +321,9 @@ const SupplyKits = () => {
           <div className="bg-white rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">
-                {showAddModal ? 'Add New Supply Kit' : 'Edit Supply Kit'}
+                {showAddModal ? "Add New Supply Kit" : "Edit Supply Kit"}
               </h3>
-              <button 
+              <button
                 onClick={() => {
                   setShowAddModal(false);
                   setShowEditModal(false);
@@ -294,11 +334,14 @@ const SupplyKits = () => {
                 <FiX className="h-5 w-5" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label htmlFor="kit_name" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="kit_name"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Kit Name*
                   </label>
                   <input
@@ -311,9 +354,12 @@ const SupplyKits = () => {
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
                   />
                 </div>
-                
+
                 <div>
-                  <label htmlFor="kit_price" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="kit_price"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Kit Price (₹)*
                   </label>
                   <input
@@ -328,9 +374,12 @@ const SupplyKits = () => {
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
                   />
                 </div>
-                
+
                 <div>
-                  <label htmlFor="service_categories_id" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="service_categories_id"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Service Category*
                   </label>
                   <select
@@ -342,17 +391,23 @@ const SupplyKits = () => {
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
                   >
                     <option value="">Select Category</option>
-                    {categories.map(category => (
-                      <option key={category.serviceCategoryId} value={category.serviceCategoryId}>
+                    {categories.map((category) => (
+                      <option
+                        key={category.serviceCategoryId}
+                        value={category.serviceCategoryId}
+                      >
                         {category.serviceCategory}
                       </option>
                     ))}
                   </select>
                 </div>
-                
+
                 <div>
-                  <label htmlFor="kit_image" className="block text-sm font-medium text-gray-700 mb-1">
-                    Kit Image{showAddModal ? '*' : ''}
+                  <label
+                    htmlFor="kit_image"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Kit Image{showAddModal ? "*" : ""}
                   </label>
                   <input
                     type="file"
@@ -365,13 +420,20 @@ const SupplyKits = () => {
                   />
                   {imagePreview && (
                     <div className="mt-2">
-                      <img src={imagePreview} alt="Preview" className="h-32 object-cover rounded-md" />
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="h-32 object-cover rounded-md"
+                      />
                     </div>
                   )}
                 </div>
-                
+
                 <div className="md:col-span-2">
-                  <label htmlFor="kit_description" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="kit_description"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Description
                   </label>
                   <textarea
@@ -384,10 +446,12 @@ const SupplyKits = () => {
                   ></textarea>
                 </div>
               </div>
-              
+
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-md font-medium text-gray-700">Kit Items*</h4>
+                  <h4 className="text-md font-medium text-gray-700">
+                    Kit Items*
+                  </h4>
                   <button
                     type="button"
                     onClick={addItem}
@@ -397,12 +461,17 @@ const SupplyKits = () => {
                     Add Item
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   {formData.items.map((item, index) => (
-                    <div key={index} className="p-3 border border-gray-200 rounded-md bg-gray-50">
+                    <div
+                      key={index}
+                      className="p-3 border border-gray-200 rounded-md bg-gray-50"
+                    >
                       <div className="flex justify-between items-center mb-2">
-                        <h5 className="text-sm font-medium">Item {index + 1}</h5>
+                        <h5 className="text-sm font-medium">
+                          Item {index + 1}
+                        </h5>
                         {formData.items.length > 1 && (
                           <button
                             type="button"
@@ -413,59 +482,95 @@ const SupplyKits = () => {
                           </button>
                         )}
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor={`item_name_${index}`} className="block text-xs font-medium text-gray-500 mb-1">
+                          <label
+                            htmlFor={`item_name_${index}`}
+                            className="block text-xs font-medium text-gray-500 mb-1"
+                          >
                             Item Name*
                           </label>
                           <input
                             type="text"
                             id={`item_name_${index}`}
                             value={item.item_name}
-                            onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "item_name",
+                                e.target.value
+                              )
+                            }
                             required
                             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light text-sm"
                           />
                         </div>
-                        
+
                         <div>
-                          <label htmlFor={`item_description_${index}`} className="block text-xs font-medium text-gray-500 mb-1">
+                          <label
+                            htmlFor={`item_description_${index}`}
+                            className="block text-xs font-medium text-gray-500 mb-1"
+                          >
                             Description
                           </label>
                           <input
                             type="text"
                             id={`item_description_${index}`}
                             value={item.item_description}
-                            onChange={(e) => handleItemChange(index, 'item_description', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "item_description",
+                                e.target.value
+                              )
+                            }
                             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light text-sm"
                           />
                         </div>
-                        
+
                         <div>
-                          <label htmlFor={`quantity_${index}`} className="block text-xs font-medium text-gray-500 mb-1">
+                          <label
+                            htmlFor={`quantity_${index}`}
+                            className="block text-xs font-medium text-gray-500 mb-1"
+                          >
                             Quantity*
                           </label>
                           <input
                             type="number"
                             id={`quantity_${index}`}
                             value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "quantity",
+                                Math.max(1, parseInt(e.target.value) || 1)
+                              )
+                            }
                             required
                             min="1"
                             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-light focus:border-primary-light text-sm"
                           />
                         </div>
-                        
+
                         <div>
-                          <label htmlFor={`unit_price_${index}`} className="block text-xs font-medium text-gray-500 mb-1">
+                          <label
+                            htmlFor={`unit_price_${index}`}
+                            className="block text-xs font-medium text-gray-500 mb-1"
+                          >
                             Unit Price (₹)*
                           </label>
                           <input
                             type="number"
                             id={`unit_price_${index}`}
                             value={item.unit_price}
-                            onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "unit_price",
+                                e.target.value
+                              )
+                            }
                             required
                             min="0"
                             step="0.01"
@@ -477,7 +582,7 @@ const SupplyKits = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
@@ -500,8 +605,10 @@ const SupplyKits = () => {
                       <LoadingSpinner size="sm" color="white" />
                       <span className="ml-2">Submitting...</span>
                     </>
+                  ) : showAddModal ? (
+                    "Create Supply Kit"
                   ) : (
-                    showAddModal ? 'Create Supply Kit' : 'Update Supply Kit'
+                    "Update Supply Kit"
                   )}
                 </button>
               </div>

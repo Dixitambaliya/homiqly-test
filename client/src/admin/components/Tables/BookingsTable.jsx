@@ -1,5 +1,5 @@
 import React from "react";
-import { FiEye } from "react-icons/fi";
+import { FiCheckCircle, FiEye, FiXCircle } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
@@ -11,7 +11,10 @@ const BookingsTable = ({
   isLoading,
   onViewBooking,
   filteredStatus,
+  onApprove,
+  onReject,
 }) => {
+  console.log("BookingsTable rendered with bookings:", bookings);
   const columns = [
     {
       title: "ID",
@@ -67,24 +70,48 @@ const BookingsTable = ({
     {
       title: "Payment Status",
       key: "paymentStatus",
-      render: (row) => (
-        <PaymentBadge status={row.payment_status} />
-      ),
+      render: (row) => <PaymentBadge status={row.payment_status} />,
     },
     {
       title: "Actions",
       align: "right",
       render: (row) => (
-        <IconButton
-          icon={<FiEye className="h-4 w-4" />}
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewBooking(row);
-          }}
-          tooltip="View details"
-        />
+        <div className="flex items-center justify-end space-x-2">
+          {row.bookingStatus === 0 && (
+            <>
+              <IconButton
+                icon={<FiCheckCircle />}
+                variant="success"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onApprove(row.booking_id || row.bookingId);
+                }}
+                tooltip="Accept"
+              />
+              <IconButton
+                icon={<FiXCircle />}
+                variant="danger"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReject(row.booking_id || row.bookingId);
+                }}
+                tooltip="Reject"
+              />
+            </>
+          )}
+          <IconButton
+            icon={<FiEye />}
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewBooking(row);
+            }}
+            tooltip="View details"
+          />
+        </div>
       ),
     },
   ];
