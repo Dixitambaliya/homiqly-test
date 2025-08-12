@@ -919,7 +919,13 @@ const getAvailableVendorsSimple = asyncHandler(async (req, res) => {
       SELECT DISTINCT   
         v.vendor_id,
         v.vendorType,
-        IF(v.vendorType = 'company', cdet.companyName, idet.name)  AS vendorName,
+        CONCAT(
+          LEFT(
+            IF(v.vendorType = 'company', cdet.companyName, idet.name),
+            4
+          ),
+          '...'
+        ) AS vendorName,
         IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
         IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
         ROUND(AVG(r.rating), 1) AS avgRating,
