@@ -46,6 +46,6 @@ router.put('/editcategory', editCategory);
 router.delete('/deletecategory', deleteCategory);
 
 router.put('/editservicecity', editServiceCity);
-router.delete('/deleteservicecity', deleteServiceCity);
+router.delete('/deleteservicecity/:service_city_id', deleteServiceCity);
 
 module.exports = router

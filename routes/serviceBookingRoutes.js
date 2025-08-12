@@ -6,7 +6,8 @@ const { bookService,
     approveOrRejectBooking,
     assignBookingToVendor,
     getEligiblevendors,
-    approveOrAssignBooking
+    approveOrAssignBooking,
+    getAvailableVendorsSimple
 } = require('../controller/serviceBookingController');
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
@@ -16,6 +17,11 @@ const multiUpload = upload.any();
 router.post('/bookservice', multiUpload, handleUploads, authenticationToken, bookService);
 
 router.get('/vendorassignedservices', authenticationToken, getVendorBookings);
+
+
+router.get('/getvendorsbytime', authenticationToken, getAvailableVendorsSimple);
+
+
 
 router.get('/userbookedservices', authenticationToken, getUserBookings);
 router.get('/get-eligible-vendors/:booking_id', authenticationToken, getEligiblevendors);
