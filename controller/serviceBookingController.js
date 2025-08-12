@@ -913,7 +913,7 @@ const getAvailableVendorsSimple = asyncHandler(async (req, res) => {
         }
 
         // Which booking statuses block a slot
-        const blocking = [1, 3, 4];
+        const blocking = [1, 3];
 
         const sql = `
       SELECT DISTINCT   
