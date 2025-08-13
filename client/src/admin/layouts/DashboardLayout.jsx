@@ -90,7 +90,7 @@ const DashboardLayout = () => {
       icon: <FiBarChart2 className="w-5 h-5" />,
     },
     {
-      path: "/admin/vendorapplications",
+      path: "/admin/vendor-applications",
       name: "Vendor Applications",
       icon: <FiUsers className="w-5 h-5" />,
     },
