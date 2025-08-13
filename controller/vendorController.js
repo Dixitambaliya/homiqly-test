@@ -27,8 +27,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
-//====================================================================================================
-
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -37,12 +35,13 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         const vendor_id = req.user.vendor_id;
         const { selectedPackages } = req.body;
 
+
         if (!Array.isArray(selectedPackages) || selectedPackages.length === 0) {
             throw new Error("At least one package must be provided.");
         }
 
         for (const pkg of selectedPackages) {
-            const { package_id, sub_package_ids = [], preference_ids = [] } = pkg;
+            const { package_id, sub_packages = [], preferences = [] } = pkg;
 
             if (!package_id) throw new Error("Each package must include package_id");
 
@@ -64,21 +63,21 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
             const application_id = result.insertId;
 
             // ✅ Store sub-packages (if any)
-            if (Array.isArray(sub_package_ids) && sub_package_ids.length > 0) {
-                for (const subId of sub_package_ids) {
+            if (Array.isArray(sub_packages) && sub_packages.length > 0) {
+                for (const sub of sub_packages) {
                     await connection.query(
                         `INSERT INTO vendor_sub_packages_application (application_id, sub_package_id) VALUES (?, ?)`,
-                        [application_id, subId]
+                        [application_id, sub.sub_package_id]
                     );
                 }
             }
 
             // ✅ Store preferences (if any)
-            if (Array.isArray(preference_ids) && preference_ids.length > 0) {
-                for (const prefId of preference_ids) {
+            if (Array.isArray(preferences) && preferences.length > 0) {
+                for (const pref of preferences) {
                     await connection.query(
                         `INSERT INTO vendor_preferences_application (application_id, preference_id) VALUES (?, ?)`,
-                        [application_id, prefId]
+                        [application_id, pref.preference_id]
                     );
                 }
             }
@@ -127,9 +126,6 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-//====================================================================================================
-
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;

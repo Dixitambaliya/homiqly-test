@@ -1,6 +1,5 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
 const sendEmail = require('../config/mailer');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
@@ -941,6 +940,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
       LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
       LEFT JOIN individual_services vs  ON vs.vendor_id = v.vendor_id
       LEFT JOIN company_services    cs  ON cs.vendor_id = v.vendor_id
+      LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
       LEFT JOIN vendor_service_ratings r 
         ON r.vendor_id = v.vendor_id
         AND r.service_id = COALESCE(vs.service_id, cs.service_id)
@@ -950,6 +950,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             OR (v.vendorType = 'individual' AND vs.service_id = ?)
             OR (v.vendorType = 'company'    AND cs.service_id = ?)
         )
+        AND (vst.manual_assignment_enabled = 1)
         AND NOT EXISTS (
           SELECT 1
           FROM service_booking sb
