@@ -22,7 +22,8 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate,
         bookingTime,
         notes,
-        preferences
+        preferences,
+        vendor_id
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -54,26 +55,30 @@ const bookService = asyncHandler(async (req, res) => {
 
     try {
         // ✅ Prevent duplicate bookings
-        for (const pkg of parsedPackages) {
-            const { package_id } = pkg;
-            if (!package_id) continue;
+        // ✅ Prevent same user from booking the exact same date & time again
+        const [slotClash] = await db.query(
+            `SELECT sb.booking_id
+                FROM service_booking sb
+                WHERE sb.user_id = ?
+                AND sb.bookingDate = ?
+                AND sb.bookingTime = ?
+                AND sb.bookingStatus NOT IN (2, 4)   -- allow only if previous is Rejected(2) or Completed(4)
+                LIMIT 1`,
+            [user_id, bookingDate, bookingTime]
+        );
 
-            const [existing] = await db.query(
-                `SELECT sb.booking_id
-         FROM service_booking sb
-         JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-         JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-         WHERE sb.user_id = ? AND sbt.service_type_id = ? AND sbp.package_id = ? 
-           AND sb.bookingStatus NOT IN (2, 4)
-         LIMIT 1`,
-                [user_id, service_type_id, package_id]
-            );
+        if (slotClash.length) {
+            return res.status(409).json({
+                message: `You already have a booking at ${bookingDate} ${bookingTime}. Please choose a different time.`,
+            });
+        }
 
-            if (existing.length > 0) {
-                return res.status(409).json({
-                    message: `You have already booked package ID ${package_id} for this service type and it is not yet completed or rejected.`,
-                });
-            }
+        const [vendorRows] = await db.query(
+            `SELECT vendor_id FROM vendors WHERE vendor_id = ? LIMIT 1`, [vendor_id]
+        )
+
+        if (!vendorRows) {
+            return res.status(404).json({ message: "Vendor not found." });
         }
 
         // ✅ Create booking (no paymentIntentId yet)
@@ -83,13 +88,14 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate, bookingTime, vendor_id,
         notes, bookingMedia, payment_status
       )
-      VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 service_categories_id,
                 serviceId,
                 user_id,
                 bookingDate,
                 bookingTime,
+                vendor_id || 0,
                 notes || null,
                 bookingMedia || null,
                 "pending"
@@ -902,7 +908,7 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
     }
 });
 
-const getAvailableVendorsSimple = asyncHandler(async (req, res) => {
+const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
         const { date, time, service_id = null } = req.query;
 
@@ -972,7 +978,7 @@ const getAvailableVendorsSimple = asyncHandler(async (req, res) => {
             vendors
         });
     } catch (err) {
-        console.error("getAvailableVendorsSimple error:", err);
+        console.error("getAvailableVendors error:", err);
         res
             .status(500)
             .json({ message: "Internal server error", error: err.message });
@@ -987,5 +993,5 @@ module.exports = {
     assignBookingToVendor,
     getEligiblevendors,
     approveOrAssignBooking,
-    getAvailableVendorsSimple
+    getAvailableVendors
 };

@@ -7,7 +7,7 @@ const { bookService,
     assignBookingToVendor,
     getEligiblevendors,
     approveOrAssignBooking,
-    getAvailableVendorsSimple
+    getAvailableVendors
 } = require('../controller/serviceBookingController');
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
@@ -19,7 +19,7 @@ router.post('/bookservice', multiUpload, handleUploads, authenticationToken, boo
 router.get('/vendorassignedservices', authenticationToken, getVendorBookings);
 
 
-router.get('/getvendorsbytime', authenticationToken, getAvailableVendorsSimple);
+router.get('/getvendorsbytime', authenticationToken, getAvailableVendors);
 
 
 
