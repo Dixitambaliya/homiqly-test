@@ -44,7 +44,7 @@ const registerUser = asyncHandler(async (req, res) => {
         }
 
         // Save only name/email (no password yet)
-        const [result] = await db.query(userAuthQueries.userInsert, [
+        const [result] = await db.query(userAuthQueries.userInsert1, [
             firstname,
             lastname,
             email,

@@ -27,8 +27,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
-//====================================================================================================
-
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -128,9 +126,6 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-//====================================================================================================
-
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
