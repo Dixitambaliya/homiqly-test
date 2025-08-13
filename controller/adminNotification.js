@@ -185,8 +185,8 @@ const sendBookingNotificationToUser = async (token, userName, booking_id, status
         notification: {
             title: isApproved ? "📅 Booking Approved" : "❌ Booking Cancelled",
             body: isApproved
-                ? `Hi ${userName}, your booking #${booking_id} has been approved. Proceed to payment.`
-                : `Hi ${userName}, your booking #${booking_id} has been cancelled. Please contact support.`,
+                ? `Hi ${userName}, your booking has been approved. Proceed to payment.`
+                : `Hi ${userName}, your booking has been cancelled. Please contact support In case of any query.`,
         },
         data: {
             type: isApproved ? "booking_approved" : "booking_cancelled",
@@ -261,7 +261,7 @@ const sendBookingAssignedNotificationToVendor = async (vendor_id, booking_id, se
     }
 };
 
-const sendVendorAssignedNotificationToUser = async (user_id, booking_id, vendor_id) => {
+const sendVendorAssignedNotificationToUser = async (user_id, vendor_id) => {
     const connection = await db.getConnection();
     try {
         // 🔹 1. Get user FCM token, name
@@ -308,11 +308,10 @@ const sendVendorAssignedNotificationToUser = async (user_id, booking_id, vendor_
         const message = {
             notification: {
                 title: "✅ Vendor Assigned",
-                body: `Hi ${userName}, ${vendorName} has been assigned to your booking (ID: ${booking_id}).`,
+                body: `Hi ${userName}, ${vendorName} has been assigned to your booking ).`,
             },
             data: {
                 type: "vendor_assigned",
-                bookingId: String(booking_id),
                 vendorId: String(vendor_id),
             },
             token: token.trim(),

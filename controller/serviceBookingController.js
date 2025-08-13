@@ -22,7 +22,8 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate,
         bookingTime,
         notes,
-        preferences
+        preferences,
+        vendor_id
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -54,26 +55,30 @@ const bookService = asyncHandler(async (req, res) => {
 
     try {
         // ✅ Prevent duplicate bookings
-        for (const pkg of parsedPackages) {
-            const { package_id } = pkg;
-            if (!package_id) continue;
+        // ✅ Prevent same user from booking the exact same date & time again
+        const [slotClash] = await db.query(
+            `SELECT sb.booking_id
+                FROM service_booking sb
+                WHERE sb.user_id = ?
+                AND sb.bookingDate = ?
+                AND sb.bookingTime = ?
+                AND sb.bookingStatus NOT IN (2, 4)   -- allow only if previous is Rejected(2) or Completed(4)
+                LIMIT 1`,
+            [user_id, bookingDate, bookingTime]
+        );
 
-            const [existing] = await db.query(
-                `SELECT sb.booking_id
-         FROM service_booking sb
-         JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-         JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-         WHERE sb.user_id = ? AND sbt.service_type_id = ? AND sbp.package_id = ? 
-           AND sb.bookingStatus NOT IN (2, 4)
-         LIMIT 1`,
-                [user_id, service_type_id, package_id]
-            );
+        if (slotClash.length) {
+            return res.status(409).json({
+                message: `You already have a booking at ${bookingDate} ${bookingTime}. Please choose a different time.`,
+            });
+        }
 
-            if (existing.length > 0) {
-                return res.status(409).json({
-                    message: `You have already booked package ID ${package_id} for this service type and it is not yet completed or rejected.`,
-                });
-            }
+        const [vendorRows] = await db.query(
+            `SELECT vendor_id FROM vendors WHERE vendor_id = ? LIMIT 1`, [vendor_id]
+        )
+
+        if (!vendorRows) {
+            return res.status(404).json({ message: "Vendor not found." });
         }
 
         // ✅ Create booking (no paymentIntentId yet)
@@ -83,13 +88,14 @@ const bookService = asyncHandler(async (req, res) => {
         bookingDate, bookingTime, vendor_id,
         notes, bookingMedia, payment_status
       )
-      VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 service_categories_id,
                 serviceId,
                 user_id,
                 bookingDate,
                 bookingTime,
+                vendor_id || 0,
                 notes || null,
                 bookingMedia || null,
                 "pending"
@@ -902,6 +908,83 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
     }
 });
 
+const getAvailableVendors = asyncHandler(async (req, res) => {
+    try {
+        const { date, time, service_id = null } = req.query;
+
+        if (!date || !time) {
+            return res
+                .status(400)
+                .json({ message: "date (YYYY-MM-DD) and time are required" });
+        }
+
+        // Which booking statuses block a slot
+        const blocking = [1, 3];
+
+        const sql = `
+      SELECT DISTINCT   
+        v.vendor_id,
+        v.vendorType,
+        CONCAT(
+          LEFT(
+            IF(v.vendorType = 'company', cdet.companyName, idet.name),
+            4
+          ),
+          '...'
+        ) AS vendorName,
+        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+        ROUND(AVG(r.rating), 1) AS avgRating,
+        COUNT(r.rating_id) AS totalRatings
+      FROM vendors v
+      LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
+      LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
+      LEFT JOIN individual_services vs  ON vs.vendor_id = v.vendor_id
+      LEFT JOIN company_services    cs  ON cs.vendor_id = v.vendor_id
+      LEFT JOIN vendor_service_ratings r 
+        ON r.vendor_id = v.vendor_id
+        AND r.service_id = COALESCE(vs.service_id, cs.service_id)
+
+        WHERE (
+            ? IS NULL 
+            OR (v.vendorType = 'individual' AND vs.service_id = ?)
+            OR (v.vendorType = 'company'    AND cs.service_id = ?)
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM service_booking sb
+          WHERE sb.vendor_id = v.vendor_id
+            AND sb.bookingDate = ?
+            AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
+            AND sb.bookingTime = ?
+        )
+    GROUP BY 
+    v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
+      ORDER BY vendorName ASC
+    `;
+
+        const params = [
+            service_id, service_id, service_id,// service type filter
+            date,                              // bookingDate
+            ...blocking,                       // booking statuses
+            time                               // exact booking time match
+        ];
+
+        const [vendors] = await db.query(sql, params);
+
+        res.status(200).json({
+            message: "Available vendors fetched successfully",
+            requested: { date, time, service_id },
+            vendors
+        });
+    } catch (err) {
+        console.error("getAvailableVendors error:", err);
+        res
+            .status(500)
+            .json({ message: "Internal server error", error: err.message });
+    }
+});
+
 module.exports = {
     bookService,
     getVendorBookings,
@@ -909,5 +992,6 @@ module.exports = {
     approveOrRejectBooking,
     assignBookingToVendor,
     getEligiblevendors,
-    approveOrAssignBooking
+    approveOrAssignBooking,
+    getAvailableVendors
 };

@@ -10,7 +10,7 @@ const serviceDeleteQueries = {
 
     deleteCategory: `DELETE FROM service_categories WHERE service_categories_id = ?`,
 
-    deleteCity: `DELETE FROM service_city WHERE serviceCityId = ?`,
+    deleteCity: `DELETE FROM service_city WHERE service_city_id = ?`,
 
     checkCityById: `
         SELECT * FROM service_city WHERE service_city_id = ?
