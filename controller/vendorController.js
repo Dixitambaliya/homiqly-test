@@ -42,7 +42,7 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         }
 
         for (const pkg of selectedPackages) {
-            const { package_id, sub_package_ids = [], preference_ids = [] } = pkg;
+            const { package_id, sub_package_id = [], preference_id = [] } = pkg;
 
             if (!package_id) throw new Error("Each package must include package_id");
 
@@ -64,8 +64,8 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
             const application_id = result.insertId;
 
             // ✅ Store sub-packages (if any)
-            if (Array.isArray(sub_package_ids) && sub_package_ids.length > 0) {
-                for (const subId of sub_package_ids) {
+            if (Array.isArray(sub_package_id) && sub_package_id.length > 0) {
+                for (const subId of sub_package_id) {
                     await connection.query(
                         `INSERT INTO vendor_sub_packages_application (application_id, sub_package_id) VALUES (?, ?)`,
                         [application_id, subId]
@@ -74,8 +74,8 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
             }
 
             // ✅ Store preferences (if any)
-            if (Array.isArray(preference_ids) && preference_ids.length > 0) {
-                for (const prefId of preference_ids) {
+            if (Array.isArray(preference_id) && preference_id.length > 0) {
+                for (const prefId of preference_id) {
                     await connection.query(
                         `INSERT INTO vendor_preferences_application (application_id, preference_id) VALUES (?, ?)`,
                         [application_id, prefId]
