@@ -18,7 +18,7 @@ const Packages = () => {
     try {
       const response = await api.get("/api/admin/getpackages");
 
-      console.log("Raw API response:", response.data); // 👈 check what you get
+      // console.log("Raw API response:", response.data); 
 
       // Ensure you're accessing the correct array
       const rawData = Array.isArray(response.data)
