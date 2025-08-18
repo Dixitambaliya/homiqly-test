@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { FiEye } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { formatDate } from "../../../shared/utils/dateUtils";
+import IconButton from "../../../shared/components/Button/IconButton";
 
 const PaymentsTable = ({
   bookings = [],
@@ -66,12 +67,10 @@ const PaymentsTable = ({
       title: "Actions",
       key: "actions",
       render: (row) => (
-        <button
-          className="text-primary hover:text-primary-dark"
+        <IconButton
           onClick={() => handleViewDetails(row)}
-        >
-          <FiEye />
-        </button>
+          icon={<FiEye />}
+        ></IconButton>
       ),
     },
   ];
