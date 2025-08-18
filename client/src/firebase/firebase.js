@@ -22,7 +22,7 @@ export const requestFCMToken = async () => {
     });
 
     if (currentToken) {
-      console.log("🎯 FCM Token obtained:", currentToken);
+      // console.log("🎯 FCM Token obtained:", currentToken);
       return currentToken;
     } else {
       console.warn(
@@ -39,7 +39,7 @@ export const requestFCMToken = async () => {
 export const onMessageListener = () =>
   new Promise((resolve) => {
     onMessage(messaging, (payload) => {
-      console.log("📲 Foreground Message received:", payload);
+      // console.log("📲 Foreground Message received:", payload);
       resolve(payload);
     });
   });

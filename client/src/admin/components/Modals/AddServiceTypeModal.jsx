@@ -48,7 +48,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const fetchCategories = async () => {
       try {
         const res = await api.get("/api/service/getadminservices");
-        console.log("Fetched Categories:", res.data.services);
+        // console.log("Fetched Categories:", res.data.services);
         setCategories(res.data.services || []);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
