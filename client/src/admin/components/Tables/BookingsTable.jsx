@@ -14,7 +14,7 @@ const BookingsTable = ({
   onApprove,
   onReject,
 }) => {
-  console.log("BookingsTable rendered with bookings:", bookings);
+  // console.log("BookingsTable rendered with bookings:", bookings);
   const columns = [
     {
       title: "ID",
