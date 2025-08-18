@@ -56,13 +56,7 @@ const bookService = asyncHandler(async (req, res) => {
         // ✅ Prevent duplicate bookings
         // ✅ Prevent same user from booking the exact same date & time again
         const [slotClash] = await db.query(
-            `SELECT sb.booking_id
-                FROM service_booking sb
-                WHERE sb.user_id = ?
-                AND sb.bookingDate = ?
-                AND sb.bookingTime = ?
-                AND sb.bookingStatus NOT IN (2, 4)   -- allow only if previous is Rejected(2) or Completed(4)
-                LIMIT 1`,
+            bookingGetQueries.getBookingAvilability,
             [user_id, bookingDate, bookingTime]
         );
 
@@ -82,12 +76,7 @@ const bookService = asyncHandler(async (req, res) => {
 
         // ✅ Create booking (no paymentIntentId yet)
         const [insertBooking] = await db.query(
-            `INSERT INTO service_booking (
-        service_categories_id, service_id, user_id,
-        bookingDate, bookingTime, vendor_id,
-        notes, bookingMedia, payment_status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            bookingPostQueries.insertBooking,
             [
                 service_categories_id,
                 serviceId,
@@ -105,7 +94,7 @@ const bookService = asyncHandler(async (req, res) => {
 
         // Link service type
         await db.query(
-            "INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)",
+            bookingPostQueries.insertserviceType,
             [booking_id, service_type_id]
         );
 
@@ -114,7 +103,7 @@ const bookService = asyncHandler(async (req, res) => {
             const { package_id, sub_packages = [] } = pkg;
 
             await db.query(
-                "INSERT INTO service_booking_packages (booking_id, package_id) VALUES (?, ?)",
+                bookingPostQueries.insertPackages,
                 [booking_id, package_id]
             );
 
@@ -127,8 +116,7 @@ const bookService = asyncHandler(async (req, res) => {
                         : 1;
 
                 await db.query(
-                    `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
-           VALUES (?, ?, ?, ?)`,
+                    bookingPostQueries.insertSubPackages,
                     [booking_id, item.sub_package_id, item.price, quantity]
                 );
             }
@@ -140,7 +128,7 @@ const bookService = asyncHandler(async (req, res) => {
             if (!preference_id) continue;
 
             await db.query(
-                "INSERT INTO service_preferences (booking_id, preference_id) VALUES (?, ?)",
+                bookingPostQueries.insertPreference,
                 [booking_id, preference_id]
             );
         }
@@ -186,7 +174,6 @@ const bookService = asyncHandler(async (req, res) => {
         res.status(200).json({
             message: "Booking created successfully.",
             booking_id,
-            vendor_assigned: false,
             payment_status: "pending"
         });
 
@@ -200,18 +187,17 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        // 🔹 Fetch latest platform fee % for this vendor type
+        // Fetch latest platform fee % for this vendor type
         // Fallback to 0 if not found
-
         const [[vendorRow]] = await db.query(
-            "SELECT vendorType FROM vendors WHERE vendor_id = ?",
+            bookingGetQueries.getVendorIdForBooking,
             [vendor_id]
         );
 
         const vendorType = vendorRow?.vendorType || null;
 
         const [platformSettings] = await db.query(
-            "SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? ORDER BY id DESC LIMIT 1",
+            bookingGetQueries.getPlateFormFee,
             [vendorType]
         );
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
@@ -220,40 +206,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const netFactor = 1 - platformFee / 100;
 
         const [bookings] = await db.query(
-            `
-      SELECT
-          sb.*,
-          s.serviceName,
-          sc.serviceCategory,
-          st.serviceTypeName,
-          sb.payment_status AS payment_status,
-          p.amount AS payment_amount,
-          p.currency AS payment_currency,
-          CONCAT(u.firstName,' ', u.lastName) AS userName,
-          u.profileImage AS userProfileImage,
-          u.email AS userEmail,
-          u.phone AS userPhone,
-          u.address AS userAddress,
-          u.state AS userState,
-          u.postalcode AS userPostalCode,
-
-          -- 🔹 Assigned Employee Info
-          e.employee_id AS assignedEmployeeId,
-          e.first_name AS employeeFirstName,
-          e.last_name AS employeeLastName,
-          e.email AS employeeEmail,
-          e.phone AS employeePhone
-
-      FROM service_booking sb
-      LEFT JOIN services s ON sb.service_id = s.service_id
-      LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
-      LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-      LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
-      LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-      LEFT JOIN users u ON sb.user_id = u.user_id
-      LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
-      WHERE sb.vendor_id = ?
-      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
+            bookingGetQueries.getVendorBookings,
             [vendor_id]
         );
 
@@ -262,33 +215,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             // 🔹 Fetch Packages
             const [bookingPackages] = await db.query(
-                `
-                SELECT
-                    p.package_id,
-                    p.packageName,
-                    ROUND(p.totalPrice * ?, 2) AS totalPrice,
-                    p.totalTime,
-                    p.packageMedia
-                FROM service_booking_packages sbp
-                JOIN packages p ON sbp.package_id = p.package_id
-                WHERE sbp.booking_id = ?`,
+                bookingGetQueries.getBookedPackages,
                 [netFactor, bookingId]
             );
 
             // 🔹 Fetch Items with platform fee deducted from price
             const [packageItems] = await db.query(
-                `
-                SELECT
-                    sbsp.sub_package_id AS item_id,
-                    pi.itemName,
-                    sbsp.quantity,
-                    ROUND((sbsp.price * sbsp.quantity) * ?, 2) AS price,  
-                    pi.itemMedia,
-                    pi.timeRequired,
-                    pi.package_id
-                FROM service_booking_sub_packages sbsp
-                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                WHERE sbsp.booking_id = ?`,
+                bookingGetQueries.getBookedSubPackages,
                 [netFactor, bookingId]
             );
 
@@ -302,13 +235,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             // 🔹 Fetch Preferences
             const [bookingPreferences] = await db.query(
-                `
-                SELECT
-                    sp.preference_id,
-                    bp.preferenceValue
-                FROM service_preferences sp
-                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-                WHERE sp.booking_id = ?`,
+                bookingGetQueries.getBoookedPrefrences,
                 [bookingId]
             );
 
@@ -361,32 +288,10 @@ const getUserBookings = asyncHandler(async (req, res) => {
             const bookingId = booking.booking_id;
 
             // Packages
-            const [bookingPackages] = await db.query(`
-                SELECT
-                    p.package_id,
-                    p.packageName,
-                    p.totalPrice,
-                    p.totalTime,
-                    p.packageMedia
-                FROM service_booking_packages sbp
-                JOIN packages p ON sbp.package_id = p.package_id
-                WHERE sbp.booking_id = ?
-            `, [bookingId]);
+            const [bookingPackages] = await db.query(bookingGetQueries.getUserBookedpackages, [bookingId]);
 
             // Items
-            const [packageItems] = await db.query(`
-                SELECT
-                    sbsp.sub_package_id AS item_id,
-                    pi.itemName,
-                    sbsp.price,
-                    sbsp.quantity,
-                    pi.itemMedia,
-                    pi.timeRequired,
-                    pi.package_id
-                FROM service_booking_sub_packages sbsp
-                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                WHERE sbsp.booking_id = ?
-            `, [bookingId]);
+            const [packageItems] = await db.query(bookingGetQueries.getUserPackageItems, [bookingId]);
 
             const groupedPackages = bookingPackages.map(pkg => {
                 const items = packageItems.filter(item => item.package_id === pkg.package_id);
@@ -394,14 +299,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
             });
 
             // Preferences
-            const [bookingPreferences] = await db.query(`
-                SELECT
-                    sp.preference_id,
-                    bp.preferenceValue
-                FROM service_preferences sp
-                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-                WHERE sp.booking_id = ?
-            `, [bookingId]);
+            const [bookingPreferences] = await db.query(bookingGetQueries.getUserBookedPrefrences, [bookingId]);
 
             booking.packages = groupedPackages;
             booking.package_items = packageItems;
