@@ -133,12 +133,6 @@ const ServiceCities = () => {
           </table>
         </div>
       )}
-
-      {/* Endpoint hint */}
-      <p className="mt-5 text-xs text-gray-400">
-        Uses POST <code>/api/service/addcity</code> and GET{" "}
-        <code>/api/service/getCity</code>.
-      </p>
     </div>
   );
 };
