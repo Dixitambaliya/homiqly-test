@@ -156,7 +156,7 @@ const sendBookingAssignedNotification = async (employee_id, booking_id) => {
         const message = {
             notification: {
                 title: "📦 New Booking Assigned",
-                body: `Hello ${employeeName}, you have a new booking assigned (ID: ${booking_id})`,
+                body: `Hello ${employeeName}, you have a new booking assigned to (ID: ${booking_id})`,
             },
             data: {
                 type: "booking_assigned",

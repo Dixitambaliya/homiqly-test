@@ -551,67 +551,7 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        const [rows] = await db.query(`
-        SELECT
-          sc.service_categories_id,
-          sc.serviceCategory,
-
-          s.service_id,
-          s.serviceName,
-
-          st.service_type_id,
-          st.serviceTypeName,
-          st.serviceTypeMedia,
-
-          -- Packages grouped per service_type
-          COALESCE((
-            SELECT CONCAT('[', GROUP_CONCAT(
-              JSON_OBJECT(
-                'package_id', p.package_id,
-                'packageName', p.packageName,
-                'packageMedia', p.packageMedia,
-                'description', p.description,
-                'totalPrice', p.totalPrice,
-                'totalTime', p.totalTime,
-                'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
-                'subPackages', IFNULL((
-                  SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                      'sub_package_id', pi.item_id,
-                      'itemName', pi.itemName,
-                      'itemMedia', pi.itemMedia,
-                      'description', pi.description,
-                      'price', pi.price,
-                      'timeRequired', pi.timeRequired
-                    )
-                  ), ']')
-                  FROM package_items pi
-                  WHERE pi.package_id = p.package_id
-                ), '[]'),
-                'preferences', IFNULL((
-                  SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                      'preference_id', bp.preference_id,
-                      'preference_value', bp.preferenceValue
-                    )
-                  ), ']')
-                  FROM booking_preferences bp
-                  WHERE bp.package_id = p.package_id
-                ), '[]')
-              )
-            ), ']')
-            FROM packages p
-            LEFT JOIN vendor_packages vp ON vp.package_id = p.package_id AND vp.vendor_id = ?
-            WHERE p.service_type_id = st.service_type_id
-          ), '[]') AS packages
-
-        FROM service_categories sc
-        JOIN services s ON s.service_categories_id = sc.service_categories_id
-        JOIN service_type st ON st.service_id = s.service_id
-
-        GROUP BY st.service_type_id
-        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
-      `, [vendor_id]);
+        const [rows] = await db.query(vendorGetQueries.getAllPackagesForVendor, [vendor_id]);
 
         // Final parsing of nested packages
         const parsed = rows.map(row => {
@@ -651,74 +591,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
     try {
-        const [rows] = await db.query(`
-            SELECT
-                service_type.service_type_id,
-                service_type.serviceTypeName,
-                service_type.serviceTypeMedia,
-
-                service.service_id,
-                service.serviceName,
-
-                service_category.service_categories_id,
-                service_category.serviceCategory,
-
-                COALESCE((
-                    SELECT CONCAT('[', GROUP_CONCAT(
-                        JSON_OBJECT(
-                            'package_id', package_table.package_id,
-                            'title', package_table.packageName,
-                            'description', package_table.description,
-                            'price', package_table.totalPrice,
-                            'time_required', package_table.totalTime,
-                            'package_media', package_table.packageMedia,
-
-                            -- ✅ Sub-packages
-                            'sub_packages', IFNULL((
-                                SELECT CONCAT('[', GROUP_CONCAT(
-                                    JSON_OBJECT(
-                                        'sub_package_id', package_item.item_id,
-                                        'title', package_item.itemName,
-                                        'description', package_item.description,
-                                        'price', package_item.price,
-                                        'time_required', package_item.timeRequired,
-                                        'item_media', package_item.itemMedia
-                                    )
-                                ), ']')
-                                FROM package_items AS package_item
-                                WHERE package_item.package_id = package_table.package_id
-                            ), '[]'),
-
-                            -- ✅ Preferences
-                            'preferences', IFNULL((
-                                SELECT CONCAT('[', GROUP_CONCAT(
-                                    JSON_OBJECT(
-                                        'preference_id', booking_preference.preference_id,
-                                        'preference_value', booking_preference.preferenceValue
-                                    )
-                                ), ']')
-                                FROM booking_preferences AS booking_preference
-                                WHERE booking_preference.package_id = package_table.package_id
-                            ), '[]')
-                        )
-                    ), ']')
-                    FROM packages AS package_table
-                    JOIN vendor_packages AS vendor_package_link ON vendor_package_link.package_id = package_table.package_id
-                    WHERE package_table.service_type_id = service_type.service_type_id AND vendor_package_link.vendor_id = ?
-                ), '[]') AS packages
-
-            FROM service_type
-            JOIN services AS service ON service.service_id = service_type.service_id
-            JOIN service_categories AS service_category ON service_category.service_categories_id = service.service_categories_id
-
-            WHERE EXISTS (
-                SELECT 1 FROM vendor_packages AS vendor_package_check
-                JOIN packages AS package_check ON package_check.package_id = vendor_package_check.package_id
-                WHERE package_check.service_type_id = service_type.service_type_id AND vendor_package_check.vendor_id = ?
-            )
-
-            ORDER BY service_type.service_type_id DESC
-        `, [vendorId, vendorId]);
+        const [rows] = await db.query(vendorGetQueries.getVendorAssignedPackages, [vendorId, vendorId]);
 
         const result = rows.map(row => ({
             service_type_id: row.service_type_id,
@@ -881,56 +754,7 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [bookings] = await db.query(
-            `SELECT
-                sb.booking_id,
-                sb.service_categories_id,
-                sb.service_id,
-                sb.vendor_id,
-                sb.assigned_employee_id,
-                sb.user_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.payment_intent_id,
-                sb.notes,
-                sb.bookingMedia,
-                sb.created_at,
-
-                -- User Info
-                CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
-                u.email AS user_email,
-                u.phone AS user_phone,
-                
-                -- Vendor Info
-                v.vendorType,
-
-                cdet.contactPerson,
-
-                COALESCE(idet.name, cdet.companyName) AS vendor_name,
-                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
-                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
-
-                -- Package Info
-                pkg.package_id,
-                pkg.packageName,
-                pkg.totalPrice,
-                pkg.totalTime
-
-            FROM service_booking sb
-
-            JOIN users u ON sb.user_id = u.user_id
-            JOIN vendors v ON sb.vendor_id = v.vendor_id
-
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-
-            LEFT JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-            LEFT JOIN packages pkg ON pkg.package_id = sbp.package_id
-
-            WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
-
-            ORDER BY sb.created_at DESC`,
+        const [bookings] = await db.query(vendorGetQueries.getVendorFullPayment,
             [vendor_id]
         );
 

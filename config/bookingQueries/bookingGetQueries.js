@@ -1,24 +1,42 @@
 const bookingGetQueries = {
 
-    getVendorBookings: `SELECT
-        service_booking.booking_id AS bookingId,
-        CONCAT(users.firstName, ' ', users.lastName) AS userName,
-        service_categories.serviceCategory AS serviceCategory,
-        services.serviceName AS serviceName,
-        service_type.serviceTypeName AS serviceType,
-        service_booking.bookingDate,
-        service_booking.bookingTime,
-        service_booking.bookingStatus
-        FROM service_booking
-            JOIN users ON service_booking.user_id = users.user_id
-            JOIN service_categories ON service_booking.service_categories_id = service_categories.service_categories_id
-            JOIN services ON service_booking.service_id = services.service_id
-            LEFT JOIN service_booking_types ON service_booking.booking_id = service_booking_types.booking_id
-            LEFT JOIN service_type ON service_booking_types.service_type_id = service_type.service_type_id
-            WHERE service_booking.vendor_id = ?
-            ORDER BY service_booking.bookingDate DESC, service_booking.bookingTime DESC`,
+    getVendorBookings: ` 
+      SELECT
+          sb.*,
+    s.serviceName,
+    sc.serviceCategory,
+    st.serviceTypeName,
+    sb.payment_status AS payment_status,
+    p.amount AS payment_amount,
+    p.currency AS payment_currency,
+    CONCAT(u.firstName, ' ', u.lastName) AS userName,
+    u.profileImage AS userProfileImage,
+    u.email AS userEmail,
+    u.phone AS userPhone,
+    u.address AS userAddress,
+    u.state AS userState,
+    u.postalcode AS userPostalCode,
 
-    userGetBooking: `SELECT
+    e.employee_id AS assignedEmployeeId,
+    e.first_name AS employeeFirstName,
+    e.last_name AS employeeLastName,
+    e.email AS employeeEmail,
+    e.phone AS employeePhone
+
+      FROM service_booking sb
+      LEFT JOIN services s ON sb.service_id = s.service_id
+      LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
+      LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+      LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+      LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+      LEFT JOIN users u ON sb.user_id = u.user_id
+      LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
+      WHERE sb.vendor_id = ?
+        ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+`,
+
+    userGetBooking: `
+        SELECT
                 sb.booking_id,
                 sb.bookingDate,
                 sb.bookingTime,
@@ -54,70 +72,81 @@ const bookingGetQueries = {
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
             WHERE sb.user_id = ?
-            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
+            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+`,
 
+    getVendorIdForBooking: `
+    SELECT 
+    vendorType 
+    FROM vendors 
+    WHERE 
+    vendor_id = ?
+`,
 
-    getUserBookings: `
-   SELECT
-    sb.booking_id,
-    sb.bookingDate,
-    sb.bookingTime,
-    sb.bookingStatus,
-    sb.notes,
-    sb.bookingMedia,
+    getPlateFormFee: `
+    SELECT 
+    platform_fee_percentage 
+    FROM platform_settings 
+    WHERE vendor_type = ?
+        ORDER BY id 
+    DESC LIMIT 1
+`,
 
-    sc.serviceCategory,
-    s.serviceName,
-    st.serviceTypeName,
-    st.serviceTypeMedia,
-    st.is_approved,
+    getBookedPackages: `
+                SELECT
+                    p.package_id,
+    p.packageName,
+    ROUND(p.totalPrice * ?, 2) AS totalPrice,
+    p.totalTime,
+    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?
+`,
 
-    v.vendor_id,
-    v.vendorType,
+    getBookedSubPackages: `
+                SELECT
+                    sbsp.sub_package_id AS item_id,
+    pi.itemName,
+    sbsp.quantity,
+    ROUND((sbsp.price * sbsp.quantity) * ?, 2) AS price,
+        pi.itemMedia,
+        pi.timeRequired,
+        pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?
+`,
 
-    -- Individual vendor details
-    ind.id AS individual_id,
-    ind.name AS individualName,
-    ind.phone AS individualPhone,
-    ind.email AS individualEmail,
-
-    -- Company vendor details
-    comp.id AS company_id,
-    comp.companyName,
-    comp.contactPerson,
-    comp.companyEmail,
-    comp.companyPhone
-
-FROM service_booking sb
-JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
-JOIN services s ON sb.service_id = s.service_id
-JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-JOIN service_type st ON sbt.service_type_id = st.service_type_id
-JOIN vendors v ON sb.vendor_id = v.vendor_id
-LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
-LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
-WHERE sb.user_id = ?
-ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
+    getBoookedPrefrences: `
+                SELECT
+sp.preference_id,
+    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?
+`,
 
     getVendorByServiceTypeId: `
     SELECT vendor_id FROM vendor_packages
-    WHERE package_id IN (
-        SELECT package_id FROM packages WHERE service_type_id = ?
+    WHERE package_id IN(
+            SELECT package_id FROM packages WHERE service_type_id = ?
     )
-    LIMIT 1`,
+    LIMIT 1
+`,
 
     getBookingDetail: `
-    SELECT
-        sb.booking_id,
-        sb.bookingDate,
-        sc.serviceCategory AS serviceCategoryName,
+SELECT
+sb.booking_id,
+    sb.bookingDate,
+    sc.serviceCategory AS serviceCategoryName,
         s.serviceName AS serviceName,
-        COALESCE(st.serviceTypeName, 'Not specified') AS serviceTypeName,
-        CONCAT(u.firstName, ' ', u.lastName) AS userName,
+            COALESCE(st.serviceTypeName, 'Not specified') AS serviceTypeName,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
 
-        p.package_name AS packageName,
-        pi.item_name AS subPackageName,
-        a.title AS addonName
+                    p.package_name AS packageName,
+                        pi.item_name AS subPackageName,
+                            a.title AS addonName
 
         FROM service_booking sb
             JOIN service_categories sc ON sc.service_categories_id = sb.service_categories_id
@@ -130,11 +159,58 @@ ORDER BY sb.bookingDate DESC, sb.bookingTime DESC`,
             LEFT JOIN package_items pi ON pi.item_id = sb.sub_package_id
             LEFT JOIN addons a ON a.addon_id = sb.addon_id
 
-            WHERE sb.booking_id = ?`,
+            WHERE sb.booking_id = ?
+`,
 
     checkVendorAvailability: `
     SELECT * FROM service_booking
-    WHERE vendor_id = ? AND bookingDate = ? AND bookingTime = ?`,
+    WHERE vendor_id = ? AND bookingDate = ? AND bookingTime = ?
+`,
+
+    getBookingAvilability: `
+    SELECT sb.booking_id
+                FROM service_booking sb
+                WHERE sb.user_id = ?
+    AND sb.bookingDate = ?
+        AND sb.bookingTime = ?
+            AND sb.bookingStatus NOT IN(2, 4)-- allow only if previous is Rejected(2) or Completed(4)
+                LIMIT 1
+`,
+
+    getUserBookedpackages: `
+        SELECT
+            p.package_id,
+            p.packageName,
+            p.totalPrice,
+            p.totalTime,
+            p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?
+`,
+
+    getUserPackageItems: `
+                SELECT
+                    sbsp.sub_package_id AS item_id,
+                    pi.itemName,
+                    sbsp.price,
+                    sbsp.quantity,
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    pi.package_id
+                FROM service_booking_sub_packages sbsp
+                LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                WHERE sbsp.booking_id = ?
+`,
+
+    getUserBookedPrefrences: `
+                SELECT
+                    sp.preference_id,
+                    bp.preferenceValue
+                FROM service_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?
+`
 
 }
 

@@ -257,7 +257,7 @@ const getcity = asyncHandler(async (req, res) => {
 
         const city = rows.map(row => ({
             service_city_id: row.service_city_id,
-            cityName: row.serviceCityName,
+            serviceCity: row.serviceCityName,
         }))
         
         res.status(200).json({
