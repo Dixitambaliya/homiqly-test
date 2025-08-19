@@ -175,6 +175,33 @@ const addServiceType = asyncHandler(async (req, res) => {
     });
 });
 
+// Get service type by ID
+const getServiceTypeById = asyncHandler(async (req, res) => {
+    const { service_id } = req.params;
+
+    if (!service_id) {
+        return res.status(400).json({ message: "service_type_id is required." });
+    }
+
+    const [rows] = await db.query(
+        `SELECT 
+            service_type_id, 
+            service_id, 
+            serviceTypeName, 
+            serviceTypeMedia
+         FROM service_type
+         WHERE service_id = ?`,
+        [service_id]
+    );
+
+    if (rows.length === 0) {
+        return res.status(404).json({ message: "Service type not found." });
+    }
+
+    res.status(200).json(rows[0]);
+});
+
+
 const getAdminService = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(serviceGetQueries.getAllServicesWithCategory);
@@ -259,7 +286,7 @@ const getcity = asyncHandler(async (req, res) => {
             service_city_id: row.service_city_id,
             serviceCity: row.serviceCityName,
         }))
-        
+
         res.status(200).json({
             message: "Cities fetched successfully",
             city
@@ -429,5 +456,6 @@ module.exports = {
     deleteCategory,
     editServiceCity,
     deleteServiceCity,
-    getAdminService
+    getAdminService,
+    getServiceTypeById
 }
