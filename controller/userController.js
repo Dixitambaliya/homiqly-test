@@ -140,8 +140,7 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
                 service_type_id,
                 service_id,
                 serviceTypeName,
-                serviceTypeMedia,
-                created_at
+                serviceTypeMedia
             FROM service_type
             WHERE service_id = ?
             ORDER BY service_type_id DESC
@@ -342,18 +341,16 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     }
 });
 
-const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
-    const { vendor_id } = req.params;
+const getPackagesDetails = asyncHandler(async (req, res) => {
+    const { service_type_id } = req.params;
 
-    if (!vendor_id) {
-        return res.status(400).json({ message: "Vendor ID is required" });
+    if (!service_type_id) {
+        return res.status(400).json({ message: "Service Type ID is required" });
     }
 
     try {
         const [rows] = await db.query(`
             SELECT
-                vp.vendor_packages_id,
-                vp.vendor_id,
                 p.package_id,
                 p.packageName,
                 p.description,
@@ -361,7 +358,6 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                 p.totalTime,
                 p.packageMedia,
 
-                -- Ratings
                 IFNULL((
                     SELECT ROUND(AVG(r.rating), 1)
                     FROM ratings r
@@ -374,7 +370,6 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                     WHERE r.package_id = p.package_id
                 ), 0) AS totalReviews,
 
-                -- Sub-packages
                 COALESCE((
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
@@ -387,11 +382,9 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                         )
                     ), ']')
                     FROM package_items pi
-                    INNER JOIN vendor_package_items vpi ON vpi.package_item_id = pi.item_id
-                    WHERE vpi.vendor_id = vp.vendor_id AND vpi.package_id = p.package_id
+                    WHERE pi.package_id = p.package_id
                 ), '[]') AS sub_packages,
 
-                -- Preferences
                 COALESCE((
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
@@ -400,19 +393,15 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
                         )
                     ), ']')
                     FROM booking_preferences bp
-                    INNER JOIN vendor_package_preferences vpp ON vpp.preference_id = bp.preference_id
-                    WHERE vpp.vendor_id = vp.vendor_id AND vpp.package_id = p.package_id
+                    WHERE bp.package_id = p.package_id
                 ), '[]') AS preferences
 
-            FROM vendor_packages vp
-            INNER JOIN packages p ON vp.package_id = p.package_id
-            WHERE vp.vendor_id = ?
-            ORDER BY vp.vendor_packages_id DESC
-        `, [vendor_id]);
+            FROM packages p
+            WHERE p.service_type_id = ?
+            ORDER BY p.package_id DESC
+        `, [service_type_id]);
 
         const data = rows.map(row => ({
-            vendor_packages_id: row.vendor_packages_id,
-            vendor_id: row.vendor_id,
             package_id: row.package_id,
             packageName: row.packageName,
             description: row.description,
@@ -426,11 +415,11 @@ const getVendorPackagesDetailed = asyncHandler(async (req, res) => {
         }));
 
         res.status(200).json({
-            message: "Vendor packages fetched successfully",
+            message: "Packages fetched successfully",
             packages: data
         });
     } catch (err) {
-        console.error("Error fetching vendor packages:", err);
+        console.error("Error fetching packages by service_type_id:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
@@ -573,7 +562,7 @@ module.exports = {
     updateUserData,
     addUserData,
     getPackagesByServiceTypeId,
-    getVendorPackagesDetailed,
+    getPackagesDetails,
     deleteBooking,
     getVendorPackagesByServiceTypeId
 }

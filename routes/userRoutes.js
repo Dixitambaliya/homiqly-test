@@ -11,7 +11,7 @@ const { getServiceCategories,
     updateUserData,
     addUserData,
     getPackagesByServiceTypeId,
-    getVendorPackagesDetailed,
+    getPackagesDetails,
     deleteBooking,
     getVendorPackagesByServiceTypeId
 } = require("../controller/userController")
@@ -30,7 +30,7 @@ router.get("/getdata", authenticationToken, getUserData)
 
 router.delete("/deletebookings/:booking_id", authenticationToken, deleteBooking)
 
-router.get("/getpackagedetails/:vendor_id", getVendorPackagesDetailed)
+router.get("/getpackagedetails/:service_type_id", getPackagesDetails)
 
 router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
 
