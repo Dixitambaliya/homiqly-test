@@ -93,6 +93,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
 
         rows.forEach(row => {
             const category = row.categoryName;
+
             if (!grouped[category]) {
                 grouped[category] = {
                     categoryName: category,
@@ -100,17 +101,26 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
             }
 
-            // Only add service if it exists
-            if (row.serviceId) {
-                grouped[category].services.push({
+            // Check if the service already exists in this category
+            let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
+
+            if (!service && row.serviceId) {
+                // Create new service object
+                service = {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
                     slug: row.slug,
+                    serviceTypes: [] // array for service types
+                };
+                grouped[category].services.push(service);
+            }
 
-                    // Newly added for package relation
+            // Add service type if it exists
+            if (row.service_type_id) {
+                service.serviceTypes.push({
                     service_type_id: row.service_type_id,
                     serviceTypeName: row.serviceTypeName,
                     serviceTypeMedia: row.serviceTypeMedia
@@ -126,6 +136,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
