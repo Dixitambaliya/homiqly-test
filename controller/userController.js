@@ -84,6 +84,7 @@ const getServiceNames = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
@@ -101,11 +102,12 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             }
 
             // find or add service
-            let service = grouped[category].services.find(s => s.serviceId === row.service_id);
+            let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
 
-            if (!service && row.service_id) {
+            if (!service && row.serviceId) {
+                // Create new service object
                 service = {
-                    serviceId: row.service_id,
+                    serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
                     title: row.serviceName,
                     description: row.serviceDescription,
