@@ -117,10 +117,11 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
                 grouped[category].services.push(service);
             }
-
+            
             // push serviceType directly under service
             if (row.service_type_id) {
                 service.serviceTypes.push({
+                    subType:row.subTypeName,
                     service_type_id: row.service_type_id,
                     serviceTypeName: row.serviceTypeName,
                     serviceTypeMedia: row.serviceTypeMedia
