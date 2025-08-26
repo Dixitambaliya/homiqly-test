@@ -333,21 +333,65 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName, packages, preferences } = req.body;
+        const { serviceId, serviceTypeName, subtype_id = null, subtypeName = null, packages, preferences } = req.body;
 
         if (!serviceId || !serviceTypeName || !packages) {
-            throw new Error("Missing required fields: serviceId, service_type_name, and packages.");
+            throw new Error("Missing required fields: serviceId, serviceTypeName, and packages.");
         }
 
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
+        const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
+        let finalSubtypeId = null;
+
+        // Case 1: subtype_id provided → validate
+        if (subtype_id) {
+            const [subExists] = await connection.query(
+                `SELECT subtype_id FROM service_subtypes WHERE subtype_id = ? AND service_id = ?`,
+                [subtype_id, serviceId]
+            );
+            if (subExists.length === 0) {
+                throw new Error("Subtype not found under this service.");
+            }
+            finalSubtypeId = subtype_id;
+        }
+
+        // Case 2: subtypeName provided → insert or reuse
+        else if (subtypeName) {
+            const [existingSub] = await connection.query(
+                `SELECT subtype_id FROM service_subtypes WHERE service_id = ? AND subtypeName = ?`,
+                [serviceId, subtypeName.trim()]
+            );
+            if (existingSub.length > 0) {
+                finalSubtypeId = existingSub[0].subtype_id;
+            } else {
+                const [insertSub] = await connection.query(
+                    `INSERT INTO service_subtypes (service_id, subtypeName, subtypeMedia)
+                     VALUES (?, ?, ?)`,
+                    [serviceId, subtypeName.trim(), subtypeMedia]
+                );
+                finalSubtypeId = insertSub.insertId;
+            }
+        }
+
+        // Insert service type (with subtype if present)
         const [stResult] = await connection.query(
-            adminPostQueries.insertServiceType,
-            [serviceId, serviceTypeName, serviceTypeMedia || null]
+            `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+             VALUES (?, ?, ?)`,
+            [serviceId, serviceTypeName.trim(), serviceTypeMedia]
         );
 
         const service_type_id = stResult.insertId;
 
+        // If subtype selected, link it
+        if (finalSubtypeId) {
+            await connection.query(
+                `INSERT INTO subtype_service_type (subtype_id, service_type_id) VALUES (?, ?)`,
+                [finalSubtypeId, service_type_id]
+            );
+        }
+
+        // Parse packages
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -391,8 +435,9 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "Service type and packages created successfully by admin",
-            service_type_id
+            message: "Service type, subtype, and packages created successfully by admin",
+            service_type_id,
+            subtype_id: finalSubtypeId
         });
 
     } catch (err) {

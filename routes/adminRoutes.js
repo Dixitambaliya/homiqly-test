@@ -27,7 +27,9 @@ router.get("/getusers", authenticationToken, getUsers)
 router.get("/getbookings", authenticationToken, getBookings)
 router.put("/editusers/:user_id", authenticationToken, updateUserByAdmin)
 router.put("/editpackage", authenticationToken, multiUpload, handleUploads, editPackageByAdmin)
+
 router.post("/addpackages", authenticationToken, multiUpload, handleUploads, createPackageByAdmin)
+
 router.post("/assignpackage", authenticationToken, assignPackageToVendor)
 router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
 

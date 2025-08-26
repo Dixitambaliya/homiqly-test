@@ -90,7 +90,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
 
         const grouped = {};
-
+        
         rows.forEach(row => {
             const category = row.categoryName;
 
@@ -101,30 +101,53 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
             }
 
-            // Check if the service already exists in this category
-            let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
+            // find or add service
+            let service = grouped[category].services.find(s => s.service_id === row.service_id);
 
-            if (!service && row.serviceId) {
-                // Create new service object
+            if (!service && row.service_id) {
                 service = {
-                    serviceId: row.serviceId,
+                    serviceId: row.service_id,
                     serviceCategoryId: row.serviceCategoryId,
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
                     slug: row.slug,
-                    serviceTypes: [] // array for service types
+                    subTypes: [],  // add subtypes layer
+                    serviceTypes: [] // fallback if no subtypes
                 };
                 grouped[category].services.push(service);
             }
 
-            // Add service type if it exists
-            if (row.service_type_id) {
-                service.serviceTypes.push({
-                    service_type_id: row.service_type_id,
-                    serviceTypeName: row.serviceTypeName,
-                    serviceTypeMedia: row.serviceTypeMedia
-                });
+            // if service has subtype
+            if (row.subtype_id) {
+                let subtype = service.subTypes.find(st => st.subtype_id === row.subtype_id);
+                if (!subtype) {
+                    subtype = {
+                        subtype_id: row.subtype_id,
+                        subtypeName: row.subtypeName,
+                        subtypeMedia: row.subtypeMedia,
+                        serviceTypes: []
+                    };
+                    service.subTypes.push(subtype);
+                }
+
+                // push serviceType under subtype
+                if (row.service_type_id) {
+                    subtype.serviceTypes.push({
+                        service_type_id: row.service_type_id,
+                        serviceTypeName: row.serviceTypeName,
+                        serviceTypeMedia: row.serviceTypeMedia
+                    });
+                }
+            } else {
+                // if no subtype → push directly under service
+                if (row.service_type_id) {
+                    service.serviceTypes.push({
+                        service_type_id: row.service_type_id,
+                        serviceTypeName: row.serviceTypeName,
+                        serviceTypeMedia: row.serviceTypeMedia
+                    });
+                }
             }
         });
 

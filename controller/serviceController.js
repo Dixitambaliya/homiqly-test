@@ -17,6 +17,41 @@ const generateSlug = (text) => {
         .replace(/\-\-+/g, '-');    // Replace multiple - with single -
 };
 
+const addCategory = asyncHandler(async (req, res) => {
+    const { categoryName } = req.body;
+
+    try {
+        const [existingCategory] = await db.query(servicePostQueries.CheckExistingCategory, [categoryName]);
+        if (existingCategory.length > 0) {
+            return res.status(400).json({ message: "Category already exists" });
+        }
+
+        await db.query(servicePostQueries.InsertCategory, [categoryName]);
+
+        const [rows] = await db.query("SELECT fcmToken FROM vendors WHERE fcmToken IS NOT NULL")
+        console.log("tokenResult", rows);
+
+        const tokens = rows.map((row) => row.fcmToken).filter(Boolean)
+        console.log("tokens", tokens);
+
+        if (tokens.length > 0) {
+            const message = {
+                notification: {
+                    title: "New service Available!",
+                    body: `Explore services under the new category: ${categoryName}`,
+                },
+                tokens,
+            }
+            const response = await admin.messaging().sendEachForMulticast(message);
+            console.log("FCM Notification sent:", response.successCount, "successes");
+        }
+        res.status(201).json({ message: "Category added successfully" });
+    } catch (err) {
+        console.error("Category addition failed:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 const addService = asyncHandler(async (req, res) => {
     const { serviceName, categoryName, serviceDescription } = req.body;
 
@@ -79,39 +114,42 @@ const addService = asyncHandler(async (req, res) => {
     }
 });
 
-const addCategory = asyncHandler(async (req, res) => {
-    const { categoryName } = req.body;
+const addSubType = asyncHandler(async (req, res) => {
+    const { service_id, subtypeName } = req.body;
+    const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
-    try {
-        const [existingCategory] = await db.query(servicePostQueries.CheckExistingCategory, [categoryName]);
-        if (existingCategory.length > 0) {
-            return res.status(400).json({ message: "Category already exists" });
-        }
-
-        await db.query(servicePostQueries.InsertCategory, [categoryName]);
-
-        const [rows] = await db.query("SELECT fcmToken FROM vendors WHERE fcmToken IS NOT NULL")
-        console.log("tokenResult", rows);
-
-        const tokens = rows.map((row) => row.fcmToken).filter(Boolean)
-        console.log("tokens", tokens);
-
-        if (tokens.length > 0) {
-            const message = {
-                notification: {
-                    title: "New service Available!",
-                    body: `Explore services under the new category: ${categoryName}`,
-                },
-                tokens,
-            }
-            const response = await admin.messaging().sendEachForMulticast(message);
-            console.log("FCM Notification sent:", response.successCount, "successes");
-        }
-        res.status(201).json({ message: "Category added successfully" });
-    } catch (err) {
-        console.error("Category addition failed:", err);
-        res.status(500).json({ error: "Internal server error" });
+    if (!service_id || !subtypeName) {
+        return res.status(400).json({ message: "service_id and subtypeName are required." });
     }
+
+    // Check if service exists
+    const [serviceExists] = await db.query(
+        `SELECT service_id FROM services WHERE service_id = ?`,
+        [service_id]
+    );
+    if (serviceExists.length === 0) {
+        return res.status(404).json({ message: "Service not found." });
+    }
+
+    // Optional: Prevent duplicate subtype under the same service
+    const [existing] = await db.query(
+        `SELECT 1 FROM service_subtypes WHERE service_id = ? AND subtypeName = ?`,
+        [service_id, subtypeName.trim()]
+    );
+    if (existing.length > 0) {
+        return res.status(409).json({ message: "Subtype already exists under this service." });
+    }
+
+    const [result] = await db.query(
+        `INSERT INTO service_subtypes (service_id, subtypeName, subtypeMedia)
+         VALUES (?, ?, ?)`,
+        [service_id, subtypeName.trim(), subtypeMedia]
+    );
+
+    res.status(201).json({
+        message: "Subtype created successfully.",
+        subtype_id: result.insertId
+    });
 });
 
 const addServiceCity = asyncHandler(async (req, res) => {
@@ -138,14 +176,15 @@ const addServiceCity = asyncHandler(async (req, res) => {
 })
 
 const addServiceType = asyncHandler(async (req, res) => {
-    const { service_id, serviceTypeName } = req.body;
+    const { service_id, subtype_id = null, subtypeName = null, serviceTypeName } = req.body;
     const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
+    const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
     if (!service_id || !serviceTypeName) {
         return res.status(400).json({ message: "service_id and serviceTypeName are required." });
     }
 
-    // Check if the service exists
+    // Ensure service exists
     const [serviceExists] = await db.query(
         `SELECT service_id FROM services WHERE service_id = ?`,
         [service_id]
@@ -154,15 +193,49 @@ const addServiceType = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Service not found." });
     }
 
-    // Prevent duplicate service type names under same service
-    const [existing] = await db.query(
-        `SELECT 1 FROM service_type WHERE service_id = ? AND serviceTypeName = ?`,
-        [service_id, serviceTypeName.trim()]
-    );
-    if (existing.length > 0) {
-        return res.status(409).json({ message: "Service type already exists under this service." });
+    let finalSubtypeId = null;
+
+    // Case 1: subtype_id given → validate it
+    if (subtype_id) {
+        const [subtypeExists] = await db.query(
+            `SELECT subtype_id FROM service_subtypes WHERE subtype_id = ? AND service_id = ?`,
+            [subtype_id, service_id]
+        );
+        if (subtypeExists.length === 0) {
+            return res.status(404).json({ message: "Subtype not found under this service." });
+        }
+        finalSubtypeId = subtype_id;
     }
 
+    // Case 2: subtypeName given (create new one if not exists)
+    else if (subtypeName) {
+        const [existingSubtype] = await db.query(
+            `SELECT subtype_id FROM service_subtypes WHERE service_id = ? AND subtypeName = ?`,
+            [service_id, subtypeName.trim()]
+        );
+
+        if (existingSubtype.length > 0) {
+            finalSubtypeId = existingSubtype[0].subtype_id; // reuse old one
+        } else {
+            const [insertSubtype] = await db.query(
+                `INSERT INTO service_subtypes (service_id, subtypeName, subtypeMedia)
+                 VALUES (?, ?, ?)`,
+                [service_id, subtypeName.trim(), subtypeMedia]
+            );
+            finalSubtypeId = insertSubtype.insertId;
+        }
+    }
+
+    // Prevent duplicate serviceType under same service + subtype
+    const [existingType] = await db.query(
+        `SELECT 1 FROM service_subtypes WHERE service_id = ? AND (subtype_id <=> ?) AND subtypeName = ?`,
+        [service_id, finalSubtypeId, serviceTypeName.trim()]
+    );
+    if (existingType.length > 0) {
+        return res.status(409).json({ message: "Service type already exists under this service/subtype." });
+    }
+
+    // Insert new service type
     const [result] = await db.query(
         `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
          VALUES (?, ?, ?)`,
@@ -171,7 +244,8 @@ const addServiceType = asyncHandler(async (req, res) => {
 
     res.status(201).json({
         message: "Service type created successfully.",
-        service_type_id: result.insertId
+        service_type_id: result.insertId,
+        subtype_id: finalSubtypeId
     });
 });
 
@@ -200,7 +274,6 @@ const getServiceTypeById = asyncHandler(async (req, res) => {
 
     res.status(200).json(rows[0]);
 });
-
 
 const getAdminService = asyncHandler(async (req, res) => {
     try {
@@ -457,5 +530,6 @@ module.exports = {
     editServiceCity,
     deleteServiceCity,
     getAdminService,
-    getServiceTypeById
+    getServiceTypeById,
+    addSubType
 }
