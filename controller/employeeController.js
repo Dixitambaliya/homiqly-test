@@ -840,6 +840,7 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
 
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
+        const now = new Date();
 
         let updateFields = `bookingStatus = ?, completed_flag = ?`;
         const updateParams = [status, completed_flag];
