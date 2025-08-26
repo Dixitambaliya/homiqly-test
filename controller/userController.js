@@ -84,13 +84,12 @@ const getServiceNames = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
 
         const grouped = {};
-        
+
         rows.forEach(row => {
             const category = row.categoryName;
 
@@ -102,7 +101,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             }
 
             // find or add service
-            let service = grouped[category].services.find(s => s.service_id === row.service_id);
+            let service = grouped[category].services.find(s => s.serviceId === row.service_id);
 
             if (!service && row.service_id) {
                 service = {
@@ -112,42 +111,18 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
                     slug: row.slug,
-                    subTypes: [],  // add subtypes layer
-                    serviceTypes: [] // fallback if no subtypes
+                    serviceTypes: []
                 };
                 grouped[category].services.push(service);
             }
 
-            // if service has subtype
-            if (row.subtype_id) {
-                let subtype = service.subTypes.find(st => st.subtype_id === row.subtype_id);
-                if (!subtype) {
-                    subtype = {
-                        subtype_id: row.subtype_id,
-                        subtypeName: row.subtypeName,
-                        subtypeMedia: row.subtypeMedia,
-                        serviceTypes: []
-                    };
-                    service.subTypes.push(subtype);
-                }
-
-                // push serviceType under subtype
-                if (row.service_type_id) {
-                    subtype.serviceTypes.push({
-                        service_type_id: row.service_type_id,
-                        serviceTypeName: row.serviceTypeName,
-                        serviceTypeMedia: row.serviceTypeMedia
-                    });
-                }
-            } else {
-                // if no subtype → push directly under service
-                if (row.service_type_id) {
-                    service.serviceTypes.push({
-                        service_type_id: row.service_type_id,
-                        serviceTypeName: row.serviceTypeName,
-                        serviceTypeMedia: row.serviceTypeMedia
-                    });
-                }
+            // push serviceType directly under service
+            if (row.service_type_id) {
+                service.serviceTypes.push({
+                    service_type_id: row.service_type_id,
+                    serviceTypeName: row.serviceTypeName,
+                    serviceTypeMedia: row.serviceTypeMedia
+                });
             }
         });
 
@@ -159,7 +134,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id

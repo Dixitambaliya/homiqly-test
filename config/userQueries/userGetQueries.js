@@ -32,14 +32,10 @@ const userGetQueries = {
     s.slug,
     st.service_type_id,
     st.serviceTypeName,
-    st.serviceTypeMedia,
-    ss.subtype_id,
-    ss.subtypeName,
-    ss.subtypeMedia
+    st.serviceTypeMedia
 FROM service_categories sc
 LEFT JOIN services s ON sc.service_categories_id  = s.service_categories_id 
 LEFT JOIN service_type st ON s.service_id = st.service_id
-LEFT JOIN service_subtypes ss ON s.service_id = ss.service_id
 `,
 
     getCategoriesById: `SELECT

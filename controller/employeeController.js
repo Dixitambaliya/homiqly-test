@@ -841,10 +841,25 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
 
+        let updateFields = `bookingStatus = ?, completed_flag = ?`;
+        const updateParams = [status, completed_flag];
+
+        if (status === 3) {
+            // service started → set start_time if not already set
+            updateFields += `, start_time = ?`;
+            updateParams.push(now);
+        } else if (status === 4) {
+            // service completed → set end_time
+            updateFields += `, end_time = ?`;
+            updateParams.push(now);
+        }
+
+        updateParams.push(booking_id);
+
         // ✅ Update the booking status and completed flag
         await db.query(
-            `UPDATE service_booking SET bookingStatus = ?, completed_flag = ? WHERE booking_id = ?`,
-            [status, completed_flag, booking_id]
+            `UPDATE service_booking SET ${updateFields} WHERE booking_id = ?`,
+            updateParams
         );
 
         // 🔔 Create USER notification (best-effort)
