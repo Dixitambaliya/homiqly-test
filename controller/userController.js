@@ -148,15 +148,16 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
             SELECT
-                service_type_id,
-                service_id,
-                serviceTypeName,
-                serviceTypeMedia
-            FROM service_type
-            WHERE service_id = ?
+                s.service_type_id,
+                s.service_id,
+                s.serviceTypeName,
+                s.serviceTypeMedia,
+                ss.subTypename
+            FROM service_type s
+            LEFT JOIN service_subtypes ss ON ss.service_type_id = s.service_type_id
+            WHERE s.service_id = ?
             ORDER BY service_type_id DESC
         `, [service_id]);
-        console.log(rows);
 
         res.status(200).json({
             message: "Service types fetched successfully",
