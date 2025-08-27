@@ -393,7 +393,7 @@ const Profile = () => {
                       </h4>
                       <p className="text-sm text-gray-600">{pkg.description}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        ₹ {pkg.price} • {pkg.time_required}
+                        $ {pkg.price} • {pkg.time_required}
                       </p>
                     </div>
                   </div>
@@ -421,7 +421,7 @@ const Profile = () => {
                                 {sub.description}
                               </p>
                               <p className="text-xs text-gray-400">
-                                ₹ {sub.price} • {sub.time_required}
+                                $ {sub.price} • {sub.time_required}
                               </p>
                             </div>
                           </div>

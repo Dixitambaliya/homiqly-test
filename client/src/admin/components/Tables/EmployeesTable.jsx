@@ -64,7 +64,7 @@ const EmployeesTable = ({ employees, isLoading, onViewEmployee }) => {
       render: (row) => (
         <IconButton
           icon={<FiEye />}
-          variant="primary"
+          variant="ghost"
           size="sm"
           onClick={() => onViewEmployee(row)}
           tooltip="View details"

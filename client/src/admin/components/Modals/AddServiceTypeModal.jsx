@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../../../shared/components/Modal/Modal";
-import { Button } from "../../../shared/components/Button";
+import { Button, IconButton } from "../../../shared/components/Button";
 import {
   FormInput,
   FormSelect,
@@ -343,13 +343,11 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       Package {pkgIndex + 1}
                     </h5>
                     {formData.packages.length > 1 && (
-                      <button
-                        type="button"
+                      <IconButton
+                        variant="lightDanger"
+                        icon={<FiTrash2 />}
                         onClick={() => removePackage(pkgIndex)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <FiTrash2 className="h-4 w-4" />
-                      </button>
+                      ></IconButton>
                     )}
                   </div>
 
@@ -378,7 +376,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       }
                     />
                     <FormInput
-                      label="Price (₹)"
+                      label="Price ($)"
                       type="number"
                       value={pkg.total_price}
                       onChange={(e) =>
@@ -423,15 +421,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                             Sub-Package {subIndex + 1}
                           </h6>
                           {pkg.sub_packages.length > 1 && (
-                            <button
-                              type="button"
+                            <IconButton
+                              variant="lightDanger"
+                              icon={<FiTrash2 />}
                               onClick={() =>
                                 removeSubPackage(pkgIndex, subIndex)
                               }
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <FiTrash2 className="h-4 w-4" />
-                            </button>
+                            ></IconButton>
                           )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
@@ -546,7 +542,9 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                     required
                   />
                   {formData.preferences.length > 1 && (
-                    <button
+                    <IconButton
+                      variant="lightDanger"
+                      icon={<FiTrash2 />}
                       type="button"
                       onClick={() => {
                         const updated = formData.preferences.filter(
@@ -557,10 +555,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           preferences: updated,
                         }));
                       }}
-                      className="text-red-500"
-                    >
-                      <FiTrash2 />
-                    </button>
+                    ></IconButton>
                   )}
                 </div>
               ))}

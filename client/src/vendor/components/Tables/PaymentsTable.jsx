@@ -69,6 +69,7 @@ const PaymentsTable = ({
       render: (row) => (
         <IconButton
           onClick={() => handleViewDetails(row)}
+          variant="ghost"
           icon={<FiEye />}
         ></IconButton>
       ),

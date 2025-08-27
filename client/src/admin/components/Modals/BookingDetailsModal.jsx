@@ -98,7 +98,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 <div>
                   <p className="font-semibold">{pkg.packageName}</p>
                   <p className="text-sm text-gray-500">
-                    {pkg.totalTime} • ₹{pkg.totalPrice}
+                    {pkg.totalTime} • ${pkg.totalPrice}
                   </p>
                 </div>
               </div>
@@ -112,7 +112,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                     <div>
                       <p className="font-medium">{item.itemName}</p>
                       <p className="text-sm text-gray-500">
-                        {item.timeRequired} • ₹{item.price}
+                        {item.timeRequired} • ${item.price}
                       </p>
                     </div>
                   </div>

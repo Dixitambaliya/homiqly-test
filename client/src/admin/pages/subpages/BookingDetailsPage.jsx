@@ -138,54 +138,54 @@ const BookingDetailsPage = () => {
                 </div>
               </div>
             </div>
-              <div className="w-full space-y-4 p-6 bg-white rounded-xl shadow-sm border">
-                {booking.packages?.map((pkg) => (
-                  <div
-                    key={pkg.package_id}
-                    className="bg-white rounded-xl shadow-sm space-y-3"
-                  >
-                    <div className="flex items-center gap-4">
-                      {pkg.packageMedia && (
+            <div className="w-full space-y-4 p-6 bg-white rounded-xl shadow-sm border">
+              {booking.packages?.map((pkg) => (
+                <div
+                  key={pkg.package_id}
+                  className="bg-white rounded-xl shadow-sm space-y-3"
+                >
+                  <div className="flex items-center gap-4">
+                    {pkg.packageMedia && (
+                      <img
+                        src={pkg.packageMedia}
+                        alt={pkg.packageName}
+                        className="w-20 h-20 object-cover rounded-lg border"
+                      />
+                    )}
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-800">
+                        {pkg.packageName}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {pkg.totalTime} • ${pkg.totalPrice}
+                      </p>
+                    </div>
+                  </div>
+                  {pkg.items?.map((item) => (
+                    <div
+                      key={item.item_id}
+                      className="flex gap-4 border-t pt-2 items-start"
+                    >
+                      {item.itemMedia && (
                         <img
-                          src={pkg.packageMedia}
-                          alt={pkg.packageName}
-                          className="w-20 h-20 object-cover rounded-lg border"
+                          src={item.itemMedia}
+                          alt={item.itemName}
+                          className="w-14 h-14 object-cover rounded border"
                         />
                       )}
                       <div>
-                        <h4 className="text-base font-semibold text-gray-800">
-                          {pkg.packageName}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {pkg.totalTime} • ₹{pkg.totalPrice}
+                        <p className="text-sm font-medium text-gray-800">
+                          {item.itemName} ({item.quantity}x)
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {item.timeRequired} • ${item.price}
                         </p>
                       </div>
                     </div>
-                    {pkg.items?.map((item) => (
-                      <div
-                        key={item.item_id}
-                        className="flex gap-4 border-t pt-2 items-start"
-                      >
-                        {item.itemMedia && (
-                          <img
-                            src={item.itemMedia}
-                            alt={item.itemName}
-                            className="w-14 h-14 object-cover rounded border"
-                          />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">
-                            {item.itemName} ({item.quantity}x)
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {item.timeRequired} • ₹{item.price}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Notes */}
@@ -276,7 +276,7 @@ const BookingDetailsPage = () => {
             </h4>
             <PaymentBadge status={booking.payment_status} />
             <p className="text-sm text-gray-800 mt-2">
-              ₹{booking.payment_amount}{" "}
+              ${booking.payment_amount}{" "}
               {booking.payment_currency?.toUpperCase()}
             </p>
             {booking.payment_intent_id && (

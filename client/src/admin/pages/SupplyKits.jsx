@@ -360,7 +360,7 @@ const SupplyKits = () => {
                     htmlFor="kit_price"
                     className="block text-sm font-medium text-gray-700 mb-1"
                   >
-                    Kit Price (₹)*
+                    Kit Price ($)*
                   </label>
                   <input
                     type="number"
@@ -558,7 +558,7 @@ const SupplyKits = () => {
                             htmlFor={`unit_price_${index}`}
                             className="block text-xs font-medium text-gray-500 mb-1"
                           >
-                            Unit Price (₹)*
+                            Unit Price ($)*
                           </label>
                           <input
                             type="number"

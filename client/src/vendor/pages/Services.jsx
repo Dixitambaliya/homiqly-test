@@ -141,7 +141,7 @@ const Services = () => {
                               {pkg.title}
                             </h5>
                             <p className="text-sm font-medium text-blue-700">
-                              ₹{pkg.price}
+                              ${pkg.price}
                             </p>
                           </div>
                           <p className="text-sm text-gray-600 mb-1">
@@ -173,7 +173,7 @@ const Services = () => {
                                         {sub.item_name}
                                       </p>
                                       <p className="text-xs text-gray-500">
-                                        ₹{sub.price} | {sub.time_required}
+                                        ${sub.price} | {sub.time_required}
                                       </p>
                                     </div>
                                   </li>

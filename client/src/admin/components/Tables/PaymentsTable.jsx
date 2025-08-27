@@ -80,7 +80,7 @@ const PaymentsTable = ({ payouts, isLoading, onViewPayment }) => {
       render: (row) => (
         <IconButton
           icon={<FiEye className="h-4 w-4" />}
-          variant="success"
+          variant="ghost"
           size="sm"
           onClick={(e) => {
             e.stopPropagation();

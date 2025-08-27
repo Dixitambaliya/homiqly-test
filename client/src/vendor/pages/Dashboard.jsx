@@ -160,7 +160,7 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Earnings</p>
-            <p className="text-2xl font-semibold">₹{stats.totalEarnings}</p>
+            <p className="text-2xl font-semibold">${stats.totalEarnings}</p>
           </div>
         </div>
       </div>
@@ -204,8 +204,7 @@ const Dashboard = () => {
                     >
                       {statusText}
                     </span> */}
-                    <StatusBadge status={booking.bookingStatus}
-                     />
+                    <StatusBadge status={booking.bookingStatus} />
                   </div>
                 );
               })}

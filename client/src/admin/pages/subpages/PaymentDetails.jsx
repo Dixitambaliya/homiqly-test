@@ -43,6 +43,10 @@ const PaymentDetails = () => {
   //   fetchPayment();
   // }, [paymentId]);
 
+  useEffect(() => {
+    fetchPayment();
+  }, [!paymentId]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -74,27 +78,25 @@ const PaymentDetails = () => {
       <div className="bg-white rounded-lg shadow border p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <p className="text-sm text-gray-500 mb-1">Payment ID</p>
-          <p className="font-medium text-gray-900">#{payment.payment_id}</p>
+          <p className=" text-gray-900">#{payment.payment_id}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Amount</p>
-          <p className="font-medium text-green-600">
-            {formatCurrency(payment.amount)} {payment.currency?.toUpperCase()}
+          <p className=" text-green-600">
+            {formatCurrency(payment.amount, "CAD")}
           </p>
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Status</p>
-          <p className="font-medium capitalize text-gray-800">
-            {payment.status}
-          </p>
+          <p className=" capitalize text-gray-800">{payment.status}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Date</p>
-          <p className="font-medium text-gray-900">{payment.paidAt}</p>
+          <p className=" text-gray-900">{payment.paidAt}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Card</p>
-          <p className="font-medium text-gray-800">
+          <p className=" text-gray-800">
             {payment.cardBrand?.toUpperCase()} •••• {payment.last4}
           </p>
         </div>
@@ -104,7 +106,7 @@ const PaymentDetails = () => {
             href={payment.receiptUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:underline font-medium"
+            className="text-blue-600 hover:underline "
           >
             View Receipt
           </a>
@@ -117,17 +119,17 @@ const PaymentDetails = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-gray-500 mb-1">Name</p>
-            <p className="font-medium text-gray-900">
+            <p className=" text-gray-900">
               {payment.user_firstname} {payment.user_lastname}
             </p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">Email</p>
-            <p className="font-medium text-gray-900">{payment.user_email}</p>
+            <p className=" text-gray-900">{payment.user_email}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 mb-1">Phone</p>
-            <p className="font-medium text-gray-900">{payment.user_phone}</p>
+            <p className=" text-gray-900">{payment.user_phone}</p>
           </div>
         </div>
       </div>
@@ -146,7 +148,7 @@ const PaymentDetails = () => {
             className="h-16 w-16 rounded-full object-cover border"
           />
           <div>
-            <p className="text-lg font-medium text-gray-900">
+            <p className="text-lg  text-gray-900">
               {payment.individual_name || payment.companyName}
             </p>
             <p className="text-sm text-gray-500">
@@ -155,7 +157,7 @@ const PaymentDetails = () => {
           </div>
         </div>
         <p className="text-sm text-gray-500 mb-1">Phone</p>
-        <p className="font-medium text-gray-900">
+        <p className=" text-gray-900">
           {payment.individual_phone || payment.contactPerson}
         </p>
       </div>
@@ -170,7 +172,7 @@ const PaymentDetails = () => {
             className="w-32 h-20 object-cover rounded-md border"
           />
           <div>
-            <p className="font-medium text-gray-900">{payment.packageName}</p>
+            <p className=" text-gray-900">{payment.packageName}</p>
             <p className="text-sm text-gray-500">{payment.totalTime}</p>
             <p className="text-sm text-gray-500">
               {formatCurrency(payment.totalPrice)}{" "}

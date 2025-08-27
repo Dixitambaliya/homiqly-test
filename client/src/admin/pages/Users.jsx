@@ -5,7 +5,7 @@ import { FiRefreshCw, FiX, FiEdit } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import UsersTable from "../components/Tables/UsersTable"; // Adjust path as needed
 import FormInput from "../../shared/components/Form/FormInput"; // Adjust path as needed
-import { Button } from "../../shared/components/Button";
+import { Button, IconButton } from "../../shared/components/Button";
 import FormSelect from "../../shared/components/Form/FormSelect";
 const Users = () => {
   const [users, setUsers] = useState([]);
@@ -115,12 +115,11 @@ const Users = () => {
           <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">User Details</h3>
-              <button
+              <IconButton
+                icon={<FiX />}
+                variant="lightDanger"
                 onClick={() => setShowDetailsModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <FiX className="h-5 w-5" />
-              </button>
+              ></IconButton>
             </div>
             <div className="p-4">
               <div className="flex items-center mb-6">
@@ -203,16 +202,15 @@ const Users = () => {
                 </div>
               </div>
               <div className="flex justify-end mt-4 pt-4 border-t">
-                <button
+                <Button
                   onClick={() => {
                     setShowDetailsModal(false);
                     editUser(selectedUser);
                   }}
-                  className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark flex items-center"
                 >
                   <FiEdit className="mr-2" />
                   Edit User
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -225,12 +223,11 @@ const Users = () => {
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">Edit User</h3>
-              <button
+              <IconButton
                 onClick={() => setShowEditModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <FiX className="h-5 w-5" />
-              </button>
+                icon={<FiX />}
+                variant="lightDanger"
+              ></IconButton>
             </div>
             <form onSubmit={handleSubmit} className="p-4">
               <div className="space-y-4">

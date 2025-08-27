@@ -165,7 +165,7 @@ const Dashboard = () => {
           <div>
             <p className="text-sm text-gray-500">Total Revenue</p>
             <p className="text-2xl font-semibold">
-              ₹{stats.total_revenue || 0}
+              ${stats.total_revenue || 0}
             </p>
           </div>
         </div>

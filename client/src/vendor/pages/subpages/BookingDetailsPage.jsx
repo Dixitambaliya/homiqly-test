@@ -135,7 +135,7 @@ const BookingDetailsPage = () => {
                       {pkg.packageName}
                     </h4>
                     <p className="text-sm text-gray-600">
-                      Total: ₹{pkg.totalPrice || "N/A"} | Duration:{" "}
+                      Total: ${pkg.totalPrice || "N/A"} | Duration:{" "}
                       {pkg.totalTime}
                     </p>
                   </div>
@@ -157,7 +157,7 @@ const BookingDetailsPage = () => {
                             {item.itemName} ({item.quantity}x)
                           </p>
                           <p className="text-sm text-gray-500">
-                            {item.timeRequired} • ₹{item.price}
+                            {item.timeRequired} • ${item.price}
                           </p>
                         </div>
                       </li>
@@ -243,7 +243,7 @@ const BookingDetailsPage = () => {
               </h4>
               <PaymentBadge status={booking.payment_status} />
               <p className="text-sm text-gray-800 mt-2">
-                ₹{booking.payment_amount}{" "}
+                ${booking.payment_amount}{" "}
                 {booking.payment_currency?.toUpperCase()}
               </p>
               {booking.payment_intent_id && (

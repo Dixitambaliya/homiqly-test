@@ -144,7 +144,7 @@ const PackagesTable = ({ services, onEdit, fetchData }) => {
                   : "text-gray-600"
               }
             >
-              ₹{row.price}
+              ${row.price}
             </span>
           );
         }

@@ -18,7 +18,7 @@ const Packages = () => {
     try {
       const response = await api.get("/api/admin/getpackages");
 
-      // console.log("Raw API response:", response.data); 
+      // console.log("Raw API response:", response.data);
 
       // Ensure you're accessing the correct array
       const rawData = Array.isArray(response.data)
@@ -123,7 +123,7 @@ const Packages = () => {
                             {pkg.title}
                           </h5>
                           <p className="text-sm font-medium text-blue-700">
-                            ₹{pkg.price}
+                            ${pkg.price}
                           </p>
                         </div>
                         <p className="text-sm text-gray-600 mb-1">
@@ -155,7 +155,7 @@ const Packages = () => {
                                       {sub.item_name}
                                     </p>
                                     <p className="text-xs text-gray-500">
-                                      ₹{sub.price} | {sub.time_required}
+                                      ${sub.price} | {sub.time_required}
                                     </p>
                                   </div>
                                 </li>
