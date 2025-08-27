@@ -348,65 +348,46 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName, subtype_id = null, subtypeName = null, packages, preferences } = req.body;
+        const { serviceId, serviceTypeName, subtypeName = null, packages, preferences } = req.body;
 
-        if (!serviceId || !serviceTypeName || !packages) {
-            throw new Error("Missing required fields: serviceId, serviceTypeName, and packages.");
+        if (!serviceTypeName || !packages) {
+            throw new Error("Missing required fields: serviceTypeName and packages.");
         }
 
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
         const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
+        // 1️⃣ Create new service_type
+        const [stResult] = await connection.query(
+            `INSERT INTO service_type (service_id,serviceTypeName, serviceTypeMedia)
+             VALUES (?, ?, ?)`,
+            [serviceId, serviceTypeName.trim(), serviceTypeMedia]
+        );
+        const service_type_id = stResult.insertId;
+
         let finalSubtypeId = null;
 
-        // Case 1: subtype_id provided → validate
-        if (subtype_id) {
-            const [subExists] = await connection.query(
-                `SELECT subtype_id FROM service_subtypes WHERE subtype_id = ? AND service_id = ?`,
-                [subtype_id, serviceId]
-            );
-            if (subExists.length === 0) {
-                throw new Error("Subtype not found under this service.");
-            }
-            finalSubtypeId = subtype_id;
-        }
-
-        // Case 2: subtypeName provided → insert or reuse
-        else if (subtypeName) {
+        // 2️⃣ If subtypeName provided → check/reuse under this service_type, else insert
+        if (subtypeName) {
             const [existingSub] = await connection.query(
-                `SELECT subtype_id FROM service_subtypes WHERE service_id = ? AND subtypeName = ?`,
-                [serviceId, subtypeName.trim()]
+                `SELECT subtype_id FROM service_subtypes 
+                 WHERE service_type_id = ? AND subtypeName = ?`,
+                [service_type_id, subtypeName.trim()]
             );
+
             if (existingSub.length > 0) {
                 finalSubtypeId = existingSub[0].subtype_id;
             } else {
                 const [insertSub] = await connection.query(
-                    `INSERT INTO service_subtypes (service_id, subtypeName, subtypeMedia)
+                    `INSERT INTO service_subtypes (service_type_id, subtypeName, subtypeMedia)
                      VALUES (?, ?, ?)`,
-                    [serviceId, subtypeName.trim(), subtypeMedia]
+                    [service_type_id, subtypeName.trim(), subtypeMedia]
                 );
                 finalSubtypeId = insertSub.insertId;
             }
         }
 
-        // Insert service type (with subtype if present)
-        const [stResult] = await connection.query(
-            `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
-             VALUES (?, ?, ?)`,
-            [serviceId, serviceTypeName.trim(), serviceTypeMedia]
-        );
-
-        const service_type_id = stResult.insertId;
-
-        // If subtype selected, link it
-        if (finalSubtypeId) {
-            await connection.query(
-                `INSERT INTO subtype_service_type (subtype_id, service_type_id) VALUES (?, ?)`,
-                [finalSubtypeId, service_type_id]
-            );
-        }
-
-        // Parse packages
+        // 3️⃣ Parse packages
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -416,14 +397,14 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             const pkg = parsedPackages[i];
             const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
+            // Insert package
             const [pkgResult] = await connection.query(
                 adminPostQueries.insertPackage,
                 [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
             );
-
             const package_id = pkgResult.insertId;
 
-            // Sub-packages
+            // Insert sub-packages
             for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
                 const sub = pkg.sub_packages[j];
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
@@ -434,14 +415,14 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Addons
+            // Insert addons
             for (let k = 0; k < (pkg.addons || []).length; k++) {
                 const addon = pkg.addons[k];
                 const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || null;
 
                 await connection.query(
                     `INSERT INTO package_addons (package_id, addon_name, addon_description, addon_price, addon_time, addon_media)
-                     VALUES (?, ?, ?, ?, ?)`,
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
                         addon.addon_name,
@@ -453,7 +434,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Preferences
+            // Insert preferences
             if (preferences) {
                 const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
                 for (const pref of parsedPrefs) {
@@ -471,7 +452,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "Service type, subtype, packages, and addons created successfully by admin",
+            message: "✅ Service type, subtype, packages, and addons created successfully",
             service_type_id,
             subtype_id: finalSubtypeId
         });
@@ -483,6 +464,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
