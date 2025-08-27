@@ -117,11 +117,11 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
                 grouped[category].services.push(service);
             }
-            
+
             // push serviceType directly under service
             if (row.service_type_id) {
                 service.serviceTypes.push({
-                    subType:row.subTypeName,
+                    subType: row.subTypeName,
                     service_type_id: row.service_type_id,
                     serviceTypeName: row.serviceTypeName,
                     serviceTypeMedia: row.serviceTypeMedia
@@ -512,6 +512,22 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   WHERE pi.package_id = p.package_id
                 ), '[]') AS sub_packages,
 
+                -- Addons
+                COALESCE((
+                  SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                      'addon_id', pa.addon_id,
+                      'addon_name', pa.addon_name,
+                      'addon_description', pa.addon_description,
+                      'price', pa.addon_price,
+                      'addon_time', pa.addon_time,
+                      'addon_media', pa.addon_media
+                    )
+                  ), ']')
+                  FROM package_addons pa
+                  WHERE pa.package_id = p.package_id
+                ), '[]') AS addons,
+
                 -- Preferences
                 COALESCE((
                   SELECT CONCAT('[', GROUP_CONCAT(
@@ -541,6 +557,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
             averageRating: row.averageRating,
             totalReviews: row.totalReviews,
             sub_packages: JSON.parse(row.sub_packages || "[]"),
+            addons: JSON.parse(row.addons || "[]"),
             preferences: JSON.parse(row.preferences || "[]"),
         }));
 
@@ -553,6 +570,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 
