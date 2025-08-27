@@ -40,6 +40,8 @@ const Login = () => {
 
   return (
     <div>
+      <p className="mb-8 text-center text-gray-600 font-semibold">Employees Panel Login</p>
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label

@@ -194,6 +194,7 @@ const Register = () => {
 
   return (
     <div>
+      <p className="mb-8 text-center text-gray-600 font-semibold">Vendor Panel Registration Page</p>
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div
@@ -679,11 +680,9 @@ const Register = () => {
               {selectedServices.map((service) => {
                 const category = serviceCategories.find(
                   (c) => c.serviceCategoryId === service.serviceCategoryId
-
                 );
                 const serviceItem = category?.services.find(
                   (s) => s.serviceId === service.serviceId
-
                 );
 
                 return (
@@ -693,7 +692,8 @@ const Register = () => {
                       <p className="font-medium">{serviceItem?.title}</p>
                       <p className="text-sm text-gray-500">
                         Category: {category?.categoryName}
-                        {service.serviceLocation && ` • Location: ${service.serviceLocation}`}
+                        {service.serviceLocation &&
+                          ` • Location: ${service.serviceLocation}`}
                       </p>
                     </div>
                   </div>
