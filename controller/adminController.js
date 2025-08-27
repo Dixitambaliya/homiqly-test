@@ -240,9 +240,23 @@ const getBookings = asyncHandler(async (req, res) => {
                     WHERE sbsp.booking_id = ?
                 `, [bookingId]);
 
-                // Group items under packages
+                // ===== Fetch Addons =====
+                const [bookingAddons] = await db.query(`
+                    SELECT
+                        sba.addon_id,
+                        pa.addon_name,
+                        sba.quantity,
+                        (sba.price * sba.quantity) AS price,
+                        sba.package_id
+                    FROM service_booking_addons sba
+                    LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
+                    WHERE sba.booking_id = ?
+                `, [bookingId]);
+
+                // Group items & addons under packages
                 const groupedPackages = bookingPackages.map(pkg => {
                     const items = packageItems.filter(item => item.package_id === pkg.package_id);
+                    // const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
                     return { ...pkg, items };
                 });
 
@@ -258,6 +272,7 @@ const getBookings = asyncHandler(async (req, res) => {
 
                 booking.packages = groupedPackages;
                 booking.package_items = packageItems;
+                booking.addons = bookingAddons;
                 booking.preferences = bookingPreferences;
 
                 // ===== Stripe Metadata Enrichment =====
@@ -408,9 +423,10 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             const package_id = pkgResult.insertId;
 
+            // Sub-packages
             for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
                 const sub = pkg.sub_packages[j];
-                const itemMedia = req.uploadedFiles?.[`itemMedia_${j}`]?.[0]?.url || null;
+                const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
 
                 await connection.query(
                     adminPostQueries.insertPackageItem,
@@ -418,6 +434,25 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
+            // ✅ Addons
+            for (let k = 0; k < (pkg.addons || []).length; k++) {
+                const addon = pkg.addons[k];
+                const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || null;
+
+                await connection.query(
+                    `INSERT INTO package_addons (package_id, addon_name, addon_description, addon_price, addon_media)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    [
+                        package_id,
+                        addon.addon_name,
+                        addon.description || null,
+                        addon.price || 0,
+                        addonMedia
+                    ]
+                );
+            }
+
+            // Preferences
             if (preferences) {
                 const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
                 for (const pref of parsedPrefs) {
@@ -435,7 +470,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "Service type, subtype, and packages created successfully by admin",
+            message: "Service type, subtype, packages, and addons created successfully by admin",
             service_type_id,
             subtype_id: finalSubtypeId
         });
@@ -494,6 +529,18 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 ), ']')
                 FROM booking_preferences bp
                 WHERE bp.package_id = p.package_id
+              ), '[]'),
+              'addons', IFNULL((
+                SELECT CONCAT('[', GROUP_CONCAT(
+                  JSON_OBJECT(
+                    'addon_id', pa.addon_id,
+                    'addon_name', pa.addon_name,
+                    'description', pa.addon_description,
+                    'price', pa.addon_price
+                  )
+                ), ']')
+                FROM package_addons pa
+                WHERE pa.package_id = p.package_id
               ), '[]')
             )
           ), ']')
@@ -517,6 +564,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 parsedPackages = rawPackages.map(pkg => {
                     let sub_packages = [];
                     let preferences = [];
+                    let addons = [];
 
                     try {
                         sub_packages = typeof pkg.sub_packages === "string"
@@ -534,6 +582,14 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         console.warn(`❌ Invalid preferences JSON in package ${pkg.package_id}:`, e.message);
                     }
 
+                    try {
+                        addons = typeof pkg.addons === "string"
+                            ? JSON.parse(pkg.addons)
+                            : [];
+                    } catch (e) {
+                        console.warn(`❌ Invalid addons JSON in package ${pkg.package_id}:`, e.message);
+                    }
+
                     return {
                         package_id: pkg.package_id,
                         title: pkg.title,
@@ -542,16 +598,16 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         time_required: pkg.time_required,
                         package_media: pkg.package_media,
                         sub_packages,
-                        preferences
+                        preferences,
+                        addons
                     };
                 });
             } catch (e) {
                 console.warn(`❌ Invalid packages JSON in service_type_id ${row.service_type_id}:`, e.message);
             }
 
-            // ✅ Filter out rows with no valid packages
             if (!parsedPackages || parsedPackages.length === 0) {
-                return []; // Remove this row entirely
+                return [];
             }
 
             return [{
