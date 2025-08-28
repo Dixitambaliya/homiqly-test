@@ -357,21 +357,40 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
         const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
-        // 1️⃣ Create new service_type
-        const [stResult] = await connection.query(
-            `INSERT INTO service_type (service_id,serviceTypeName, serviceTypeMedia)
-             VALUES (?, ?, ?)`,
-            [serviceId, serviceTypeName.trim(), serviceTypeMedia]
+        // 1️⃣ Check if service_type already exists
+        let service_type_id;
+        const [existingServiceType] = await connection.query(
+            `SELECT service_type_id FROM service_type 
+             WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
+            [serviceId, serviceTypeName.trim()]
         );
-        const service_type_id = stResult.insertId;
+
+        if (existingServiceType.length > 0) {
+            service_type_id = existingServiceType[0].service_type_id;
+
+            // Optional: update media if new media is provided
+            if (serviceTypeMedia) {
+                await connection.query(
+                    `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
+                    [serviceTypeMedia, service_type_id]
+                );
+            }
+        } else {
+            const [stResult] = await connection.query(
+                `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+                 VALUES (?, ?, ?)`,
+                [serviceId, serviceTypeName.trim(), serviceTypeMedia]
+            );
+            service_type_id = stResult.insertId;
+        }
 
         let finalSubtypeId = null;
 
-        // 2️⃣ If subtypeName provided → check/reuse under this service_type, else insert
+        // 2️⃣ Subtype (check before insert)
         if (subtypeName) {
             const [existingSub] = await connection.query(
                 `SELECT subtype_id FROM service_subtypes 
-                 WHERE service_type_id = ? AND subtypeName = ?`,
+                 WHERE service_type_id = ? AND subtypeName = ? LIMIT 1`,
                 [service_type_id, subtypeName.trim()]
             );
 
