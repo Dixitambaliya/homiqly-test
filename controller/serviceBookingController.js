@@ -212,24 +212,24 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        // Fetch latest platform fee % for this vendor type
-        // Fallback to 0 if not found
+        // ✅ Get vendor type
         const [[vendorRow]] = await db.query(
             bookingGetQueries.getVendorIdForBooking,
             [vendor_id]
         );
-
         const vendorType = vendorRow?.vendorType || null;
 
+        // ✅ Get latest platform fee for vendorType
         const [platformSettings] = await db.query(
             bookingGetQueries.getPlateFormFee,
             [vendorType]
         );
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-        // Precompute factor (1 - fee%)
+        // ✅ Precompute net factor (1 - fee%)
         const netFactor = 1 - platformFee / 100;
 
+        // ✅ Fetch vendor bookings
         const [bookings] = await db.query(
             bookingGetQueries.getVendorBookings,
             [vendor_id]
@@ -244,18 +244,27 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 [netFactor, bookingId]
             );
 
-            // 🔹 Fetch Items with platform fee deducted from price
+            // 🔹 Fetch Package Items
             const [packageItems] = await db.query(
                 bookingGetQueries.getBookedSubPackages,
                 [netFactor, bookingId]
             );
 
-            // 🔹 Group items under packages
+            // 🔹 Fetch Addons
+            const [bookingAddons] = await db.query(
+                bookingGetQueries.getBookedAddons,
+                [netFactor, bookingId]
+            );
+
+            // 🔹 Group items & addons under packages
             const groupedPackages = bookingPackages.map((pkg) => {
                 const items = packageItems.filter(
                     (item) => item.package_id === pkg.package_id
                 );
-                return { ...pkg, items };
+                const addons = bookingAddons.filter(
+                    (addon) => addon.package_id === pkg.package_id
+                );
+                return { ...pkg, items, addons };
             });
 
             // 🔹 Fetch Preferences
@@ -264,8 +273,10 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 [bookingId]
             );
 
+            // Attach everything to booking
             booking.packages = groupedPackages;
             booking.package_items = packageItems;
+            booking.addons = bookingAddons;
             booking.preferences = bookingPreferences;
 
             // 🔹 Combine employee info
@@ -278,7 +289,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 🔹 Clean unnecessary fields
+            // 🔹 Clean up
             delete booking.assignedEmployeeId;
             delete booking.employeeFirstName;
             delete booking.employeeLastName;
@@ -302,6 +313,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

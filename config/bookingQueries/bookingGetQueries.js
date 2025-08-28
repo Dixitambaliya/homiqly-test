@@ -135,6 +135,19 @@ sp.preference_id,
     LIMIT 1
 `,
 
+    getBookedAddons: `
+    SELECT 
+        sba.package_id,
+        sba.addon_id,
+        a.addonName,
+        a.addonMedia,
+        ROUND(sba.price * ?, 2) AS price,
+        sba.quantity
+     FROM service_booking_addons sba
+     JOIN package_addons a ON sba.addon_id = a.addon_id
+     WHERE sba.booking_id = ?
+        `,
+
     getBookingDetail: `
 SELECT
 sb.booking_id,
