@@ -13,7 +13,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         notes,
         preferences,
         bookingDate,
-        bookingTime
+        bookingTime,
+        vendor_id = null
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
