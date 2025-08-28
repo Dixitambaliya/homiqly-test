@@ -67,8 +67,6 @@ const addToCartService = asyncHandler(async (req, res) => {
             [service_type_id]
         );
 
-        const vendor_id = vendorResult[0].vendor_id;
-
         // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
