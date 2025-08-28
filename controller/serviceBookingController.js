@@ -132,15 +132,15 @@ const bookService = asyncHandler(async (req, res) => {
             for (const addon of addons) {
                 if (!addon.addon_id || addon.price == null) continue;
 
-                const quantity =
-                    addon.quantity && Number.isInteger(addon.quantity) && addon.quantity > 0
-                        ? addon.quantity
-                        : 1;
+                // const quantity =
+                //     addon.quantity && Number.isInteger(addon.quantity) && addon.quantity > 0
+                //         ? addon.quantity
+                //         : 1;
 
                 await connection.query(
-                    `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price, quantity)
-                     VALUES (?, ?, ?, ?, ?)`,
-                    [booking_id, package_id, addon.addon_id, addon.price, quantity]
+                    `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
+                     VALUES (?, ?, ?, ?)`,
+                    [booking_id, package_id, addon.addon_id, addon.price]
                 );
             }
         }
