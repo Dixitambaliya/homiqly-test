@@ -52,6 +52,15 @@ const bookService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "'preferences' must be a valid JSON array.", error: e.message });
     }
 
+    // ✅ Check that addons are compulsory
+    for (const pkg of parsedPackages) {
+        if (!pkg.addons || !Array.isArray(pkg.addons) || pkg.addons.length === 0) {
+            return res.status(400).json({
+                message: `Addons are required for package_id ${pkg.package_id}. Please select at least one addon.`
+            });
+        }
+    }
+
     const connection = await db.getConnection();
     let booking_id;
 
@@ -70,15 +79,6 @@ const bookService = asyncHandler(async (req, res) => {
                 message: `You already have a booking at ${bookingDate} ${bookingTime}. Please choose a different time.`,
             });
         }
-
-        // const [vendorRows] = await connection.query(
-        //     `SELECT vendor_id FROM vendors WHERE vendor_id = ? LIMIT 1`, [vendor_id]
-        // );
-
-        // if (!vendorRows || vendorRows.length === 0) {
-        //     await connection.rollback();
-        //     return res.status(404).json({ message: "Vendor not found." });
-        // }
 
         // ✅ Create booking
         const [insertBooking] = await connection.query(
@@ -128,14 +128,12 @@ const bookService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Addons
+            // ✅ Compulsory Addons
             for (const addon of addons) {
-                if (!addon.addon_id || addon.price == null) continue;
-
-                // const quantity =
-                //     addon.quantity && Number.isInteger(addon.quantity) && addon.quantity > 0
-                //         ? addon.quantity
-                //         : 1;
+                if (!addon.addon_id || addon.price == null) {
+                    await connection.rollback();
+                    return res.status(400).json({ message: "Each addon must include addon_id and price." });
+                }
 
                 await connection.query(
                     `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
@@ -156,7 +154,6 @@ const bookService = asyncHandler(async (req, res) => {
             );
         }
 
-        // ✅ Commit booking transaction
         await connection.commit();
 
     } catch (err) {
@@ -200,13 +197,13 @@ const bookService = asyncHandler(async (req, res) => {
         console.error("Notification error (ignored, booking created):", err.message);
     }
 
-    // ✅ Final response
     res.status(200).json({
         message: "Booking created successfully.",
         booking_id,
         payment_status: "pending"
     });
 });
+
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
