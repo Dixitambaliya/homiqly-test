@@ -822,6 +822,8 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             `SELECT sb.booking_id, 
               sb.vendor_id, 
               sb.user_id,
+              sb.bookingDate,
+              sb.bookingTime,
               p.status AS payment_status
        FROM service_booking sb
        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
@@ -833,11 +835,27 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             return res.status(403).json({ message: "Unauthorized or booking not assigned to this vendor" });
         }
 
-        const { payment_status, user_id } = checkBooking[0];
+        const { payment_status, user_id, bookingDate, bookingTime } = checkBooking[0];
+
+        // ✅ Restrict start time (status = 3) → only within 10 min before start
+        if (status === 3) {
+            const bookingDateTime = new Date(`${bookingDate} ${bookingTime}`);
+            const now = new Date();
+
+            // Allow start only if current time >= booking time - 10 minutes
+            const startWindow = new Date(bookingDateTime.getTime() - 10 * 60000);
+
+            if (now < startWindow) {
+                return res.status(400).json({
+                    message: "You can only start the service within 10 minutes of the booking time."
+                });
+            }
+        }
 
         // if (payment_status !== 'completed') {
         //     return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
         // }
+
 
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
