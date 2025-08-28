@@ -418,18 +418,18 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             // Insert addons
             for (let k = 0; k < (pkg.addons || []).length; k++) {
                 const addon = pkg.addons[k];
-                const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || null;
+                const addon_media = req.uploadedFiles?.[`addon_media_${i}_${k}`]?.[0]?.url || null;
 
                 await connection.query(
                     `INSERT INTO package_addons (package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
                      VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
-                        addon.addonName,
+                        addon.addon_name,
                         addon.description || null,
                         addon.price || 0,
-                        addon.addonTime,
-                        addonMedia
+                        addon.addonime,
+                        addon_media
                     ]
                 );
             }
