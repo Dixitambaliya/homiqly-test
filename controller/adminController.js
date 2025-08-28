@@ -428,7 +428,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                         addon.addon_name,
                         addon.description || null,
                         addon.price || 0,
-                        addon.addonime,
+                        addon.addon_time,
                         addon_media
                     ]
                 );
