@@ -67,10 +67,6 @@ const addToCartService = asyncHandler(async (req, res) => {
             [service_type_id]
         );
 
-        if (!vendorResult.length) {
-            throw new Error("Could not find vendor for the selected service type.");
-        }
-
         const vendor_id = vendorResult[0].vendor_id;
 
         // ✅ Step 1: Insert into service_cart
@@ -227,7 +223,6 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const checkoutCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
