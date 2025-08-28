@@ -52,29 +52,36 @@ const bookService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "'preferences' must be a valid JSON array.", error: e.message });
     }
 
+    const connection = await db.getConnection();
+    let booking_id;
+
     try {
+        await connection.beginTransaction();
+
         // ✅ Prevent duplicate bookings
-        const [slotClash] = await db.query(
+        const [slotClash] = await connection.query(
             bookingGetQueries.getBookingAvilability,
             [user_id, bookingDate, bookingTime]
         );
 
         if (slotClash.length) {
+            await connection.rollback();
             return res.status(409).json({
                 message: `You already have a booking at ${bookingDate} ${bookingTime}. Please choose a different time.`,
             });
         }
 
-        const [vendorRows] = await db.query(
-            `SELECT vendor_id FROM vendors WHERE vendor_id = ? LIMIT 1`, [vendor_id]
-        );
+        // const [vendorRows] = await connection.query(
+        //     `SELECT vendor_id FROM vendors WHERE vendor_id = ? LIMIT 1`, [vendor_id]
+        // );
 
-        if (!vendorRows) {
-            return res.status(404).json({ message: "Vendor not found." });
-        }
+        // if (!vendorRows || vendorRows.length === 0) {
+        //     await connection.rollback();
+        //     return res.status(404).json({ message: "Vendor not found." });
+        // }
 
         // ✅ Create booking
-        const [insertBooking] = await db.query(
+        const [insertBooking] = await connection.query(
             bookingPostQueries.insertBooking,
             [
                 service_categories_id,
@@ -89,10 +96,10 @@ const bookService = asyncHandler(async (req, res) => {
             ]
         );
 
-        const booking_id = insertBooking.insertId;
+        booking_id = insertBooking.insertId;
 
         // Link service type
-        await db.query(
+        await connection.query(
             bookingPostQueries.insertserviceType,
             [booking_id, service_type_id]
         );
@@ -101,7 +108,7 @@ const bookService = asyncHandler(async (req, res) => {
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [], addons = [] } = pkg;
 
-            await db.query(
+            await connection.query(
                 bookingPostQueries.insertPackages,
                 [booking_id, package_id]
             );
@@ -115,7 +122,7 @@ const bookService = asyncHandler(async (req, res) => {
                         ? item.quantity
                         : 1;
 
-                await db.query(
+                await connection.query(
                     bookingPostQueries.insertSubPackages,
                     [booking_id, item.sub_package_id, item.price, quantity]
                 );
@@ -130,7 +137,7 @@ const bookService = asyncHandler(async (req, res) => {
                         ? addon.quantity
                         : 1;
 
-                await db.query(
+                await connection.query(
                     `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price, quantity)
                      VALUES (?, ?, ?, ?, ?)`,
                     [booking_id, package_id, addon.addon_id, addon.price, quantity]
@@ -143,56 +150,64 @@ const bookService = asyncHandler(async (req, res) => {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
 
-            await db.query(
+            await connection.query(
                 bookingPostQueries.insertPreference,
                 [booking_id, preference_id]
             );
         }
 
-        // 🔔 Notifications
-        try {
-            const [userRows] = await db.query(
-                `SELECT firstname, lastname FROM users WHERE user_id = ? LIMIT 1`,
-                [user_id]
-            );
+        // ✅ Commit booking transaction
+        await connection.commit();
 
-            const bookedBy = userRows?.[0] || {};
-            const userFullName = [bookedBy.firstname, bookedBy.lastname].filter(Boolean).join(" ") || `User #${user_id}`;
+    } catch (err) {
+        await connection.rollback();
+        console.error("Booking error:", err);
+        return res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
+    }
 
-            await db.query(
-                `INSERT INTO notifications (
-                    user_type,
-                    user_id,
-                    title,
-                    body,
-                    is_read,
-                    sent_at
-                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-                [
-                    'admin',
-                    user_id,
-                    'New service booking',
-                    `${userFullName} booked a service (Booking #${booking_id}).`
-                ]
-            );
+    // 🔔 Notifications (OUTSIDE transaction)
+    try {
+        const [userRows] = await db.query(
+            `SELECT firstname, lastname FROM users WHERE user_id = ? LIMIT 1`,
+            [user_id]
+        );
 
-        } catch (err) {
-            console.error("Error fetching user name for notification:", err.message);
-        }
+        const bookedBy = userRows?.[0] || {};
+        const userFullName = [bookedBy.firstname, bookedBy.lastname].filter(Boolean).join(" ") || `User #${user_id}`;
+
+        await db.query(
+            `INSERT INTO notifications (
+                user_type,
+                user_id,
+                title,
+                body,
+                is_read,
+                sent_at
+            ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+            [
+                'admin',
+                user_id,
+                'New service booking',
+                `${userFullName} booked a service (Booking #${booking_id}).`
+            ]
+        );
 
         await sendServiceBookingNotification(booking_id, service_type_id, user_id);
 
-        res.status(200).json({
-            message: "Booking created successfully.",
-            booking_id,
-            payment_status: "pending"
-        });
-
     } catch (err) {
-        console.error("Booking error:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+        console.error("Notification error (ignored, booking created):", err.message);
     }
+
+    // ✅ Final response
+    res.status(200).json({
+        message: "Booking created successfully.",
+        booking_id,
+        payment_status: "pending"
+    });
 });
+
 
 
 const getVendorBookings = asyncHandler(async (req, res) => {
