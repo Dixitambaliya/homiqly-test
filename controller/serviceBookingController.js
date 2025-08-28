@@ -208,8 +208,6 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
-
-
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 

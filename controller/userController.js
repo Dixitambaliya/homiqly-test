@@ -517,11 +517,11 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   SELECT CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
                       'addon_id', pa.addon_id,
-                      'addon_name', pa.addon_name,
-                      'addon_description', pa.addon_description,
-                      'price', pa.addon_price,
-                      'addon_time', pa.addon_time,
-                      'addon_media', pa.addon_media
+                      'addon_name', pa.addonName,
+                      'addon_description', pa.addonDescription,
+                      'price', pa.addonPrice,
+                      'addon_time', pa.addonTime,
+                      'addon_media', pa.addonMedia
                     )
                   ), ']')
                   FROM package_addons pa

@@ -648,7 +648,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `, [employee_id]);
 
-        // Loop over bookings to attach package data
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
 
@@ -678,10 +677,24 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 WHERE sbsp.booking_id = ?
             `, [bookingId]);
 
+            // 🔹 Fetch Addons
+            const [bookingAddons] = await db.query(`
+                SELECT
+                    sba.addon_id,
+                    a.addonName,
+                    sba.price,
+                    sba.quantity,
+                    a.addonMedia
+                FROM service_booking_addons sba
+                LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
+                WHERE sba.booking_id = ?
+            `, [bookingId]);
+
             // 🔹 Group items by package
             const groupedPackages = bookingPackages.map(pkg => {
                 const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                return { ...pkg, items };
+                const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
+                return { ...pkg, items, addons };
             });
 
             // 🔹 Fetch Preferences
@@ -697,16 +710,17 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
             // 🔹 Fetch Vendor Rating
             const [vendorRatingData] = await db.query(`
                 SELECT
-                      rating,
-                      review,
-                      created_at
-                 FROM vendor_service_ratings
-                 WHERE booking_id = ? AND user_id = ? AND vendor_id = ? AND service_id = ?
-                 LIMIT 1
-                    `, [bookingId, booking.user_id, booking.vendor_id, booking.service_id]);
+                    rating,
+                    review,
+                    created_at
+                FROM vendor_service_ratings
+                WHERE booking_id = ? AND user_id = ? AND vendor_id = ? AND service_id = ?
+                LIMIT 1
+            `, [bookingId, booking.user_id, booking.vendor_id, booking.service_id]);
 
             booking.packages = groupedPackages;
             booking.package_items = packageItems;
+            booking.addons = bookingAddons; // ✅ expose raw addons too if needed
             booking.preferences = bookingPreferences;
             booking.vendorRating = vendorRatingData.length > 0 ? vendorRatingData[0] : null;
 

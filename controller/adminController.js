@@ -421,14 +421,14 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || null;
 
                 await connection.query(
-                    `INSERT INTO package_addons (package_id, addon_name, addon_description, addon_price, addon_time, addon_media)
+                    `INSERT INTO package_addons (package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
                      VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
-                        addon.addon_name,
+                        addon.addonName,
                         addon.description || null,
                         addon.price || 0,
-                        addon.addon_time,
+                        addon.addonTime,
                         addonMedia
                     ]
                 );
@@ -517,9 +517,9 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 SELECT CONCAT('[', GROUP_CONCAT(
                   JSON_OBJECT(
                     'addon_id', pa.addon_id,
-                    'addon_name', pa.addon_name,
-                    'description', pa.addon_description,
-                    'price', pa.addon_price
+                    'addon_name', pa.addonName,
+                    'description', pa.addonDescription,
+                    'price', pa.addonPrice
                   )
                 ), ']')
                 FROM package_addons pa
