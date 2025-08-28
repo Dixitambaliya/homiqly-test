@@ -324,25 +324,44 @@ const getUserBookings = asyncHandler(async (req, res) => {
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            // Packages
-            const [bookingPackages] = await db.query(bookingGetQueries.getUserBookedpackages, [bookingId]);
+            // 🔹 Fetch Packages
+            const [bookingPackages] = await db.query(
+                bookingGetQueries.getUserBookedpackages,
+                [bookingId]
+            );
 
-            // Items
-            const [packageItems] = await db.query(bookingGetQueries.getUserPackageItems, [bookingId]);
+            // 🔹 Fetch Package Items
+            const [packageItems] = await db.query(
+                bookingGetQueries.getUserPackageItems,
+                [bookingId]
+            );
 
+            // 🔹 Fetch Addons
+            const [bookingAddons] = await db.query(
+                bookingGetQueries.getUserBookedAddons,
+                [bookingId]
+            );
+
+            // 🔹 Group items & addons under packages
             const groupedPackages = bookingPackages.map(pkg => {
                 const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                return { ...pkg, items };
+                const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
+                return { ...pkg, items, addons };
             });
 
-            // Preferences
-            const [bookingPreferences] = await db.query(bookingGetQueries.getUserBookedPrefrences, [bookingId]);
+            // 🔹 Fetch Preferences
+            const [bookingPreferences] = await db.query(
+                bookingGetQueries.getUserBookedPrefrences,
+                [bookingId]
+            );
 
+            // Attach to booking object
             booking.packages = groupedPackages;
             booking.package_items = packageItems;
+            booking.addons = bookingAddons;
             booking.preferences = bookingPreferences;
 
-            // Clean nulls
+            // 🔹 Clean nulls
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
@@ -361,6 +380,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const { booking_id, status } = req.body;

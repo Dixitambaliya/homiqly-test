@@ -75,6 +75,19 @@ const bookingGetQueries = {
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
 `,
 
+    getUserBookedAddons: `
+    SELECT 
+    sba.package_id,
+    sba.addon_id,
+    a.addonName,
+    a.addonMedia,
+    sba.price,
+    sba.quantity
+FROM service_booking_addons sba
+JOIN package_addons a ON sba.addon_id = a.addon_id
+WHERE sba.booking_id = ?
+`,
+
     getVendorIdForBooking: `
     SELECT 
     vendorType 
