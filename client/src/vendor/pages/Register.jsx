@@ -13,6 +13,8 @@ import {
   FiCheck,
 } from "react-icons/fi";
 import axios from "axios";
+// ❌ Remove custom Button import because we’ll use local buttons for consistency
+// import Button from "../../shared/components/Button/Button";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -38,10 +40,9 @@ const Register = () => {
 
   // Services data
   const [serviceCategories, setServiceCategories] = useState([]);
-  console.log("Service categories 123:", serviceCategories);
   const [selectedServices, setSelectedServices] = useState([]);
 
-  // Load service categories and services
+  // Load service categories
   useEffect(() => {
     if (step === 2 || step === 3) {
       loadServices();
@@ -52,37 +53,27 @@ const Register = () => {
     try {
       setServiceLoading(true);
       const response = await axios.get("/api/user/servicesbycategories");
-      console.log("Loaded services:", response.data);
       setServiceCategories(response.data.services || []);
-      console.log("Service categories:", response.data.services);
       setServiceLoading(false);
     } catch (error) {
-      console.error("Error loading services:", error);
       toast.error("Failed to load services");
       setServiceLoading(false);
     }
   };
 
   const handleNextStep = () => {
-    if (step === 1) {
-      if (!validateStep1()) return;
-    } else if (step === 2) {
-      if (!validateStep2()) return;
-    }
-
+    if (step === 1 && !validateStep1()) return;
+    if (step === 2 && !validateStep2()) return;
     setStep(step + 1);
   };
 
-  const handlePrevStep = () => {
-    setStep(step - 1);
-  };
+  const handlePrevStep = () => setStep(step - 1);
 
   const validateStep1 = () => {
     if (!vendorType) {
       toast.error("Please select vendor type");
       return false;
     }
-
     if (vendorType === "individual") {
       if (!name || !email || !phone || !password) {
         toast.error("Please fill all required fields");
@@ -100,7 +91,6 @@ const Register = () => {
         return false;
       }
     }
-
     return true;
   };
 
@@ -109,15 +99,11 @@ const Register = () => {
       toast.error("Please select at least one service");
       return false;
     }
-
     return true;
   };
 
   const toggleService = (serviceId, categoryId) => {
-    console.log("Toggling:", { serviceId, categoryId });
-
     const exists = selectedServices.some((s) => s.serviceId === serviceId);
-
     if (exists) {
       setSelectedServices(
         selectedServices.filter((s) => s.serviceId !== serviceId)
@@ -125,11 +111,7 @@ const Register = () => {
     } else {
       setSelectedServices([
         ...selectedServices,
-        {
-          serviceId,
-          serviceCategoryId: categoryId,
-          serviceLocation: "",
-        },
+        { serviceId, serviceCategoryId: categoryId, serviceLocation: "" },
       ]);
     }
   };
@@ -146,7 +128,6 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateStep2()) return;
 
     const formData = new FormData();
@@ -168,14 +149,11 @@ const Register = () => {
       formData.append("googleBusinessProfileLink", googleBusinessLink);
     }
 
-    console.log("Submitting registration with data:", selectedServices);
     formData.append("services", JSON.stringify(selectedServices));
 
     setLoading(true);
-
     try {
       const result = await register(formData);
-
       if (result.success) {
         toast.success(
           "Registration successful! Please wait for admin approval."
@@ -186,388 +164,253 @@ const Register = () => {
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
-      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div>
-      <p className="mb-8 text-center text-gray-600 font-semibold">Vendor Panel Registration Page</p>
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div
-            className={`flex-1 ${step >= 1 ? "text-primary" : "text-gray-300"}`}
-          >
-            <div className="flex items-center">
-              <div
-                className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${
-                  step >= 1
-                    ? "border-primary bg-primary text-white"
-                    : "border-gray-300"
-                }`}
-              >
-                1
-              </div>
-              <span className="ml-2 text-sm font-medium">Basic Info</span>
-            </div>
-          </div>
-          <div
-            className={`h-1 flex-1 mx-2 ${
-              step >= 2 ? "bg-primary" : "bg-gray-200"
-            }`}
-          ></div>
-          <div
-            className={`flex-1 ${step >= 2 ? "text-primary" : "text-gray-300"}`}
-          >
-            <div className="flex items-center">
-              <div
-                className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${
-                  step >= 2
-                    ? "border-primary bg-primary text-white"
-                    : "border-gray-300"
-                }`}
-              >
-                2
-              </div>
-              <span className="ml-2 text-sm font-medium">Services</span>
-            </div>
-          </div>
-          <div
-            className={`h-1 flex-1 mx-2 ${
-              step >= 3 ? "bg-primary" : "bg-gray-200"
-            }`}
-          ></div>
-          <div
-            className={`flex-1 ${step >= 3 ? "text-primary" : "text-gray-300"}`}
-          >
-            <div className="flex items-center">
-              <div
-                className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${
-                  step >= 3
-                    ? "border-primary bg-primary text-white"
-                    : "border-gray-300"
-                }`}
-              >
-                3
-              </div>
-              <span className="ml-2 text-sm font-medium">Confirm</span>
-            </div>
-          </div>
-        </div>
+    <div className="bg-white rounded-lg shadow-xl max-w-4xl mx-auto p-4">
+      <div className="text-center">
+        <img
+          className="w-full h-10 object-contain"
+          src="/homiqly-logo.png"
+          alt="logo"
+        />
       </div>
+      <p className="text-center text-gray-600 font-semibold">
+        Vendor Panel Registration
+      </p>
 
-      {step === 1 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">
-            Basic Information
-          </h2>
-          <div className="space-y-6">
-            <div>
-              <label
-                htmlFor="vendorType"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Vendor Type*
-              </label>
-              <select
-                id="vendorType"
-                value={vendorType}
-                onChange={(e) => setVendorType(e.target.value)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-primary focus:border-primary rounded-md"
-              >
-                <option value="">Select Vendor Type</option>
-                <option value="individual">Individual</option>
-                <option value="company">Company</option>
-              </select>
-            </div>
-
-            {vendorType === "individual" && (
-              <>
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-700"
+      <div className="flex flex-col justify-center items-center px-4">
+        <div className="w-full max-w-3xl  rounded-2xl p-8 bg-white">
+          {/* Stepper */}
+          <div className="flex justify-between mb-8">
+            {["Basic Info", "Services", "Confirm"].map((label, index) => {
+              const stepNum = index + 1;
+              return (
+                <div key={label} className="flex flex-col items-center flex-1">
+                  <div
+                    className={`w-10 h-10 flex items-center justify-center rounded-full border-2 ${
+                      step >= stepNum
+                        ? "bg-primary border-primary text-white"
+                        : "border-gray-300 text-gray-400"
+                    }`}
                   >
-                    Full Name*
-                  </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FiUser className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      id="name"
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-                      placeholder="John Doe"
-                    />
+                    {stepNum}
                   </div>
+                  <p
+                    className={`mt-2 text-sm ${
+                      step >= stepNum
+                        ? "text-primary font-medium"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Step 1 */}
+          {step === 1 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-6">
+                Basic Information
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Vendor Type*
+                  </label>
+                  <select
+                    value={vendorType}
+                    onChange={(e) => setVendorType(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:ring-primary focus:border-primary"
+                  >
+                    <option value="">Select Vendor Type</option>
+                    <option value="individual">Individual</option>
+                    <option value="company">Company</option>
+                  </select>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Email*
-                  </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FiMail className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
+                {vendorType === "individual" && (
+                  <>
+                    <InputField
+                      id="name"
+                      icon={<FiUser />}
+                      label="Full Name*"
+                      value={name}
+                      onChange={setName}
+                      placeholder="John Doe"
+                      autoComplete="name"
+                    />
+                    <InputField
                       id="email"
+                      icon={<FiMail />}
+                      label="Email*"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      onChange={setEmail}
                       placeholder="john@example.com"
+                      autoComplete="email"
                     />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="phone"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Phone*
-                  </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FiPhone className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
+                    <InputField
                       id="phone"
+                      icon={<FiPhone />}
+                      label="Phone*"
                       type="tel"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      onChange={setPhone}
                       placeholder="+91 9876543210"
+                      autoComplete="tel"
                     />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Password*
-                  </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FiLock className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
+                    <InputField
                       id="password"
+                      icon={<FiLock />}
+                      label="Password*"
                       type="password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                      onChange={setPassword}
                       placeholder="••••••••"
+                      autoComplete="new-password"
                     />
-                  </div>
-                </div>
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor="resume"
+                        className="block text-sm font-medium text-gray-700"
+                      >
+                        Resume (PDF)
+                      </label>
+                      <input
+                        id="resume"
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => setResume(e.target.files?.[0] || null)}
+                        className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </>
+                )}
 
-                <div>
-                  <label
-                    htmlFor="resume"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Resume (PDF)
-                  </label>
-                  <input
-                    id="resume"
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) => setResume(e.target.files[0])}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  />
-                </div>
-              </>
-            )}
+                {vendorType === "company" && (
+                  <>
+                    <InputField
+                      id="companyName"
+                      label="Company Name*"
+                      value={companyName}
+                      onChange={setCompanyName}
+                      placeholder="ABC Company"
+                    />
+                    <InputField
+                      id="contactPerson"
+                      label="Contact Person*"
+                      value={contactPerson}
+                      onChange={setContactPerson}
+                      placeholder="John Doe"
+                    />
+                    <InputField
+                      id="companyEmail"
+                      label="Company Email*"
+                      type="email"
+                      value={companyEmail}
+                      onChange={setCompanyEmail}
+                      placeholder="info@company.com"
+                    />
+                    <InputField
+                      id="companyPhone"
+                      label="Company Phone*"
+                      type="tel"
+                      value={companyPhone}
+                      onChange={setCompanyPhone}
+                      placeholder="+91 9876543210"
+                    />
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor="companyAddress"
+                        className="block text-sm font-medium text-gray-700"
+                      >
+                        Company Address*
+                      </label>
+                      <textarea
+                        id="companyAddress"
+                        rows={3}
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:ring-primary focus:border-primary"
+                        placeholder="123 Business Street, City, State, Zip"
+                      ></textarea>
+                    </div>
+                    <InputField
+                      id="googleBusinessLink"
+                      label="Google Business Profile Link"
+                      value={googleBusinessLink}
+                      onChange={setGoogleBusinessLink}
+                      placeholder="https://business.google.com/..."
+                    />
+                  </>
+                )}
+              </div>
 
-            {vendorType === "company" && (
-              <>
-                <div>
-                  <label
-                    htmlFor="companyName"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Company Name*
-                  </label>
-                  <input
-                    id="companyName"
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    placeholder="ABC Company"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="contactPerson"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Contact Person*
-                  </label>
-                  <input
-                    id="contactPerson"
-                    type="text"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    placeholder="John Doe"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="companyEmail"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Company Email*
-                  </label>
-                  <input
-                    id="companyEmail"
-                    type="email"
-                    value={companyEmail}
-                    onChange={(e) => setCompanyEmail(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    placeholder="info@company.com"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="companyPhone"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Company Phone*
-                  </label>
-                  <input
-                    id="companyPhone"
-                    type="tel"
-                    value={companyPhone}
-                    onChange={(e) => setCompanyPhone(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    placeholder="+91 9876543210"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="companyAddress"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Company Address*
-                  </label>
-                  <textarea
-                    id="companyAddress"
-                    rows="3"
-                    value={companyAddress}
-                    onChange={(e) => setCompanyAddress(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    placeholder="123 Business Street, City, State, Zip"
-                  ></textarea>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="googleBusinessLink"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Google Business Profile Link
-                  </label>
-                  <input
-                    id="googleBusinessLink"
-                    type="url"
-                    value={googleBusinessLink}
-                    onChange={(e) => setGoogleBusinessLink(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                    placeholder="https://business.google.com/..."
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleNextStep}
-                className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-              >
-                Next
-                <FiChevronRight className="ml-2" />
-              </button>
+              <div className="flex justify-end mt-6">
+                <PrimaryButton onClick={handleNextStep}>
+                  Next <FiChevronRight className="ml-2" />
+                </PrimaryButton>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {step === 2 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">
-            Select Services
-          </h2>
-
-          {serviceLoading ? (
-            <div className="flex justify-center py-8">
-              <FiLoader className="animate-spin h-8 w-8 text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
-                {serviceCategories.map((category, index) => (
-                  <div key={index} className="mb-6">
-                    <h3 className="font-medium text-gray-800 mb-2 bg-gray-100 p-2 rounded">
-                      {category.categoryName}
-                    </h3>
-                    <div className="space-y-2 pl-2">
-                      {category.services.map((service) => {
-                        const isSelected = selectedServices.some(
-                          (s) => s.serviceId === service.serviceId
-                        );
-                        return (
-                          <div key={service.serviceId}>
-                            <div className="flex items-center">
-                              <input
-                                type="checkbox"
-                                id={`service_${service.serviceId}`}
-                                checked={isSelected}
-                                onChange={() =>
-                                  toggleService(
-                                    service.serviceId,
-                                    service.serviceCategoryId
-                                  )
-                                }
-                                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                              />
-                              <label
-                                htmlFor={`service_${service.serviceId}`}
-                                className="ml-2 text-sm text-gray-700"
-                              >
-                                {service.title}
+          {/* Step 2 */}
+          {step === 2 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-6">
+                Select Services
+              </h2>
+              {serviceLoading ? (
+                <div className="flex justify-center py-8">
+                  <FiLoader className="animate-spin h-8 w-8 text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-6 max-h-96 overflow-y-auto pr-2">
+                  {serviceCategories.map((category) => (
+                    <div
+                      key={category.serviceCategoryId}
+                      className="bg-gray-50 p-4 rounded-lg"
+                    >
+                      <h3 className="font-medium text-gray-800 mb-3">
+                        {category.categoryName}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {category.services.map((service) => {
+                          const isSelected = selectedServices.some(
+                            (s) => s.serviceId === service.serviceId
+                          );
+                          return (
+                            <div
+                              key={service.serviceId}
+                              className="flex flex-col"
+                            >
+                              <label className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() =>
+                                    toggleService(
+                                      service.serviceId,
+                                      category.serviceCategoryId
+                                    )
+                                  }
+                                  className="h-4 w-4 text-primary border-gray-300 rounded"
+                                />
+                                <span className="ml-2 text-sm">
+                                  {service.title}
+                                </span>
                               </label>
-                            </div>
-
-                            {isSelected && (
-                              <div className="mt-2 ml-6">
-                                <label
-                                  htmlFor={`location_${service.serviceId}`}
-                                  className="block text-xs font-medium text-gray-500"
-                                >
-                                  Service Location
-                                </label>
+                              {isSelected && (
                                 <input
                                   type="text"
-                                  id={`location_${service.serviceId}`}
+                                  placeholder="Service Location"
                                   value={
                                     selectedServices.find(
                                       (s) => s.serviceId === service.serviceId
@@ -579,189 +422,188 @@ const Register = () => {
                                       e.target.value
                                     )
                                   }
-                                  placeholder="e.g., Mumbai, Delhi, Bangalore"
-                                  className="mt-1 block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                                  className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:ring-primary focus:border-primary"
                                 />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="flex justify-between">
-                <button
-                  type="button"
-                  onClick={handlePrevStep}
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-                >
-                  <FiChevronLeft className="mr-2" />
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-                >
-                  Next
-                  <FiChevronRight className="ml-2" />
-                </button>
+              <div className="flex justify-between mt-6">
+                <SecondaryButton onClick={handlePrevStep}>
+                  <FiChevronLeft className="mr-2" /> Previous
+                </SecondaryButton>
+                <PrimaryButton onClick={handleNextStep}>
+                  Next <FiChevronRight className="ml-2" />
+                </PrimaryButton>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {step === 3 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">
-            Confirm Registration
-          </h2>
+          {/* Step 3 */}
+          {step === 3 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-6">
+                Confirm Registration
+              </h2>
+              <div className="bg-gray-50 p-4 rounded-lg mb-6 space-y-4">
+                <h3 className="font-medium text-gray-800">
+                  Vendor Information
+                </h3>
+                {vendorType === "individual" ? (
+                  <ul className="text-sm space-y-1">
+                    <li>
+                      <b>Name:</b> {name}
+                    </li>
+                    <li>
+                      <b>Email:</b> {email}
+                    </li>
+                    <li>
+                      <b>Phone:</b> {phone}
+                    </li>
+                    <li>
+                      <b>Resume:</b> {resume ? resume.name : "Not provided"}
+                    </li>
+                  </ul>
+                ) : (
+                  <ul className="text-sm space-y-1">
+                    <li>
+                      <b>Company Name:</b> {companyName}
+                    </li>
+                    <li>
+                      <b>Contact Person:</b> {contactPerson}
+                    </li>
+                    <li>
+                      <b>Email:</b> {companyEmail}
+                    </li>
+                    <li>
+                      <b>Phone:</b> {companyPhone}
+                    </li>
+                    <li>
+                      <b>Address:</b> {companyAddress}
+                    </li>
+                  </ul>
+                )}
+                <h3 className="font-medium text-gray-800">Selected Services</h3>
+                <div className="space-y-2">
+                  {selectedServices.map((service) => {
+                    const category = serviceCategories.find(
+                      (c) => c.serviceCategoryId === service.serviceCategoryId
+                    );
+                    const serviceItem = category?.services.find(
+                      (s) => s.serviceId === service.serviceId
+                    );
+                    return (
+                      <div key={service.serviceId} className="flex items-start">
+                        <FiCheck className="text-green-500 mt-1 mr-2" />
+                        <div>
+                          <p className="font-medium text-sm">
+                            {serviceItem?.title}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {category?.categoryName}
+                            {service.serviceLocation
+                              ? ` • ${service.serviceLocation}`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h3 className="font-medium text-gray-800 mb-2">
-              Vendor Information
-            </h3>
-            <div className="space-y-2">
-              <p>
-                <span className="font-medium">Vendor Type:</span>{" "}
-                {vendorType === "individual" ? "Individual" : "Company"}
-              </p>
-
-              {vendorType === "individual" ? (
-                <>
-                  <p>
-                    <span className="font-medium">Name:</span> {name}
-                  </p>
-                  <p>
-                    <span className="font-medium">Email:</span> {email}
-                  </p>
-                  <p>
-                    <span className="font-medium">Phone:</span> {phone}
-                  </p>
-                  <p>
-                    <span className="font-medium">Resume:</span>{" "}
-                    {resume ? resume.name : "Not provided"}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    <span className="font-medium">Company Name:</span>{" "}
-                    {companyName}
-                  </p>
-                  <p>
-                    <span className="font-medium">Contact Person:</span>{" "}
-                    {contactPerson}
-                  </p>
-                  <p>
-                    <span className="font-medium">Company Email:</span>{" "}
-                    {companyEmail}
-                  </p>
-                  <p>
-                    <span className="font-medium">Company Phone:</span>{" "}
-                    {companyPhone}
-                  </p>
-                  <p>
-                    <span className="font-medium">Company Address:</span>{" "}
-                    {companyAddress}
-                  </p>
-                </>
-              )}
+              <div className="flex justify-between">
+                <SecondaryButton onClick={handlePrevStep}>
+                  <FiChevronLeft className="mr-2" /> Previous
+                </SecondaryButton>
+                <PrimaryButton onClick={handleSubmit} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <FiLoader className="animate-spin mr-2" /> Registering...
+                    </>
+                  ) : (
+                    "Complete Registration"
+                  )}
+                </PrimaryButton>
+              </div>
             </div>
+          )}
 
-            <h3 className="font-medium text-gray-800 mt-4 mb-2">
-              Selected Services
-            </h3>
-            <div className="space-y-2">
-              {selectedServices.map((service) => {
-                const category = serviceCategories.find(
-                  (c) => c.serviceCategoryId === service.serviceCategoryId
-                );
-                const serviceItem = category?.services.find(
-                  (s) => s.serviceId === service.serviceId
-                );
-
-                return (
-                  <div key={service.serviceId} className="flex items-start">
-                    <FiCheck className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
-                    <div>
-                      <p className="font-medium">{serviceItem?.title}</p>
-                      <p className="text-sm text-gray-500">
-                        Category: {category?.categoryName}
-                        {service.serviceLocation &&
-                          ` • Location: ${service.serviceLocation}`}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <div className="flex items-center">
-              <input
-                id="terms"
-                name="terms"
-                type="checkbox"
-                required
-                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-              />
-              <label
-                htmlFor="terms"
-                className="ml-2 block text-sm text-gray-700"
-              >
-                I confirm that all the information provided is accurate and I
-                agree to the terms and conditions.
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={handlePrevStep}
-              className="flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+          <p className="mt-6 text-center text-sm text-gray-600">
+            Already have an account?{" "}
+            <Link
+              to="/vendor/login"
+              className="text-primary font-medium hover:underline"
             >
-              <FiChevronLeft className="mr-2" />
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading}
-              className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  Registering...
-                </>
-              ) : (
-                "Complete Registration"
-              )}
-            </button>
-          </div>
+              Login here
+            </Link>
+          </p>
         </div>
-      )}
-
-      <div className="mt-6 text-center">
-        <p className="text-sm text-gray-600">
-          Already have an account?{" "}
-          <Link
-            to="/vendor/login"
-            className="font-medium text-primary hover:text-primary-dark"
-          >
-            Login here
-          </Link>
-        </p>
       </div>
     </div>
   );
 };
+
+/* Reusable Input Field – fixed padding (no dynamic Tailwind class) */
+const InputField = ({
+  id,
+  icon,
+  label,
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+}) => {
+  const paddingClass = icon ? "pl-10" : "pl-3";
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <div className="relative mt-1">
+        {icon && (
+          <span className="pointer-events-none absolute left-3 top-2.5 text-gray-400">
+            {icon}
+          </span>
+        )}
+        <input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className={`w-full ${paddingClass} pr-3 py-2 rounded-md border border-gray-300 bg-white shadow-sm focus:ring-primary focus:border-primary`}
+        />
+      </div>
+    </div>
+  );
+};
+
+/* Local button components – consistent styles & behavior */
+const PrimaryButton = ({ className = "", children, ...props }) => (
+  <button
+    className={`flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition disabled:opacity-50 ${className}`}
+    {...props}
+  >
+    {children}
+  </button>
+);
+
+const SecondaryButton = ({ className = "", children, ...props }) => (
+  <button
+    className={`flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition ${className}`}
+    {...props}
+  >
+    {children}
+  </button>
+);
 
 export default Register;

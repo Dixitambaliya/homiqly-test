@@ -39,8 +39,17 @@ const Login = () => {
   };
 
   return (
-    <div>
-      <p className="mb-8 text-center text-gray-600 font-semibold">Vendor Panel Login</p>
+    <div className="bg-white rounded-lg shadow-xl max-w-md mx-auto p-6">
+      <div className="text-center">
+        <img
+          className="w-full h-10 object-contain"
+          src="/homiqly-logo.png"
+          alt="logo"
+        />
+      </div>
+      <p className="mb-8 text-center text-gray-600 font-semibold">
+        Vendor Panel Login
+      </p>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label
