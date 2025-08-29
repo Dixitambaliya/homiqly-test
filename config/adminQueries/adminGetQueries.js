@@ -93,7 +93,6 @@ GROUP BY vendors.vendor_id;
         st.service_type_id,
         st.serviceTypeName,
         st.serviceTypeMedia,
-        st.is_approved,
 
         s.service_id,
         s.serviceName,
