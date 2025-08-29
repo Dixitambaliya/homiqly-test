@@ -245,6 +245,7 @@ const getBookings = asyncHandler(async (req, res) => {
                     SELECT
                         sba.addon_id,
                         pa.addonName,
+                        pa.addonTime,
                         sba.quantity,
                         (sba.price * sba.quantity) AS price,
                         sba.package_id
@@ -783,10 +784,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             const package_id = pkg.package_id;
             if (!package_id) continue;
 
+            // ✅ Check package
             const [existingPackage] = await connection.query(adminPutQueries.getPackageById, [package_id]);
             if (!existingPackage.length) continue;
             const existing = existingPackage[0];
 
+            // ✅ Update package
             const packageName = pkg.package_name ?? existing.packageName;
             const description = pkg.description ?? existing.description;
             const totalPrice = pkg.total_price ?? existing.totalPrice;
@@ -802,7 +805,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 package_id
             ]);
 
-            // ✅ Now using subPackages instead of sub_packages
+            // ✅ Handle SubPackages
             if (Array.isArray(pkg.subPackages)) {
                 const submittedItemIds = [];
 
@@ -847,15 +850,61 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         submittedItemIds.push(newItem.insertId);
                     }
                 }
-
-                // Optional cleanup logic - commented to preserve old items
-                // if (submittedItemIds.length > 0) {
-                //     await connection.query(adminPutQueries.deleteRemovedPackageItems, [package_id, submittedItemIds]);
-                // } else {
-                //     await connection.query(adminPutQueries.deleteAllPackageItems, [package_id]);
-                // }
             }
 
+            // ✅ Handle Addons
+            if (Array.isArray(pkg.addons)) {
+                const submittedAddonIds = [];
+
+                for (let k = 0; k < pkg.addons.length; k++) {
+                    const addon = pkg.addons[k];
+                    const addon_id = addon.addon_id;
+
+                    if (addon_id) {
+                        const [oldAddon] = await connection.query(adminPutQueries.getAddonById, [addon_id]);
+                        if (!oldAddon.length) continue;
+                        const old = oldAddon[0];
+
+                        const addonName = addon.addon_name ?? old.addonName;
+                        const addonDescription = addon.description ?? old.addonDescription;
+                        const addonPrice = addon.price ?? old.addonPrice;
+                        const addonTime = addon.addon_time ?? old.addonTime; // optional
+                        const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || old.addonMedia;
+
+                        await connection.query(adminPutQueries.updateAddon, [
+                            addonName,
+                            addonDescription,
+                            addonPrice,
+                            addonTime,
+                            addonMedia,
+                            addon_id,
+                            package_id
+                        ]);
+
+                        submittedAddonIds.push(addon_id);
+                    } else {
+                        const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || null;
+
+                        const [newAddon] = await connection.query(adminPutQueries.insertAddon, [
+                            package_id,
+                            addon.addon_name,
+                            addon.description,
+                            addon.price,
+                            addon.addon_time,
+                            addonMedia
+                        ]);
+
+                        submittedAddonIds.push(newAddon.insertId);
+                    }
+                }
+
+                // ❌ Not deleting old addons → preserve mode
+                // If you want cleanup, uncomment:
+                // await connection.query(adminPutQueries.deleteRemovedAddons, [package_id, submittedAddonIds]);
+            }
+            console.log(pkg.addons);
+
+            // ✅ Handle Preferences
             if (Array.isArray(preferences)) {
                 await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
 
