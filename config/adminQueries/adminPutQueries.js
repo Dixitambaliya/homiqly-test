@@ -1,8 +1,12 @@
 const adminPutQueries = {
 
-  getUserById: `SELECT * FROM users WHERE user_id = ?`,
+  getUserById: `
+  SELECT * FROM users WHERE user_id = ?
+  `,
 
-  getPackageById: `SELECT * FROM packages WHERE package_id = ?;`,
+  getPackageById: `
+  SELECT * FROM packages WHERE package_id = ?
+  `,
 
   updatePackage: `
     UPDATE packages
@@ -34,7 +38,9 @@ SELECT * FROM package_addons WHERE addon_id = ?;
     SET firstName = ?, lastName = ?, email = ?, phone = ?, is_approved = ?
   WHERE user_id = ?
     `,
-  getPackageItemById: `SELECT * FROM package_items WHERE item_id = ? `,
+  getPackageItemById: `
+  SELECT * FROM package_items WHERE item_id = ? 
+  `,
 
   // Update sub-package item
   updatePackageItem: `
