@@ -244,7 +244,7 @@ const getBookings = asyncHandler(async (req, res) => {
                 const [bookingAddons] = await db.query(`
                     SELECT
                         sba.addon_id,
-                        pa.addon_name,
+                        pa.addonName,
                         sba.quantity,
                         (sba.price * sba.quantity) AS price,
                         sba.package_id
