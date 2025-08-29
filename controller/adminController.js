@@ -245,6 +245,7 @@ const getBookings = asyncHandler(async (req, res) => {
                     SELECT
                         sba.addon_id,
                         pa.addonName,
+                        pa.addonTime,
                         sba.quantity,
                         (sba.price * sba.quantity) AS price,
                         sba.package_id
@@ -929,7 +930,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
