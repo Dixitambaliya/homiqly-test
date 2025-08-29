@@ -13,7 +13,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         notes,
         preferences,
         bookingDate,
-        bookingTime
+        bookingTime,
+        vendor_id = null
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -62,16 +63,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const [vendorResult] = await connection.query(
-            bookingGetQueries.getVendorByServiceTypeId,
-            [service_type_id]
-        );
-
-        if (!vendorResult.length) {
-            throw new Error("Could not find vendor for the selected service type.");
-        }
-
-        const vendor_id = vendorResult[0].vendor_id;
 
         // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
@@ -82,7 +73,7 @@ const addToCartService = asyncHandler(async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 user_id,
-                vendor_id,
+                vendor_id || null,
                 serviceId,
                 service_type_id,
                 service_categories_id,
@@ -227,7 +218,6 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const checkoutCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
