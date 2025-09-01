@@ -8,7 +8,6 @@ import {
   FormFileInput,
 } from "../../../shared/components/Form";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
-// import api from "../../lib/axiosConfig";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 
@@ -26,6 +25,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         description: "",
         total_price: "",
         total_time: "",
+        packageMedia: null,
         sub_packages: [
           {
             item_name: "",
@@ -33,6 +33,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             item_images: null,
             price: "",
             time_required: "",
+          },
+        ],
+        addons: [
+          {
+            addon_name: "",
+            description: "",
+            price: "",
           },
         ],
       },
@@ -48,7 +55,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const fetchCategories = async () => {
       try {
         const res = await api.get("/api/service/getadminservices");
-        // console.log("Fetched Categories:", res.data.services);
         setCategories(res.data.services || []);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
@@ -95,6 +101,56 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFormData((prev) => ({ ...prev, packages: updated }));
   };
 
+  const handlePackageFileChange = (index, file) => {
+    const updated = [...formData.packages];
+    updated[index].packageMedia = file;
+    setFormData((prev) => ({ ...prev, packages: updated }));
+  };
+
+  const addPackage = () => {
+    setFormData((prev) => ({
+      ...prev,
+      packages: [
+        ...prev.packages,
+        {
+          package_name: "",
+          description: "",
+          total_price: "",
+          total_time: "",
+          packageMedia: null,
+          sub_packages: [
+            {
+              item_name: "",
+              description: "",
+              item_images: null,
+              price: "",
+              time_required: "",
+            },
+          ],
+          addons: [
+            {
+              addon_name: "",
+              description: "",
+              price: "",
+            },
+          ],
+        },
+      ],
+    }));
+  };
+
+  const removePackage = (index) => {
+    if (formData.packages.length > 1) {
+      const updated = [...formData.packages];
+      updated.splice(index, 1);
+      setFormData((prev) => ({
+        ...prev,
+        packages: updated,
+      }));
+    }
+  };
+
+  // Sub-packages
   const handleSubPackageChange = (pkgIndex, subIndex, field, value) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages[subIndex][field] = value;
@@ -125,50 +181,32 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFormData((prev) => ({ ...prev, packages: updated }));
   };
 
-  const addPackage = () => {
-    setFormData((prev) => ({
-      ...prev,
-      packages: [
-        ...prev.packages,
-        {
-          package_name: "",
-          description: "",
-          total_price: "",
-          total_time: "",
-          sub_packages: [
-            {
-              item_name: "",
-              description: "",
-              item_images: null,
-              price: "",
-              time_required: "",
-            },
-          ],
-        },
-      ],
-    }));
-  };
-
-  const removePackage = (index) => {
-    if (formData.packages.length > 1) {
-      const updated = [...formData.packages];
-      updated.splice(index, 1);
-      setFormData((prev) => ({
-        ...prev,
-        packages: updated,
-      }));
-    }
-  };
-
-  const handlePackageFileChange = (index, file) => {
+  // Add-ons (NEW)
+  const handleAddonChange = (pkgIndex, addonIndex, field, value) => {
     const updated = [...formData.packages];
-    updated[index].packageMedia = file;
+    updated[pkgIndex].addons[addonIndex][field] = value;
+    setFormData((prev) => ({ ...prev, packages: updated }));
+  };
+
+  const addAddon = (pkgIndex) => {
+    const updated = [...formData.packages];
+    updated[pkgIndex].addons.push({
+      addon_name: "",
+      description: "",
+      price: "",
+    });
+    setFormData((prev) => ({ ...prev, packages: updated }));
+  };
+
+  const removeAddon = (pkgIndex, addonIndex) => {
+    const updated = [...formData.packages];
+    updated[pkgIndex].addons.splice(addonIndex, 1);
     setFormData((prev) => ({ ...prev, packages: updated }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); // ⏳ Start loading
+    setLoading(true);
 
     try {
       const formDataToSend = new FormData();
@@ -180,35 +218,42 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         formDataToSend.append("serviceTypeMedia", formData.serviceTypeMedia);
       }
 
-      // Deep clone packages and remove images
+      // Build cleaned packages JSON and append files separately
       const cleanedPackages = formData.packages.map((pkg, pkgIndex) => {
-        const { sub_packages, packageMedia, ...rest } = pkg;
+        const { sub_packages, packageMedia, addons = [], ...rest } = pkg;
 
-        // Append package media
-        if (pkg.packageMedia) {
-          formDataToSend.append(`packageMedia_${pkgIndex}`, pkg.packageMedia);
+        // Package image (file)
+        if (packageMedia) {
+          formDataToSend.append(`packageMedia_${pkgIndex}`, packageMedia);
         }
 
-        // Handle sub-packages
-        const cleanedSubPackages = sub_packages.map((sub, subIndex) => {
+        // Sub-packages: strip file field and append as itemMedia_X
+        const cleanedSubPackages = (sub_packages || []).map((sub, subIndex) => {
           const { item_images, ...subRest } = sub;
-
           if (item_images) {
-            formDataToSend.append(`itemMedia_${subIndex}`, item_images);
+            formDataToSend.append(
+              `itemMedia_${pkgIndex}_${subIndex}`,
+              item_images
+            );
           }
-
-          return subRest; // exclude image
+          return subRest;
         });
+
+        // Add-ons: plain JSON (no files)
+        const cleanedAddons = (addons || []).map((a) => ({
+          addon_name: a.addon_name || "",
+          description: a.description || "",
+          price: a.price || "",
+        }));
 
         return {
           ...rest,
           sub_packages: cleanedSubPackages,
+          addons: cleanedAddons,
         };
       });
 
-      // Append cleaned packages JSON
       formDataToSend.append("packages", JSON.stringify(cleanedPackages));
-
       formDataToSend.append(
         "preferences",
         JSON.stringify(formData.preferences)
@@ -220,7 +265,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         { headers: { "Content-Type": "multipart/form-data" } }
       );
 
-      console.log("Success:", response.data);
       toast.success(
         response.data.message || "Service type submitted successfully"
       );
@@ -236,7 +280,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         error.response?.data || error.message
       );
     } finally {
-      setLoading(false); // ✅ Done
+      setLoading(false);
     }
   };
 
@@ -252,13 +296,21 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
           description: "",
           total_price: "",
           total_time: "",
+          packageMedia: null,
           sub_packages: [
             {
               item_name: "",
               description: "",
-              // item_images: null,
+              item_images: null,
               price: "",
               time_required: "",
+            },
+          ],
+          addons: [
+            {
+              addon_name: "",
+              description: "",
+              price: "",
             },
           ],
         },
@@ -287,10 +339,10 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             onChange={handleCategoryChange}
             placeholder="Select a category"
             options={categories
-              .filter((cat) => cat?.services?.length > 0) // ensure category has services
+              .filter((cat) => cat?.services?.length > 0)
               .map((cat) => ({
                 label: cat.categoryName || "",
-                value: String(cat.services[0].serviceCategoryId), // 💡 take from first service
+                value: String(cat.services[0].serviceCategoryId),
               }))}
             required
           />
@@ -347,7 +399,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                         variant="lightDanger"
                         icon={<FiTrash2 />}
                         onClick={() => removePackage(pkgIndex)}
-                      ></IconButton>
+                      />
                     )}
                   </div>
 
@@ -409,6 +461,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                     />
                   </div>
 
+                  {/* Sub-Packages */}
                   <div className="mt-4">
                     <h6 className="text-sm font-semibold mb-2">Sub-Packages</h6>
                     {pkg.sub_packages.map((sub, subIndex) => (
@@ -427,12 +480,12 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                               onClick={() =>
                                 removeSubPackage(pkgIndex, subIndex)
                               }
-                            ></IconButton>
+                            />
                           )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                           <FormInput
-                            label="item_name"
+                            label="Item Name"
                             value={sub.item_name}
                             onChange={(e) =>
                               handleSubPackageChange(
@@ -506,6 +559,78 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       Add Sub-Package
                     </Button>
                   </div>
+
+                  {/* Add-ons (NEW) */}
+                  <div className="mt-6">
+                    <h6 className="text-sm font-semibold mb-2">Add-ons</h6>
+                    {pkg.addons.map((addon, addonIndex) => (
+                      <div
+                        key={addonIndex}
+                        className="mb-3 p-2 border rounded bg-white"
+                      >
+                        <div className="flex justify-between items-center">
+                          <h6 className="text-xs font-medium">
+                            Add-on {addonIndex + 1}
+                          </h6>
+                          {pkg.addons.length > 1 && (
+                            <IconButton
+                              variant="lightDanger"
+                              icon={<FiTrash2 />}
+                              onClick={() => removeAddon(pkgIndex, addonIndex)}
+                            />
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                          <FormInput
+                            label="Add-on Name"
+                            value={addon.addon_name}
+                            onChange={(e) =>
+                              handleAddonChange(
+                                pkgIndex,
+                                addonIndex,
+                                "addon_name",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormInput
+                            label="Price"
+                            type="number"
+                            value={addon.price}
+                            onChange={(e) =>
+                              handleAddonChange(
+                                pkgIndex,
+                                addonIndex,
+                                "price",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormInput
+                            label="Description"
+                            value={addon.description}
+                            onChange={(e) =>
+                              handleAddonChange(
+                                pkgIndex,
+                                addonIndex,
+                                "description",
+                                e.target.value
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addAddon(pkgIndex)}
+                      icon={<FiPlus className="mr-1" />}
+                    >
+                      Add Add-on
+                    </Button>
+                  </div>
                 </div>
               ))}
 
@@ -521,6 +646,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             </div>
           </div>
 
+          {/* Preferences (service-type level) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Preferences
@@ -555,7 +681,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           preferences: updated,
                         }));
                       }}
-                    ></IconButton>
+                    />
                   )}
                 </div>
               ))}

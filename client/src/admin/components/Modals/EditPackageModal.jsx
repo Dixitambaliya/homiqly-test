@@ -15,11 +15,12 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   const [timeRequired, setTimeRequired] = useState("");
   const [subPackages, setSubPackages] = useState([]);
   const [preferences, setPreferences] = useState([]);
+  const [addons, setAddons] = useState([]); // NEW
   const [files, setFiles] = useState({});
   const [previews, setPreviews] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Auto-calculate price from sub-packages
+  // Auto-calc price from sub-packages
   const totalPrice = subPackages.reduce(
     (sum, sub) => sum + Number(sub.price || 0),
     0
@@ -34,6 +35,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       );
       setSubPackages(packageData.sub_packages || []);
       setPreferences(packageData.preferences || []);
+      setAddons(packageData.addons || []); // NEW
     }
   }, [packageData]);
 
@@ -41,6 +43,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Single package edit context -> keep pkg index "0"
     const fileKey = `itemMedia_0_${index}`;
 
     setFiles((prev) => ({
@@ -48,7 +51,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       [fileKey]: file,
     }));
 
-    // Preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreviews((prev) => ({
@@ -69,18 +71,11 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     setPreviews(updatedPreviews);
   };
 
+  // Sub-packages
   const handleSubPackageChange = (index, field, value) => {
     setSubPackages((prev) => {
       const updated = [...prev];
       updated[index][field] = value;
-      return updated;
-    });
-  };
-
-  const handlePreferenceChange = (index, value) => {
-    setPreferences((prev) => {
-      const updated = [...prev];
-      updated[index].preference_value = value;
       return updated;
     });
   };
@@ -90,7 +85,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       ...prev,
       {
         sub_package_id: null,
-        title: "",
+        item_name: "",
         description: "",
         price: "",
         time_required: "",
@@ -103,12 +98,44 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     removePreview(index);
   };
 
+  // Preferences
+  const handlePreferenceChange = (index, value) => {
+    setPreferences((prev) => {
+      const updated = [...prev];
+      updated[index].preference_value = value;
+      return updated;
+    });
+  };
+
   const addPreference = () => {
     setPreferences((prev) => [...prev, { preference_value: "" }]);
   };
 
   const removePreference = (index) => {
     setPreferences((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Add-ons (NEW)
+  const handleAddonChange = (index, field, value) => {
+    setAddons((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        [field]: value,
+      };
+      return updated;
+    });
+  };
+
+  const addAddon = () => {
+    setAddons((prev) => [
+      ...prev,
+      { addon_id: null, addon_name: "", description: "", price: "" },
+    ]);
+  };
+
+  const removeAddon = (index) => {
+    setAddons((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
@@ -118,10 +145,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     try {
       const form = new FormData();
 
-      //   form.append("service_type_id", packageData.service_type_id);
-      //   form.append("serviceTypeName", packageData.service_type_name);
-      //   form.append("serviceId", packageData.service_id);
-
+      // Build packages payload for edit
       const packages = [
         {
           package_id: packageData.package_id,
@@ -136,16 +160,24 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
             price: sub.price,
             time_required: sub.time_required,
           })),
+          // NEW: Add-ons included in payload
+          addons: (addons || []).map((a) => ({
+            addon_id: a.addon_id ?? null,
+            addon_name: a.addon_name,
+            description: a.description,
+            price: a.price,
+          })),
         },
       ];
 
-      const prefs = preferences.map((p) => ({
+      const prefs = (preferences || []).map((p) => ({
         preference_value: p.preference_value,
       }));
 
       form.append("packages", JSON.stringify(packages));
       form.append("preferences", JSON.stringify(prefs));
 
+      // Attach any sub-package images (keep key pattern)
       Object.entries(files).forEach(([key, file]) => {
         form.append(key, file);
       });
@@ -265,6 +297,57 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                   size="sm"
                   variant="outline"
                   onClick={() => removeSubPackage(index)}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Add-ons (NEW) */}
+        <div className="pt-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-md font-semibold">Add-ons</h4>
+            <Button type="button" size="sm" onClick={addAddon}>
+              + Add Add-on
+            </Button>
+          </div>
+
+          {addons.map((addon, index) => (
+            <div key={index} className="mb-4 p-3 border rounded bg-gray-50">
+              {/* Keep addon_id if present (hidden) */}
+              {/* <input type="hidden" value={addon.addon_id ?? ""} /> */}
+              <FormInput
+                label="Add-on Name"
+                value={addon.addon_name || ""}
+                onChange={(e) =>
+                  handleAddonChange(index, "addon_name", e.target.value)
+                }
+                required
+              />
+              <FormInput
+                label="Price"
+                type="number"
+                value={addon.price ?? ""}
+                onChange={(e) =>
+                  handleAddonChange(index, "price", e.target.value)
+                }
+                required
+              />
+              <FormTextarea
+                label="Description"
+                value={addon.description || ""}
+                onChange={(e) =>
+                  handleAddonChange(index, "description", e.target.value)
+                }
+              />
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => removeAddon(index)}
                 >
                   Remove
                 </Button>
