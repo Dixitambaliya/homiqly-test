@@ -11,7 +11,8 @@ const userGetQueries = {
                     profileImage,
                     phone,
                     parkingInstruction,
-                    postalCode,
+                    postalCode AS postalcode,
+                    address,
                     email
                         FROM users WHERE user_id = ?`,
 
