@@ -10,50 +10,40 @@ const addToCartService = asyncHandler(async (req, res) => {
         serviceId,
         service_type_id,
         packages,
-        notes,
-        preferences,
-        bookingDate,
-        bookingTime,
+        notes = null,
+        preferences = [],
+        bookingDate = null,
+        bookingTime = null,
         vendor_id = null
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
 
-    if (!service_categories_id || !serviceId || !service_type_id || !bookingDate || !bookingTime) {
-        return res.status(400).json({ message: "Missing required fields (category, service, service type, booking date & time)." });
+    // ✅ Validate required fields
+    if (!service_categories_id || !serviceId || !service_type_id || !packages) {
+        return res.status(400).json({
+            message: "Missing required fields: service_categories_id, serviceId, service_type_id, packages"
+        });
     }
 
     let parsedPackages = [];
     let parsedPreferences = [];
 
+    // Parse packages
     try {
         parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
-        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
-            return res.status(400).json({ message: "'packages' must be a non-empty array." });
+        if (!Array.isArray(parsedPackages)) {
+            return res.status(400).json({ message: "'packages' must be an array." });
         }
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
     }
 
-    // ✅ Validate all packages and sub_packages before any insert
-    for (const pkg of parsedPackages) {
-        if (!pkg.package_id) {
-            return res.status(400).json({ message: "Each package must include a package_id." });
-        }
-        if (!Array.isArray(pkg.sub_packages) || pkg.sub_packages.length === 0) {
-            return res.status(400).json({ message: `Package ${pkg.package_id} must include at least one sub_package.` });
-        }
-        for (const item of pkg.sub_packages) {
-            if (!item.sub_package_id || item.price == null) {
-                return res.status(400).json({ message: `Each sub_package in package ${pkg.package_id} must include sub_package_id and price.` });
-            }
-        }
-    }
-
+    // Parse preferences
     try {
         parsedPreferences = typeof preferences === 'string' ? JSON.parse(preferences) : preferences;
         if (parsedPreferences && !Array.isArray(parsedPreferences)) {
-            return res.status(400).json({ message: "'preferences' must be a valid array." });
+            return res.status(400).json({ message: "'preferences' must be an array." });
         }
     } catch (e) {
         return res.status(400).json({ message: "'preferences' must be a valid JSON array.", error: e.message });
@@ -63,7 +53,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-
         // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
@@ -73,15 +62,15 @@ const addToCartService = asyncHandler(async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 user_id,
-                vendor_id || null,
+                vendor_id,
                 serviceId,
                 service_type_id,
                 service_categories_id,
                 bookingDate,
                 bookingTime,
                 0,
-                notes || null,
-                bookingMedia || null
+                notes,
+                bookingMedia
             ]
         );
 
@@ -89,15 +78,16 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         // ✅ Step 2: Insert cart_packages and cart_package_items
         for (const pkg of parsedPackages) {
-            const { package_id, sub_packages } = pkg;
+            const { package_id = null, sub_packages = [], addons = [] } = pkg;
 
-            await connection.query(
+            const [insertPkg] = await connection.query(
                 "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
                 [cart_id, package_id]
             );
 
             for (const item of sub_packages) {
-                const { sub_package_id, price, quantity = 1 } = item;
+                const { sub_package_id, price = 0, quantity = 1 } = item;
+                if (!sub_package_id) continue;
 
                 await connection.query(
                     `INSERT INTO cart_package_items
@@ -106,9 +96,19 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
+
+            for (const addon of addons) {
+                const { addon_id, price = 0 } = addon;
+                if (!addon_id) continue;
+
+                await connection.query(
+                    "INSERT INTO cart_addons (cart_id, package_id, addon_id, price) VALUES (?, ?, ?, ?)",
+                    [cart_id, package_id, addon_id, price]
+                );
+            }
         }
 
-        // ✅ Step 3 (Optional): Insert preferences
+        // ✅ Step 3: Insert preferences
         for (const pref of parsedPreferences || []) {
             const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
             if (!preference_id) continue;
@@ -139,7 +139,7 @@ const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // Fetch the latest cart entry for the user
+        // Fetch the latest cart for the user
         const [cartRows] = await db.query(
             `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
             [user_id]
@@ -155,49 +155,74 @@ const getUserCart = asyncHandler(async (req, res) => {
         // Fetch all packages linked to the cart
         const [cartPackages] = await db.query(
             `SELECT
-                cart_packages.package_id,
-                packages.packageName,
-                packages.totalPrice,
-                packages.totalTime,
-                packages.packageMedia
-             FROM cart_packages
-             JOIN packages ON cart_packages.package_id = packages.package_id
-             WHERE cart_packages.cart_id = ?`,
+                cp.package_id,
+                p.packageName,
+                p.totalPrice,
+                p.totalTime,
+                p.packageMedia
+             FROM cart_packages cp
+             LEFT JOIN packages p ON cp.package_id = p.package_id
+             WHERE cp.cart_id = ?`,
             [cart_id]
         );
 
-        // Fetch all package items linked to the cart
+        // Fetch all sub-packages linked to the cart
         const [cartPackageItems] = await db.query(
             `SELECT
-                cart_package_items.sub_package_id AS item_id,
-                package_items.itemName,
-                cart_package_items.price,
-                cart_package_items.quantity,
-                package_items.timeRequired,
-                package_items.package_id
-             FROM cart_package_items
-             JOIN package_items ON cart_package_items.sub_package_id = package_items.item_id
-             WHERE cart_package_items.cart_id = ?`,
+                cpi.sub_package_id AS item_id,
+                pi.itemName,
+                cpi.price,
+                cpi.quantity,
+                pi.timeRequired,
+                cpi.package_id
+             FROM cart_package_items cpi
+             LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+             WHERE cpi.cart_id = ?`,
             [cart_id]
         );
 
-        // Group package items under the correct packages
-        const groupedPackages = cartPackages.map(packageData => {
-            const subPackagesForThisPackage = cartPackageItems.filter(item => item.package_id === packageData.package_id);
+        // Fetch all addons linked to the cart
+        const [cartAddons] = await db.query(
+            `SELECT
+                ca.addon_id,
+                a.addonName,
+                ca.price,
+                ca.cart_packages_id 
+             FROM cart_addons ca
+             LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
+             WHERE ca.cart_id = ?`,
+            [cart_id]
+        );
+
+        // Group sub-packages and addons under each package
+        const groupedPackages = cartPackages.map(pkg => {
+            const sub_packages = cartPackageItems
+                .filter(item => item.package_id === pkg.package_id)
+                .map(item => ({
+                    ...item
+                }));
+
+            const addons = cartAddons
+                .filter(addon => addon.package_id === pkg.package_id)
+                .map(addon => ({
+                    ...addon
+                }));
+
             return {
-                ...packageData,
-                sub_packages: subPackagesForThisPackage    // ✅ RENAMED
+                ...pkg,
+                sub_packages,
+                addons
             };
         });
 
         // Fetch preferences linked to the cart
         const [cartPreferences] = await db.query(
             `SELECT
-                cart_preferences.preference_id,
-                booking_preferences.preferenceValue
-             FROM cart_preferences
-             JOIN booking_preferences ON cart_preferences.preference_id = booking_preferences.preference_id
-             WHERE cart_preferences.cart_id = ?`,
+                cp.preference_id,
+                bp.preferenceValue
+             FROM cart_preferences cp
+             LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+             WHERE cp.cart_id = ?`,
             [cart_id]
         );
 
@@ -207,9 +232,9 @@ const getUserCart = asyncHandler(async (req, res) => {
             cart: {
                 ...cart,
                 packages: groupedPackages,
-                preferences: cartPreferences.map(preference => ({
-                    preference_id: preference.preference_id,
-                    preferenceValue: preference.preferenceValue
+                preferences: cartPreferences.map(pref => ({
+                    preference_id: pref.preference_id,
+                    preferenceValue: pref.preferenceValue
                 }))
             }
         });
