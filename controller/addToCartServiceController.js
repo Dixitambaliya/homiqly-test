@@ -187,7 +187,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 ca.addon_id,
                 a.addonName,
                 ca.price,
-                ca.cart_packages_id 
+                ca.packages_id 
              FROM cart_addons ca
              LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
              WHERE ca.cart_id = ?`,
