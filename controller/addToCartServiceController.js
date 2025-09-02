@@ -246,111 +246,125 @@ const getUserCart = asyncHandler(async (req, res) => {
 
 const checkoutCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+    const { cart_id } = req.params; // ✅ pass cart_id in URL
+
+    if (!cart_id) {
+        return res.status(400).json({ message: "cart_id is required" });
+    }
+
+    const connection = await db.getConnection();
+    let booking_id;
 
     try {
-        // STEP 1: Fetch the latest cart
-        const [cartRows] = await db.query(
-            `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
-            [user_id]
+        await connection.beginTransaction();
+
+        // ✅ 1. Get cart data
+        const [cartRows] = await connection.query(
+            `SELECT * FROM service_cart WHERE cart_id=? AND user_id=?`,
+            [cart_id, user_id]
         );
-
-        if (cartRows.length === 0) {
-            return res.status(400).json({ message: "No items in cart" });
+        if (!cartRows.length) {
+            throw new Error("Cart not found or not owned by user");
         }
-
         const cart = cartRows[0];
-        const cart_id = cart.cart_id;
 
-        // STEP 2: Ensure required cart data exists
-        if (!cart.bookingDate || !cart.bookingTime) {
-            return res.status(400).json({ message: "Cart does not have booking date/time set." });
-        }
-
-        // STEP 3: Fetch packages
-        const [packageRows] = await db.query(
-            `SELECT package_id FROM cart_packages WHERE cart_id = ?`,
-            [cart_id]
-        );
-
-        // STEP 4: Fetch sub-packages
-        const [itemRows] = await db.query(
-            `SELECT sub_package_id, price FROM cart_package_items WHERE cart_id = ?`,
-            [cart_id]
-        );
-
-        // STEP 5: Fetch preferences
-        const [preferenceRows] = await db.query(
-            `SELECT preference_id FROM cart_preferences WHERE cart_id = ?`,
-            [cart_id]
-        );
-
-        // STEP 6: Insert booking
-        const [bookingInsert] = await db.query(
-            `INSERT INTO service_booking (
-                service_categories_id, service_id, vendor_id,
-                user_id, bookingDate, bookingTime,
-                bookingStatus, notes, bookingMedia
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        // ✅ 2. Create booking
+        const [insertBooking] = await connection.query(
+            `INSERT INTO service_bookings (
+                service_categories_id, serviceId, user_id, bookingDate, bookingTime,
+                vendor_id, notes, bookingMedia, bookingStatus
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
             [
                 cart.service_categories_id,
                 cart.service_id,
-                cart.vendor_id,
                 user_id,
                 cart.bookingDate,
                 cart.bookingTime,
-                0, // Pending
+                cart.vendor_id || 0,
                 cart.notes || null,
                 cart.bookingMedia || null
             ]
         );
+        booking_id = insertBooking.insertId;
 
-        const booking_id = bookingInsert.insertId;
-
-        // STEP 7: Insert service type
-        await db.query(
+        // ✅ 3. Link service type
+        await connection.query(
             `INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)`,
             [booking_id, cart.service_type_id]
         );
 
-        // STEP 8: Insert packages
-        for (const pkg of packageRows) {
-            await db.query(
+        // ✅ 4. Copy cart packages → booking packages
+        const [cartPackages] = await connection.query(
+            `SELECT * FROM cart_packages WHERE cart_id=?`,
+            [cart_id]
+        );
+
+        for (const pkg of cartPackages) {
+            await connection.query(
                 `INSERT INTO service_booking_packages (booking_id, package_id) VALUES (?, ?)`,
                 [booking_id, pkg.package_id]
             );
-        }
 
-        // STEP 9: Insert sub-packages
-        for (const item of itemRows) {
-            await db.query(
-                `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price) VALUES (?, ?, ?)`,
-                [booking_id, item.sub_package_id, item.price]
+            // sub-packages
+            const [cartItems] = await connection.query(
+                `SELECT * FROM cart_package_items WHERE cart_id=? AND package_id=?`,
+                [cart_id, pkg.package_id]
             );
+            for (const item of cartItems) {
+                await connection.query(
+                    `INSERT INTO service_booking_items (booking_id, sub_package_id, price, quantity) 
+                     VALUES (?, ?, ?, ?)`,
+                    [booking_id, item.sub_package_id, item.price, item.quantity || 1]
+                );
+            }
+
+            // addons
+            const [cartAddons] = await connection.query(
+                `SELECT * FROM cart_addons WHERE cart_id=? AND package_id=?`,
+                [cart_id, pkg.package_id]
+            );
+            for (const addon of cartAddons) {
+                await connection.query(
+                    `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price) 
+                     VALUES (?, ?, ?, ?)`,
+                    [booking_id, pkg.package_id, addon.addon_id, addon.price]
+                );
+            }
         }
 
-        // STEP 10: Insert preferences
-        for (const pref of preferenceRows) {
-            await db.query(
-                `INSERT INTO service_preferences (booking_id, preference_id) VALUES (?, ?)`,
+        // ✅ 5. Copy preferences
+        const [cartPrefs] = await connection.query(
+            `SELECT * FROM cart_preferences WHERE cart_id=?`,
+            [cart_id]
+        );
+        for (const pref of cartPrefs) {
+            await connection.query(
+                `INSERT INTO service_booking_preferences (booking_id, preference_id) VALUES (?, ?)`,
                 [booking_id, pref.preference_id]
             );
         }
 
-        // STEP 11: Clear cart
-        await db.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
-        await db.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
-        await db.query(`DELETE FROM cart_packages WHERE cart_id = ?`, [cart_id]);
-        await db.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
+        // ✅ 6. Clear cart (optional)
+        await connection.query(`DELETE FROM service_cart WHERE cart_id=?`, [cart_id]);
 
+        await connection.commit();
+
+        // ✅ return booking_id for payment flow
         res.status(200).json({
-            message: "Booking created successfully from cart",
-            booking_id
+            message: "Cart checked out successfully, booking created.",
+            booking_id,
+            payment_status: "pending"
         });
 
-    } catch (error) {
-        console.error("Checkout error:", error);
-        res.status(500).json({ message: "Internal server error", error: error.message });
+    } catch (err) {
+        await connection.rollback();
+        console.error("Checkout cart error:", err);
+        res.status(500).json({ message: "Failed to checkout cart", error: err.message });
+    } finally {
+        connection.release();
     }
 });
+
+
 
 module.exports = { addToCartService, getUserCart, checkoutCartService };

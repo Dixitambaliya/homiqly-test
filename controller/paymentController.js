@@ -3,51 +3,82 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
 
 const registerBankAccount = asyncHandler(async (req, res) => {
-    const vendor_id = req.user.vendor_id; // assuming vendor logged in via auth middleware
+    const vendor_id = req.user.vendor_id;
+    const {
+        account_holder_name,
+        bank_name,
+        institution_number,
+        transit_number,
+        account_number,
+        currency = "CAD",
+    } = req.body;
 
-    try {
-        // 1. Check if vendor already has a Stripe account
-        const [rows] = await db.query(
-            "SELECT stripe_account_id FROM vendors WHERE vendor_id = ?",
-            [vendor_id]
+    if (
+        !account_holder_name ||
+        !bank_name ||
+        !institution_number ||
+        !transit_number ||
+        !account_number
+    ) {
+        return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check if vendor already has a bank account
+    const [rows] = await db.query(
+        "SELECT id FROM vendor_bank_accounts WHERE vendor_id = ?",
+        [vendor_id]
+    );
+
+    if (rows.length > 0) {
+        // Update
+        await db.query(
+            `UPDATE vendor_bank_accounts 
+       SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, currency=? 
+       WHERE vendor_id=?`,
+            [
+                account_holder_name,
+                bank_name,
+                institution_number,
+                transit_number,
+                account_number,
+                currency,
+                vendor_id,
+            ]
         );
-
-        let stripeAccountId = rows[0]?.stripe_account_id;
-
-        // 2. If not, create a new Express account
-        if (!stripeAccountId) {
-            const account = await stripe.accounts.create({
-                type: "express",
-                country: "CA", // Canada
-                capabilities: {
-                    card_payments: { requested: true },
-                    transfers: { requested: true },
-                },
-                business_type: "individual", // or "company" if you want
-            });
-
-            stripeAccountId = account.id;
-
-            // Save to DB
-            await db.query(
-                "UPDATE vendors SET stripe_account_id = ? WHERE vendor_id = ?",
-                [stripeAccountId, vendor_id]
-            );
-        }
-
-        // 3. Generate onboarding link
-        const accountLink = await stripe.accountLinks.create({
-            account: stripeAccountId,
-            refresh_url: "https://yourapp.com/reauth",  // replace with your frontend
-            return_url: "https://yourapp.com/dashboard", // after success
-            type: "account_onboarding",
-        });
-
-        res.json({ url: accountLink.url });
-    } catch (error) {
-        console.error("Stripe Register Bank Error:", error);
-        res.status(500).json({ error: error.message });
+        res.json({ message: "Bank account updated successfully" });
+    } else {
+        // Insert
+        await db.query(
+            `INSERT INTO vendor_bank_accounts 
+       (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, currency) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                vendor_id,
+                account_holder_name,
+                bank_name,
+                institution_number,
+                transit_number,
+                account_number,
+                currency,
+            ]
+        );
+        res.json({ message: "Bank account saved successfully" });
     }
 });
 
-module.exports = { registerBankAccount };
+const getBankAccount = asyncHandler(async (req, res) => {
+    const vendor_id = req.user
+
+    const [rows] = await db.query(
+        "SELECT account_holder_name, bank_name, institution_number, transit_number, account_number, currency FROM vendor_bank_accounts WHERE vendor_id = ?",
+        [vendor_id]
+    );
+
+    if (rows.length === 0) {
+        return res.status(404).json({ message: "No bank account found" });
+    }
+
+    res.json(rows[0]);
+});
+
+module.exports = { registerBankAccount, getBankAccount };

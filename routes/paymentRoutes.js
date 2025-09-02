@@ -1,10 +1,13 @@
-const express = require("express")
-const { registerBankAccount } = require("../controllers/paymentController.js")
-const { protectVendor } = require("../middleware/authMiddleware.js")
-
+const express = require('express');
 const router = express.Router();
 
-// Vendor registers their bank account with Stripe
-router.post("/register-bank", registerBankAccount);
+const { registerBankAccount, getBankAccount } = require("../controller/paymentController.js")
+const { authenticationToken } = require("../middleware/authMiddleware.js")
 
-export default router;
+// Vendor registers their bank account with Stripe
+router.post("/register-bank", authenticationToken, registerBankAccount);
+router.get("/get-bank-details", authenticationToken, getBankAccount);
+
+
+module.exports = router;
+
