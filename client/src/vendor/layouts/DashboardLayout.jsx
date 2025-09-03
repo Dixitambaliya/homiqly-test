@@ -77,6 +77,11 @@ const DashboardLayout = () => {
       name: "Support",
       icon: <FiHelpCircle className="w-5 h-5" />,
     },
+    {
+      path: "/vendor/accountdetails",
+      name: "account details",
+      icon: <FiCreditCard className="w-5 h-5" />,
+    },
   ];
 
   const getPageTitle = () => {

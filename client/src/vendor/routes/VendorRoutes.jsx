@@ -22,6 +22,7 @@ import SupportForm from "../pages/SupportForm";
 import Employees from "../pages/Employees";
 import PaymentDetails from "../pages/subpages/PaymentDetails";
 import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
+import AccountDetails from "../pages/AccountDetails";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -91,6 +92,7 @@ const VendorRoutes = () => {
         <Route path="payments/:paymentId" element={<PaymentDetails />} />
         <Route path="ratings" element={<Ratings />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="accountdetails" element={<AccountDetails />} />
         <Route path="support" element={<SupportForm />} />
       </Route>
 

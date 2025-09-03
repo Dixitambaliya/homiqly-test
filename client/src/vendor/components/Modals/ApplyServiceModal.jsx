@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
   const [groupedPackages, setGroupedPackages] = useState({});
   const [loading, setLoading] = useState(true);
+  const [selectedAddons, setSelectedAddons] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
@@ -27,11 +28,44 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
         console.log("Raw API response:", rawData); // 👈 check what you get
 
         const grouped = rawData.reduce((acc, item) => {
-          const category = item.service_category_name;
-          if (!acc[category]) acc[category] = [];
-          acc[category].push(item);
+          const categoryId = item.service_category_id;
+          const serviceId = item.service_id;
+
+          if (!acc[categoryId]) {
+            acc[categoryId] = {
+              categoryName: item.service_category_name,
+              services: {},
+            };
+          }
+
+          if (!acc[categoryId].services[serviceId]) {
+            acc[categoryId].services[serviceId] = {
+              serviceId,
+              serviceName: item.service_name,
+              serviceTypeId: item.service_type_id,
+              serviceTypeName: item.service_type_name,
+              packages: [],
+            };
+          }
+
+          // ✅ Merge packages instead of replacing
+          const existingService = acc[categoryId].services[serviceId];
+          const newPackages = item.packages || [];
+
+          newPackages.forEach((pkg) => {
+            if (
+              !existingService.packages.some(
+                (p) => p.package_id === pkg.package_id
+              )
+            ) {
+              existingService.packages.push(pkg);
+            }
+          });
+
           return acc;
         }, {});
+
+        // setGroupedPackages(grouped);
         setGroupedPackages(grouped);
       } catch (error) {
         console.error("Error fetching packages:", error);
@@ -81,10 +115,18 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
         })
         .map((pref) => ({ preference_id: pref.value }));
 
+      const addons = selectedAddons
+        .filter((addon) => {
+          const pkgDetail = allPackages.find((p) => p.package_id === pkgId);
+          return pkgDetail?.addons?.some((a) => a.addon_id === addon.value);
+        })
+        .map((addon) => ({ addon_id: addon.value }));
+
       return {
         package_id: pkgId,
         sub_packages: subPackages,
-        preferences: preferences,
+        preferences,
+        addons,
       };
     });
 
@@ -119,25 +161,42 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
     }
   };
 
-  const categoryOptions = Object.keys(groupedPackages).map((cat) => ({
-    label: cat,
-    value: cat,
-  }));
+  // build category options
+  const categoryOptions = Object.entries(groupedPackages).map(
+    ([categoryId, cat]) => ({
+      label: cat.categoryName,
+      value: categoryId, // ✅ ID, not name
+    })
+  );
 
+  // build service options
   const serviceOptions =
     selectedCategory && groupedPackages[selectedCategory.value]
-      ? groupedPackages[selectedCategory.value].map((item) => ({
-          label: item.service_name,
-          value: item.service_id,
-        }))
+      ? Object.values(groupedPackages[selectedCategory.value].services).map(
+          (srv) => ({
+            label: srv.serviceName,
+            value: srv.serviceId,
+          })
+        )
       : [];
 
+  // selected service object
   const selectedServiceObj =
-    groupedPackages[selectedCategory?.value]?.find(
-      (item) => String(item.service_id) === String(selectedService?.value)
-    ) || null;
+    groupedPackages[selectedCategory?.value]?.services?.[
+      selectedService?.value
+    ] || null;
 
   const allPackages = selectedServiceObj?.packages || [];
+
+  const allSelectedAddons = selectedPackages.flatMap((pkg) => {
+    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
+    return (
+      pkgDetail?.addons?.map((addon) => ({
+        label: addon.addon_name,
+        value: addon.addon_id,
+      })) || []
+    );
+  });
 
   const packageOptions = allPackages.map((pkg) => ({
     label: pkg.title,
@@ -317,6 +376,25 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
               onChange={(value) => setSelectedPreferences(value || [])}
               styles={customSelectStyles}
               placeholder="Select preferences"
+              isMulti
+              isClearable
+              menuPortalTarget={
+                typeof window !== "undefined" ? document.body : null
+              }
+              menuPosition="fixed"
+            />
+          </div>
+        )}
+
+        {allSelectedAddons.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Addons</label>
+            <Select
+              options={allSelectedAddons}
+              value={selectedAddons}
+              onChange={(value) => setSelectedAddons(value || [])}
+              styles={customSelectStyles}
+              placeholder="Select addons"
               isMulti
               isClearable
               menuPortalTarget={

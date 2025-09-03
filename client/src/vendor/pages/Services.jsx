@@ -75,7 +75,7 @@ const Services = () => {
         <h2 className="text-2xl font-bold text-gray-800">Apply for Services</h2>
 
         {/* Dropdown */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <Button onClick={() => setShowModal(true)}>
             Request New Services
           </Button>

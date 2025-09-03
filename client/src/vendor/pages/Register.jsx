@@ -41,6 +41,7 @@ const Register = () => {
   // Services data
   const [serviceCategories, setServiceCategories] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
+  console.log(selectedServices);
 
   // Load service categories
   useEffect(() => {
@@ -395,11 +396,12 @@ const Register = () => {
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
-                                  onChange={() =>
-                                    toggleService(
-                                      service.serviceId,
-                                      category.serviceCategoryId
-                                    )
+                                  onChange={
+                                    () =>
+                                      toggleService(
+                                        service.serviceId,
+                                        service.serviceCategoryId
+                                      ) // ✅ Use service.serviceCategoryId
                                   }
                                   className="h-4 w-4 text-primary border-gray-300 rounded"
                                 />
@@ -498,19 +500,53 @@ const Register = () => {
                     const serviceItem = category?.services.find(
                       (s) => s.serviceId === service.serviceId
                     );
+
                     return (
                       <div key={service.serviceId} className="flex items-start">
                         <FiCheck className="text-green-500 mt-1 mr-2" />
                         <div>
+                          {/* Service title */}
                           <p className="font-medium text-sm">
-                            {serviceItem?.title}
+                            {serviceItem?.title ||
+                              `Service ID: ${service.serviceId}`}
                           </p>
+
+                          {/* Category + Location */}
                           <p className="text-xs text-gray-500">
-                            {category?.categoryName}
+                            <b>Category:</b>{" "}
+                            {category?.categoryName ||
+                              service.serviceCategoryId}
+                            {" • "}
+                            <b>Location:</b>{" "}
                             {service.serviceLocation
-                              ? ` • ${service.serviceLocation}`
-                              : ""}
+                              ? service.serviceLocation
+                              : "Not provided"}
                           </p>
+
+                          {/* Extra debug info so you see full values */}
+                          <p className="text-xs text-gray-400">
+                            <b>Service ID:</b> {service.serviceId},{" "}
+                            <b>Category ID:</b> {service.serviceCategoryId}
+                          </p>
+
+                          {/* Description */}
+                          {serviceItem?.description && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              {serviceItem.description}
+                            </p>
+                          )}
+
+                          {/* Service types */}
+                          {serviceItem?.serviceTypes?.length > 0 && (
+                            <ul className="mt-1 ml-4 list-disc text-xs text-gray-500">
+                              {serviceItem.serviceTypes.map((type) => (
+                                <li key={type.service_type_id}>
+                                  {type.serviceTypeName}
+                                  {type.subType ? ` – ${type.subType}` : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       </div>
                     );

@@ -71,7 +71,7 @@ const Packages = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">My Packages</h2>
+        <h2 className="text-2xl font-bold text-gray-800">All Packages</h2>
         <Button
           onClick={() => setShowAddModal(true)}
           variant="primary"

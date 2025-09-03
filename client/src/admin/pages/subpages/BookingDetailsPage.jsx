@@ -186,6 +186,27 @@ const BookingDetailsPage = () => {
                 </div>
               ))}
             </div>
+
+            <div className="w-full space-y-4 p-6 bg-white rounded-xl shadow-sm border">
+              <h1>addons</h1>
+              {booking.addons?.map((pkg) => (
+                <div
+                  key={pkg.addon_id}
+                  className="bg-white rounded-xl shadow-sm space-y-3"
+                >
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-800">
+                        {pkg.addonName}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {pkg.addonTime} • ${pkg.price}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Notes */}

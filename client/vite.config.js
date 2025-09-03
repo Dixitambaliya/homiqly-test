@@ -17,7 +17,7 @@ export default defineConfig({
     port: 3030,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "https://homiqly-test-3av5.onrender.com",
         changeOrigin: true,
       },
     },
