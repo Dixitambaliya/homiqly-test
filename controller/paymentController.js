@@ -65,7 +65,7 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         await db.query(
             `INSERT INTO vendor_bank_accounts 
              (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id ,preferred_transfer_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 vendor_id,
                 account_holder_name,
