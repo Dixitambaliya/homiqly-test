@@ -16,6 +16,7 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         dob = null, // if individual
         business_name = null, // if business
         government_id = null, // optional KYC ID
+        preferred_transfer_type = 'bank_transfer',
     } = req.body;
 
     // Validate required fields
@@ -39,7 +40,7 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         // Update existing account
         await db.query(
             `UPDATE vendor_bank_accounts 
-             SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?
+             SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=? , preferred_transfer_type=?
              WHERE vendor_id=?`,
             [
                 account_holder_name,
@@ -53,7 +54,9 @@ const registerBankAccount = asyncHandler(async (req, res) => {
                 dob,
                 business_name,
                 government_id,
+                preferred_transfer_type,
                 vendor_id,
+
             ]
         );
         res.json({ message: "Bank account updated successfully" });
@@ -61,7 +64,7 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         // Insert new account
         await db.query(
             `INSERT INTO vendor_bank_accounts 
-             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id)
+             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id ,preferred_transfer_type)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 vendor_id,
@@ -76,6 +79,7 @@ const registerBankAccount = asyncHandler(async (req, res) => {
                 dob,
                 business_name,
                 government_id,
+                preferred_transfer_type
             ]
         );
         res.json({ message: "Bank account saved successfully" });
@@ -87,7 +91,7 @@ const getBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     const [rows] = await db.query(
-        `SELECT account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id 
+        `SELECT account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id,preferred_transfer_type 
          FROM vendor_bank_accounts 
          WHERE vendor_id = ?`,
         [vendor_id]
@@ -117,6 +121,7 @@ const editBankAccount = asyncHandler(async (req, res) => {
         dob,
         business_name,
         government_id,
+        preferred_transfer_type
     } = req.body;
 
     // Get existing data
@@ -144,6 +149,8 @@ const editBankAccount = asyncHandler(async (req, res) => {
         dob: dob ?? existing.dob,
         business_name: business_name ?? existing.business_name,
         government_id: government_id ?? existing.government_id,
+        preferred_transfer_type: preferred_transfer_type ?? existing.preferred_transfer_type,
+
     };
 
     await db.query(
@@ -162,11 +169,14 @@ const editBankAccount = asyncHandler(async (req, res) => {
             updatedData.dob,
             updatedData.business_name,
             updatedData.government_id,
+            updatedData.preferred_transfer_type,
             vendor_id,
         ]
     );
 
     res.json({ message: "Bank account edited successfully" });
 });
+
+
 
 module.exports = { registerBankAccount, getBankAccount, editBankAccount };
