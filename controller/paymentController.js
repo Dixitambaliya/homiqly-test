@@ -100,7 +100,7 @@ const getBankAccount = asyncHandler(async (req, res) => {
     );
 
     if (rows.length === 0) {
-        return res.status(404).json({ message: "No bank account found" });
+        return res.status(400).json({ message: "No bank account found" });
     }
 
     res.json(rows[0]);
