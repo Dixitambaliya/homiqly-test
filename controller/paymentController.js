@@ -160,7 +160,7 @@ const editBankAccount = asyncHandler(async (req, res) => {
 
     await db.query(
         `UPDATE vendor_bank_accounts
-         SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?
+         SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=? , preferred_transfer_type=?
          WHERE vendor_id=?`,
         [
             updatedData.account_holder_name,
