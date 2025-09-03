@@ -86,7 +86,9 @@ const registerBankAccount = asyncHandler(async (req, res) => {
     }
 });
 
+// ----------------------------
 // Get bank account details
+// ----------------------------
 const getBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -177,6 +179,26 @@ const editBankAccount = asyncHandler(async (req, res) => {
     res.json({ message: "Bank account edited successfully" });
 });
 
+// ----------------------------
+// Edit Bank Account (PATCH)
+// ----------------------------
+const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
+    const [rows] = await db.query(
+        `SELECT v.vendor_id, 
+                b.account_holder_name, b.bank_name, b.institution_number, 
+                b.transit_number, b.account_number, b.bank_address, b.email, 
+                b.legal_name, b.dob, b.business_name, b.government_id, b.preferred_transfer_type
+         FROM vendors v
+          JOIN vendor_bank_accounts b ON v.vendor_id = b.vendor_id`
+    );
+
+    if (rows.length === 0) {
+        return res.status(404).json({ message: "No vendor bank accounts found" });
+    }
+
+    res.json(rows);
+});
 
 
-module.exports = { registerBankAccount, getBankAccount, editBankAccount };
+
+module.exports = { registerBankAccount, getBankAccount, editBankAccount, getAllVendorsBankAccounts };
