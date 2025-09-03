@@ -25,7 +25,8 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         !bank_name ||
         !institution_number ||
         !transit_number ||
-        !account_number
+        !account_number ||
+        !preferred_transfer_type
     ) {
         return res.status(400).json({ message: "All required fields must be provided" });
     }
@@ -93,7 +94,7 @@ const getBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     console.log("Vendor ID:", vendor_id);
-    
+
     const [rows] = await db.query(
         `SELECT account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id,preferred_transfer_type 
          FROM vendor_bank_accounts 
