@@ -64,9 +64,10 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
             if (Array.isArray(sub_packages) && sub_packages.length > 0) {
                 for (const sub of sub_packages) {
                     await connection.query(
-                        `INSERT INTO vendor_package_items (vendor_id, sub_package_id) VALUES (?, ?)`,
-                        [application_id, sub.sub_package_id]
+                        `INSERT INTO vendor_package_items (vendor_id, package_id, package_item_id) VALUES (?, ?, ?)`,
+                        [vendor_id, package_id, sub.sub_package_id]
                     );
+
                 }
             }
 
