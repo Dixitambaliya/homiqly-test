@@ -128,7 +128,7 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-const addRatingToPackages = asyncHandler(async (req, res) => {
+const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { booking_id, package_id, rating, review } = req.body;
 
@@ -403,7 +403,7 @@ module.exports = {
     vendorRatesUser,
     getAllRatings,
     addRatingToServiceType,
-    addRatingToPackages,
+    addRatingToBooking,
     getBookedPackagesForRating,
     getVendorServicesForReview,
     getPackageRatings,
