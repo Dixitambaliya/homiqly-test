@@ -4,6 +4,7 @@ const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
 const nodemailer = require("nodemailer");
 const asyncHandler = require("express-async-handler");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries")
 
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
@@ -764,44 +765,32 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [bookings] = await db.query(vendorGetQueries.getVendorFullPayment,
+        const [[vendorRow]] = await db.query(
+            bookingGetQueries.getVendorIdForBooking,
             [vendor_id]
+        );
+        const vendorType = vendorRow?.vendorType || null;
+
+        // ✅ Get latest platform fee for vendorType
+        const [platformSettings] = await db.query(
+            bookingGetQueries.getPlateFormFee,
+            [vendorType]
+        );
+        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+
+        const [bookings] = await db.query(vendorGetQueries.getVendorFullPayment,
+            [platformFee, vendor_id]
         );
 
         const enriched = [];
 
         for (const booking of bookings) {
-            let stripeData = null;
-
-            try {
-                const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id, {
-                    expand: ['charges.data.payment_method_details']
-                });
-
-                const charge = paymentIntent.charges?.data?.[0];
-
-                if (charge) {
-                    stripeData = {
-                        charge_id: charge.id,
-                        amount: charge.amount / 100,
-                        currency: charge.currency,
-                        status: charge.status,
-                        receipt_url: charge.receipt_url,
-                        card_brand: charge.payment_method_details?.card?.brand,
-                        last4: charge.payment_method_details?.card?.last4,
-                        card_country: charge.payment_method_details?.card?.country,
-                        billing_name: charge.billing_details?.name,
-                        billing_email: charge.billing_details?.email,
-                        metadata: charge.metadata || {}
-                    };
-                }
-            } catch (err) {
-                console.warn(`Stripe error for intent ${booking.payment_intent_id}: ${err.message}`);
-            }
 
             enriched.push({
                 ...booking,
-                stripe_payment: stripeData
+                totalPrice: booking.totalPrice !== null
+                    ? parseFloat(booking.totalPrice)
+                    : null
             });
         }
 

@@ -1,6 +1,6 @@
 const vendorGetQueries = {
 
-    getVendorService: `
+  getVendorService: `
     SELECT
         vendors.vendor_id,
         vendors.vendorType,
@@ -51,7 +51,7 @@ const vendorGetQueries = {
     ORDER BY service_type.service_type_id, packages.package_id, package_items.item_id, booking_preferences.preference_id
     `,
 
-    getServiceTypesByVendorId: `
+  getServiceTypesByVendorId: `
     SELECT
                                  serviceTypeName
                                   FROM
@@ -60,21 +60,21 @@ const vendorGetQueries = {
                                         WHERE vendor_id = ? AND service_type.is_approved = 1
     `,
 
-    getIndividualVendorServices: `
+  getIndividualVendorServices: `
         SELECT s.service_id, s.serviceName
         FROM individual_services vs
         JOIN services s ON vs.service_id = s.service_id
         WHERE vs.vendor_id = ?
     `,
 
-    getCompanyVendorServices: `
+  getCompanyVendorServices: `
     SELECT s.service_id, s.serviceName
     FROM company_services vs
     JOIN services s ON vs.service_id = s.service_id
     WHERE vs.vendor_id = ?
     `,
 
-    getProfileVendor: `
+  getProfileVendor: `
     SELECT
         vendors.vendor_id,
         vendors.vendorType,
@@ -95,65 +95,79 @@ const vendorGetQueries = {
     WHERE vendors.vendor_id = ?
     `,
 
-    getCertificate: `
+  getCertificate: `
     SELECT certificate_id, certificateName, certificateFile, created_at
             FROM certificates
             WHERE vendor_id = ?
     `,
 
-    getVendorFullPayment: `
+  getVendorFullPayment: `
     SELECT
-                sb.booking_id,
-                sb.service_categories_id,
-                sb.service_id,
-                sb.vendor_id,
-                sb.assigned_employee_id,
-                sb.user_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.payment_intent_id,
-                sb.notes,
-                sb.bookingMedia,
-                sb.created_at,
+        sb.booking_id,
+        sb.service_categories_id,
+        sb.service_id,
+        sb.vendor_id,
+        sb.assigned_employee_id,
+        sb.user_id,
+        sb.bookingDate,
+        sb.bookingTime,
+        sb.bookingStatus,
+        sb.payment_intent_id,
+        sb.notes,
+        sb.bookingMedia,
+        sb.created_at,
 
-                -- User Info
-                CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
-                u.email AS user_email,
-                u.phone AS user_phone,
-                
-                -- Vendor Info
-                v.vendorType,
+        -- User Info
+        CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
+        u.email AS user_email,
+        u.phone AS user_phone,
+        
+        -- Vendor Info
+        v.vendorType,
+        cdet.contactPerson,
+        COALESCE(idet.name, cdet.companyName) AS vendor_name,
+        COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
+        COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
-                cdet.contactPerson,
+        -- Package Info
+        pkg.package_id,
+        pkg.packageName,
+        pkg.totalTime,
 
-                COALESCE(idet.name, cdet.companyName) AS vendor_name,
-                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
-                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
+        -- Payment Info (apply platform fee)
+        CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS totalPrice,
+        p.currency AS payment_currency,
+        p.status AS payment_status
 
-                -- Package Info
-                pkg.package_id,
-                pkg.packageName,
-                pkg.totalPrice,
-                pkg.totalTime
+    FROM service_booking sb
 
-            FROM service_booking sb
+    JOIN users u ON sb.user_id = u.user_id
+    JOIN vendors v ON sb.vendor_id = v.vendor_id
 
-            JOIN users u ON sb.user_id = u.user_id
-            JOIN vendors v ON sb.vendor_id = v.vendor_id
+    LEFT JOIN individual_details idet 
+        ON v.vendor_id = idet.vendor_id 
+        AND v.vendorType = 'individual'
+    LEFT JOIN company_details cdet 
+        ON v.vendor_id = cdet.vendor_id 
+        AND v.vendorType = 'company'
 
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+    LEFT JOIN service_booking_packages sbp 
+        ON sbp.booking_id = sb.booking_id
+    LEFT JOIN packages pkg 
+        ON pkg.package_id = sbp.package_id
 
-            LEFT JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-            LEFT JOIN packages pkg ON pkg.package_id = sbp.package_id
+    -- 🔹 Join payments to pull amount & currency
+    LEFT JOIN payments p 
+        ON p.payment_intent_id = sb.payment_intent_id
 
-            WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
+    WHERE sb.vendor_id = ? 
+      AND sb.payment_intent_id IS NOT NULL
 
-            ORDER BY sb.created_at DESC
-    `,
+    ORDER BY sb.created_at DESC
+`,
 
-    getVendorAssignedPackages: `
+
+  getVendorAssignedPackages: `
             SELECT
                 service_type.service_type_id,
                 service_type.serviceTypeName,
@@ -220,7 +234,7 @@ const vendorGetQueries = {
             ORDER BY service_type.service_type_id DESC
     `,
 
-    getAllPackagesForVendor: `
+  getAllPackagesForVendor: `
         SELECT
           sc.service_categories_id,
           sc.serviceCategory,
