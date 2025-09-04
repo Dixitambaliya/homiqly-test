@@ -128,12 +128,12 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-const addRatingToPackages = asyncHandler(async (req, res) => {
+const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { package_id, rating, review } = req.body;
+    const { booking_id, package_id, rating, review } = req.body;
 
-    if (!package_id || !rating) {
-        return res.status(400).json({ message: "Package ID and rating are required" });
+    if (!booking_id || !package_id || !rating) {
+        return res.status(400).json({ message: "Booking ID, Package ID, and rating are required" });
     }
 
     if (rating < 1 || rating > 5) {
@@ -141,32 +141,38 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
     }
 
     try {
-        // Check if user has booked this package
+        // ✅ Check if the booking belongs to the user and includes this package
         const [booked] = await db.query(`
-            SELECT 1 FROM service_booking_packages sbp
+            SELECT 1 
+            FROM service_booking_packages sbp
             JOIN service_booking sb ON sb.booking_id = sbp.booking_id
-            WHERE sb.user_id = ? AND sbp.package_id = ?
-        `, [user_id, package_id]);
+            WHERE sb.user_id = ? 
+              AND sb.booking_id = ? 
+              AND sbp.package_id = ?
+        `, [user_id, booking_id, package_id]);
 
         if (booked.length === 0) {
-            return res.status(403).json({ message: "You can only rate packages you've booked." });
+            return res.status(403).json({ message: "You can only rate packages from your own bookings." });
         }
 
-        // Prevent duplicate rating
+        // ✅ Prevent duplicate rating for the same booking + package
         const [existing] = await db.query(`
-            SELECT rating_id FROM ratings
-            WHERE user_id = ? AND package_id = ?
-        `, [user_id, package_id]);
+            SELECT rating_id 
+            FROM ratings
+            WHERE user_id = ? 
+              AND booking_id = ? 
+              AND package_id = ?
+        `, [user_id, booking_id, package_id]);
 
         if (existing.length > 0) {
-            return res.status(400).json({ message: "You have already rated this package." });
+            return res.status(400).json({ message: "You have already rated this package for this booking." });
         }
 
-        // Insert the rating (no vendor or service_id)
+        // ✅ Insert the rating (linking booking_id too)
         await db.query(`
-            INSERT INTO ratings (user_id, package_id, rating, review, created_at)
-            VALUES (?, ?, ?, ?, NOW())
-        `, [user_id, package_id, rating, review]);
+            INSERT INTO ratings (user_id, booking_id, package_id, rating, review, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        `, [user_id, booking_id, package_id, rating, review]);
 
         res.status(201).json({ message: "Rating for package submitted successfully" });
     } catch (error) {
@@ -174,6 +180,7 @@ const addRatingToPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -396,7 +403,7 @@ module.exports = {
     vendorRatesUser,
     getAllRatings,
     addRatingToServiceType,
-    addRatingToPackages,
+    addRatingToBooking,
     getBookedPackagesForRating,
     getVendorServicesForReview,
     getPackageRatings,

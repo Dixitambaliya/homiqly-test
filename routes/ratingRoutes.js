@@ -5,7 +5,7 @@ const {
     getVendorRatings,
     getAllRatings,
     addRatingToServiceType,
-    addRatingToPackages,
+    addRatingToBooking,
     getBookedPackagesForRating,
     getVendorServicesForReview,
     getPackageRatings,
@@ -35,6 +35,6 @@ router.get('/getallvendorsrating', authenticationToken, getAllVendorRatings);
 
 router.post('/addrating', authenticationToken, addRatingToServiceType);
 
-router.post('/ratepackages', authenticationToken, addRatingToPackages);
+router.post('/ratebookings', authenticationToken, addRatingToBooking);
 
 module.exports = router;
