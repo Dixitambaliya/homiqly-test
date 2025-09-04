@@ -85,6 +85,8 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
+
+
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
@@ -105,7 +107,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
 
             if (!service && row.serviceId) {
-                // Create new service object
                 service = {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
@@ -118,7 +119,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 grouped[category].services.push(service);
             }
 
-            // push serviceType directly under service
+            // push serviceType if available
             if (row.service_type_id) {
                 service.serviceTypes.push({
                     subType: row.subTypeName,
@@ -129,7 +130,13 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             }
         });
 
-        const result = Object.values(grouped);
+        // 🔹 Remove services without serviceTypes
+        Object.values(grouped).forEach(category => {
+            category.services = category.services.filter(service => service.serviceTypes.length > 0);
+        });
+
+        // 🔹 Remove categories without any services
+        const result = Object.values(grouped).filter(category => category.services.length > 0);
 
         res.status(200).json({ services: result });
     } catch (err) {
@@ -137,6 +144,8 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -172,6 +181,8 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const getServicestypes = asyncHandler(async (req, res) => {
     try {
