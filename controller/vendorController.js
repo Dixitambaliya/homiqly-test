@@ -881,8 +881,8 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             }
 
             await db.query(
-                `INSERT INTO notifications(user_type, user_id, title, body)
-                VALUES(?, ?, ?, ?)`,
+                `INSERT INTO notifications(user_type, user_id, title, body, is_read, sent_at)
+                VALUES(?, ?, ?, ? , 0 , CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
 
