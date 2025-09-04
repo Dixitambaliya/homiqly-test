@@ -20,6 +20,7 @@ import {
 import { Link } from "react-router-dom";
 import ToggleButton from "../components/ToggleButton";
 import StatusBadge from "../../shared/components/StatusBadge";
+import Calendar from "./Calendar";
 
 // Register ChartJS components
 ChartJS.register(
@@ -285,10 +286,8 @@ const Dashboard = () => {
           </Link>
         </div>
 
-        <div className="border rounded-lg p-4">
-          <p className="text-center text-gray-500">
-            Calendar component will be integrated here
-          </p>
+        <div className="border rounded-lg p-4 max-w-7xl mx-auto">
+          <Calendar />
         </div>
       </div>
     </div>
