@@ -58,10 +58,10 @@ const Dashboard = () => {
         // Calculate stats
         const totalBookings = bookings.length;
         const pendingBookings = bookings.filter(
-          (b) => b.bookingStatus === 0
+          (b) => b.bookingStatus === 1
         ).length;
         const completedBookings = bookings.filter(
-          (b) => b.bookingStatus === 1
+          (b) => b.bookingStatus === 4
         ).length;
 
         // Get recent bookings

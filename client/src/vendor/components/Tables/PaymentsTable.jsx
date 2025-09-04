@@ -31,6 +31,16 @@ const PaymentsTable = ({
       render: (row) => row.service_id,
     },
     {
+      title: "User Name",
+      key: "user_email",
+      render: (row) => (
+        <div>
+          <div className="font-medium">{row.user_name}</div>
+          <div className="text-sm text-gray-500">{row.user_email}</div>
+        </div>
+      ),
+    },
+    {
       title: "Date",
       key: "bookingDate",
       render: (row) => formatDate(row.bookingDate),
@@ -39,6 +49,11 @@ const PaymentsTable = ({
       title: "Time",
       key: "bookingTime",
       render: (row) => row.bookingTime,
+    },
+    {
+      title: "Payment",
+      key: "totalPrice",
+      render: (row) => row.totalPrice,
     },
     {
       title: "Status",

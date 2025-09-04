@@ -10,6 +10,7 @@ import PaymentBadge from "../../../shared/components/PaymentBadge";
 import { Button } from "../../../shared/components/Button";
 import axios from "axios";
 import { toast } from "react-toastify";
+import RatingModal from "../../../employees/components/Modals/RatingModal";
 
 const BookingDetailsPage = () => {
   const { bookingId } = useParams();
@@ -301,6 +302,12 @@ const BookingDetailsPage = () => {
                 </Button>
               </div>
             )}
+
+            <RatingModal
+              isOpen={showRatingModal}
+              onClose={() => setShowRatingModal(false)}
+              bookingId={booking.booking_id}
+            />
           </div>
         </div>
       </div>

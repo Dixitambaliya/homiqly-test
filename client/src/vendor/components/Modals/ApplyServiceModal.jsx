@@ -147,6 +147,9 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       selectedPackages: builtPackages,
     };
 
+    console.log("Built packages payload:", builtPackages);
+    console.log("Final payload:", payload);
+
     try {
       setSubmitting(true);
       await api.post("/api/vendor/applyservice", payload);
@@ -282,6 +285,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             options={categoryOptions}
             value={selectedCategory}
             onChange={(value) => {
+              console.log("Selected category:", value);
+
               setSelectedCategory(value);
               setSelectedService(null);
               setSelectedPackages([]);
@@ -305,6 +310,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
               options={serviceOptions}
               value={selectedService}
               onChange={(value) => {
+                console.log("Selected service:", value);
+
                 setSelectedService(value);
                 setSelectedPackages([]);
                 setSelectedSubPackages([]);
@@ -328,6 +335,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
               options={packageOptions}
               value={selectedPackages}
               onChange={(value) => {
+                console.log("Selected packages:", value);
+
                 setSelectedPackages(value || []);
                 setSelectedSubPackages([]);
               }}
@@ -352,7 +361,10 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             <Select
               options={allSelectedSubPackages}
               value={selectedSubPackages}
-              onChange={(value) => setSelectedSubPackages(value || [])}
+              onChange={(value) => {
+                console.log("Selected sub-packages:", value);
+                setSelectedSubPackages(value || []);
+              }}
               styles={customSelectStyles}
               placeholder="Select sub-packages"
               isMulti
@@ -373,7 +385,11 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             <Select
               options={allSelectedPreferences}
               value={selectedPreferences}
-              onChange={(value) => setSelectedPreferences(value || [])}
+              onChange={(value) => {
+                console.log("Selected preferences:", value);
+
+                setSelectedPreferences(value || []);
+              }}
               styles={customSelectStyles}
               placeholder="Select preferences"
               isMulti
@@ -392,7 +408,11 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             <Select
               options={allSelectedAddons}
               value={selectedAddons}
-              onChange={(value) => setSelectedAddons(value || [])}
+              onChange={(value) => {
+                console.log("Selected addons:", value);
+
+                setSelectedAddons(value || []);
+              }}
               styles={customSelectStyles}
               placeholder="Select addons"
               isMulti
@@ -419,7 +439,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             !selectedService ||
             selectedPackages.length === 0 ||
             selectedSubPackages.length === 0 ||
-            selectedPreferences.length === 0
+            (allSelectedPreferences.length > 0 &&
+              selectedPreferences.length === 0)
           }
         >
           {submitting ? "Submitting..." : "Request new service"}

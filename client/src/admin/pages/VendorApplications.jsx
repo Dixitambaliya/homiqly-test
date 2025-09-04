@@ -48,8 +48,8 @@ const VendorApplications = () => {
   }, []);
 
   return (
-    <div className="p-3 bg-white shadow rounded-lg border border-gray-200">
-      <h2 className="text-2xl font-bold mb-1">📦 Vendor Applications</h2>
+    <div className="p-3 ">
+      <h2 className="text-2xl font-bold mb-1">Vendor Applications</h2>
       <p className="text-sm text-gray-500 mb-6">
         Review and approve/reject vendor package applications.
       </p>
