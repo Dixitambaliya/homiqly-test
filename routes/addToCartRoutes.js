@@ -8,7 +8,7 @@ const { authenticationToken } = require("../middleware/authMiddleware")
 const multiUpload = upload.any();
 
 router.post("/addtocart", multiUpload, handleUploads, authenticationToken, addToCartService)
-router.post("/checkout", authenticationToken, multiUpload, handleUploads, checkoutCartService)
+router.post("/checkout/:cart_id", authenticationToken, multiUpload, handleUploads, checkoutCartService)
 router.get('/getcart', authenticationToken, getUserCart);
 
 module.exports = router;

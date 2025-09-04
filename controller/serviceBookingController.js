@@ -52,14 +52,14 @@ const bookService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "'preferences' must be a valid JSON array.", error: e.message });
     }
 
-    // ✅ Check that addons are compulsory
-    for (const pkg of parsedPackages) {
-        if (!pkg.addons || !Array.isArray(pkg.addons) || pkg.addons.length === 0) {
-            return res.status(400).json({
-                message: `Addons are required for package_id ${pkg.package_id}. Please select at least one addon.`
-            });
-        }
-    }
+    // // ✅ Check that addons are compulsory
+    // for (const pkg of parsedPackages) {
+    //     if (!pkg.addons || !Array.isArray(pkg.addons) || pkg.addons.length === 0) {
+    //         return res.status(400).json({
+    //             message: `Addons are required for package_id ${pkg.package_id}. Please select at least one addon.`
+    //         });
+    //     }
+    // }
 
     const connection = await db.getConnection();
     let booking_id;
@@ -128,18 +128,17 @@ const bookService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Compulsory Addons
-            for (const addon of addons) {
-                if (!addon.addon_id || addon.price == null) {
-                    await connection.rollback();
-                    return res.status(400).json({ message: "Each addon must include addon_id and price." });
-                }
+            // ✅ Optional Addons
+            if (Array.isArray(addons) && addons.length > 0) {
+                for (const addon of addons) {
+                    if (!addon.addon_id || addon.price == null) continue; // just skip invalid instead of rollback
 
-                await connection.query(
-                    `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
-                     VALUES (?, ?, ?, ?)`,
-                    [booking_id, package_id, addon.addon_id, addon.price]
-                );
+                    await connection.query(
+                        `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
+                 VALUES (?, ?, ?, ?)`,
+                        [booking_id, package_id, addon.addon_id, addon.price]
+                    );
+                }
             }
         }
 

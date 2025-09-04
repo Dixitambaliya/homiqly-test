@@ -10,6 +10,9 @@ const userGetQueries = {
                     lastName,
                     profileImage,
                     phone,
+                    parkingInstruction,
+                    postalCode AS postalcode,
+                    address,
                     email
                         FROM users WHERE user_id = ?`,
 

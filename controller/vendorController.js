@@ -35,13 +35,12 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         const vendor_id = req.user.vendor_id;
         const { selectedPackages } = req.body;
 
-
         if (!Array.isArray(selectedPackages) || selectedPackages.length === 0) {
             throw new Error("At least one package must be provided.");
         }
 
         for (const pkg of selectedPackages) {
-            const { package_id, sub_packages = [], preferences = [] } = pkg;
+            const { package_id, sub_packages = [], preferences = [], addons = [] } = pkg;
 
             if (!package_id) throw new Error("Each package must include package_id");
 
@@ -59,25 +58,35 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
                 `INSERT INTO vendor_package_applications (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
-
             const application_id = result.insertId;
 
-            // ✅ Store sub-packages (if any)
+            // ✅ Store sub-packages
             if (Array.isArray(sub_packages) && sub_packages.length > 0) {
                 for (const sub of sub_packages) {
                     await connection.query(
-                        `INSERT INTO vendor_sub_packages_application (application_id, sub_package_id) VALUES (?, ?)`,
-                        [application_id, sub.sub_package_id]
+                        `INSERT INTO vendor_package_items (vendor_id, package_id, package_item_id) VALUES (?, ?, ?)`,
+                        [vendor_id, package_id, sub.sub_package_id]
                     );
+
                 }
             }
 
-            // ✅ Store preferences (if any)
+            // ✅ Store preferences
             if (Array.isArray(preferences) && preferences.length > 0) {
                 for (const pref of preferences) {
                     await connection.query(
                         `INSERT INTO vendor_preferences_application (application_id, preference_id) VALUES (?, ?)`,
                         [application_id, pref.preference_id]
+                    );
+                }
+            }
+
+            // ✅ Store addons
+            if (Array.isArray(addons) && addons.length > 0) {
+                for (const addon of addons) {
+                    await connection.query(
+                        `INSERT INTO vendor_addons_application (application_id, addon_id) VALUES (?, ?)`,
+                        [application_id, addon.addon_id]
                     );
                 }
             }
@@ -106,8 +115,9 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
                     ${selectedPackages.map(p => `
                         <li>
                             Package ID: ${p.package_id} <br>
-                            Sub-packages: ${p.sub_package_ids?.join(", ") || "None"} <br>
-                            Preferences: ${p.preference_ids?.join(", ") || "None"}
+                            Sub-packages: ${p.sub_packages?.map(s => s.sub_package_id).join(", ") || "None"} <br>
+                            Preferences: ${p.preferences?.map(pr => pr.preference_id).join(", ") || "None"} <br>
+                            Addons: ${p.addons?.map(a => a.addon_id).join(", ") || "None"}
                         </li>
                     `).join("")}
                 </ul>
