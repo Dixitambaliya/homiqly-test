@@ -85,8 +85,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
@@ -145,8 +143,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
 
@@ -181,8 +177,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const getServicestypes = asyncHandler(async (req, res) => {
     try {
