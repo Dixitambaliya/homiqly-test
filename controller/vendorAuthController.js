@@ -74,7 +74,6 @@ const registerVendor = async (req, res) => {
 
         // Upload documents
         if (vendorType.toLowerCase() === "company") {
-            console.log("🏢 Inserting company details");
             await conn.query(vendorAuthQueries.insertCompanyDetails, [
                 vendor_id,
                 companyName,
@@ -189,7 +188,6 @@ const registerVendor = async (req, res) => {
             const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
             if (adminEmails.length > 0) {
                 const emailAddresses = adminEmails.map(row => row.email);
-                console.log("📧 Notifying admins:", emailAddresses);
 
                 await transport.sendMail({
                     from: process.env.EMAIL_USER || "noreply@homiqly.com",
@@ -225,7 +223,6 @@ const registerVendor = async (req, res) => {
         });
     } finally {
         conn.release();
-        console.log("🔚 DB connection released");
     }
 };
 
@@ -311,7 +308,6 @@ const loginVendor = asyncHandler(async (req, res) => {
                     "UPDATE vendors SET fcmToken = ? WHERE vendor_id = ?",
                     [trimmedToken, vendorDetails.vendor_id]
                 );
-                console.log("✅ FCM token updated for vendor:", vendorDetails.vendor_id);
             } catch (err) {
                 console.error("❌ FCM token update error:", err.message);
             }

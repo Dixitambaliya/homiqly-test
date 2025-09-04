@@ -86,7 +86,6 @@ exports.getStripeAccountStatus = asyncHandler(async (req, res) => {
       vendorId
     ]
   );
-  console.log("Update query executed");
 
   res.json({
     payouts_enabled: payoutsEnabled,

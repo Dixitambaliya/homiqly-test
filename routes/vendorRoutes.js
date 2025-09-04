@@ -18,7 +18,8 @@ const {
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
     getVendorFullPaymentHistory,
-    updateBookingStatusByVendor
+    updateBookingStatusByVendor,
+    getVendorDashboardStats
 } = require("../controller/vendorController")
 
 const multiUpload = upload.any();
@@ -35,6 +36,9 @@ router.get("/getallpackages", authenticationToken, getAllPackagesForVendor)
 router.delete("/deletepackages/:package_id", authenticationToken, deletePackage);
 
 router.post("/applyservice", authenticationToken, applyPackagesToVendor)
+
+
+router.get("/getstats", authenticationToken, getVendorDashboardStats)
 
 
 router.post("/packagerating", authenticationToken, addRatingToPackages)
