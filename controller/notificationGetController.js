@@ -38,18 +38,28 @@ const getUserNotifications = asyncHandler(async (req, res) => {
     }
 
     const [notifications] = await db.query(
-        `SELECT notification_id, user_id, title, body, is_read, sent_at
+        `SELECT notification_id, user_id, title, body, is_read, sent_at, action_link
          FROM notifications
          WHERE user_type = 'users' AND user_id = ?
          ORDER BY sent_at DESC`,
         [user_id]
     );
 
+    // 🔹 Remove `action_link` if null/empty
+    const cleaned = notifications.map(n => {
+        const notif = { ...n };
+        if (!notif.action_link) {
+            delete notif.action_link;
+        }
+        return notif;
+    });
+
     return res.status(200).json({
-        count: notifications.length,
-        notifications,
+        count: cleaned.length,
+        notifications: cleaned,
     });
 });
+
 
 const getVendorNotifications = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;

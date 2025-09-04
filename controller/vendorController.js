@@ -865,29 +865,25 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             [status, completed_flag, booking_id]
         );
 
-        try {
-            let notificationTitle, notificationBody;
-            // ✅ Create notification
+        if (status === 4) {
+            notificationTitle = "Your service has been completed";
+            notificationBody = `Your service for booking ID ${booking_id} has been completed. Please take a moment to rate your experience.`;
+            const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`;
 
-            if (status === 3) {
-                notificationTitle = "Your service has started"
-                notificationBody = `Your service for booking ID ${booking_id} has been started by the vendor`
-            } else if (status === 4) {
-                notificationTitle = "Your service has been completed"
-
-                const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`
-                notificationBody = `Your service for booking ID ${booking_id} has been completed. 
-                Please take a moment to rate your experience: ${ratingLink}`;
-            }
+            await db.query(
+                `INSERT INTO notifications(user_type, user_id, title, body, action_link, is_read, sent_at)
+         VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                ['users', user_id, notificationTitle, notificationBody, ratingLink]
+            );
+        } else {
+            notificationTitle = "Your service has started";
+            notificationBody = `Your service for booking ID ${booking_id} has been started by the vendor`;
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, is_read, sent_at)
-                VALUES(?, ?, ?, ? , 0 , CURRENT_TIMESTAMP)`,
+         VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
-
-        } catch (err) {
-            console.error("Error creating notification:", err)
         }
 
         res.status(200).json({

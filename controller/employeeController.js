@@ -878,29 +878,23 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
         );
 
         // 🔔 Create USER notification (best-effort)
-        try {
-            const notifTitle = status === 3 ? "Service Started" : "Service Completed";
+        let notifTitle, notifBody, ratingLink = null;
 
-            let notifBody;
-            if (status === 3) {
-                notifBody = `Employee has started your service for booking #${booking_id}.`;
-            } else if (status === 4) {
-
-                const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`;
-                notifBody = `Employee has completed your service for booking #${booking_id}. 
-                             Please take a moment to rate your experience: ${ratingLink}`;
-            }
-
-            await db.query(
-                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
-                VALUES ('users', ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-                [user_id, notifTitle, notifBody]
-            );
-        } catch (err) {
-            console.error(`⚠️ DB notification insert failed for booking_id ${booking_id}:`, err.message);
-            // don’t fail the main request if notification fails
+        if (status === 3) {
+            notifTitle = "Service Started";
+            notifBody = `Employee has started your service for booking #${booking_id}.`;
+        } else if (status === 4) {
+            notifTitle = "Service Completed";
+            notifBody = `Employee has completed your service for booking #${booking_id}. Please take a moment to rate your experience.`;
+            ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating?booking_id=${booking_id}`;
         }
 
+        // ✅ Always insert the same number of columns
+        await db.query(
+            `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at, action_link)
+     VALUES ('users', ?, ?, ?, 0, CURRENT_TIMESTAMP, ?)`,
+            [user_id, notifTitle, notifBody, ratingLink]  // ratingLink can be NULL if no link
+        );
 
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
