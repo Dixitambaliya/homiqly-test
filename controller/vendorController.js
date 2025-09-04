@@ -866,19 +866,23 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         );
 
         try {
+            let notificationTitle, notificationBody;
             // ✅ Create notification
-            const notificationTitle = status === 3
-                ? "Your service has started"
-                : "Your service has been completed";
 
-            const notificationBody = status === 3
-                ? `Your service for booking ID ${booking_id} has been started by the vendor.`
-                : `Your service for booking ID ${booking_id} has been completed by the vendor.`;
+            if (status === 3) {
+                notificationTitle = "Your service has started"
+                notificationBody = `Your service for booking ID ${booking_id} has been started by the vendor`
+            } else if (status === 4) {
+                notificationTitle = "Your service has been completed"
 
+                const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`
+                notificationBody = `Your service for booking ID ${booking_id} has been completed. 
+                Please take a moment to rate your experience: ${ratingLink}`;
+            }
 
             await db.query(
-                `INSERT INTO notifications (user_type, user_id, title, body)
-             VALUES (?, ?, ?, ?)`,
+                `INSERT INTO notifications(user_type, user_id, title, body)
+                VALUES(?, ?, ?, ?)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
 
@@ -935,25 +939,25 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
         // ✅ Get bookings summary
         const [[bookingStats]] = await db.query(
             `
-            SELECT 
+                SELECT
                 COUNT(*) AS totalBookings,
-                SUM(CASE WHEN sb.bookingStatus = 0 THEN 1 ELSE 0 END) AS pendingBookings,
-                SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS completedBookings
+                    SUM(CASE WHEN sb.bookingStatus = 0 THEN 1 ELSE 0 END) AS pendingBookings,
+                        SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS completedBookings
             FROM service_booking sb
             WHERE sb.vendor_id = ? ${dateFilter};
-            `,
+                `,
             params
         );
 
         // ✅ Get earnings
         const [[earnings]] = await db.query(
             `
-            SELECT 
-                CAST(SUM(p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS totalEarnings
+                SELECT
+                CAST(SUM(p.amount * (1 - ? / 100)) AS DECIMAL(10, 2)) AS totalEarnings
             FROM service_booking sb
             JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
             WHERE sb.vendor_id = ? AND p.status = 'completed' ${dateFilter};
-            `,
+                `,
             [platformFee, ...params]
         );
 
@@ -977,9 +981,6 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
-
 
 module.exports = {
     getVendorAssignedPackages,
