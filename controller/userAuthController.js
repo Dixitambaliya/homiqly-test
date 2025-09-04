@@ -164,7 +164,6 @@ const loginUser = asyncHandler(async (req, res) => {
                         "UPDATE users SET fcmToken = ? WHERE user_id = ?",
                         [trimmedToken, user.user_id]
                     );
-                    console.log("✅ FCM token updated for user:", user.user_id);
                 } catch (err) {
                     console.error("❌ FCM token update error:", err.message);
                 }
