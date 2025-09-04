@@ -28,6 +28,7 @@ const Bookings = () => {
     try {
       setLoading(true);
       const response = await api.get("/api/admin/getbookings");
+      console.log("Bookings response:", response.data.bookings);
       const bookingsList = response.data.bookings || [];
       setBookings(bookingsList);
     } catch (error) {

@@ -11,6 +11,7 @@ const Services = () => {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [requestingPackages, setRequestingPackages] = useState({});
   const [showModal, setShowModal] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState(null);
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -76,7 +77,12 @@ const Services = () => {
 
         {/* Dropdown */}
         <div className="flex items-center justify-between gap-3">
-          <Button onClick={() => setShowModal(true)}>
+          <Button
+            onClick={() => {
+              setSelectedPackage(null);
+              setShowModal(true);
+            }}
+          >
             Request New Services
           </Button>
           <select
@@ -200,15 +206,46 @@ const Services = () => {
                               </div>
                             </div>
                           )}
+                          {pkg.addons?.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-sm font-semibold text-gray-700 mb-2">
+                                Addons :
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {pkg.addons.map((pref, index) => (
+                                  <div
+                                    key={index}
+                                    className="bg-white shadow-md rounded-lg border p-4 flex flex-col"
+                                  >
+                                    <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                                      {pref.addon_name}
+                                    </h4>
+                                    <p className="text-xs text-gray-600 mb-2">
+                                      {pref.description}
+                                    </p>
+                                    <span className="text-sm font-medium text-blue-600">
+                                      ₹{pref.price}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           <div className="flex justify-end">
                             <Button
                               size="sm"
                               variant="primary"
                               disabled={requestingPackages[pkg.package_id]}
-                              onClick={() =>
-                                handleRequestService(pkg.package_id)
-                              }
+                              onClick={() => {
+                                setSelectedPackage({
+                                  ...pkg,
+                                  service_id: service.service_id,
+                                  service_category_id:
+                                    service.service_category_id,
+                                });
+                                setShowModal(true);
+                              }}
                             >
                               {requestingPackages[pkg.package_id]
                                 ? "Requesting..."
@@ -228,6 +265,7 @@ const Services = () => {
       <ApplyServiceModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
+        initialPackage={selectedPackage}
       />
     </div>
   );

@@ -43,50 +43,52 @@ const Dashboard = () => {
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filterType, setFilterType] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      let url = `/api/vendor/getstats?filterType=${filterType}`;
+      if (filterType === "custom" && startDate && endDate) {
+        url += `&startDate=${startDate}&endDate=${endDate}`;
+      }
+
+      const statsResponse = await api.get(url);
+      const statsData = statsResponse.data.stats || {};
+
+      setStats({
+        totalBookings: statsData.totalBookings || 0,
+        pendingBookings: parseInt(statsData.pendingBookings) || 0,
+        completedBookings: parseInt(statsData.completedBookings) || 0,
+        totalEarnings: statsData.totalEarnings || 0,
+      });
+
+      // fetch vendor bookings
+      const bookingsResponse = await api.get(
+        "/api/booking/vendorassignedservices"
+      );
+      const bookings = bookingsResponse.data.bookings || [];
+
+      const sortedBookings = [...bookings]
+        .sort((a, b) => new Date(b.bookingDate) - new Date(a.bookingDate))
+        .slice(0, 5);
+
+      setRecentBookings(sortedBookings);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch vendor bookings
-        const bookingsResponse = await api.get(
-          "/api/booking/vendorassignedservices"
-        );
-        const bookings = bookingsResponse.data.bookings || [];
-
-        // Calculate stats
-        const totalBookings = bookings.length;
-        const pendingBookings = bookings.filter(
-          (b) => b.bookingStatus === 1
-        ).length;
-        const completedBookings = bookings.filter(
-          (b) => b.bookingStatus === 4
-        ).length;
-
-        // Get recent bookings
-        const sortedBookings = [...bookings]
-          .sort((a, b) => new Date(b.bookingDate) - new Date(a.bookingDate))
-          .slice(0, 5);
-
-        setStats({
-          totalBookings,
-          pendingBookings,
-          completedBookings,
-          totalEarnings: 0, // This would need payment data
-        });
-
-        setRecentBookings(sortedBookings);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setError("Failed to load dashboard data");
-        setLoading(false);
-      }
-    };
-
     fetchDashboardData();
-  }, []);
+  }, [filterType, startDate, endDate]);
 
   // Prepare chart data
   const performanceData = {
@@ -121,7 +123,40 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <ToggleButton />
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        <ToggleButton />
+
+        <div className="flex space-x-4 mb-6">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="border rounded p-2"
+          >
+            <option value="">All</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="custom">Custom</option>
+          </select>
+
+          {filterType === "custom" && (
+            <>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border rounded p-2"
+              />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border rounded p-2"
+              />
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
