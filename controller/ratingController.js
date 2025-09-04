@@ -191,6 +191,7 @@ const getBookedPackagesForRating = asyncHandler(async (req, res) => {
                 sbp.package_id,
                 p.packageName,
                 p.totalPrice,
+                sbp.booking_id,
                 p.totalTime,
                 st.serviceTypeName,
                 s.serviceName

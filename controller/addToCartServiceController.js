@@ -365,6 +365,50 @@ const checkoutCartService = asyncHandler(async (req, res) => {
     }
 });
 
+const deleteCartItem = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { cart_id } = req.params;
+
+    if (!cart_id) {
+        return res.status(400).json({ message: "cart_id is required" });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        // ✅ Ensure cart belongs to this user
+        const [[cart]] = await connection.query(
+            "SELECT cart_id FROM service_cart WHERE cart_id = ? AND user_id = ?",
+            [cart_id, user_id]
+        );
+
+        if (!cart) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ message: "Cart item not found" });
+        }
+
+        // ✅ Delete all related rows (CASCADE handles if FK is set up)
+        await connection.query("DELETE FROM cart_preferences WHERE cart_id = ?", [cart_id]);
+        await connection.query("DELETE FROM cart_package_items WHERE cart_id = ?", [cart_id]);
+        await connection.query("DELETE FROM cart_addons WHERE cart_id = ?", [cart_id]);
+        await connection.query("DELETE FROM cart_packages WHERE cart_id = ?", [cart_id]);
+        await connection.query("DELETE FROM service_cart WHERE cart_id = ?", [cart_id]);
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({ message: "Cart item deleted successfully" });
+    } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error("Delete cart item error:", err);
+        res.status(500).json({ message: "Failed to delete cart item", error: err.message });
+    }
+});
 
 
-module.exports = { addToCartService, getUserCart, checkoutCartService };
+
+module.exports = { addToCartService, getUserCart, checkoutCartService, deleteCartItem };
+    

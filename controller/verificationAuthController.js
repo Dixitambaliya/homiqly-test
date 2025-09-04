@@ -112,18 +112,15 @@ const approveServiceType = asyncHandler(async (req, res) => {
         }
         const vendor_id = typeRow.vendor_id;
         const vendor_type = typeRow.vendorType;
-        console.log(vendor_id);
 
         await db.query(verificationQueries.updateServiceTypeStatus, [is_approved, service_type_id]);
 
         let email;
         if (vendor_type === "company") {
             const [rows] = await db.query(verificationQueries.getCompanyEmail, [vendor_id]);
-            console.log("Company Query Result:", rows);
             email = rows?.[0]?.companyEmail;
         } else if (vendor_type === "individual") {
             const [rows] = await db.query(verificationQueries.getIndividualEmail, [vendor_id]);
-            console.log("Individual Query Result:", rows);
             email = rows?.[0]?.email;
         }
 

@@ -866,19 +866,23 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         );
 
         try {
+            let notificationTitle, notificationBody;
             // ✅ Create notification
-            const notificationTitle = status === 3
-                ? "Your service has started"
-                : "Your service has been completed";
 
-            const notificationBody = status === 3
-                ? `Your service for booking ID ${booking_id} has been started by the vendor.`
-                : `Your service for booking ID ${booking_id} has been completed by the vendor.`;
+            if (status === 3) {
+                notificationTitle = "Your service has started"
+                notificationBody = `Your service for booking ID ${booking_id} has been started by the vendor`
+            } else if (status === 4) {
+                notificationTitle = "Your service has been completed"
 
+                const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`
+                notificationBody = `Your service for booking ID ${booking_id} has been completed. 
+                Please take a moment to rate your experience: ${ratingLink}`;
+            }
 
             await db.query(
-                `INSERT INTO notifications (user_type, user_id, title, body)
-             VALUES (?, ?, ?, ?)`,
+                `INSERT INTO notifications(user_type, user_id, title, body)
+                VALUES(?, ?, ?, ?)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
 
@@ -899,7 +903,84 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     }
 });
 
+const getVendorDashboardStats = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const { filterType, startDate, endDate } = req.query;
+    // filterType = 'all' | 'weekly' | 'monthly' | 'custom'
 
+    try {
+        // ✅ Get vendor type
+        const [[vendorRow]] = await db.query(
+            bookingGetQueries.getVendorIdForBooking,
+            [vendor_id]
+        );
+        const vendorType = vendorRow?.vendorType || null;
+
+        // ✅ Get platform fee %
+        const [platformSettings] = await db.query(
+            bookingGetQueries.getPlateFormFee,
+            [vendorType]
+        );
+        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+
+        // ✅ Build WHERE clause for date filters
+        let dateFilter = "";
+        let params = [vendor_id];
+
+        if (filterType === "weekly") {
+            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+        } else if (filterType === "monthly") {
+            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
+        } else if (filterType === "custom" && startDate && endDate) {
+            dateFilter = "AND sb.created_at BETWEEN ? AND ?";
+            params = [vendor_id, startDate, endDate];
+        } // else all-time → no filter
+
+        // ✅ Get bookings summary
+        const [[bookingStats]] = await db.query(
+            `
+                SELECT
+                COUNT(*) AS totalBookings,
+                    SUM(CASE WHEN sb.bookingStatus = 0 THEN 1 ELSE 0 END) AS pendingBookings,
+                        SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS completedBookings
+            FROM service_booking sb
+            WHERE sb.vendor_id = ? ${dateFilter};
+                `,
+            params
+        );
+
+        // ✅ Get earnings
+        const [[earnings]] = await db.query(
+            `
+                SELECT
+                CAST(SUM(p.amount * (1 - ? / 100)) AS DECIMAL(10, 2)) AS totalEarnings
+            FROM service_booking sb
+            JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+            WHERE sb.vendor_id = ? AND p.status = 'completed' ${dateFilter};
+                `,
+            [platformFee, ...params]
+        );
+
+        res.status(200).json({
+            message: "Vendor dashboard stats fetched successfully",
+            filterType,
+            stats: {
+                totalBookings: bookingStats.totalBookings || 0,
+                pendingBookings: bookingStats.pendingBookings || 0,
+                completedBookings: bookingStats.completedBookings || 0,
+                totalEarnings: earnings.totalEarnings
+                    ? parseFloat(earnings.totalEarnings)
+                    : 0
+            }
+        });
+    } catch (error) {
+        console.error("Error fetching vendor dashboard stats:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
 
 module.exports = {
     getVendorAssignedPackages,
@@ -917,5 +998,6 @@ module.exports = {
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
     getVendorFullPaymentHistory,
-    updateBookingStatusByVendor
+    updateBookingStatusByVendor,
+    getVendorDashboardStats
 };

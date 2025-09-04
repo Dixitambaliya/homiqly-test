@@ -29,10 +29,8 @@ const addCategory = asyncHandler(async (req, res) => {
         await db.query(servicePostQueries.InsertCategory, [categoryName]);
 
         const [rows] = await db.query("SELECT fcmToken FROM vendors WHERE fcmToken IS NOT NULL")
-        console.log("tokenResult", rows);
 
         const tokens = rows.map((row) => row.fcmToken).filter(Boolean)
-        console.log("tokens", tokens);
 
         if (tokens.length > 0) {
             const message = {
