@@ -35,6 +35,6 @@ router.get('/getallvendorsrating', authenticationToken, getAllVendorRatings);
 
 router.post('/addrating', authenticationToken, addRatingToServiceType);
 
-router.post('/ratepackages', authenticationToken, addRatingToPackages);
+router.post('/ratebookings', authenticationToken, addRatingToPackages);
 
 module.exports = router;
