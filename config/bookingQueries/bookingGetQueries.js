@@ -7,7 +7,7 @@ const bookingGetQueries = {
     sc.serviceCategory,
     st.serviceTypeName,
     sb.payment_status AS payment_status,
-    p.amount AS payment_amount,
+    (p.amount * (1 - ? / 100)) AS payment_amount,
     p.currency AS payment_currency,
     CONCAT(u.firstName, ' ', u.lastName) AS userName,
     u.profileImage AS userProfileImage,
@@ -105,6 +105,20 @@ WHERE sba.booking_id = ?
     DESC LIMIT 1
 `,
 
+    getBookedAddons: `
+    SELECT 
+        sba.package_id,
+        sba.addon_id,
+        a.addonName,
+        a.addonMedia,
+        ROUND(sba.price * ?, 2) AS price,
+        sba.quantity
+     FROM service_booking_addons sba
+     JOIN package_addons a ON sba.addon_id = a.addon_id
+     WHERE sba.booking_id = ?
+        `,
+
+
     getBookedPackages: `
                 SELECT
                     p.package_id,
@@ -147,19 +161,6 @@ sp.preference_id,
     )
     LIMIT 1
 `,
-
-    getBookedAddons: `
-    SELECT 
-        sba.package_id,
-        sba.addon_id,
-        a.addonName,
-        a.addonMedia,
-        ROUND(sba.price * ?, 2) AS price,
-        sba.quantity
-     FROM service_booking_addons sba
-     JOIN package_addons a ON sba.addon_id = a.addon_id
-     WHERE sba.booking_id = ?
-        `,
 
     getBookingDetail: `
 SELECT

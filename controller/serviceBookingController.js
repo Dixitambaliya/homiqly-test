@@ -204,6 +204,7 @@ const bookService = asyncHandler(async (req, res) => {
 });
 
 
+
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -228,10 +229,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         // ✅ Fetch vendor bookings
         const [bookings] = await db.query(
             bookingGetQueries.getVendorBookings,
-            [vendor_id]
+            [platformFee, vendor_id]
         );
 
         for (const booking of bookings) {
+            booking.payment_amount = booking.payment_amount
+                ? Number(booking.payment_amount)
+                : 0;
             const bookingId = booking.booking_id;
 
             // 🔹 Fetch Packages
@@ -309,6 +313,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 
 const getUserBookings = asyncHandler(async (req, res) => {
