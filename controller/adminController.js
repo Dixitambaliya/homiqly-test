@@ -465,7 +465,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                         [
                             package_id,
                             pref.preference_value.trim(),
-                            pref.preferencePrice ?? 0]
+                            pref.preference_price ?? 0]
                     );
                 }
             }
@@ -918,7 +918,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     await connection.query(adminPutQueries.insertPackagePreference, [
                         package_id,
                         pref.preference_value.trim(),
-                        pref.preferencePrice ?? 0
+                        pref.preference_price ?? 0
                     ]);
                 }
             }
