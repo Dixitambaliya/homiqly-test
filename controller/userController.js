@@ -159,10 +159,8 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
                 s.service_type_id,
                 s.service_id,
                 s.serviceTypeName,
-                s.serviceTypeMedia,
-                ss.subTypename
-            FROM service_type s
-            LEFT JOIN service_subtypes ss ON ss.service_type_id = s.service_type_id
+                s.serviceTypeMedia
+                FROM service_type s
             WHERE s.service_id = ?
             ORDER BY service_type_id DESC
         `, [service_id]);

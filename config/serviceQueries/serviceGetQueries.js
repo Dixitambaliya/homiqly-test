@@ -16,7 +16,7 @@ const serviceGetQueries = {
     getServiceCategories: `SELECT 
                 sc.service_categories_id,
                 sc.serviceCategory,
-                ssc.subtype_id,
+                ssc.subcategory_id,
                 ssc.subCategories
             FROM service_categories sc
             LEFT JOIN service_subcategories ssc 

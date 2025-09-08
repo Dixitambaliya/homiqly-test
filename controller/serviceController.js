@@ -406,9 +406,9 @@ const getServiceCategories = asyncHandler(async (req, res) => {
                 };
             }
 
-            if (row.subtype_id) {
+            if (row.subcategory_id) {
                 categoriesMap[row.service_categories_id].subCategories.push({
-                    subtypeId: row.subtype_id,
+                    subtypeId: row.subcategory_id,
                     subCategory: row.subCategories
                 });
             }
