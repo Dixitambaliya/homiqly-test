@@ -18,8 +18,8 @@ const adminPostQueries = {
   `,
 
   insertBookingPreference: `
-    INSERT INTO booking_preferences (package_id, preferenceValue)
-    VALUES (?, ?)
+    INSERT INTO booking_preferences (package_id, preferenceValue , preferencePrice)
+    VALUES (?, ?, ?)
   `,
   
     checkPackageExists: `SELECT package_id FROM packages WHERE package_id = ?`,

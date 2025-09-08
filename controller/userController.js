@@ -108,6 +108,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 service = {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
+                    subcategoryName: row.subcategoryName || null,
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
@@ -118,7 +119,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             }
 
             // push serviceType if available
-            if (row.service_type_id) {
+            if (row.service_type_id && service) {
                 service.serviceTypes.push({
                     subType: row.subTypeName,
                     service_type_id: row.service_type_id,
@@ -143,6 +144,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
 
@@ -156,10 +158,8 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
                 s.service_type_id,
                 s.service_id,
                 s.serviceTypeName,
-                s.serviceTypeMedia,
-                ss.subTypename
-            FROM service_type s
-            LEFT JOIN service_subtypes ss ON ss.service_type_id = s.service_type_id
+                s.serviceTypeMedia
+                FROM service_type s
             WHERE s.service_id = ?
             ORDER BY service_type_id DESC
         `, [service_id]);
@@ -486,6 +486,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                 p.description,
                 p.totalPrice,
                 p.totalTime,
+                p.subCategoryName,
                 p.packageMedia,
 
                 -- Ratings
@@ -494,7 +495,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   FROM ratings r
                   WHERE r.package_id = p.package_id
                 ), 0) AS averageRating,
-
+            
                 IFNULL((
                   SELECT COUNT(r.rating_id)
                   FROM ratings r
@@ -538,7 +539,8 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   SELECT CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
                       'preference_id', bp.preference_id,
-                      'preference_value', bp.preferenceValue
+                      'preference_value', bp.preferenceValue,
+                      'preference_price', bp.preferencePrice
                     )
                   ), ']')
                   FROM booking_preferences bp
