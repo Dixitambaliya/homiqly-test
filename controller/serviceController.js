@@ -52,7 +52,7 @@ const addCategory = asyncHandler(async (req, res) => {
 
 
 const addService = asyncHandler(async (req, res) => {
-    let { serviceName, categoryName, serviceDescription, sub_categories = [] } = req.body;
+    let { serviceName, categoryName, serviceDescription, subCategories = [] } = req.body;
 
     if (!serviceName) {
         return res.status(400).json({ message: "All fields are required" });
@@ -65,12 +65,12 @@ const addService = asyncHandler(async (req, res) => {
     }
 
     // ✅ Convert string -> array if sub_categories is JSON string like '["man","female"]'
-    if (typeof sub_categories === "string") {
+    if (typeof subCategories === "string") {
         try {
-            sub_categories = JSON.parse(sub_categories);
+            subCategories = JSON.parse(sub_categories);
         } catch (e) {
-            console.error("Invalid sub_categories format:", sub_categories);
-            sub_categories = [];
+            console.error("Invalid sub_categories format:", subCategories);
+            subCategories = [];
         }
     }
 
@@ -112,8 +112,8 @@ const addService = asyncHandler(async (req, res) => {
         const service_id = insertResult.insertId;
 
         // ✅ Insert sub_categories
-        if (Array.isArray(sub_categories) && sub_categories.length > 0) {
-            for (const subCat of sub_categories) {
+        if (Array.isArray(subCategories) && subCategories.length > 0) {
+            for (const subCat of subCategories) {
                 await connection.query(
                     `INSERT INTO service_subcategories (subCategories, service_categories_id) VALUES (?, ?)`,
                     [subCat.trim(), service_categories_id]
@@ -121,7 +121,7 @@ const addService = asyncHandler(async (req, res) => {
             }
         }
 
-        console.log("Subcategories received:", sub_categories);
+        console.log("Subcategories received:", subCategories);
 
         // FCM notifications
         const [rows] = await connection.query(
@@ -153,43 +153,61 @@ const addService = asyncHandler(async (req, res) => {
 });
 
 
-const addSubType = asyncHandler(async (req, res) => {
-    const { service_id, subtypeName } = req.body;
-    const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
+const addSubCategory = asyncHandler(async (req, res) => {
+    const { serviceCategoryId, sub_categories } = req.body;
 
-    if (!service_id || !subtypeName) {
-        return res.status(400).json({ message: "service_id and subtypeName are required." });
+    if (!serviceCategoryId || !sub_categories) {
+        return res.status(400).json({ message: "service_categories_id and subCategories are required." });
     }
 
-    // Check if service exists
-    const [serviceExists] = await db.query(
-        `SELECT service_id FROM services WHERE service_id = ?`,
-        [service_id]
+    // Check if category exists
+    const [categoryExists] = await db.query(
+        `SELECT service_categories_id FROM service_categories WHERE service_categories_id = ?`,
+        [serviceCategoryId]
     );
-    if (serviceExists.length === 0) {
-        return res.status(404).json({ message: "Service not found." });
+    if (categoryExists.length === 0) {
+        return res.status(404).json({ message: "Category not found." });
     }
 
-    // Optional: Prevent duplicate subtype under the same service
+    // Prevent duplicate subcategory under the same category
     const [existing] = await db.query(
-        `SELECT 1 FROM service_subtypes WHERE service_id = ? AND subtypeName = ?`,
-        [service_id, subtypeName.trim()]
+        `SELECT 1 FROM service_subcategories WHERE service_categories_id = ? AND subCategories = ?`,
+        [serviceCategoryId, sub_categories.trim()]
     );
     if (existing.length > 0) {
-        return res.status(409).json({ message: "Subtype already exists under this service." });
+        return res.status(409).json({ message: "Subcategory already exists under this category." });
     }
 
+    // Insert new subcategory
     const [result] = await db.query(
-        `INSERT INTO service_subtypes (service_id, subtypeName, subtypeMedia)
-         VALUES (?, ?, ?)`,
-        [service_id, subtypeName.trim(), subtypeMedia]
+        `INSERT INTO service_subcategories (subCategories, service_categories_id)
+         VALUES (?, ?)`,
+        [sub_categories.trim(), serviceCategoryId]
     );
 
     res.status(201).json({
-        message: "Subtype created successfully.",
+        message: "Subcategory created successfully.",
         subtype_id: result.insertId
     });
 });
+
+
+const getSubCategories = asyncHandler(async (req, res) => {
+    try {
+        // Fetch all subcategories
+        const [subCategories] = await db.query(
+            `SELECT subCategories, service_categories_id FROM service_subcategories`
+        );
+
+        res.status(200).json({
+            subCategories
+        });
+    } catch (err) {
+        console.error("Error fetching all subcategories:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 
 const addServiceCity = asyncHandler(async (req, res) => {
     const { serviceCity } = req.body;
@@ -316,7 +334,22 @@ const getServiceTypeById = asyncHandler(async (req, res) => {
 
 const getAdminService = asyncHandler(async (req, res) => {
     try {
+        // Fetch all services with category
         const [rows] = await db.query(serviceGetQueries.getAllServicesWithCategory);
+
+        // Fetch all subcategories
+        const [subCategoriesRows] = await db.query(
+            `SELECT subCategories, service_categories_id FROM service_subcategories`
+        );
+
+        // Group subcategories by category id for easy lookup
+        const subCategoriesMap = {};
+        subCategoriesRows.forEach(sub => {
+            if (!subCategoriesMap[sub.service_categories_id]) {
+                subCategoriesMap[sub.service_categories_id] = [];
+            }
+            subCategoriesMap[sub.service_categories_id].push(sub.subCategories);
+        });
 
         const grouped = {};
 
@@ -325,6 +358,7 @@ const getAdminService = asyncHandler(async (req, res) => {
             if (!grouped[category]) {
                 grouped[category] = {
                     categoryName: category,
+                    subCategories: subCategoriesMap[row.serviceCategoryId] || [],
                     services: []
                 };
             }
@@ -350,6 +384,7 @@ const getAdminService = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getService = asyncHandler(async (req, res) => {
     try {
@@ -570,5 +605,6 @@ module.exports = {
     deleteServiceCity,
     getAdminService,
     getServiceTypeById,
-    addSubType
+    addSubCategory,
+    getSubCategories
 }
