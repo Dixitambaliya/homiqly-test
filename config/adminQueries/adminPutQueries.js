@@ -33,6 +33,17 @@ SELECT * FROM package_addons WHERE addon_id = ?;
     WHERE addon_id = ? AND package_id = ?
       `,
 
+  updatePackagePreference: `UPDATE booking_preferences 
+    SET preferenceValue = ?, preferencePrice = ? 
+    WHERE preference_id = ? AND package_id = ?;
+`,
+
+  getPreferenceById: `SELECT * FROM booking_preferences WHERE preference_id = ?;
+`,
+  deleteRemovedPreferences: `DELETE FROM booking_preferences 
+    WHERE package_id = ? AND preference_id NOT IN (?);
+`,
+
   updateUserById: `
     UPDATE users
     SET firstName = ?, lastName = ?, email = ?, phone = ?, is_approved = ?

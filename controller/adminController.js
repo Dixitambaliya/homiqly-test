@@ -488,7 +488,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-const getAdminCreatedPackages = asyncHandler(async (req, res) => {  
+const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
       SELECT
@@ -909,19 +909,49 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             console.log(pkg.addons);
 
             // ✅ Handle Preferences
+            // ✅ Handle Preferences (like addons)
             if (Array.isArray(preferences)) {
-                await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
+                const submittedPrefIds = [];
 
-                for (const pref of preferences) {
-                    if (!pref.preference_value) continue;
+                for (let p = 0; p < preferences.length; p++) {
+                    const pref = preferences[p];
+                    const preference_id = pref.preference_id;
 
-                    await connection.query(adminPutQueries.insertPackagePreference, [
-                        package_id,
-                        pref.preference_value.trim(),
-                        pref.preference_price ?? 0
-                    ]);
+                    if (preference_id) {
+                        // update existing
+                        const [oldPref] = await connection.query(adminPutQueries.getPreferenceById, [preference_id]);
+                        if (!oldPref.length) continue;
+                        const old = oldPref[0];
+
+                        const preference_value = pref.preference_value ?? old.preference_value;
+                        const preference_price = pref.preference_price ?? old.preference_price;
+
+                        await connection.query(adminPutQueries.updatePackagePreference, [
+                            preference_value,
+                            preference_price,
+                            preference_id,
+                            package_id
+                        ]);
+
+                        submittedPrefIds.push(preference_id);
+                    } else {
+                        // insert new
+                        const [newPref] = await connection.query(adminPutQueries.insertPackagePreference, [
+                            package_id,
+                            pref.preference_value,
+                            pref.preference_price ?? 0
+                        ]);
+                        submittedPrefIds.push(newPref.insertId);
+                    }
                 }
+
+                // cleanup removed preferences
+                await connection.query(adminPutQueries.deleteRemovedPreferences, [
+                    package_id,
+                    submittedPrefIds.length ? submittedPrefIds : [0] // avoid empty IN ()
+                ]);
             }
+
         }
 
         await connection.commit();
