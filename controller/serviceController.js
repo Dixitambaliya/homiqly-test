@@ -395,13 +395,29 @@ const getServiceCategories = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(serviceGetQueries.getServiceCategories)
 
-        const categories = rows.map(row => ({
-            serviceCategory: row.serviceCategory,
-            serviceCategoryId: row.service_categories_id
-        }))
+        // Group categories with subcategories
+        const categoriesMap = {};
+        rows.forEach(row => {
+            if (!categoriesMap[row.service_categories_id]) {
+                categoriesMap[row.service_categories_id] = {
+                    serviceCategoryId: row.service_categories_id,
+                    serviceCategory: row.serviceCategory,
+                    subCategories: []
+                };
+            }
+
+            if (row.subtype_id) {
+                categoriesMap[row.service_categories_id].subCategories.push({
+                    subtypeId: row.subtype_id,
+                    subCategory: row.subCategories
+                });
+            }
+        });
+
+        const categories = Object.values(categoriesMap);
 
         res.status(200).json({
-            message: "Service fetched successfully",
+            message: "Service categories fetched successfully",
             categories
         });
     } catch (err) {
