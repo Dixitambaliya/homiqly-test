@@ -172,6 +172,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
       const prefs = (preferences || []).map((p) => ({
         preference_value: p.preference_value,
+        preference_price: p.preference_price || 0,
       }));
 
       form.append("packages", JSON.stringify(packages));
@@ -365,13 +366,27 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
             </Button>
           </div>
           {preferences.map((pref, index) => (
-            <div key={index} className="flex items-center gap-2 mb-2">
+            <div key={index} className="flex items-end  gap-2 mb-2 w-full">
               <FormInput
                 label={`Preference ${index + 1}`}
                 value={pref.preference_value}
                 onChange={(e) => handlePreferenceChange(index, e.target.value)}
                 required
               />
+              <FormInput
+                label="Price"
+                type="number"
+                value={pref.preference_price || ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setPreferences((prev) => {
+                    const updated = [...prev];
+                    updated[index].preference_price = value;
+                    return updated;
+                  });
+                }}
+              />
+
               <Button
                 type="button"
                 size="sm"

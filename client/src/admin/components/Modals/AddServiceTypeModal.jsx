@@ -44,7 +44,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         ],
       },
     ],
-    preferences: [{ preference_value: "" }],
+    preferences: [{ preference_value: "", preference_price: "" }],
   });
 
   const [categories, setCategories] = useState([]);
@@ -315,7 +315,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
           ],
         },
       ],
-      preferences: [{ preference_value: "" }],
+      preferences: [{ preference_value: "", preference_price: "" }],
     });
     setFilteredServices([]);
   };
@@ -667,6 +667,19 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                     }}
                     required
                   />
+                  <FormInput
+                    placeholder="Price for preference "
+                    type="number"
+                    value={pref.preference_price}
+                    onChange={(e) => {
+                      const updated = [...formData.preferences];
+                      updated[index].preference_price = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        preferences: updated,
+                      }));
+                    }}
+                  />
                   {formData.preferences.length > 1 && (
                     <IconButton
                       variant="lightDanger"
@@ -694,7 +707,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                     ...prev,
                     preferences: [
                       ...prev.preferences,
-                      { preference_value: "" },
+                      { preference_value: "", preference_price: "" },
                     ],
                   }))
                 }

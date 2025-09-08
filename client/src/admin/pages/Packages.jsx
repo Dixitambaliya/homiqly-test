@@ -200,7 +200,10 @@ const Packages = () => {
                                       key={pref.preference_id}
                                       className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full"
                                     >
-                                      {pref.preference_value}
+                                      {pref.preference_value}{" "}
+                                      {pref.preference_price
+                                        ? `(${fmtPrice(pref.preference_price)})`
+                                        : ""}
                                     </span>
                                   ))}
                                 </div>
