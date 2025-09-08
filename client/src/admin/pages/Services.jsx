@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import { FiPlus, FiTrash2, FiRefreshCw, FiX } from "react-icons/fi";
 import { FaPen } from "react-icons/fa6";
+import CreatableSelect from "react-select/creatable";
 
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button, IconButton } from "../../shared/components/Button";
@@ -14,24 +15,34 @@ import {
 
 const Services = () => {
   const [services, setServices] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState([]); // API categories contain subCategoryTypes
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // modal state
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [showEditServiceModal, setShowEditServiceModal] = useState(false);
   const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
+
+  // selection for edit
   const [selectedService, setSelectedService] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
+
+  // service form state
   const [serviceFormData, setServiceFormData] = useState({
     serviceName: "",
     categoryName: "",
     serviceDescription: "",
     serviceImage: null,
   });
+
+  // category form state now includes subCategories (array of strings)
   const [categoryFormData, setCategoryFormData] = useState({
     categoryName: "",
+    subCategories: [], // array of strings
   });
+
   const [submitting, setSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -43,60 +54,67 @@ const Services = () => {
     try {
       setLoading(true);
 
-      // Fetch services
+      // services
       const servicesResponse = await api.get("/api/service/getadminservices");
       setServices(servicesResponse.data.services || []);
 
-      // Fetch categories
+      // categories (includes subCategoryTypes)
       const categoriesResponse = await api.get(
         "/api/service/getservicecategories"
       );
       setCategories(categoriesResponse.data.categories || []);
 
       setLoading(false);
-    } catch (error) {
-      console.error("Error fetching services data:", error);
+    } catch (err) {
+      console.error("Error fetching services data:", err);
       setError("Failed to load services");
       setLoading(false);
     }
   };
 
+  // Build react-select options for subcategories from existing categories (unique)
+  const buildSubCategoryOptions = () => {
+    const names = [];
+    (categories || []).forEach((cat) => {
+      if (Array.isArray(cat.subCategoryTypes)) {
+        cat.subCategoryTypes.forEach((s) => {
+          // depending on API shape: s may be { subCategory } or string -- handle both
+          const name = s && (s.subCategory || s.subCategory || s);
+          if (name && !names.includes(name)) names.push(name);
+        });
+      }
+    });
+    return names.map((n) => ({ value: n, label: n }));
+  };
+
   const handleServiceInputChange = (e) => {
     const { name, value } = e.target;
-    setServiceFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setServiceFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleServiceImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setServiceFormData((prev) => ({
-        ...prev,
-        serviceImage: file,
-      }));
+      setServiceFormData((prev) => ({ ...prev, serviceImage: file }));
 
-      // Create preview
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
+      reader.onloadend = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
     }
   };
 
   const handleCategoryInputChange = (e) => {
     const { name, value } = e.target;
-    setCategoryFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setCategoryFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCategorySubChange = (selectedOptions) => {
+    const arr = selectedOptions ? selectedOptions.map((o) => o.value) : [];
+    setCategoryFormData((prev) => ({ ...prev, subCategories: arr }));
   };
 
   const handleAddService = async (e) => {
     e.preventDefault();
-
     if (
       !serviceFormData.serviceName ||
       !serviceFormData.categoryName ||
@@ -108,7 +126,6 @@ const Services = () => {
 
     try {
       setSubmitting(true);
-
       const formDataToSend = new FormData();
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
@@ -132,11 +149,11 @@ const Services = () => {
         toast.success("Service added successfully");
         setShowAddServiceModal(false);
         resetServiceForm();
-        fetchData(); // Refresh the list
+        fetchData();
       }
-    } catch (error) {
-      console.error("Error adding service:", error);
-      toast.error(error.response?.data?.message || "Failed to add service");
+    } catch (err) {
+      console.error("Error adding service:", err);
+      toast.error(err.response?.data?.message || "Failed to add service");
     } finally {
       setSubmitting(false);
     }
@@ -144,7 +161,6 @@ const Services = () => {
 
   const handleEditService = async (e) => {
     e.preventDefault();
-
     if (!serviceFormData.serviceName || !serviceFormData.categoryName) {
       toast.error("Please fill all required fields");
       return;
@@ -152,7 +168,6 @@ const Services = () => {
 
     try {
       setSubmitting(true);
-
       const formDataToSend = new FormData();
       formDataToSend.append("serviceId", selectedService.serviceId);
       formDataToSend.append("serviceName", serviceFormData.serviceName);
@@ -179,19 +194,19 @@ const Services = () => {
       if (response.status === 200) {
         toast.success("Service updated successfully");
         setShowEditServiceModal(false);
-        fetchData(); // Refresh the list
+        fetchData();
       }
-    } catch (error) {
-      console.error("Error updating service:", error);
-      toast.error(error.response?.data?.message || "Failed to update service");
+    } catch (err) {
+      console.error("Error updating service:", err);
+      toast.error(err.response?.data?.message || "Failed to update service");
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Add category with subCategories array (strings)
   const handleAddCategory = async (e) => {
     e.preventDefault();
-
     if (!categoryFormData.categoryName) {
       toast.error("Please enter a category name");
       return;
@@ -199,29 +214,29 @@ const Services = () => {
 
     try {
       setSubmitting(true);
+      const payload = {
+        categoryName: categoryFormData.categoryName,
+        subCategories: categoryFormData.subCategories || [],
+      };
+      const response = await api.post("/api/service/addcategory", payload);
 
-      const response = await api.post(
-        "/api/service/addcategory",
-        categoryFormData
-      );
-
-      if (response.status === 201) {
+      if (response.status === 201 || response.status === 200) {
         toast.success("Category added successfully");
         setShowAddCategoryModal(false);
-        setCategoryFormData({ categoryName: "" });
-        fetchData(); // Refresh the list
+        setCategoryFormData({ categoryName: "", subCategories: [] });
+        fetchData();
       }
-    } catch (error) {
-      console.error("Error adding category:", error);
-      toast.error(error.response?.data?.message || "Failed to add category");
+    } catch (err) {
+      console.error("Error adding category:", err);
+      toast.error(err.response?.data?.message || "Failed to add category");
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Edit category: include subCategories if backend supports them
   const handleEditCategory = async (e) => {
     e.preventDefault();
-
     if (!categoryFormData.categoryName) {
       toast.error("Please enter a category name");
       return;
@@ -230,41 +245,42 @@ const Services = () => {
     try {
       setSubmitting(true);
 
-      const response = await api.put("/api/service/editcategory", {
+      const payload = {
         serviceCategoryId: selectedCategory.serviceCategoryId,
         newCategoryName: categoryFormData.categoryName,
-      });
+        // include subCategories (array of strings). If backend doesn't accept it, remove this.
+        subCategories: categoryFormData.subCategories || [],
+      };
+
+      const response = await api.put("/api/service/editcategory", payload);
 
       if (response.status === 200) {
         toast.success("Category updated successfully");
         setShowEditCategoryModal(false);
-        fetchData(); // Refresh the list
+        fetchData();
       }
-    } catch (error) {
-      console.error("Error updating category:", error);
-      toast.error(error.response?.data?.message || "Failed to update category");
+    } catch (err) {
+      console.error("Error updating category:", err);
+      toast.error(err.response?.data?.message || "Failed to update category");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteService = async (serviceId) => {
-    if (!confirm("Are you sure you want to delete this service?")) {
-      return;
-    }
+    if (!confirm("Are you sure you want to delete this service?")) return;
 
     try {
       const response = await api.delete("/api/service/deleteservice", {
         data: { serviceId },
       });
-
       if (response.status === 200) {
         toast.success("Service deleted successfully");
-        fetchData(); // Refresh the list
+        fetchData();
       }
-    } catch (error) {
-      console.error("Error deleting service:", error);
-      toast.error(error.response?.data?.message || "Failed to delete service");
+    } catch (err) {
+      console.error("Error deleting service:", err);
+      toast.error(err.response?.data?.message || "Failed to delete service");
     }
   };
 
@@ -273,22 +289,20 @@ const Services = () => {
       !confirm(
         "Are you sure you want to delete this category? This will also delete all services in this category."
       )
-    ) {
+    )
       return;
-    }
 
     try {
       const response = await api.delete("/api/service/deletecategory", {
         data: { serviceCategoryId },
       });
-
       if (response.status === 200) {
         toast.success("Category deleted successfully");
-        fetchData(); // Refresh the list
+        fetchData();
       }
-    } catch (error) {
-      console.error("Error deleting category:", error);
-      toast.error(error.response?.data?.message || "Failed to delete category");
+    } catch (err) {
+      console.error("Error deleting category:", err);
+      toast.error(err.response?.data?.message || "Failed to delete category");
     }
   };
 
@@ -302,6 +316,7 @@ const Services = () => {
     setImagePreview(null);
   };
 
+  // prepare and open edit forms
   const editService = (service) => {
     setSelectedService(service);
     setServiceFormData({
@@ -310,15 +325,29 @@ const Services = () => {
       serviceDescription: service.description || "",
       serviceImage: null,
     });
-    setImagePreview(service.serviceImage);
+    setImagePreview(service.serviceImage || null);
     setShowEditServiceModal(true);
   };
 
   const editCategory = (category) => {
-    setSelectedCategory(category);
-    setCategoryFormData({
-      categoryName: category.categoryName,
+    // category from API likely has fields:
+    // serviceCategoryId, serviceCategory (name), subCategoryTypes: [{ subcategoryId, subCategory }]
+    const name = category.serviceCategory || category.categoryName || "";
+    const subTypes = Array.isArray(category.subCategoryTypes)
+      ? category.subCategoryTypes.map((s) =>
+          s.subCategory ? s.subCategory : s
+        )
+      : [];
+
+    setSelectedCategory({
+      serviceCategoryId: category.serviceCategoryId,
     });
+
+    setCategoryFormData({
+      categoryName: name,
+      subCategories: subTypes,
+    });
+
     setShowEditCategoryModal(true);
   };
 
@@ -337,6 +366,14 @@ const Services = () => {
       </div>
     );
   }
+
+  // react-select options from existing subcategories
+  const subOptions = buildSubCategoryOptions();
+
+  // react-select value for adding/editing
+  const categorySelectValue = (categoryFormData.subCategories || []).map(
+    (s) => ({ value: s, label: s })
+  );
 
   return (
     <div>
@@ -376,26 +413,21 @@ const Services = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Category Name
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Subcategories
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
+
                 <tbody className="bg-white divide-y divide-gray-200">
                   {categories.map((category) => (
                     <tr
@@ -407,11 +439,36 @@ const Services = () => {
                           {category.serviceCategoryId}
                         </div>
                       </td>
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
                           {category.serviceCategory}
                         </div>
                       </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-2">
+                          {Array.isArray(category.subCategoryTypes) &&
+                          category.subCategoryTypes.length > 0 ? (
+                            category.subCategoryTypes.map((s, idx) => {
+                              const label = s.subCategory || s;
+                              return (
+                                <span
+                                  key={idx}
+                                  className="text-xs bg-gray-100 px-2 py-1 rounded-full"
+                                >
+                                  {label}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-xs text-gray-500">
+                              — none —
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <IconButton
                           variant="lightInfo"
@@ -420,10 +477,11 @@ const Services = () => {
                           onClick={() =>
                             editCategory({
                               serviceCategoryId: category.serviceCategoryId,
-                              categoryName: category.serviceCategory,
+                              serviceCategory: category.serviceCategory,
+                              subCategoryTypes: category.subCategoryTypes || [],
                             })
                           }
-                        ></IconButton>
+                        />
                         <IconButton
                           variant="lightDanger"
                           size="md"
@@ -431,7 +489,7 @@ const Services = () => {
                           onClick={() =>
                             handleDeleteCategory(category.serviceCategoryId)
                           }
-                        ></IconButton>
+                        />
                       </td>
                     </tr>
                   ))}
@@ -487,7 +545,7 @@ const Services = () => {
                               size="md"
                               icon={<FaPen />}
                               onClick={() => editService(service)}
-                            ></IconButton>
+                            />
                             <IconButton
                               variant="lightDanger"
                               size="md"
@@ -495,8 +553,7 @@ const Services = () => {
                               onClick={() =>
                                 handleDeleteService(service.serviceId)
                               }
-                              className="text-red-600 hover:text-red-900"
-                            ></IconButton>
+                            />
                           </div>
                         </div>
                       </div>
@@ -531,7 +588,7 @@ const Services = () => {
                 variant="lightDanger"
                 size="sm"
                 icon={<FiX />}
-              ></IconButton>
+              />
             </div>
 
             <form onSubmit={handleAddService} className="p-4">
@@ -571,17 +628,7 @@ const Services = () => {
                       label: cat.serviceCategory,
                     }))}
                     placeholder="Select Category"
-                  >
-                    {/* <option value="">Select Category</option>
-                    {categories.map((category) => (
-                      <option
-                        key={category.serviceCategoryId}
-                        value={category.serviceCategory}
-                      >
-                        {category.serviceCategory}
-                      </option>
-                    ))} */}
-                  </FormSelect>
+                  />
                 </div>
 
                 <div>
@@ -597,7 +644,7 @@ const Services = () => {
                     value={serviceFormData.serviceDescription}
                     onChange={handleServiceInputChange}
                     rows="3"
-                  ></FormTextarea>
+                  />
                 </div>
 
                 <div>
@@ -642,7 +689,6 @@ const Services = () => {
                 <Button type="submit" disabled={submitting}>
                   {submitting ? (
                     <>
-                      <LoadingSpinner size="sm" color="white" />
                       <span className="ml-2">Adding...</span>
                     </>
                   ) : (
@@ -666,7 +712,7 @@ const Services = () => {
                 variant="lightDanger"
                 size="sm"
                 icon={<FiX />}
-              ></IconButton>
+              />
             </div>
 
             <form onSubmit={handleEditService} className="p-4">
@@ -706,17 +752,7 @@ const Services = () => {
                       label: cat.serviceCategory,
                     }))}
                     placeholder="Select Category"
-                  >
-                    {/* <option value="">Select Category</option>
-                    {categories.map((category) => (
-                      <option
-                        key={category.serviceCategoryId}
-                        value={category.serviceCategory}
-                      >
-                        {category.serviceCategory}
-                      </option>
-                    ))} */}
-                  </FormSelect>
+                  />
                 </div>
 
                 <div>
@@ -732,7 +768,7 @@ const Services = () => {
                     value={serviceFormData.serviceDescription}
                     onChange={handleServiceInputChange}
                     rows="3"
-                  ></FormTextarea>
+                  />
                 </div>
 
                 <div>
@@ -772,7 +808,6 @@ const Services = () => {
                 <Button type="submit" disabled={submitting}>
                   {submitting ? (
                     <>
-                      <LoadingSpinner size="sm" color="white" />
                       <span className="ml-2">Updating...</span>
                     </>
                   ) : (
@@ -796,25 +831,46 @@ const Services = () => {
                 variant="lightDanger"
                 onClick={() => setShowAddCategoryModal(false)}
                 icon={<FiX />}
-              ></IconButton>
+              />
             </div>
 
             <form onSubmit={handleAddCategory} className="p-4">
-              <div>
-                <label
-                  htmlFor="newCategoryName"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Category Name*
-                </label>
-                <FormInput
-                  type="text"
-                  id="newCategoryName"
-                  name="categoryName"
-                  value={categoryFormData.categoryName}
-                  onChange={handleCategoryInputChange}
-                  required
-                />
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="newCategoryName"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Category Name*
+                  </label>
+                  <FormInput
+                    type="text"
+                    id="newCategoryName"
+                    name="categoryName"
+                    value={categoryFormData.categoryName}
+                    onChange={handleCategoryInputChange}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subcategories (optional)
+                  </label>
+                  <CreatableSelect
+                    isMulti
+                    name="subCategories"
+                    options={subOptions}
+                    value={categorySelectValue}
+                    onChange={handleCategorySubChange}
+                    placeholder="Type and press Enter to add a subcategory"
+                    isClearable
+                    formatCreateLabel={(inputValue) => `Create "${inputValue}"`}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    You can type new subcategory names or pick existing ones.
+                  </p>
+                </div>
               </div>
 
               <div className="mt-6 flex justify-end space-x-3">
@@ -828,7 +884,6 @@ const Services = () => {
                 <Button type="submit" disabled={submitting}>
                   {submitting ? (
                     <>
-                      <LoadingSpinner size="sm" color="white" />
                       <span className="ml-2">Adding...</span>
                     </>
                   ) : (
@@ -852,25 +907,45 @@ const Services = () => {
                 size="sm"
                 icon={<FiX />}
                 onClick={() => setShowEditCategoryModal(false)}
-              ></IconButton>
+              />
             </div>
 
             <form onSubmit={handleEditCategory} className="p-4">
-              <div>
-                <label
-                  htmlFor="editCategoryName"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Category Name*
-                </label>
-                <FormInput
-                  type="text"
-                  id="editCategoryName"
-                  name="categoryName"
-                  value={categoryFormData.categoryName}
-                  onChange={handleCategoryInputChange}
-                  required
-                />
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="editCategoryName"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Category Name*
+                  </label>
+                  <FormInput
+                    type="text"
+                    id="editCategoryName"
+                    name="categoryName"
+                    value={categoryFormData.categoryName}
+                    onChange={handleCategoryInputChange}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subcategories
+                  </label>
+                  <Select
+                    isMulti
+                    name="subCategories"
+                    options={subOptions}
+                    value={categorySelectValue}
+                    onChange={handleCategorySubChange}
+                    placeholder="Edit subcategories"
+                    isClearable
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Update subcategory names. New ones will be submitted.
+                  </p>
+                </div>
               </div>
 
               <div className="mt-6 flex justify-end space-x-3">
@@ -884,7 +959,6 @@ const Services = () => {
                 <Button type="submit" disabled={submitting}>
                   {submitting ? (
                     <>
-                      <LoadingSpinner size="sm" color="white" />
                       <span className="ml-2">Updating...</span>
                     </>
                   ) : (
