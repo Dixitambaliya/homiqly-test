@@ -360,7 +360,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
         // 1️⃣ Determine service_type_id
         let service_type_id;
-
         if (!serviceTypeName) {
             // Insert dummy service_type if name not provided
             const [dummyResult] = await connection.query(
@@ -397,31 +396,34 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         // 2️⃣ SubCategories (optional)
         let finalSubCategoryId = null;
         if (subCategory) {
+            const subCatName = subCategory.trim();
+
             // Check in service_subcategoriestype first
             const [existingSubCatType] = await connection.query(
                 `SELECT subcategory_type_id, subCategories FROM service_subcategoriestype 
-         WHERE service_categories_id = ? AND subCategories = ? LIMIT 1`,
-                [serviceId, subCategory.trim()]
+                 WHERE service_categories_id = ? AND subCategories = ? LIMIT 1`,
+                [serviceId, subCatName]
             );
 
+            let nameToInsert = subCatName;
             if (existingSubCatType.length > 0) {
-                // Subcategory exists in type table
                 finalSubCategoryId = existingSubCatType[0].subcategory_type_id;
+                nameToInsert = existingSubCatType[0].subCategories;
+            }
 
-                // Insert into service_subcategories table using same name
-                const [insertSubCat] = await connection.query(
-                    `INSERT INTO service_subcategories (subCategories, service_id)
-             VALUES (?, ?)`,
-                    [existingSubCatType[0].subCategories, serviceId]
-                );
-                finalSubCategoryId = insertSubCat.insertId;
+            // Check if it already exists in service_subcategories
+            const [existingSubCat] = await connection.query(
+                `SELECT subcategory_id FROM service_subcategories WHERE subCategories = ? AND service_id = ? LIMIT 1`,
+                [nameToInsert, serviceId]
+            );
 
+            if (existingSubCat.length > 0) {
+                finalSubCategoryId = existingSubCat[0].subcategory_id;
             } else {
-                // Subcategory does NOT exist in type table → insert directly into service_subcategories
                 const [insertSubCat] = await connection.query(
                     `INSERT INTO service_subcategories (subCategories, service_id)
-             VALUES (?, ?)`,
-                    [subCategory.trim(), serviceId]
+                     VALUES (?, ?)`,
+                    [nameToInsert, serviceId]
                 );
                 finalSubCategoryId = insertSubCat.insertId;
             }
@@ -512,6 +514,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
