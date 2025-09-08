@@ -473,7 +473,6 @@ const getServiceCategories = asyncHandler(async (req, res) => {
 });
 
 
-
 const getcity = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(serviceGetQueries.getCities);

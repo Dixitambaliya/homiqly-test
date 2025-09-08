@@ -7,6 +7,7 @@ const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const asyncHandler = require("express-async-handler");
 
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
@@ -349,41 +350,51 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName, subCategory = null, packages, preferences } = req.body;
+        const { serviceId, serviceTypeName = null, subCategory = null, packages, preferences } = req.body;
 
-        if (!serviceTypeName || !packages) {
-            throw new Error("Missing required fields: serviceTypeName and packages.");
+        if (!packages) {
+            throw new Error("Missing required field: packages.");
         }
 
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
 
-        // 1️⃣ Check if service_type already exists
+        // 1️⃣ Determine service_type_id
         let service_type_id;
-        const [existingServiceType] = await connection.query(
-            `SELECT service_type_id FROM service_type 
-             WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
-            [serviceId, serviceTypeName.trim()]
-        );
 
-        if (existingServiceType.length > 0) {
-            service_type_id = existingServiceType[0].service_type_id;
-
-            if (serviceTypeMedia) {
-                await connection.query(
-                    `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
-                    [serviceTypeMedia, service_type_id]
-                );
-            }
-        } else {
-            const [stResult] = await connection.query(
-                `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
-                 VALUES (?, ?, ?)`,
-                [serviceId, serviceTypeName.trim(), serviceTypeMedia]
+        if (!serviceTypeName) {
+            // Insert dummy service_type if name not provided
+            const [dummyResult] = await connection.query(
+                `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia) VALUES (?, ?, ?)`,
+                [serviceId, null, null]
             );
-            service_type_id = stResult.insertId;
+            service_type_id = dummyResult.insertId;
+        } else {
+            // Check if service_type exists
+            const [existingServiceType] = await connection.query(
+                `SELECT service_type_id FROM service_type 
+                 WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
+                [serviceId, serviceTypeName.trim()]
+            );
+
+            if (existingServiceType.length > 0) {
+                service_type_id = existingServiceType[0].service_type_id;
+                if (serviceTypeMedia) {
+                    await connection.query(
+                        `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
+                        [serviceTypeMedia, service_type_id]
+                    );
+                }
+            } else {
+                const [stResult] = await connection.query(
+                    `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+                     VALUES (?, ?, ?)`,
+                    [serviceId, serviceTypeName.trim(), serviceTypeMedia || null]
+                );
+                service_type_id = stResult.insertId;
+            }
         }
 
-        // 2️⃣ SubCategories (Optional check before insert)
+        // 2️⃣ SubCategories (optional)
         let finalSubCategoryId = null;
         if (subCategory) {
             const [existingSubCat] = await connection.query(
@@ -414,21 +425,17 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             const pkg = parsedPackages[i];
             const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
-            // Insert package (storing subCategoryName directly)
             const [pkgResult] = await connection.query(
-                `
-                INSERT INTO packages 
-                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia, subCategoryName)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                `,
+                `INSERT INTO packages 
+                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
+                VALUES (?, ?, ?, ?, ?, ?)`,
                 [
                     service_type_id,
-                    pkg.package_name,
-                    pkg.description,
-                    pkg.total_price,
-                    pkg.total_time,
-                    media,
-                    subCategory || null
+                    pkg.package_name || null,
+                    pkg.description || null,
+                    pkg.total_price || 0,
+                    pkg.total_time || 0,
+                    media
                 ]
             );
             const package_id = pkgResult.insertId;
@@ -440,7 +447,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
                 await connection.query(
                     adminPostQueries.insertPackageItem,
-                    [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
+                    [package_id, sub.item_name || null, sub.description || null, sub.price || 0, sub.time_required || 0, itemMedia]
                 );
             }
 
@@ -454,10 +461,10 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                      VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
-                        addon.addon_name,
+                        addon.addon_name || null,
                         addon.description || null,
                         addon.price || 0,
-                        addon.addon_time,
+                        addon.addon_time || 0,
                         addon_media
                     ]
                 );
@@ -481,7 +488,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "✅ Service type, subcategory, packages, and addons created successfully",
+            message: "✅ Packages created successfully",
             service_type_id,
             subCategoryId: finalSubCategoryId
         });
