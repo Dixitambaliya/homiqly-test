@@ -425,22 +425,36 @@ const getService = asyncHandler(async (req, res) => {
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
-        const [rows] = await db.query(serviceGetQueries.getServiceCategories)
+        // Query categories + subcategoriestype
+        const [rows] = await db.query(`
+            SELECT 
+                sc.service_categories_id,
+                sc.serviceCategory,
+                ssct.subcategory_type_id,
+                ssct.subCategories
+            FROM service_categories sc
+            LEFT JOIN service_subcategoriestype ssct
+                ON sc.service_categories_id = ssct.service_categories_id
+            ORDER BY sc.service_categories_id, ssct.subcategory_type_id
+        `);
 
-        // Group categories with subcategories
+        // Group categories with their subcategoriestype
         const categoriesMap = {};
+
         rows.forEach(row => {
+            // Add main category if it doesn't exist
             if (!categoriesMap[row.service_categories_id]) {
                 categoriesMap[row.service_categories_id] = {
                     serviceCategoryId: row.service_categories_id,
                     serviceCategory: row.serviceCategory,
-                    subCategories: []
+                    subCategoryTypes: []
                 };
             }
 
-            if (row.subcategory_id) {
-                categoriesMap[row.service_categories_id].subCategories.push({
-                    subtypeId: row.subcategory_id,
+            // Add subcategoriestype if exists
+            if (row.subcategory_type_id) {
+                categoriesMap[row.service_categories_id].subCategoryTypes.push({
+                    subcategoryId: row.subcategory_type_id,
                     subCategory: row.subCategories
                 });
             }
@@ -449,14 +463,16 @@ const getServiceCategories = asyncHandler(async (req, res) => {
         const categories = Object.values(categoriesMap);
 
         res.status(200).json({
-            message: "Service categories fetched successfully",
+            message: "Service categories with subcategoriestypes fetched successfully",
             categories
         });
     } catch (err) {
-        console.error("Error fetching cities:", err);
+        console.error("Error fetching service categories:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
-})
+});
+
+
 
 const getcity = asyncHandler(async (req, res) => {
     try {

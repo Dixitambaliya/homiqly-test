@@ -13,22 +13,17 @@ const serviceGetQueries = {
                 LEFT JOIN services services ON service_categories.service_categories_id = services.service_categories_id`,
 
 
-    getServiceCategories: `SELECT 
+    getServiceCategories: `
+    SELECT 
     sc.service_categories_id,
     sc.serviceCategory,
-    ssc.subcategory_id,
-    ssc.subCategories,
-    ssc.service_id,
-    s.serviceName,
-    s.serviceDescription,
-    s.serviceImage,
-    s.slug
+    ssct.subcategory_id,
+    ssct.subCategories
 FROM service_categories sc
-LEFT JOIN service_subcategories ssc 
-    ON sc.service_categories_id = ssc.service_id
-LEFT JOIN services s
-    ON ssc.service_id = s.service_id
-ORDER BY sc.service_categories_id, ssc.subcategory_id;
+LEFT JOIN service_subcategoriestype ssct
+    ON sc.service_categories_id = ssct.service_categories_id
+ORDER BY sc.service_categories_id, ssct.subcategory_id;
+
  `,
 
     getCities: `SELECT * FROM service_city ORDER BY serviceCityName ASC`,
