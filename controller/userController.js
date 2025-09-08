@@ -496,7 +496,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   FROM ratings r
                   WHERE r.package_id = p.package_id
                 ), 0) AS averageRating,
-
+            
                 IFNULL((
                   SELECT COUNT(r.rating_id)
                   FROM ratings r
