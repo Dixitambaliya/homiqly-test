@@ -553,20 +553,62 @@ const deleteService = asyncHandler(async (req, res) => {
 })
 
 const editCategory = asyncHandler(async (req, res) => {
-    const { serviceCategoryId, newCategoryName } = req.body;
+    const { serviceCategoryId, newCategoryName, subCategories } = req.body;
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
     try {
-        // Check if the category exists
-        const [existingCategory] = await db.query(servicePutQueries.CheckCategoryById, [serviceCategoryId]);
+        // 1️⃣ Check if the category exists
+        const [existingCategory] = await connection.query(
+            servicePutQueries.CheckCategoryById,
+            [serviceCategoryId]
+        );
         if (existingCategory.length === 0) {
             return res.status(404).json({ message: "Category not found" });
         }
 
-        // Update category
-        await db.query(servicePutQueries.updateCategory, [newCategoryName, serviceCategoryId]);
+        // 2️⃣ Update category name
+        if (newCategoryName) {
+            await connection.query(
+                servicePutQueries.updateCategory,
+                [newCategoryName, serviceCategoryId]
+            );
+        }
 
-        res.status(200).json({ message: "Category updated successfully" });
+        // 3️⃣ Update subcategories (optional)
+        if (Array.isArray(subCategories)) {
+            for (const subCat of subCategories) {
+                // Check if subcategory exists
+                const [existingSubCat] = await connection.query(
+                    `SELECT subcategory_id FROM service_subcategories 
+                     WHERE subcategory_id = ? AND service_categories_id = ?`,
+                    [subCat.subcategoryId, serviceCategoryId]
+                );
+
+                if (existingSubCat.length > 0) {
+                    // Update existing subcategory
+                    await connection.query(
+                        `UPDATE service_subcategories SET subCategories = ? WHERE subcategory_id = ?`,
+                        [subCat.subCategory.trim(), subCat.subcategoryId]
+                    );
+                } else {
+                    // Insert new subcategory if not exists
+                    await connection.query(
+                        `INSERT INTO service_subcategories (subCategories, service_categories_id) VALUES (?, ?)`,
+                        [subCat.subCategory.trim(), serviceCategoryId]
+                    );
+                }
+            }
+        }
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({ message: "Category and subcategories updated successfully" });
     } catch (err) {
+        await connection.rollback();
+        connection.release();
         console.error("Category update failed:", err);
         res.status(500).json({ error: "Internal server error", details: err.message });
     }
