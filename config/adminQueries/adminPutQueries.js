@@ -33,6 +33,17 @@ SELECT * FROM package_addons WHERE addon_id = ?;
     WHERE addon_id = ? AND package_id = ?
       `,
 
+  updatePackagePreference: `UPDATE booking_preferences 
+    SET preferenceValue = ?, preferencePrice = ? 
+    WHERE preference_id = ? AND package_id = ?;
+`,
+
+  getPreferenceById: `SELECT * FROM booking_preferences WHERE preference_id = ?;
+`,
+  deleteRemovedPreferences: `DELETE FROM booking_preferences 
+    WHERE package_id = ? AND preference_id NOT IN (?);
+`,
+
   updateUserById: `
     UPDATE users
     SET firstName = ?, lastName = ?, email = ?, phone = ?, is_approved = ?
@@ -73,8 +84,8 @@ VALUES(?, ?, ?, ?, ?, ?)
 
   // Insert new preference
   insertPackagePreference: `
-    INSERT INTO booking_preferences(package_id, preferenceValue)
-VALUES(?, ?)
+    INSERT INTO booking_preferences(package_id, preferenceValue , preferencePrice)
+VALUES(?, ? , ?)
   `,
   toggleManualVendorAssignment: `
     INSERT INTO settings(setting_key, setting_value)

@@ -111,7 +111,6 @@ WHERE sba.booking_id = ?
         sba.addon_id,
         a.addonName,
         a.addonMedia,
-        ROUND(sba.price * ?, 2) AS price,
         sba.quantity
      FROM service_booking_addons sba
      JOIN package_addons a ON sba.addon_id = a.addon_id
@@ -120,29 +119,27 @@ WHERE sba.booking_id = ?
 
 
     getBookedPackages: `
-                SELECT
-                    p.package_id,
-    p.packageName,
-    ROUND(p.totalPrice * ?, 2) AS totalPrice,
-    p.totalTime,
-    p.packageMedia
+            SELECT
+                p.package_id,
+                p.packageName,
+                p.totalTime,
+                p.packageMedia
                 FROM service_booking_packages sbp
                 JOIN packages p ON sbp.package_id = p.package_id
                 WHERE sbp.booking_id = ?
 `,
 
     getBookedSubPackages: `
-                SELECT
-                    sbsp.sub_package_id AS item_id,
-    pi.itemName,
-    sbsp.quantity,
-    ROUND((sbsp.price * sbsp.quantity) * ?, 2) AS price,
-        pi.itemMedia,
-        pi.timeRequired,
-        pi.package_id
+        SELECT
+            sbsp.sub_package_id AS item_id,
+            pi.itemName,
+            sbsp.quantity,
+            pi.itemMedia,
+            pi.timeRequired,
+            pi.package_id
                 FROM service_booking_sub_packages sbsp
                 LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                WHERE sbsp.booking_id = ?
+            WHERE sbsp.booking_id = ?
 `,
 
     getBoookedPrefrences: `
@@ -233,7 +230,8 @@ sb.booking_id,
     getUserBookedPrefrences: `
                 SELECT
                     sp.preference_id,
-                    bp.preferenceValue
+                    bp.preferenceValue,
+                    bp.preferencePrice
                 FROM service_preferences sp
                 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
                 WHERE sp.booking_id = ?

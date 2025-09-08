@@ -7,6 +7,7 @@ const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const asyncHandler = require("express-async-handler");
 
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
@@ -349,61 +350,82 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName, subtypeName = null, packages, preferences } = req.body;
+        const { serviceId, serviceTypeName = null, subCategory = null, packages, preferences } = req.body;
 
-        if (!serviceTypeName || !packages) {
-            throw new Error("Missing required fields: serviceTypeName and packages.");
+        if (!packages) {
+            throw new Error("Missing required field: packages.");
         }
 
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
-        const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
-        // 1️⃣ Check if service_type already exists
+        // 1️⃣ Determine service_type_id
         let service_type_id;
-        const [existingServiceType] = await connection.query(
-            `SELECT service_type_id FROM service_type 
-             WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
-            [serviceId, serviceTypeName.trim()]
-        );
-
-        if (existingServiceType.length > 0) {
-            service_type_id = existingServiceType[0].service_type_id;
-
-            // Optional: update media if new media is provided
-            if (serviceTypeMedia) {
-                await connection.query(
-                    `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
-                    [serviceTypeMedia, service_type_id]
-                );
-            }
-        } else {
-            const [stResult] = await connection.query(
-                `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
-                 VALUES (?, ?, ?)`,
-                [serviceId, serviceTypeName.trim(), serviceTypeMedia]
+        if (!serviceTypeName) {
+            // Insert dummy service_type if name not provided
+            const [dummyResult] = await connection.query(
+                `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia) VALUES (?, ?, ?)`,
+                [serviceId, null, null]
             );
-            service_type_id = stResult.insertId;
+            service_type_id = dummyResult.insertId;
+        } else {
+            // Check if service_type exists
+            const [existingServiceType] = await connection.query(
+                `SELECT service_type_id FROM service_type 
+                 WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
+                [serviceId, serviceTypeName.trim()]
+            );
+
+            if (existingServiceType.length > 0) {
+                service_type_id = existingServiceType[0].service_type_id;
+                if (serviceTypeMedia) {
+                    await connection.query(
+                        `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
+                        [serviceTypeMedia, service_type_id]
+                    );
+                }
+            } else {
+                const [stResult] = await connection.query(
+                    `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+                     VALUES (?, ?, ?)`,
+                    [serviceId, serviceTypeName.trim(), serviceTypeMedia || null]
+                );
+                service_type_id = stResult.insertId;
+            }
         }
 
-        let finalSubtypeId = null;
+        // 2️⃣ SubCategories (optional)
+        let finalSubCategoryId = null;
+        if (subCategory) {
+            const subCatName = subCategory.trim();
 
-        // 2️⃣ Subtype (check before insert)
-        if (subtypeName) {
-            const [existingSub] = await connection.query(
-                `SELECT subtype_id FROM service_subtypes 
-                 WHERE service_type_id = ? AND subtypeName = ? LIMIT 1`,
-                [service_type_id, subtypeName.trim()]
+            // Check in service_subcategoriestype first
+            const [existingSubCatType] = await connection.query(
+                `SELECT subcategory_type_id, subCategories FROM service_subcategoriestype 
+                 WHERE service_categories_id = ? AND subCategories = ? LIMIT 1`,
+                [serviceId, subCatName]
             );
 
-            if (existingSub.length > 0) {
-                finalSubtypeId = existingSub[0].subtype_id;
+            let nameToInsert = subCatName;
+            if (existingSubCatType.length > 0) {
+                finalSubCategoryId = existingSubCatType[0].subcategory_type_id;
+                nameToInsert = existingSubCatType[0].subCategories;
+            }
+
+            // Check if it already exists in service_subcategories
+            const [existingSubCat] = await connection.query(
+                `SELECT subcategory_id FROM service_subcategories WHERE subCategories = ? AND service_id = ? LIMIT 1`,
+                [nameToInsert, serviceId]
+            );
+
+            if (existingSubCat.length > 0) {
+                finalSubCategoryId = existingSubCat[0].subcategory_id;
             } else {
-                const [insertSub] = await connection.query(
-                    `INSERT INTO service_subtypes (service_type_id, subtypeName, subtypeMedia)
-                     VALUES (?, ?, ?)`,
-                    [service_type_id, subtypeName.trim(), subtypeMedia]
+                const [insertSubCat] = await connection.query(
+                    `INSERT INTO service_subcategories (subCategories, service_id)
+                     VALUES (?, ?)`,
+                    [nameToInsert, serviceId]
                 );
-                finalSubtypeId = insertSub.insertId;
+                finalSubCategoryId = insertSubCat.insertId;
             }
         }
 
@@ -417,10 +439,18 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             const pkg = parsedPackages[i];
             const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
-            // Insert package
             const [pkgResult] = await connection.query(
-                adminPostQueries.insertPackage,
-                [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
+                `INSERT INTO packages 
+                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    service_type_id,
+                    pkg.package_name || null,
+                    pkg.description || null,
+                    pkg.total_price || 0,
+                    pkg.total_time || 0,
+                    media
+                ]
             );
             const package_id = pkgResult.insertId;
 
@@ -431,7 +461,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
                 await connection.query(
                     adminPostQueries.insertPackageItem,
-                    [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
+                    [package_id, sub.item_name || null, sub.description || null, sub.price || 0, sub.time_required || 0, itemMedia]
                 );
             }
 
@@ -445,10 +475,10 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                      VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
-                        addon.addon_name,
+                        addon.addon_name || null,
                         addon.description || null,
                         addon.price || 0,
-                        addon.addon_time,
+                        addon.addon_time || 0,
                         addon_media
                     ]
                 );
@@ -462,7 +492,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
                     await connection.query(
                         adminPostQueries.insertBookingPreference,
-                        [package_id, pref.preference_value.trim()]
+                        [package_id, pref.preference_value.trim(), pref.preference_price ?? 0]
                     );
                 }
             }
@@ -472,9 +502,9 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "✅ Service type, subtype, packages, and addons created successfully",
+            message: "✅ Packages created successfully",
             service_type_id,
-            subtype_id: finalSubtypeId
+            subCategoryId: finalSubCategoryId
         });
 
     } catch (err) {
@@ -484,6 +514,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -526,7 +558,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 SELECT CONCAT('[', GROUP_CONCAT(
                   JSON_OBJECT(
                     'preference_id', bp.preference_id,
-                    'preference_value', bp.preferenceValue
+                    'preference_value', bp.preferenceValue,
+                    'preference_price', bp.preferencePrice
                   )
                 ), ']')
                 FROM booking_preferences bp
@@ -905,18 +938,49 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             console.log(pkg.addons);
 
             // ✅ Handle Preferences
+            // ✅ Handle Preferences (like addons)
             if (Array.isArray(preferences)) {
-                await connection.query(adminPutQueries.deletePackagePreferences, [package_id]);
+                const submittedPrefIds = [];
 
-                for (const pref of preferences) {
-                    if (!pref.preference_value) continue;
+                for (let p = 0; p < preferences.length; p++) {
+                    const pref = preferences[p];
+                    const preference_id = pref.preference_id;
 
-                    await connection.query(adminPutQueries.insertPackagePreference, [
-                        package_id,
-                        pref.preference_value.trim()
-                    ]);
+                    if (preference_id) {
+                        // update existing
+                        const [oldPref] = await connection.query(adminPutQueries.getPreferenceById, [preference_id]);
+                        if (!oldPref.length) continue;
+                        const old = oldPref[0];
+
+                        const preference_value = pref.preference_value ?? old.preference_value;
+                        const preference_price = pref.preference_price ?? old.preference_price;
+
+                        await connection.query(adminPutQueries.updatePackagePreference, [
+                            preference_value,
+                            preference_price,
+                            preference_id,
+                            package_id
+                        ]);
+
+                        submittedPrefIds.push(preference_id);
+                    } else {
+                        // insert new
+                        const [newPref] = await connection.query(adminPutQueries.insertPackagePreference, [
+                            package_id,
+                            pref.preference_value,
+                            pref.preference_price ?? 0
+                        ]);
+                        submittedPrefIds.push(newPref.insertId);
+                    }
                 }
+
+                // cleanup removed preferences
+                await connection.query(adminPutQueries.deleteRemovedPreferences, [
+                    package_id,
+                    submittedPrefIds.length ? submittedPrefIds : [0] // avoid empty IN ()
+                ]);
             }
+
         }
 
         await connection.commit();
