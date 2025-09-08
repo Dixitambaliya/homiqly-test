@@ -108,6 +108,22 @@ const bookService = asyncHandler(async (req, res) => {
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [], addons = [] } = pkg;
 
+
+            const [dbaddons] = await connection.query(
+                `SELECT addon_id FROM package_addons WHERE package_id = ?`,
+                [package_id]
+            )
+
+            const hasAddons = dbaddons.length > 0;
+
+            if (hasAddons && (!Array.isArray(addons) || addons.length === 0)) {
+                await connection.rollback()
+                return res.status(400).json({
+                    message: `Addons are required for package_id for this package`
+                })
+            }
+
+
             await connection.query(
                 bookingPostQueries.insertPackages,
                 [booking_id, package_id]
@@ -135,7 +151,7 @@ const bookService = asyncHandler(async (req, res) => {
 
                     await connection.query(
                         `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
-                 VALUES (?, ?, ?, ?)`,
+                            VALUES (?, ?, ?, ?)`,
                         [booking_id, package_id, addon.addon_id, addon.price]
                     );
                 }
