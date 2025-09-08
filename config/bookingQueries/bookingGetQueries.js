@@ -139,7 +139,7 @@ WHERE sba.booking_id = ?
             pi.package_id
                 FROM service_booking_sub_packages sbsp
                 LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-            HERE sbsp.booking_id = ?
+            WHERE sbsp.booking_id = ?
 `,
 
     getBoookedPrefrences: `
@@ -230,7 +230,8 @@ sb.booking_id,
     getUserBookedPrefrences: `
                 SELECT
                     sp.preference_id,
-                    bp.preferenceValue
+                    bp.preferenceValue,
+                    bp.preferencePrice
                 FROM service_preferences sp
                 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
                 WHERE sp.booking_id = ?

@@ -538,7 +538,8 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   SELECT CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
                       'preference_id', bp.preference_id,
-                      'preference_value', bp.preferenceValue
+                      'preference_value', bp.preferenceValue,
+                      'preference_price', bp.preferencePrice
                     )
                   ), ']')
                   FROM booking_preferences bp

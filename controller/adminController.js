@@ -462,7 +462,10 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
                     await connection.query(
                         adminPostQueries.insertBookingPreference,
-                        [package_id, pref.preference_value.trim()]
+                        [
+                            package_id,
+                            pref.preference_value.trim(),
+                            pref.preferencePrice ?? 0]
                     );
                 }
             }
@@ -485,7 +488,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-const getAdminCreatedPackages = asyncHandler(async (req, res) => {
+const getAdminCreatedPackages = asyncHandler(async (req, res) => {  
     try {
         const [rows] = await db.query(`
       SELECT
@@ -526,7 +529,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 SELECT CONCAT('[', GROUP_CONCAT(
                   JSON_OBJECT(
                     'preference_id', bp.preference_id,
-                    'preference_value', bp.preferenceValue
+                    'preference_value', bp.preferenceValue,
+                    'preference_price', bp.preferencePrice
                   )
                 ), ']')
                 FROM booking_preferences bp
@@ -913,7 +917,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                     await connection.query(adminPutQueries.insertPackagePreference, [
                         package_id,
-                        pref.preference_value.trim()
+                        pref.preference_value.trim(),
+                        pref.preferencePrice ?? 0
                     ]);
                 }
             }

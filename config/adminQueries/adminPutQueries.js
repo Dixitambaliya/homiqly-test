@@ -73,8 +73,8 @@ VALUES(?, ?, ?, ?, ?, ?)
 
   // Insert new preference
   insertPackagePreference: `
-    INSERT INTO booking_preferences(package_id, preferenceValue)
-VALUES(?, ?)
+    INSERT INTO booking_preferences(package_id, preferenceValue , preferencePrice)
+VALUES(?, ? , ?)
   `,
   toggleManualVendorAssignment: `
     INSERT INTO settings(setting_key, setting_value)
