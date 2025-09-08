@@ -108,7 +108,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 service = {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
-                    subcategoryId: row.subcategoryId || null,
                     subcategoryName: row.subcategoryName || null,
                     title: row.serviceName,
                     description: row.serviceDescription,
