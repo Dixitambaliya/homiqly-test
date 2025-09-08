@@ -397,18 +397,30 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         // 2️⃣ SubCategories (optional)
         let finalSubCategoryId = null;
         if (subCategory) {
-            const [existingSubCat] = await connection.query(
-                `SELECT subtype_id FROM service_subcategories 
-                 WHERE service_categories_id = ? AND subCategories = ? LIMIT 1`,
+            // Check in service_subcategoriestype first
+            const [existingSubCatType] = await connection.query(
+                `SELECT subcategory_type_id, subCategories FROM service_subcategoriestype 
+         WHERE service_categories_id = ? AND subCategories = ? LIMIT 1`,
                 [serviceId, subCategory.trim()]
             );
 
-            if (existingSubCat.length > 0) {
-                finalSubCategoryId = existingSubCat[0].subtype_id;
-            } else {
+            if (existingSubCatType.length > 0) {
+                // Subcategory exists in type table
+                finalSubCategoryId = existingSubCatType[0].subcategory_type_id;
+
+                // Insert into service_subcategories table using same name
                 const [insertSubCat] = await connection.query(
-                    `INSERT INTO service_subcategories (subCategories, service_categories_id)
-                     VALUES (?, ?)`,
+                    `INSERT INTO service_subcategories (subCategories, service_id)
+             VALUES (?, ?)`,
+                    [existingSubCatType[0].subCategories, serviceId]
+                );
+                finalSubCategoryId = insertSubCat.insertId;
+
+            } else {
+                // Subcategory does NOT exist in type table → insert directly into service_subcategories
+                const [insertSubCat] = await connection.query(
+                    `INSERT INTO service_subcategories (subCategories, service_id)
+             VALUES (?, ?)`,
                     [subCategory.trim(), serviceId]
                 );
                 finalSubCategoryId = insertSubCat.insertId;
