@@ -25,22 +25,26 @@ const userGetQueries = {
         LEFT JOIN service_categories ON services.service_categories_id = service_categories.service_categories_id;`,
 
     getAllServicesWithCategory: `
-        SELECT
-        sc.serviceCategory AS categoryName,
-        sc.service_categories_id AS serviceCategoryId,
-        s.service_id AS serviceId,
-        s.serviceName,
-        s.serviceDescription,
-        s.serviceImage,
-        s.slug,
-        st.service_type_id,
-        st.serviceTypeName,
-        st.serviceTypeMedia,
-        sst.subTypeName
-    FROM service_categories sc
-    LEFT JOIN services s ON sc.service_categories_id = s.service_categories_id
-    LEFT JOIN service_type st ON st.service_id = s.service_id
-    LEFT JOIN service_subtypes sst ON st.service_type_id = sst.service_type_id 
+       SELECT 
+    c.service_categories_id AS serviceCategoryId,
+    c.serviceCategory AS categoryName,
+    sc.subcategory_id AS subcategoryId,
+    sc.subCategories AS subcategoryName,
+    s.service_id AS serviceId,
+    s.serviceName,
+    s.serviceDescription,
+    s.serviceImage,
+    s.slug,
+    st.service_type_id,
+    st.serviceTypeName,
+    st.serviceTypeMedia
+FROM service_categories c
+LEFT JOIN service_subcategories sc 
+    ON sc.service_categories_id = c.service_categories_id
+LEFT JOIN services s 
+    ON s.service_categories_id = c.service_categories_id
+LEFT JOIN service_type st 
+    ON st.service_id = s.service_id;
 `,
 
     getCategoriesById: `SELECT

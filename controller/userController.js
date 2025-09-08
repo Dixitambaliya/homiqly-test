@@ -108,6 +108,8 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 service = {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
+                    subcategoryId: row.subcategoryId || null,
+                    subcategoryName: row.subcategoryName || null,
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
@@ -118,7 +120,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             }
 
             // push serviceType if available
-            if (row.service_type_id) {
+            if (row.service_type_id && service) {
                 service.serviceTypes.push({
                     subType: row.subTypeName,
                     service_type_id: row.service_type_id,
@@ -142,6 +144,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -486,6 +489,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                 p.description,
                 p.totalPrice,
                 p.totalTime,
+                p.subCategoryName,
                 p.packageMedia,
 
                 -- Ratings

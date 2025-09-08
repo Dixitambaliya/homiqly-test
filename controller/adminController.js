@@ -349,14 +349,13 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName, subtypeName = null, packages, preferences } = req.body;
+        const { serviceId, serviceTypeName, subCategory = null, packages, preferences } = req.body;
 
         if (!serviceTypeName || !packages) {
             throw new Error("Missing required fields: serviceTypeName and packages.");
         }
 
         const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
-        const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
         // 1️⃣ Check if service_type already exists
         let service_type_id;
@@ -369,7 +368,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         if (existingServiceType.length > 0) {
             service_type_id = existingServiceType[0].service_type_id;
 
-            // Optional: update media if new media is provided
             if (serviceTypeMedia) {
                 await connection.query(
                     `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
@@ -385,25 +383,24 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             service_type_id = stResult.insertId;
         }
 
-        let finalSubtypeId = null;
-
-        // 2️⃣ Subtype (check before insert)
-        if (subtypeName) {
-            const [existingSub] = await connection.query(
-                `SELECT subtype_id FROM service_subtypes 
-                 WHERE service_type_id = ? AND subtypeName = ? LIMIT 1`,
-                [service_type_id, subtypeName.trim()]
+        // 2️⃣ SubCategories (Optional check before insert)
+        let finalSubCategoryId = null;
+        if (subCategory) {
+            const [existingSubCat] = await connection.query(
+                `SELECT subtype_id FROM service_subcategories 
+                 WHERE service_categories_id = ? AND subCategories = ? LIMIT 1`,
+                [serviceId, subCategory.trim()]
             );
 
-            if (existingSub.length > 0) {
-                finalSubtypeId = existingSub[0].subtype_id;
+            if (existingSubCat.length > 0) {
+                finalSubCategoryId = existingSubCat[0].subtype_id;
             } else {
-                const [insertSub] = await connection.query(
-                    `INSERT INTO service_subtypes (service_type_id, subtypeName, subtypeMedia)
-                     VALUES (?, ?, ?)`,
-                    [service_type_id, subtypeName.trim(), subtypeMedia]
+                const [insertSubCat] = await connection.query(
+                    `INSERT INTO service_subcategories (subCategories, service_categories_id)
+                     VALUES (?, ?)`,
+                    [subCategory.trim(), serviceId]
                 );
-                finalSubtypeId = insertSub.insertId;
+                finalSubCategoryId = insertSubCat.insertId;
             }
         }
 
@@ -417,10 +414,22 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             const pkg = parsedPackages[i];
             const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
-            // Insert package
+            // Insert package (storing subCategoryName directly)
             const [pkgResult] = await connection.query(
-                adminPostQueries.insertPackage,
-                [service_type_id, pkg.package_name, pkg.description, pkg.total_price, pkg.total_time, media]
+                `
+                INSERT INTO packages 
+                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia, subCategoryName)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                `,
+                [
+                    service_type_id,
+                    pkg.package_name,
+                    pkg.description,
+                    pkg.total_price,
+                    pkg.total_time,
+                    media,
+                    subCategory || null
+                ]
             );
             const package_id = pkgResult.insertId;
 
@@ -462,10 +471,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
                     await connection.query(
                         adminPostQueries.insertBookingPreference,
-                        [
-                            package_id,
-                            pref.preference_value.trim(),
-                            pref.preference_price ?? 0]
+                        [package_id, pref.preference_value.trim(), pref.preference_price ?? 0]
                     );
                 }
             }
@@ -475,9 +481,9 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "✅ Service type, subtype, packages, and addons created successfully",
+            message: "✅ Service type, subcategory, packages, and addons created successfully",
             service_type_id,
-            subtype_id: finalSubtypeId
+            subCategoryId: finalSubCategoryId
         });
 
     } catch (err) {
@@ -487,6 +493,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
