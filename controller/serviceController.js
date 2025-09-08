@@ -154,40 +154,40 @@ const addService = asyncHandler(async (req, res) => {
 
 
 const addSubCategory = asyncHandler(async (req, res) => {
-    const { serviceCategoryId, sub_categories } = req.body;
+    const { serviceId, sub_categories } = req.body;
 
-    if (!serviceCategoryId || !sub_categories) {
-        return res.status(400).json({ message: "service_categories_id and subCategories are required." });
+    if (!serviceId || !sub_categories) {
+        return res.status(400).json({ message: "serviceId and subCategories are required." });
     }
 
-    // Check if category exists
-    const [categoryExists] = await db.query(
-        `SELECT service_categories_id FROM service_categories WHERE service_categories_id = ?`,
-        [serviceCategoryId]
+    // Check if service exists
+    const [serviceExists] = await db.query(
+        `SELECT service_id FROM services WHERE service_id = ?`,
+        [serviceId]
     );
-    if (categoryExists.length === 0) {
-        return res.status(404).json({ message: "Category not found." });
+    if (serviceExists.length === 0) {
+        return res.status(404).json({ message: "Service not found." });
     }
 
-    // Prevent duplicate subcategory under the same category
+    // Prevent duplicate subcategory under the same service
     const [existing] = await db.query(
-        `SELECT 1 FROM service_subcategories WHERE service_categories_id = ? AND subCategories = ?`,
-        [serviceCategoryId, sub_categories.trim()]
+        `SELECT 1 FROM service_subcategories WHERE service_id = ? AND subCategories = ?`,
+        [serviceId, sub_categories.trim()]
     );
     if (existing.length > 0) {
-        return res.status(409).json({ message: "Subcategory already exists under this category." });
+        return res.status(409).json({ message: "Subcategory already exists under this service." });
     }
 
     // Insert new subcategory
     const [result] = await db.query(
-        `INSERT INTO service_subcategories (subCategories, service_categories_id)
+        `INSERT INTO service_subcategories (subCategories, service_id)
          VALUES (?, ?)`,
-        [sub_categories.trim(), serviceCategoryId]
+        [sub_categories.trim(), serviceId]
     );
 
     res.status(201).json({
         message: "Subcategory created successfully.",
-        subtype_id: result.insertId
+        subcategory_id: result.insertId
     });
 });
 

@@ -28,7 +28,7 @@ const userGetQueries = {
        SELECT 
     c.service_categories_id AS serviceCategoryId,
     c.serviceCategory AS categoryName,
-    sc.subcategory_id AS subcategoryId,
+    sc.subcategory_id,
     sc.subCategories AS subcategoryName,
     s.service_id AS serviceId,
     s.serviceName,
@@ -39,12 +39,12 @@ const userGetQueries = {
     st.serviceTypeName,
     st.serviceTypeMedia
 FROM service_categories c
-LEFT JOIN service_subcategories sc 
-    ON sc.service_categories_id = c.service_categories_id
 LEFT JOIN services s 
     ON s.service_categories_id = c.service_categories_id
+LEFT JOIN service_subcategories sc 
+    ON sc.service_id = s.service_id
 LEFT JOIN service_type st 
-    ON st.service_id = s.service_id;
+    ON st.service_id = s.service_id
 `,
 
     getCategoriesById: `SELECT
