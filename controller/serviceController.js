@@ -337,20 +337,6 @@ const getAdminService = asyncHandler(async (req, res) => {
         // Fetch all services with category
         const [rows] = await db.query(serviceGetQueries.getAllServicesWithCategory);
 
-        // Fetch all subcategories
-        const [subCategoriesRows] = await db.query(
-            `SELECT subCategories, service_categories_id FROM service_subcategories`
-        );
-
-        // Group subcategories by category id for easy lookup
-        const subCategoriesMap = {};
-        subCategoriesRows.forEach(sub => {
-            if (!subCategoriesMap[sub.service_categories_id]) {
-                subCategoriesMap[sub.service_categories_id] = [];
-            }
-            subCategoriesMap[sub.service_categories_id].push(sub.subCategories);
-        });
-
         const grouped = {};
 
         rows.forEach(row => {
@@ -358,7 +344,6 @@ const getAdminService = asyncHandler(async (req, res) => {
             if (!grouped[category]) {
                 grouped[category] = {
                     categoryName: category,
-                    subCategories: subCategoriesMap[row.serviceCategoryId] || [],
                     services: []
                 };
             }

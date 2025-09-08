@@ -36,7 +36,10 @@ router.get("/getservicetype/:service_id", authenticationToken, getServiceTypeByI
 router.post("/addcategory", authenticationToken, addCategory)
 router.get("/getcity", getcity)
 router.post("/addcity", authenticationToken, addServiceCity)
+
 router.get("/getservicecategories", getServiceCategories)
+
+
 router.get("/getservices", getService)
 
 
