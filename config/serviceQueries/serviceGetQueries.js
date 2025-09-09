@@ -9,13 +9,13 @@ SELECT
     s.serviceDescription,
     s.serviceImage,
     s.slug,
-    ss.subcategory_id,
+    ss.subcategory_type_id,
     ss.subCategories AS subCategory
 FROM service_categories sc
 LEFT JOIN services s
     ON s.service_categories_id = sc.service_categories_id
-LEFT JOIN service_subcategories ss
-    ON ss.service_id = s.service_id;
+LEFT JOIN service_subcategoriestype ss
+    ON ss.service_categories_id = s.service_categories_id;
 `,
 
 

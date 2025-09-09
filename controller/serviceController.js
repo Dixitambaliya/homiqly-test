@@ -351,43 +351,39 @@ const getAdminService = asyncHandler(async (req, res) => {
         // Fetch all services with category + subcategories
         const [rows] = await db.query(serviceGetQueries.getAllServicesWithCategory);
 
-        const grouped = {};
-
-        rows.forEach(row => {
+        const grouped = rows.reduce((acc, row) => {
             const category = row.categoryName;
 
-            if (!grouped[category]) {
-                grouped[category] = {
+            if (!acc[category]) {
+                acc[category] = {
                     categoryName: category,
                     serviceCategoryId: row.serviceCategoryId,
+                    subCategories: [],
                     services: []
                 };
             }
 
-            // ✅ Find or create the service object inside the category
-            let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
-            if (!service && row.serviceId) {
-                service = {
-                    serviceId: row.serviceId,
-                    serviceCategoryId: row.serviceCategoryId,
-                    title: row.serviceName,
-                    description: row.serviceDescription,
-                    serviceImage: row.serviceImage,
-                    slug: row.slug,
-                    subCategory: row.subCategory  // 👈 single object, not array
-                };
-                grouped[category].services.push(service);
+            // ✅ Add subCategory if present
+            if (row.subCategory && !acc[category].subCategories.includes(row.subCategory)) {
+                acc[category].subCategories.push(row.subCategory);
             }
 
-            // // ✅ Attach subcategory (only one per service)
-            // if (row.subcategory_id && service) {
-            //     service.subCategory = {
-            //         subcategory_id: row.subcategory_id,
-            //         subCategory: row.subCategory
-            //     };
-            // }
-        });
+            // ✅ Add service if not already added
+            if (row.serviceId && !acc[category].services.some(s => s.serviceId === row.serviceId)) {
+                acc[category].services.push({
+                    serviceId: row.serviceId,
+                    serviceCategoryId: row.serviceCategoryId,
+                    title: row.title,
+                    description: row.description,
+                    serviceImage: row.serviceImage,
+                    slug: row.slug
+                });
+            }
 
+            return acc;
+        }, {});
+
+        // Convert grouped object to array for easier frontend handling
         const result = Object.values(grouped);
 
         res.status(200).json({ services: result });
