@@ -568,8 +568,7 @@ const deleteService = asyncHandler(async (req, res) => {
 })
 
 const editCategory = asyncHandler(async (req, res) => {
-    const { serviceCategoryId, serviceCategory, subCategories } = req.body;
-    // ⬆️ serviceCategory is the new category name
+    const { serviceCategoryId, newCategoryName, subCategories } = req.body;
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -581,47 +580,36 @@ const editCategory = asyncHandler(async (req, res) => {
             [serviceCategoryId]
         );
         if (existingCategory.length === 0) {
+            await connection.rollback();
             connection.release();
             return res.status(404).json({ message: "Category not found" });
         }
 
         // 2️⃣ Update category name if provided
-        if (serviceCategory) {
+        if (newCategoryName) {
             await connection.query(
                 `UPDATE service_categories
                  SET serviceCategory = ?
                  WHERE service_categories_id = ?`,
-                [serviceCategory.trim(), serviceCategoryId]
+                [newCategoryName.trim(), serviceCategoryId]
             );
         }
 
-        // 3️⃣ Update or insert subcategories (preserve if not provided)
-        if (Array.isArray(subCategories) && subCategories.length > 0) {
-            for (const subCat of subCategories) {
-                if (subCat.subcategory_type_id) {
-                    // Update only if subcategory exists
-                    const [existingSubCat] = await connection.query(
-                        `SELECT subcategory_type_id FROM service_subcategoriestype
-                         WHERE subcategory_type_id = ? AND service_categories_id = ?`,
-                        [subCat.subcategory_type_id, serviceCategoryId]
-                    );
+        // 3️⃣ Replace subcategories with new ones
+        if (Array.isArray(subCategories)) {
+            // First, delete old subcategories for this category
+            await connection.query(
+                `DELETE FROM service_subcategoriestype WHERE service_categories_id = ?`,
+                [serviceCategoryId]
+            );
 
-                    if (existingSubCat.length > 0) {
-                        await connection.query(
-                            `UPDATE service_subcategoriestype
-                             SET subCategories = ?
-                             WHERE subcategory_type_id = ? AND service_categories_id = ?`,
-                            [subCat.subCategory.trim(), subCat.subcategory_type_id, serviceCategoryId]
-                        );
-                    }
-                } else {
-                    // Insert new subcategory if no ID
-                    await connection.query(
-                        `INSERT INTO service_subcategoriestype (subCategories, service_categories_id)
-                         VALUES (?, ?)`,
-                        [subCat.subCategory.trim(), serviceCategoryId]
-                    );
-                }
+            // Then, insert new ones
+            for (const subCat of subCategories) {
+                await connection.query(
+                    `INSERT INTO service_subcategoriestype (subCategories, service_categories_id)
+                     VALUES (?, ?)`,
+                    [subCat.trim(), serviceCategoryId]
+                );
             }
         }
 
@@ -635,6 +623,8 @@ const editCategory = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
+
+
 
 const deleteCategory = asyncHandler(async (req, res) => {
     const { serviceCategoryId } = req.body;
