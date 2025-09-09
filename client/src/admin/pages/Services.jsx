@@ -337,7 +337,7 @@ const Services = () => {
     console.log("service",service);
     setSelectedService(service);
     setServiceFormData({
-      serviceName: service.title,
+      serviceName: service.serviceName,
       categoryName: service.categoryName,
       serviceDescription: service.description || "",
       serviceImage: null,
@@ -549,7 +549,7 @@ const Services = () => {
                         <div className="flex justify-between">
                           <div className="flex-1">
                             <h5 className="font-medium text-gray-900">
-                              {service.title}
+                              {service.serviceName}
                             </h5>
                             {service.description && (
                               <p className="text-sm text-gray-600 mt-1">

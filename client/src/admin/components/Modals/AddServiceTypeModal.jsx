@@ -13,10 +13,12 @@ import { toast } from "react-toastify";
 
 const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   const [loading, setLoading] = useState(false);
+  const [filteredSubCategories, setFilteredSubCategories] = useState([]);
 
   const [formData, setFormData] = useState({
     serviceId: "",
     serviceCategoryId: "",
+    subCategory: "", // 👈 new
     serviceTypeName: "",
     serviceTypeMedia: null,
     packages: [
@@ -69,15 +71,16 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFormData((prev) => ({
       ...prev,
       serviceCategoryId: selectedId,
-      serviceId: "", // reset service
+      serviceId: "",
+      subCategory: "", // reset subCategory
     }));
 
     const selectedCategory = categories.find(
-      (cat) =>
-        String(cat?.services?.[0]?.serviceCategoryId) === String(selectedId)
+      (cat) => String(cat?.serviceCategoryId) === String(selectedId)
     );
 
     setFilteredServices(selectedCategory?.services || []);
+    setFilteredSubCategories(selectedCategory?.subCategories || []); // 👈 new
   };
 
   const handleInputChange = (e) => {
@@ -213,6 +216,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       formDataToSend.append("serviceId", formData.serviceId);
       formDataToSend.append("serviceCategoryId", formData.serviceCategoryId);
       formDataToSend.append("serviceTypeName", formData.serviceTypeName);
+      formDataToSend.append("subCategory", formData.subCategory || ""); // 👈 new
 
       if (formData.serviceTypeMedia) {
         formDataToSend.append("serviceTypeMedia", formData.serviceTypeMedia);
@@ -288,6 +292,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFormData({
       serviceId: "",
       serviceCategoryId: "",
+      subCategory: "",
       serviceTypeName: "",
       serviceTypeMedia: null,
       packages: [
@@ -338,12 +343,10 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             value={formData.serviceCategoryId || ""}
             onChange={handleCategoryChange}
             placeholder="Select a category"
-            options={categories
-              .filter((cat) => cat?.services?.length > 0)
-              .map((cat) => ({
-                label: cat.categoryName || "",
-                value: String(cat.services[0].serviceCategoryId),
-              }))}
+            options={categories.map((cat) => ({
+              label: cat.categoryName || "",
+              value: String(cat.serviceCategoryId), // FIXED ✅
+            }))}
             required
           />
 
@@ -356,29 +359,52 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             options={filteredServices
               .filter((s) => s?.serviceId)
               .map((service) => ({
-                label: service?.title || "",
+                label: service?.serviceName || "",
                 value: String(service?.serviceId),
               }))}
             required
           />
 
-          <FormInput
-            label="Service Type Name"
-            name="serviceTypeName"
-            value={formData.serviceTypeName}
-            onChange={handleInputChange}
-            placeholder="e.g., Bridal Makeup Package"
-            required
-          />
+          {filteredSubCategories.length > 0 && (
+            <FormSelect
+              label="Service Type"
+              name="subCategory"
+              value={formData.subCategory || ""}
+              onChange={handleInputChange}
+              placeholder="Select Service Type or choose 'Yes/No'"
+              options={[
+                // ...filteredSubCategories.map((sub) => ({
+                //   label: sub,
+                //   value: sub.toLowerCase(),
+                // })),
+                { label: "Yes", value: "yes" },
+                { label: "No", value: "no" },
+              ]}
+              required
+            />
+          )}
 
-          <FormFileInput
-            label="Service Type Image"
-            name="serviceTypeMedia"
-            accept="image/*"
-            onChange={handleFileChange}
-            required
-            showPreview
-          />
+          {formData.subCategory === "yes" && (
+            <>
+              <FormInput
+                label="Service Type Name"
+                name="serviceTypeName"
+                value={formData.serviceTypeName}
+                onChange={handleInputChange}
+                placeholder="e.g., Bridal Makeup Package"
+                required
+              />
+
+              <FormFileInput
+                label="Service Type Image"
+                name="serviceTypeMedia"
+                accept="image/*"
+                onChange={handleFileChange}
+                required
+                showPreview
+              />
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

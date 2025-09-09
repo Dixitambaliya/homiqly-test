@@ -123,14 +123,16 @@ const Packages = () => {
                 >
                   {/* Header: image + service info */}
                   <div className="flex items-start gap-4 p-5">
-                    <img
-                      src={
-                        safeSrc(service.service_type_media) ||
-                        "https://via.placeholder.com/120?text=Service"
-                      }
-                      alt={service.service_type_name || "Service"}
-                      className="w-28 h-28 object-cover rounded-lg border"
-                    />
+                    {service.service_type_media && (
+                      <img
+                        src={
+                          safeSrc(service.service_type_media) ||
+                          "https://via.placeholder.com/120?text=Service"
+                        }
+                        alt={service.service_type_name || "Service"}
+                        className="w-28 h-28 object-cover rounded-lg border"
+                      />
+                    )}
                     <div className="flex-1">
                       <h4 className="text-xl font-semibold text-gray-900">
                         {service.service_type_name}
