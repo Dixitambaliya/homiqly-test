@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { FiPlus, FiTrash2, FiRefreshCw, FiX } from "react-icons/fi";
 import { FaPen } from "react-icons/fa6";
 import CreatableSelect from "react-select/creatable";
+import Select from "react-select";
 
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button, IconButton } from "../../shared/components/Button";
@@ -35,6 +36,7 @@ const Services = () => {
     categoryName: "",
     serviceDescription: "",
     serviceImage: null,
+    subCategory: "", // 👈 add this
   });
 
   // category form state now includes subCategories (array of strings)
@@ -129,6 +131,7 @@ const Services = () => {
       const formDataToSend = new FormData();
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
+      formDataToSend.append("subCategory", serviceFormData.subCategory || "");
       formDataToSend.append(
         "serviceDescription",
         serviceFormData.serviceDescription || ""
@@ -172,6 +175,7 @@ const Services = () => {
       formDataToSend.append("serviceId", selectedService.serviceId);
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
+      formDataToSend.append("subCategory", serviceFormData.subCategory || "");
       formDataToSend.append(
         "serviceDescription",
         serviceFormData.serviceDescription || ""
@@ -312,18 +316,32 @@ const Services = () => {
       categoryName: "",
       serviceDescription: "",
       serviceImage: null,
+      subCategory: "",
     });
     setImagePreview(null);
   };
 
+  const getSubCategoryOptions = (categoryName) => {
+    const category = categories.find(
+      (cat) => cat.serviceCategory === categoryName
+    );
+    if (!category || !Array.isArray(category.subCategoryTypes)) return [];
+    return category.subCategoryTypes.map((s) => {
+      const label = s.subCategory || s;
+      return { value: label, label: label };
+    });
+  };
+
   // prepare and open edit forms
   const editService = (service) => {
+    console.log("service",service);
     setSelectedService(service);
     setServiceFormData({
       serviceName: service.title,
       categoryName: service.categoryName,
       serviceDescription: service.description || "",
       serviceImage: null,
+      subCategory: service.subCategory || "",
     });
     setImagePreview(service.serviceImage || null);
     setShowEditServiceModal(true);
@@ -630,6 +648,26 @@ const Services = () => {
                     placeholder="Select Category"
                   />
                 </div>
+                {serviceFormData.categoryName && (
+                  <div>
+                    <label
+                      htmlFor="subCategory"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Subcategory
+                    </label>
+                    <FormSelect
+                      id="subCategory"
+                      name="subCategory"
+                      value={serviceFormData.subCategory}
+                      onChange={handleServiceInputChange}
+                      options={getSubCategoryOptions(
+                        serviceFormData.categoryName
+                      )}
+                      placeholder="Select Subcategory"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label
@@ -754,6 +792,27 @@ const Services = () => {
                     placeholder="Select Category"
                   />
                 </div>
+
+                {serviceFormData.categoryName && (
+                  <div>
+                    <label
+                      htmlFor="subCategory"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Subcategory
+                    </label>
+                    <FormSelect
+                      id="subCategory"
+                      name="subCategory"
+                      value={serviceFormData.subCategory}
+                      onChange={handleServiceInputChange}
+                      options={getSubCategoryOptions(
+                        serviceFormData.categoryName
+                      )}
+                      placeholder="Select Subcategory"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label
@@ -933,7 +992,7 @@ const Services = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Subcategories
                   </label>
-                  <Select
+                  <CreatableSelect
                     isMulti
                     name="subCategories"
                     options={subOptions}
