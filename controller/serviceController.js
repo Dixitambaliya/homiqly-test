@@ -374,7 +374,7 @@ const getAdminService = asyncHandler(async (req, res) => {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
                     title: row.title,
-                    description: row.description,
+                    description: row.serviceDescription,
                     serviceTitle: row.serviceName,
                     serviceImage: row.serviceImage,
                     slug: row.slug
