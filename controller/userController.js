@@ -545,7 +545,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   ), ']')
                   FROM booking_preferences bp
                   WHERE bp.package_id = p.package_id
-                ), '[]') AS preferences
+                ), '[]') AS preferences,
 
                 -- Consent Forms
                 COALESCE((
