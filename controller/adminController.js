@@ -407,12 +407,13 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             const [pkgResult] = await connection.query(
                 `INSERT INTO packages 
-                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
+                (service_type_id, packageName, description, consentDescription ,totalPrice, totalTime, packageMedia)
                 VALUES (?, ?, ?, ?, ?, ?)` ,
                 [
                     service_type_id,
                     pkg.package_name || null,
                     pkg.description || null,
+                    pkg.consentDescription || null,
                     pkg.total_price || 0,
                     pkg.total_time || 0,
                     media
@@ -507,6 +508,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
               'package_id', p.package_id,
               'title', p.packageName,
               'description', p.description,
+              'consentDescription', p.consentDescription,
               'price', p.totalPrice,
               'time_required', p.totalTime,
               'package_media', p.packageMedia,
@@ -635,7 +637,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     }
 });
 
-
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -762,9 +763,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -788,6 +786,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             // ✅ Update package
             const packageName = pkg.package_name ?? existing.packageName;
             const description = pkg.description ?? existing.description;
+            const consentDescription = pkg.consentDescription ?? existing.consentDescription;
             const totalPrice = pkg.total_price ?? existing.totalPrice;
             const totalTime = pkg.total_time ?? existing.totalTime;
             const packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || existing.packageMedia;
@@ -795,6 +794,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             await connection.query(adminPutQueries.updatePackage, [
                 packageName,
                 description,
+                consentDescription,
                 totalPrice,
                 totalTime,
                 packageMedia,
