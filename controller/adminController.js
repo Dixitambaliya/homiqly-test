@@ -345,8 +345,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -363,14 +361,12 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         // 1️⃣ Determine service_type_id
         let service_type_id;
         if (!serviceTypeName) {
-            // Insert dummy service_type if name not provided
             const [dummyResult] = await connection.query(
                 `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia) VALUES (?, ?, ?)`,
                 [serviceId, null, null]
             );
             service_type_id = dummyResult.insertId;
         } else {
-            // Check if service_type exists
             const [existingServiceType] = await connection.query(
                 `SELECT service_type_id FROM service_type 
                  WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
@@ -407,8 +403,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             const [pkgResult] = await connection.query(
                 `INSERT INTO packages 
-                (service_type_id, packageName, description, consentDescription ,totalPrice, totalTime, packageMedia)
-                VALUES (?, ?, ?, ?, ?, ?)` ,
+                (service_type_id, packageName, description, consentDescription, totalPrice, totalTime, packageMedia)
+                VALUES (?, ?, ?, ?, ?, ?, ?)` ,
                 [
                     service_type_id,
                     pkg.package_name || null,
@@ -421,7 +417,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             );
             const package_id = pkgResult.insertId;
 
-            // Insert sub-packages (package_items)
+            // 📌 Insert sub-packages
             for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
                 const sub = pkg.sub_packages[j];
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
@@ -439,7 +435,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Insert addons
+            // 📌 Insert addons
             for (let k = 0; k < (pkg.addons || []).length; k++) {
                 const addon = pkg.addons[k];
                 const addon_media = req.uploadedFiles?.[`addon_media_${i}_${k}`]?.[0]?.url || null;
@@ -458,7 +454,18 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Insert preferences
+            // 📌 Insert consent form questions (NEW)
+            if (pkg.consentForm && Array.isArray(pkg.consentForm)) {
+                for (const question of pkg.consentForm) {
+                    await connection.query(
+                        `INSERT INTO package_consent_forms (package_id, question, is_required)
+                         VALUES (?, ?, ?)`,
+                        [package_id, question.text || null, question.is_required ? 1 : 0]
+                    );
+                }
+            }
+
+            // 📌 Insert preferences
             if (preferences) {
                 const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
                 for (const pref of parsedPrefs) {
@@ -486,7 +493,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         console.error("Admin package creation error:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
-})
+});
+
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -503,57 +511,68 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         sc.serviceCategory AS service_category_name,
 
         COALESCE((
-          SELECT CONCAT('[', GROUP_CONCAT(
+        SELECT CONCAT('[', GROUP_CONCAT(
             JSON_OBJECT(
-              'package_id', p.package_id,
-              'title', p.packageName,
-              'description', p.description,
-              'consentDescription', p.consentDescription,
-              'price', p.totalPrice,
-              'time_required', p.totalTime,
-              'package_media', p.packageMedia,
-              'sub_packages', IFNULL((
+            'package_id', p.package_id,
+            'title', p.packageName,
+            'description', p.description,
+            'consentDescription', p.consentDescription,
+            'price', p.totalPrice,
+            'time_required', p.totalTime,
+            'package_media', p.packageMedia,
+            'sub_packages', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
+                JSON_OBJECT(
                     'sub_package_id', pi.item_id,
                     'item_name', pi.itemName,
                     'description', pi.description,
                     'price', pi.price,
                     'time_required', pi.timeRequired,
                     'item_media', pi.itemMedia
-                  )
+                )
                 ), ']')
                 FROM package_items pi
                 WHERE pi.package_id = p.package_id
-              ), '[]'),
-              'preferences', IFNULL((
+            ), '[]'),
+            'preferences', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
+                JSON_OBJECT(
                     'preference_id', bp.preference_id,
                     'preference_value', bp.preferenceValue,
                     'preference_price', bp.preferencePrice
-                  )
+                )
                 ), ']')
                 FROM booking_preferences bp
                 WHERE bp.package_id = p.package_id
-              ), '[]'),
-              'addons', IFNULL((
+            ), '[]'),
+            'addons', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
+                JSON_OBJECT(
                     'addon_id', pa.addon_id,
                     'addon_name', pa.addonName,
                     'description', pa.addonDescription,
                     'price', pa.addonPrice
-                  )
+                )
                 ), ']')
                 FROM package_addons pa
                 WHERE pa.package_id = p.package_id
-              ), '[]')
+            ), '[]'),
+            'consent_forms', IFNULL((
+                SELECT CONCAT('[', GROUP_CONCAT(
+                JSON_OBJECT(
+                    'consent_id', pcf.consent_id,
+                    'question', pcf.question
+                )
+                ), ']')
+                FROM package_consent_forms pcf
+                WHERE pcf.package_id = p.package_id
+            ), '[]')
             )
-          ), ']')
-          FROM packages p
-          WHERE p.service_type_id = st.service_type_id
+        ), ']')
+        FROM packages p
+        WHERE p.service_type_id = st.service_type_id
         ), '[]') AS packages
+
 
       FROM service_type st
       JOIN services s ON s.service_id = st.service_id
@@ -572,6 +591,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                     let sub_packages = [];
                     let preferences = [];
                     let addons = [];
+                    let consent_forms = [];
 
                     try {
                         sub_packages = typeof pkg.sub_packages === "string"
@@ -596,6 +616,13 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                     } catch (e) {
                         console.warn(`❌ Invalid addons JSON in package ${pkg.package_id}:`, e.message);
                     }
+                    try {
+                        consent_forms = typeof pkg.consent_forms === "string"
+                            ? JSON.parse(pkg.consent_forms)
+                            : [];
+                    } catch (e) {
+                        console.warn(`❌ Invalid consent_forms JSON in package ${pkg.package_id}:`, e.message);
+                    }
 
                     return {
                         package_id: pkg.package_id,
@@ -606,7 +633,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         package_media: pkg.package_media,
                         sub_packages,
                         preferences,
-                        addons
+                        addons,
+                        consent_forms
                     };
                 });
             } catch (e) {

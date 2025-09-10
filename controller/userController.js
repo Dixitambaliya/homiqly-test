@@ -547,6 +547,18 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   WHERE bp.package_id = p.package_id
                 ), '[]') AS preferences
 
+                -- Consent Forms
+                COALESCE((
+                SELECT CONCAT('[', GROUP_CONCAT(
+                    JSON_OBJECT(
+                    'consent_id', pcf.consent_id,
+                    'question', pcf.question
+                    )
+                ), ']')
+                FROM package_consent_forms pcf
+                WHERE pcf.package_id = p.package_id
+                ), '[]') AS consent_forms
+
             FROM packages p
             WHERE p.service_type_id = ?
             ORDER BY p.package_id DESC
@@ -567,6 +579,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
             sub_packages: JSON.parse(row.sub_packages || "[]"),
             addons: JSON.parse(row.addons || "[]"),
             preferences: JSON.parse(row.preferences || "[]"),
+            consent_forms: JSON.parse(row.consent_forms || "[]")
         }));
 
         res.status(200).json({
