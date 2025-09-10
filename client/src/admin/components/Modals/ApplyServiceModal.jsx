@@ -4,6 +4,7 @@ import { Button } from "../../../shared/components/Button";
 import api from "../../../lib/axiosConfig";
 import Select from "react-select";
 import { toast } from "react-toastify";
+import LoadingSlider from "../../../shared/components/LoadingSpinner";
 
 const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
   const [groupedPackages, setGroupedPackages] = useState({});
@@ -93,12 +94,12 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       (p) => p.sub_packages.length > 0 && p.preferences.length > 0
     );
 
-    if (!isValid) {
-      toast.error(
-        "Each package must have at least one sub-package and one preference."
-      );
-      return;
-    }
+    // if (!isValid) {
+    //   toast.error(
+    //     "Each package must have at least one sub-package and one preference."
+    //   );
+    //   return;
+    // }
 
     const payload = {
       vendor_id: vendor?.vendor_id,
@@ -199,6 +200,13 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
     }),
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoadingSlider />
+      </div>
+    );
+  }
   return (
     <Modal
       isOpen={isOpen}

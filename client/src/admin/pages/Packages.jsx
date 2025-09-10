@@ -17,15 +17,12 @@ const Packages = () => {
   const [loading, setLoading] = useState(true);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-
-  // NEW: track expanded package IDs (object for O(1) checks)
   const [expanded, setExpanded] = useState({});
 
   const fetchPackages = async () => {
     try {
       setLoading(true);
       const response = await api.get("/api/admin/getpackages");
-
       const rawData = Array.isArray(response.data)
         ? response.data
         : response.data?.result || [];

@@ -108,7 +108,7 @@ const Payments = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto p-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
         <button

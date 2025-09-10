@@ -119,11 +119,13 @@ const Services = () => {
                     key={service.service_type_id}
                     className="rounded-2xl shadow-md bg-white overflow-hidden transition-all hover:shadow-lg border border-gray-100"
                   >
-                    <img
-                      src={service.service_type_media}
-                      alt={service.service_type_name}
-                      className="w-full h-48 object-cover"
-                    />
+                    {service.service_type_media && (
+                      <img
+                        src={service.service_type_media}
+                        alt={service.service_type_name}
+                        className="w-full h-48 object-cover"
+                      />
+                    )}
                     <div className="p-5">
                       <h4 className="text-xl font-semibold text-gray-800">
                         {service.service_type_name}
@@ -224,7 +226,7 @@ const Services = () => {
                                       {pref.description}
                                     </p>
                                     <span className="text-sm font-medium text-blue-600">
-                                      ₹{pref.price}
+                                      ${pref.price}
                                     </span>
                                   </div>
                                 ))}

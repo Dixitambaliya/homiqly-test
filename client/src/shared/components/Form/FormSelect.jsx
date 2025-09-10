@@ -43,8 +43,8 @@ const FormSelect = ({
             onChange={onChange}
             disabled={disabled}
             required={required}
-            className={`w-full text-sm text-gray-900 outline-none bg-transparent py-3 ${
-              icon ? "pl-2 pr-4" : "px-4"
+            className={`w-full text-sm text-gray-900 outline-none bg-transparent py-2 ${
+              icon ? "pl-2 pr-4" : "px-2"
             } ${disabled ? "text-gray-400 bg-gray-50" : "text-gray-900"}`}
             {...rest}
           >
