@@ -33,28 +33,42 @@ SELECT * FROM package_addons WHERE addon_id = ?;
     WHERE addon_id = ? AND package_id = ?
       `,
 
-  updatePackagePreference: `UPDATE booking_preferences 
+  updatePackagePreference: `
+  UPDATE booking_preferences 
     SET preferenceValue = ?, preferencePrice = ? 
     WHERE preference_id = ? AND package_id = ?;
 `,
 
-  getPreferenceById: `SELECT * FROM booking_preferences WHERE preference_id = ?;
+  getPreferenceById: `
+  SELECT * FROM booking_preferences WHERE preference_id = ?;
 `,
-  deleteRemovedPreferences: `DELETE FROM booking_preferences 
+  deleteRemovedPreferences: `
+  DELETE FROM booking_preferences 
     WHERE package_id = ? AND preference_id NOT IN (?);
 `,
 
-  getConsentFormById: `SELECT * FROM package_consent_forms WHERE consent_id = ? `,
+  getConsentFormById: `
+  SELECT * FROM package_consent_forms WHERE consent_id = ? `
+  ,
 
-  updateConsentForm: `UPDATE package_consent_forms 
-                    SET question = ?, is_required = ? 
-                    WHERE consent_id = ? AND package_id = ?`,
+  updateConsentForm: `
+  UPDATE 
+  package_consent_forms 
+  SET question = ?, is_required = ? 
+  WHERE consent_id = ? AND package_id = ?`
+  ,
 
-  insertConsentForm: `INSERT INTO package_consent_forms (package_id, question, is_required) 
-                    VALUES (?, ?, ?)`,
+  insertConsentForm: `
+  INSERT INTO package_consent_forms 
+    (package_id, question, is_required) 
+    VALUES (?, ?, ?)`
+  ,
 
-  deleteRemovedConsentForms: `DELETE FROM package_consent_forms 
-                            WHERE package_id = ? AND consent_id NOT IN (?)`,
+  deleteRemovedConsentForms: `
+  DELETE 
+  FROM package_consent_forms 
+      WHERE package_id = ? AND consent_id NOT IN (?)`
+  ,
 
   updateUserById: `
     UPDATE users

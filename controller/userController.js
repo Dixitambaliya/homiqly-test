@@ -487,7 +487,6 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                 p.totalPrice,
                 p.totalTime,
                 p.packageMedia,
-                p.consentDescription,
 
                 -- Ratings
                 IFNULL((
