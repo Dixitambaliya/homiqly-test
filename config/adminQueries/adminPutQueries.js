@@ -44,6 +44,18 @@ SELECT * FROM package_addons WHERE addon_id = ?;
     WHERE package_id = ? AND preference_id NOT IN (?);
 `,
 
+  getConsentFormById: `SELECT * FROM package_consent_forms WHERE consent_id = ? `,
+
+  updateConsentForm: `UPDATE package_consent_forms 
+                    SET question = ?, is_required = ? 
+                    WHERE consent_id = ? AND package_id = ?`,
+
+  insertConsentForm: `INSERT INTO package_consent_forms (package_id, question, is_required) 
+                    VALUES (?, ?, ?)`,
+
+  deleteRemovedConsentForms: `DELETE FROM package_consent_forms 
+                            WHERE package_id = ? AND consent_id NOT IN (?)`,
+
   updateUserById: `
     UPDATE users
     SET firstName = ?, lastName = ?, email = ?, phone = ?, is_approved = ?

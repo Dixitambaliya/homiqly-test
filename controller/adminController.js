@@ -814,7 +814,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             // ✅ Update package
             const packageName = pkg.package_name ?? existing.packageName;
             const description = pkg.description ?? existing.description;
-            const consentDescription = pkg.consentDescription ?? existing.consentDescription;
             const totalPrice = pkg.total_price ?? existing.totalPrice;
             const totalTime = pkg.total_time ?? existing.totalTime;
             const packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || existing.packageMedia;
@@ -822,7 +821,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             await connection.query(adminPutQueries.updatePackage, [
                 packageName,
                 description,
-                consentDescription,
                 totalPrice,
                 totalTime,
                 packageMedia,
@@ -971,6 +969,52 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     submittedPrefIds.length ? submittedPrefIds : [0] // avoid empty IN ()
                 ]);
             }
+            // ✅ Handle Consent Forms
+            if (Array.isArray(pkg.consent_forms)) {
+                const submittedConsentIds = [];
+
+                for (let c = 0; c < pkg.consent_forms.length; c++) {
+                    const form = pkg.consent_forms[c];
+                    const consent_id = form.consent_id;
+
+                    if (consent_id) {
+                        // update existing
+                        const [oldForm] = await connection.query(
+                            adminPutQueries.getConsentFormById,
+                            [consent_id]
+                        );
+                        if (!oldForm.length) continue;
+                        const old = oldForm[0];
+
+                        const question = form.question ?? old.question;
+                        const is_required =
+                            form.is_required !== undefined ? form.is_required : old.is_required;
+
+                        await connection.query(adminPutQueries.updateConsentForm, [
+                            question,
+                            is_required,
+                            consent_id,
+                            package_id,
+                        ]);
+
+                        submittedConsentIds.push(consent_id);
+                    } else {
+                        // insert new
+                        const [newForm] = await connection.query(
+                            adminPutQueries.insertConsentForm,
+                            [package_id, form.question, form.is_required ?? 0]
+                        );
+                        submittedConsentIds.push(newForm.insertId);
+                    }
+                }
+
+                // cleanup removed consent forms
+                await connection.query(adminPutQueries.deleteRemovedConsentForms, [
+                    package_id,
+                    submittedConsentIds.length ? submittedConsentIds : [0],
+                ]);
+            }
+
 
         }
 
