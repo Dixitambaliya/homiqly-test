@@ -465,7 +465,6 @@ const getServiceCategories = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getcity = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(serviceGetQueries.getCities);
@@ -623,8 +622,6 @@ const editCategory = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
-
 
 const deleteCategory = asyncHandler(async (req, res) => {
     const { serviceCategoryId } = req.body;

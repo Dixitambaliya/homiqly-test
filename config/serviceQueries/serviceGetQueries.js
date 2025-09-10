@@ -6,6 +6,7 @@ SELECT
     sc.serviceCategory AS categoryName,
     s.service_id AS serviceId,
     s.serviceName,
+    s.subCategory,
     s.serviceDescription,
     s.serviceImage,
     s.slug,
