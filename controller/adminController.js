@@ -345,6 +345,7 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -403,13 +404,12 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             const [pkgResult] = await connection.query(
                 `INSERT INTO packages 
-                (service_type_id, packageName, description, consentDescription, totalPrice, totalTime, packageMedia)
+                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
                 VALUES (?, ?, ?, ?, ?, ?, ?)` ,
                 [
                     service_type_id,
                     pkg.package_name || null,
                     pkg.description || null,
-                    pkg.consentDescription || null,
                     pkg.total_price || 0,
                     pkg.total_time || 0,
                     media
@@ -454,12 +454,12 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // 📌 Insert consent form questions (NEW)
-            if (pkg.consentForm && Array.isArray(pkg.consentForm)) {
+            // 📌 Insert consent form questions (per package)
+            if (Array.isArray(pkg.consentForm) && pkg.consentForm.length > 0) {
                 for (const question of pkg.consentForm) {
                     await connection.query(
                         `INSERT INTO package_consent_forms (package_id, question, is_required)
-                         VALUES (?, ?, ?)`,
+                         VALUES (?, ?, ?)` ,
                         [package_id, question.text || null, question.is_required ? 1 : 0]
                     );
                 }
@@ -516,7 +516,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
             'package_id', p.package_id,
             'title', p.packageName,
             'description', p.description,
-            'consentDescription', p.consentDescription,
             'price', p.totalPrice,
             'time_required', p.totalTime,
             'package_media', p.packageMedia,

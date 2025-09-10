@@ -10,7 +10,7 @@ const adminPutQueries = {
 
   updatePackage: `
     UPDATE packages
-SET packageName = ?, description = ?, consentDescription = ?, totalPrice = ?, totalTime = ?, packageMedia = ?
+SET packageName = ?, description = ?, totalPrice = ?, totalTime = ?, packageMedia = ?
 WHERE package_id = ?;
 `,
 
