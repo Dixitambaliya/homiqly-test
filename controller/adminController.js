@@ -485,10 +485,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         console.error("Admin package creation error:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
-});
-
-
-
+})
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -638,6 +635,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     }
 });
 
+
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -646,7 +644,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         const { vendor_id, selectedPackages } = req.body;
 
         if (!vendor_id || !Array.isArray(selectedPackages) || selectedPackages.length === 0) {
-            return res.status(400).json({ message: "vendor_id and selectedPackages[] with sub-packages are required." });
+            return res.status(400).json({ message: "vendor_id and selectedPackages[] are required." });
         }
 
         // ✅ Check vendor existence and type
@@ -658,19 +656,44 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
         const vendorType = vendorExists[0].vendorType;
 
-        // // ✅ Check manual toggle status
-        // const [toggleResult] = await connection.query(
-        //     `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
-        //     [vendor_id]
-        // );
+        // ✅ Check manual toggle status
+        const [toggleResult] = await connection.query(
+            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+        const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1;
+        if (!isEnabled) {
+            throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
+        }
 
-        // const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1; // 1 = enabled
-        // if (!isEnabled) {
-        //     throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
-        // }
+        // ✅ Get vendor’s already assigned packages
+        const [existingPackages] = await connection.query(
+            `SELECT package_id FROM vendor_packages WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+        const existingIds = new Set(existingPackages.map(p => p.package_id));
+
+        // ✅ Get vendor’s applied packages
+        const [appliedPackages] = await connection.query(
+            `SELECT package_id FROM vendor_package_applications WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+        const appliedIds = new Set(appliedPackages.map(p => p.package_id));
+
+        const newlyAssigned = [];
 
         for (const pkg of selectedPackages) {
-            const { package_id, sub_packages = [], preferences = [] } = pkg;
+            const { package_id } = pkg;
+
+            // 🚨 Error if already in vendor_packages
+            if (existingIds.has(package_id)) {
+                throw new Error(`Vendor ID ${vendor_id} already has package ID ${package_id} assigned.`);
+            }
+
+            // 🚨 Error if already applied for this package
+            if (appliedIds.has(package_id)) {
+                throw new Error(`Vendor ID ${vendor_id} already has a pending application for package ID ${package_id}.`);
+            }
 
             // ✅ Step 1: Get service_type_id from package
             const [pkgRow] = await connection.query(
@@ -695,7 +718,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
             // ✅ Insert vendor-package
             await connection.query(
-                `INSERT IGNORE INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
 
@@ -720,60 +743,27 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Insert sub-packages
-            for (const item of sub_packages) {
-                const item_id = item.sub_package_id;
-
-                const [itemExists] = await connection.query(
-                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
-                    [item_id, package_id]
-                );
-                if (itemExists.length === 0) {
-                    throw new Error(`Sub-package ID ${item_id} does not belong to Package ID ${package_id}.`);
-                }
-
-                await connection.query(
-                    `INSERT IGNORE INTO vendor_package_items (vendor_id, package_id, package_item_id)
-                     VALUES (?, ?, ?)`,
-                    [vendor_id, package_id, item_id]
-                );
-            }
-
-            // ✅ Insert preferences
-            for (const pref of preferences) {
-                const preference_id = pref.preference_id;
-
-                const [prefExists] = await connection.query(
-                    `SELECT preference_id FROM booking_preferences WHERE preference_id = ? AND package_id = ?`,
-                    [preference_id, package_id]
-                );
-                if (prefExists.length === 0) {
-                    throw new Error(`Preference ID ${preference_id} does not belong to Package ID ${package_id}.`);
-                }
-
-                await connection.query(
-                    `INSERT IGNORE INTO vendor_package_preferences (vendor_id, package_id, preference_id)
-                     VALUES (?, ?, ?)`,
-                    [vendor_id, package_id, preference_id]
-                );
-            }
+            newlyAssigned.push(pkg);
         }
 
         await connection.commit();
         connection.release();
 
         res.status(200).json({
-            message: "Packages, services, and preferences successfully assigned to vendor.",
-            assigned: selectedPackages
+            message: "Packages and related services/categories successfully assigned to vendor.",
+            assigned: newlyAssigned
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
         console.error("Assign error:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+        res.status(400).json({ error: err.message }); // return validation error
     }
 });
+
+
+
 
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1184,36 +1174,23 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
 
                 p.packageName,
+                p.packageMedia,
                 p.totalPrice,
                 p.totalTime,
-                p.packageMedia
+
+                s.serviceName,
+                s.serviceImage,
+                st.serviceTypeName,
+                st.serviceTypeMedia
             FROM vendor_package_applications vpa
             JOIN vendors v ON vpa.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             JOIN packages p ON vpa.package_id = p.package_id
+            JOIN service_type st ON p.service_type_id = st.service_type_id
+            JOIN services s ON st.service_id = s.service_id
             ORDER BY vpa.applied_at DESC
         `);
-
-        // Fetch sub-packages & preferences for each application
-        for (const app of applications) {
-            const [subPackages] = await db.query(`
-                SELECT vpsp.sub_package_id, pi.itemName, pi.itemMedia, pi.timeRequired
-                FROM vendor_sub_packages_application vpsp
-                JOIN package_items pi ON vpsp.sub_package_id = pi.item_id
-                WHERE vpsp.application_id = ?
-            `, [app.application_id]);
-
-            const [preferences] = await db.query(`
-                SELECT vpp.preference_id, bp.preferenceValue
-                FROM vendor_preferences_application vpp
-                JOIN booking_preferences bp ON vpp.preference_id = bp.preference_id
-                WHERE vpp.application_id = ?
-            `, [app.application_id]);
-
-            app.sub_packages = subPackages;
-            app.preferences = preferences;
-        }
 
         res.status(200).json({
             message: "All vendor package requests fetched successfully",
@@ -1228,6 +1205,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     try {
