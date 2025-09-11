@@ -366,71 +366,105 @@ const Profile = () => {
 
       {/* Services */}
       <Card title="Services Offered">
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {services.map((service, idx) => (
-            <div key={idx} className="border rounded-lg p-4 bg-white">
-              <h3 className="text-lg font-semibold text-primary mb-1">
-                {service.service_type_name}
-              </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                {service.service_category_name} / {service.service_name}
-              </p>
+            <div
+              key={idx}
+              className="rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow p-6"
+            >
+              {/* Header */}
+              {service.package_name && (
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {service.package_name}
+                </h3>
+              )}
 
-              {service.packages?.map((pkg, pIdx) => (
-                <div
-                  key={pIdx}
-                  className="bg-gray-50 border rounded-md p-4 mb-4"
-                >
-                  <div className="flex gap-4">
-                    <img
-                      src={pkg.package_media}
-                      alt={pkg.title}
-                      className="w-24 h-20 object-cover rounded"
-                    />
+              {/* Content grid */}
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  {service.source && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Source:</span>{" "}
+                      {service.source}
+                    </p>
+                  )}
+
+                  {service.service_type_name && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Service Type Name:</span>{" "}
+                      {service.service_type_name}
+                    </p>
+                  )}
+
+                  {service.service_name && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Service Name:</span>{" "}
+                      {service.service_name}
+                    </p>
+                  )}
+                  {service.service_description && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Service Description:</span>{" "}
+                      {service.service_description}
+                    </p>
+                  )}
+                  {service.service_categories && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Service Sub Categories:</span>{" "}
+                      {service.service_categories}
+                    </p>
+                  )}
+
+                  {service.service_category_name && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">
+                        Service Category Name:
+                      </span>{" "}
+                      {service.service_category_name}
+                    </p>
+                  )}
+                </div>
+
+                {/* Media Section */}
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {service.package_media && (
                     <div>
-                      <h4 className="font-semibold text-gray-800">
-                        {pkg.title}
-                      </h4>
-                      <p className="text-sm text-gray-600">{pkg.description}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        $ {pkg.price} • {pkg.time_required}
+                      <img
+                        src={service.package_media}
+                        alt="package media"
+                        className="w-full h-24 object-cover rounded-xl border"
+                      />
+                      <p className="text-xs text-gray-500 mt-1 text-center">
+                        Package Media
                       </p>
                     </div>
-                  </div>
-                  {pkg.sub_packages?.length > 0 && (
-                    <div className="mt-3">
-                      <h5 className="text-sm font-medium text-gray-700">
-                        Sub-Packages
-                      </h5>
-                      <div className="space-y-2 mt-1">
-                        {pkg.sub_packages.map((sub, sIdx) => (
-                          <div
-                            key={sIdx}
-                            className="flex items-start gap-4 bg-white border p-2 rounded"
-                          >
-                            <img
-                              src={sub.item_media}
-                              alt={sub.title}
-                              className="w-14 h-14 object-cover rounded"
-                            />
-                            <div>
-                              <p className="font-medium text-sm text-gray-800">
-                                {sub.title}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {sub.description}
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                $ {sub.price} • {sub.time_required}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  )}
+                  {service.service_type_media && (
+                    <div>
+                      <img
+                        src={service.service_type_media}
+                        alt="service type media"
+                        className="w-full h-24 object-cover rounded-xl border"
+                      />
+                      <p className="text-xs text-gray-500 mt-1 text-center">
+                        Service Type Media
+                      </p>
+                    </div>
+                  )}
+                  {service.service_media && (
+                    <div>
+                      <img
+                        src={service.service_media}
+                        alt="service media"
+                        className="w-full h-24 object-cover rounded-xl border"
+                      />
+                      <p className="text-xs text-gray-500 mt-1 text-center">
+                        Service Media
+                      </p>
                     </div>
                   )}
                 </div>
-              ))}
+              </div>
             </div>
           ))}
         </div>

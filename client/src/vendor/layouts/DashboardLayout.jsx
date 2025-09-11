@@ -53,7 +53,7 @@ const DashboardLayout = () => {
     { path: "/vendor/dashboard", name: "Dashboard", icon: <FiHome className="w-5 h-5" /> },
     { path: "/vendor/calendar", name: "Calendar", icon: <FiCalendar className="w-5 h-5" /> },
     { path: "/vendor/profile", name: "Profile", icon: <FiUser className="w-5 h-5" /> },
-    { path: "/vendor/services", name: "My Services", icon: <FiShoppingBag className="w-5 h-5" /> },
+    { path: "/vendor/services", name: "Apply for Services", icon: <FiShoppingBag className="w-5 h-5" /> },
     { path: "/vendor/bookings", name: "Bookings", icon: <FiShoppingBag className="w-5 h-5" /> },
     { path: "/vendor/supply-kits", name: "Supply Kits", icon: <FiBox className="w-5 h-5" /> },
 
