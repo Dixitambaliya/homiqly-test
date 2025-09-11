@@ -27,11 +27,11 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     let parsedPackages = [];
 
-    // Parse packages
+    // Parse & validate packages
     try {
         parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
-        if (!Array.isArray(parsedPackages)) {
-            return res.status(400).json({ message: "'packages' must be an array." });
+        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
+            return res.status(400).json({ message: "'packages' must be a non-empty array." });
         }
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
@@ -64,7 +64,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         const cart_id = insertCart.insertId;
 
-        // ✅ Step 2: Loop through packages
+        // ✅ Step 2: Loop through packages (already compulsory, guaranteed at least 1)
         for (const pkg of parsedPackages) {
             const {
                 package_id = null,
@@ -104,7 +104,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Insert preferences (inside package)
+            // ✅ Insert preferences
             for (const pref of preferences) {
                 const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
                 if (!preference_id) continue;
@@ -115,7 +115,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Insert consents (inside package)
+            // ✅ Insert consents
             for (const consent of consents) {
                 const { consent_id, answer = null } = consent;
                 if (!consent_id) continue;
@@ -143,6 +143,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

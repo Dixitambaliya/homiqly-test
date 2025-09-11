@@ -1086,6 +1086,66 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
     }
 });
 
+const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
+    const vendorId = req.user.vendor_id; // company/vendor admin id
+    const { employee_id } = req.params
+
+    console.log(vendorId);
+
+    const { first_name, last_name, phone, email } = req.body;
+
+    if (!vendorId) {
+        return res.status(401).json({ message: "Unauthorized: vendor_id missing" });
+    }
+    if (!employee_id) {
+        return res.status(400).json({ message: "Missing required field: employee_id" });
+    }
+
+    const newProfileImage = req.uploadedFiles?.profile_image?.[0]?.url || null;
+
+    try {
+        // Step 1: Fetch employee and check if belongs to this vendor/company
+        const [existingRows] = await db.query(
+            `SELECT first_name, last_name, phone, email, profile_image 
+             FROM company_employees 
+             WHERE employee_id = ? AND vendor_id = ?`,
+            [employee_id, vendorId]
+        );
+        
+        console.log(employee_id, vendorId);
+
+        if (!existingRows.length === 0) {
+            return res.status(404).json({ message: "Employee not found or does not belong to your company" });
+        }
+
+        const existing = existingRows[0];
+
+        // Step 2: Merge with new values
+        const updatedFirstName = first_name || existing.first_name;
+        const updatedLastName = last_name || existing.last_name;
+        const updatedPhone = phone || existing.phone;
+        const updatedEmail = email || existing.email;
+        const updatedProfileImage = newProfileImage || existing.profile_image;
+
+        // Step 3: Update employee record
+        const [result] = await db.query(
+            `UPDATE company_employees
+             SET first_name = ?, last_name = ?, phone = ?, email = ?, profile_image = ?
+             WHERE employee_id = ? AND vendor_id = ?`,
+            [updatedFirstName, updatedLastName, updatedPhone, updatedEmail, updatedProfileImage, employee_id, vendorId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(400).json({ message: "Nothing was updated" });
+        }
+
+        res.status(200).json({ message: "Employee profile updated successfully" });
+    } catch (err) {
+        console.error("Error updating employee profile by company:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 
 module.exports = {
     getVendorAssignedPackages,
@@ -1105,5 +1165,6 @@ module.exports = {
     getVendorFullPaymentHistory,
     updateBookingStatusByVendor,
     getVendorDashboardStats,
-    removeVendorPackage
+    removeVendorPackage,
+    editEmployeeProfileByCompany
 };

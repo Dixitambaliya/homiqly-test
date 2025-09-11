@@ -137,7 +137,6 @@ const createEmployee = asyncHandler(async (req, res) => {
     }
 });
 
-
 const employeeLogin = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
 

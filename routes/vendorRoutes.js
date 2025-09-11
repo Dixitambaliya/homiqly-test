@@ -20,7 +20,8 @@ const {
     getVendorFullPaymentHistory,
     updateBookingStatusByVendor,
     getVendorDashboardStats,
-    removeVendorPackage
+    removeVendorPackage,
+    editEmployeeProfileByCompany
 } = require("../controller/vendorController")
 
 const multiUpload = upload.any();
@@ -42,6 +43,9 @@ router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
 router.get("/getpaymenthistory", authenticationToken, getVendorFullPaymentHistory)
 router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
+
+
+router.put("/employee/:employee_id", authenticationToken, editEmployeeProfileByCompany)
 
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)
 
