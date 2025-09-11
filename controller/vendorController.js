@@ -1090,8 +1090,6 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id; // company/vendor admin id
     const { employee_id } = req.params
 
-    console.log(vendorId);
-
     const { first_name, last_name, phone, email } = req.body;
 
     if (!vendorId) {
@@ -1112,9 +1110,9 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
             [employee_id, vendorId]
         );
         
-        console.log(employee_id, vendorId);
+        console.log(existingRows);
 
-        if (!existingRows.length === 0) {
+        if (existingRows.length === 0) {
             return res.status(404).json({ message: "Employee not found or does not belong to your company" });
         }
 

@@ -45,7 +45,7 @@ router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVen
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
 
 
-router.put("/employee/:employee_id", authenticationToken, editEmployeeProfileByCompany)
+router.put("/employee/:employee_id", multiUpload, handleUploads, authenticationToken, editEmployeeProfileByCompany)
 
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)
 
