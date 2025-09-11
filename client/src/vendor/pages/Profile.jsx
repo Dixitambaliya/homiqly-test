@@ -12,13 +12,14 @@ import {
 } from "react-icons/fi";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { Card } from "../../shared/components/Card";
-import { Button } from "../../shared/components/Button";
+import { Button, IconButton } from "../../shared/components/Button";
 import {
   FormInput,
   FormTextarea,
   FormFileInput,
 } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { Trash2 } from "lucide-react";
 
 const Profile = () => {
   const { currentUser } = useVendorAuth();
@@ -92,6 +93,30 @@ const Profile = () => {
     }
   };
 
+  const deleteVendorService = async (vendorId) => {
+    if (!vendorId) return;
+
+    const confirm = window.confirm(
+      "Are you sure you want to delete this service? This action cannot be undone."
+    );
+    if (!confirm) return;
+    try {
+      setLoading(true);
+      const response = await api.delete(`api/vendor/removepackage/${vendorId}`);
+      if (response.status === 200) {
+        toast.success(response.data.message || "Service deleted successfully");
+        fetchVendorService(); // Refresh the list
+      } else {
+        toast.error(response.data.message || "Failed to delete service");
+      }
+    } catch (error) {
+      console.error("Error deleting vendor service:", error);
+      toast.error("Failed to delete service");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -144,21 +169,6 @@ const Profile = () => {
 
   const toggleEdit = () => {
     setEditing(!editing);
-  };
-
-  const handleCertificateChange = (index, field, value) => {
-    const updated = [...certificates];
-    updated[index][field] = value;
-    setCertificates(updated);
-  };
-
-  const addCertificate = () => {
-    setCertificates([...certificates, { name: "", file: null }]);
-  };
-
-  const removeCertificate = (index) => {
-    const updated = certificates.filter((_, i) => i !== index);
-    setCertificates(updated);
   };
 
   if (loading) {
@@ -370,101 +380,100 @@ const Profile = () => {
           {services.map((service, idx) => (
             <div
               key={idx}
-              className="rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow p-6"
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200 p-6 overflow-hidden"
             >
               {/* Header */}
-              {service.package_name && (
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  {service.package_name}
-                </h3>
-              )}
-
-              {/* Content grid */}
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  {service.source && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Source:</span>{" "}
-                      {service.source}
-                    </p>
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  {service.package_name && (
+                    <h3 className="text-lg leading-tight font-semibold text-gray-900">
+                      {service.package_name}
+                    </h3>
                   )}
-
-                  {service.service_type_name && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Service Type Name:</span>{" "}
-                      {service.service_type_name}
-                    </p>
-                  )}
-
-                  {service.service_name && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Service Name:</span>{" "}
-                      {service.service_name}
-                    </p>
-                  )}
-                  {service.service_description && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Service Description:</span>{" "}
-                      {service.service_description}
-                    </p>
-                  )}
-                  {service.service_categories && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Service Sub Categories:</span>{" "}
-                      {service.service_categories}
-                    </p>
-                  )}
-
-                  {service.service_category_name && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">
-                        Service Category Name:
-                      </span>{" "}
-                      {service.service_category_name}
+                  {/* optional small subtitle */}
+                  {service.package_id != null && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Package ID • {service.package_id}
                     </p>
                   )}
                 </div>
 
-                {/* Media Section */}
-                <div className="grid grid-cols-3 gap-3 mt-3">
-                  {service.package_media && (
-                    <div>
-                      <img
-                        src={service.package_media}
-                        alt="package media"
-                        className="w-full h-24 object-cover rounded-xl border"
-                      />
-                      <p className="text-xs text-gray-500 mt-1 text-center">
-                        Package Media
-                      </p>
-                    </div>
+                {/* small badge for vendor id (if exists) */}
+                <div className="flex items-center gap-2">
+                  {service.vendor_packages_id != null && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-700 border border-gray-100">
+                      #{service.vendor_packages_id}
+                    </span>
                   )}
-                  {service.service_type_media && (
-                    <div>
-                      <img
-                        src={service.service_type_media}
-                        alt="service type media"
-                        className="w-full h-24 object-cover rounded-xl border"
-                      />
-                      <p className="text-xs text-gray-500 mt-1 text-center">
-                        Service Type Media
-                      </p>
-                    </div>
-                  )}
-                  {service.service_media && (
-                    <div>
-                      <img
-                        src={service.service_media}
-                        alt="service media"
-                        className="w-full h-24 object-cover rounded-xl border"
-                      />
-                      <p className="text-xs text-gray-500 mt-1 text-center">
-                        Service Media
-                      </p>
-                    </div>
-                  )}
+                  <IconButton
+                    onClick={() =>
+                      deleteVendorService(service.vendor_packages_id)
+                    }
+                    variant="lightDanger"
+                    icon={<Trash2 className="w-5 h-5" />}
+                  />
                 </div>
               </div>
+
+              {/* Media */}
+              {service.package_media && (
+                <div className="mb-5 rounded-lg overflow-hidden border border-gray-50">
+                  <img
+                    src={service.package_media}
+                    alt={service.package_name || "package media"}
+                    className="w-full h-52 object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Sub-packages */}
+              {Array.isArray(service.sub_packages) &&
+                service.sub_packages.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-800 mb-3">
+                      Sub-Packages
+                    </h4>
+
+                    <div className="space-y-3">
+                      {service.sub_packages.map((sub, sIdx) => (
+                        <div
+                          key={sIdx}
+                          className="bg-white rounded-xl border border-gray-100 p-4 flex flex-col sm:flex-row gap-4 items-start shadow-sm"
+                        >
+                          <div className="flex-1">
+                            {sub.sub_package_name && (
+                              <p className="text-sm font-medium text-gray-900">
+                                {sub.sub_package_name}
+                              </p>
+                            )}
+                            {sub.sub_package_description && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {sub.sub_package_description}
+                              </p>
+                            )}
+                            {sub.sub_package_id != null && (
+                              <p className="text-xs text-gray-400 mt-2">
+                                ID: {sub.sub_package_id}
+                              </p>
+                            )}
+                          </div>
+
+                          {sub.sub_package_media && (
+                            <div className="w-full sm:w-36 flex-shrink-0 rounded-lg overflow-hidden border border-gray-50">
+                              <img
+                                src={sub.sub_package_media}
+                                alt={
+                                  sub.sub_package_name || "sub package media"
+                                }
+                                className="w-full h-24 object-cover"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
           ))}
         </div>

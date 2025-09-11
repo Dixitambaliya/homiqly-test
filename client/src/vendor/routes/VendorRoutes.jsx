@@ -23,6 +23,7 @@ import Employees from "../pages/Employees";
 import PaymentDetails from "../pages/subpages/PaymentDetails";
 import BookingDetailsPage from "../pages/subpages/BookingDetailsPage";
 import AccountDetails from "../pages/AccountDetails";
+import LoadingSlider from "../../shared/components/LoadingSpinner";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -31,7 +32,7 @@ const ProtectedRoute = ({ children }) => {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        Loading...
+        <LoadingSlider />{" "}
       </div>
     );
   }

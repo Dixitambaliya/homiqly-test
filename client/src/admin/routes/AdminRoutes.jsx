@@ -33,6 +33,7 @@ import PaymentDetails from "../pages/subpages/PaymentDetails";
 import ServiceCities from "../pages/subpages/ServiceCities";
 import VendorApplications from "../pages/VendorApplications";
 import VendorApplicationDetails from "../pages/subpages/VendorApplicationDetails";
+import { Loader, Loader2 } from "lucide-react";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -40,7 +41,8 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center gap-2">
+        <Loader2 className="animate-spin" />
         Loading...
       </div>
     );

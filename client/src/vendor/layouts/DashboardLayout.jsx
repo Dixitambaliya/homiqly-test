@@ -14,6 +14,7 @@ import {
 import { HeaderMenu } from "../../shared/components/Header";
 import NotificationIcon from "../components/NotificationIcon";
 import api from "../../lib/axiosConfig"; // ✅ your axios instance
+import { Loader, Loader2 } from "lucide-react";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useVendorAuth();
@@ -50,22 +51,64 @@ const DashboardLayout = () => {
 
   // ✅ Sidebar menu items
   const menuItems = [
-    { path: "/vendor/dashboard", name: "Dashboard", icon: <FiHome className="w-5 h-5" /> },
-    { path: "/vendor/calendar", name: "Calendar", icon: <FiCalendar className="w-5 h-5" /> },
-    { path: "/vendor/profile", name: "Profile", icon: <FiUser className="w-5 h-5" /> },
-    { path: "/vendor/services", name: "Apply for Services", icon: <FiShoppingBag className="w-5 h-5" /> },
-    { path: "/vendor/bookings", name: "Bookings", icon: <FiShoppingBag className="w-5 h-5" /> },
+    {
+      path: "/vendor/dashboard",
+      name: "Dashboard",
+      icon: <FiHome className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/calendar",
+      name: "Calendar",
+      icon: <FiCalendar className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/profile",
+      name: "Profile",
+      icon: <FiUser className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/services",
+      name: "Apply for Services",
+      icon: <FiShoppingBag className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/bookings",
+      name: "Bookings",
+      icon: <FiShoppingBag className="w-5 h-5" />,
+    },
     // { path: "/vendor/supply-kits", name: "Supply Kits", icon: <FiBox className="w-5 h-5" /> },
 
     // ✅ Show Employees only if vendorType !== "individual"
     ...(vendorType !== "individual"
-      ? [{ path: "/vendor/employees", name: "Employees", icon: <FiUser className="w-5 h-5" /> }]
+      ? [
+          {
+            path: "/vendor/employees",
+            name: "Employees",
+            icon: <FiUser className="w-5 h-5" />,
+          },
+        ]
       : []),
 
-    { path: "/vendor/payments", name: "Payments", icon: <FiCreditCard className="w-5 h-5" /> },
-    { path: "/vendor/ratings", name: "Ratings", icon: <FiStar className="w-5 h-5" /> },
-    { path: "/vendor/support", name: "Support", icon: <FiHelpCircle className="w-5 h-5" /> },
-    { path: "/vendor/accountdetails", name: "Bank account details", icon: <FiCreditCard className="w-5 h-5" /> },
+    {
+      path: "/vendor/payments",
+      name: "Payments",
+      icon: <FiCreditCard className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/ratings",
+      name: "Ratings",
+      icon: <FiStar className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/support",
+      name: "Support",
+      icon: <FiHelpCircle className="w-5 h-5" />,
+    },
+    {
+      path: "/vendor/accountdetails",
+      name: "Bank account details",
+      icon: <FiCreditCard className="w-5 h-5" />,
+    },
   ];
 
   const getPageTitle = () => {
@@ -75,7 +118,12 @@ const DashboardLayout = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen gap-2">
+        <Loader2 className="animate-spin" />
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -130,9 +178,15 @@ const DashboardLayout = () => {
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden text-gray-500 focus:outline-none"
               >
-                {mobileMenuOpen ? <FiX className="w-6 h-6" /> : <FiMenu className="w-6 h-6" />}
+                {mobileMenuOpen ? (
+                  <FiX className="w-6 h-6" />
+                ) : (
+                  <FiMenu className="w-6 h-6" />
+                )}
               </button>
-              <h1 className="ml-4 text-xl font-semibold text-gray-800">{getPageTitle()}</h1>
+              <h1 className="ml-4 text-xl font-semibold text-gray-800">
+                {getPageTitle()}
+              </h1>
             </div>
 
             <div className="flex items-center space-x-4">
