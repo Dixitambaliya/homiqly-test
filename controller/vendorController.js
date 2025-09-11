@@ -643,10 +643,15 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         // ✅ Fetch sub-packages for these packages
         const vendorPackageIds = packages.map(p => p.vendor_packages_id);
         const [subPackages] = await db.query(
-            `SELECT vpi.vendor_packages_id, vpi.package_item_id, pi.itemName AS sub_package_name
-             FROM vendor_package_items vpi
-             JOIN package_items pi ON vpi.package_item_id = pi.item_id
-             WHERE vpi.vendor_packages_id IN (?)`,
+            `SELECT 
+             vpi.vendor_packages_id, 
+             vpi.package_item_id, 
+             pi.itemName AS sub_package_name,
+             pi.itemMedia,
+             pi.description
+                FROM vendor_package_items vpi
+                JOIN package_items pi ON vpi.package_item_id = pi.item_id
+                WHERE vpi.vendor_packages_id IN (?)`,
             [vendorPackageIds]
         );
 
@@ -660,7 +665,9 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
                 .filter(sp => sp.vendor_packages_id === pkg.vendor_packages_id)
                 .map(sp => ({
                     sub_package_id: sp.package_item_id,
-                    sub_package_name: sp.sub_package_name
+                    sub_package_name: sp.sub_package_name,
+                    sub_package_media: sp.itemMedia,
+                    sub_package_description: sp.description,
                 }))
         }));
 
@@ -1023,6 +1030,9 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
 
 const removeVendorPackage = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
+
+    console.log(vendorId);
+
     const { vendor_packages_id } = req.params;
 
     if (!vendor_packages_id) {

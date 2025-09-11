@@ -19,7 +19,8 @@ const {
     getManualAssignmentStatus,
     getVendorFullPaymentHistory,
     updateBookingStatusByVendor,
-    getVendorDashboardStats
+    getVendorDashboardStats,
+    removeVendorPackage
 } = require("../controller/vendorController")
 
 const multiUpload = upload.any();
@@ -28,16 +29,11 @@ router.get("/getvendorservice", authenticationToken, getVendorAssignedPackages)
 router.get("/getvendorservicetype", authenticationToken, getServiceTypesByVendor);
 router.get("/vendorservice", authenticationToken, getVendorService);
 router.get("/getprofile", authenticationToken, getProfileVendor);
-
 router.get("/getservicetypes/:service_id", authenticationToken, getServiceTypesByServiceId);
-
 router.get("/getpackages", authenticationToken, getAvailablePackagesForVendor)
 router.get("/getallpackages", authenticationToken, getAllPackagesForVendor)
 router.delete("/deletepackages/:package_id", authenticationToken, deletePackage);
-
 router.post("/applyservice", authenticationToken, applyPackagesToVendor)
-
-
 router.get("/getstats", authenticationToken, getVendorDashboardStats)
 router.post("/packagerating", authenticationToken, addRatingToPackages)
 router.put("/editservicetype", authenticationToken, editServiceType)
@@ -46,5 +42,7 @@ router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
 router.get("/getpaymenthistory", authenticationToken, getVendorFullPaymentHistory)
 router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
+
+router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)
 
 module.exports = router;
