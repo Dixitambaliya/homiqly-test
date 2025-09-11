@@ -45,7 +45,7 @@ const FormInput = ({
             placeholder={placeholder}
             disabled={disabled}
             required={required}
-            className={`w-full outline-none text-sm placeholder-gray-400 rounded-lg bg-transparent py-3 ${
+            className={`w-full outline-none text-sm placeholder-gray-400 rounded-lg bg-transparent py-1.5 ${
               icon ? "pl-2 pr-4" : "px-4"
             } ${disabled ? "text-gray-400 bg-gray-50" : "text-gray-900"}`}
             {...rest}

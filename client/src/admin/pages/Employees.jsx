@@ -5,6 +5,7 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EmployeesTable from "../components/Tables/EmployeesTable";
 import EmployeeDetailsModal from "../components/Modals/EmployeeDetailsModal"; // <-- new import
 import { FiSearch } from "react-icons/fi";
+import FormInput from "../../shared/components/Form/FormInput";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
@@ -104,19 +105,15 @@ const Employees = () => {
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           {/* Search */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-              <FiSearch />
-            </span>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name or email..."
-              className="pl-10 pr-4 py-2 border rounded-lg w-full sm:w-80 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
 
+          <FormInput
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by name or email..."
+            icon={<FiSearch />}
+            className=" w-full sm:w-80"
+          />
           {/* Company dropdown */}
           <select
             value={companyFilter}
