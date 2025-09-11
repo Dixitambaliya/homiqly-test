@@ -1282,7 +1282,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -1336,7 +1335,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 
             // Get sub-package items from vendor_package_item_applications
             const [subPkgRows] = await connection.query(
-                `SELECT package_item_id FROM vendor_package_item_applications WHERE application_id = ?`,
+                `SELECT package_item_id FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
             );
 
@@ -1358,7 +1357,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 
             // ✅ Delete transferred entries from application tables
             await connection.query(
-                `DELETE FROM vendor_package_item_applications WHERE application_id = ?`,
+                `DELETE FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
             );
             await connection.query(

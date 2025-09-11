@@ -28,7 +28,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
-
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -94,10 +93,10 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
                 for (const sub of sub_packages) {
                     const subId = sub.sub_package_id;
                     await connection.query(
-                        `INSERT INTO vendor_package_item_applications (vendor_id, package_id, package_item_id) 
-                         VALUES (?, ?, ?)`,
-                        [vendor_id, package_id, subId]
+                        `INSERT INTO vendor_package_item_application (application_id, package_item_id) VALUES (?, ?)`,
+                        [application_id, subId]
                     );
+
                     storedSubPackages.push(subId);
                 }
             }
@@ -1022,6 +1021,62 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
     }
 });
 
+const removeVendorPackage = asyncHandler(async (req, res) => {
+    const vendorId = req.user.vendor_id;
+    const { vendor_packages_id } = req.params;
+
+    if (!vendor_packages_id) {
+        return res.status(400).json({ message: "vendor_packages_id is required" });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        // ✅ Ensure the package belongs to the vendor
+        const [rows] = await connection.query(
+            `SELECT vendor_packages_id FROM vendor_packages 
+             WHERE vendor_packages_id = ? AND vendor_id = ?`,
+            [vendor_packages_id, vendorId]
+        );
+
+        if (rows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Package not found or not owned by this vendor" });
+        }
+
+        // ✅ Delete related sub-packages first
+        await connection.query(
+            `DELETE FROM vendor_package_items WHERE vendor_packages_id = ?`,
+            [vendor_packages_id]
+        );
+
+        // ✅ Delete the vendor package
+        await connection.query(
+            `DELETE FROM vendor_packages WHERE vendor_packages_id = ? AND vendor_id = ?`,
+            [vendor_packages_id, vendorId]
+        );
+
+        await connection.commit();
+
+        res.status(200).json({
+            success: true,
+            message: "Vendor package removed successfully"
+        });
+    } catch (err) {
+        await connection.rollback();
+        console.error("Error removing vendor package:", err);
+        res.status(500).json({
+            success: false,
+            message: "Failed to remove vendor package",
+            error: err.message
+        });
+    } finally {
+        connection.release();
+    }
+});
+
+
 module.exports = {
     getVendorAssignedPackages,
     applyPackagesToVendor,
@@ -1039,5 +1094,6 @@ module.exports = {
     getManualAssignmentStatus,
     getVendorFullPaymentHistory,
     updateBookingStatusByVendor,
-    getVendorDashboardStats
+    getVendorDashboardStats,
+    removeVendorPackage
 };

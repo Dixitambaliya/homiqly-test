@@ -14,7 +14,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         preferences = [],
         bookingDate = null,
         bookingTime = null,
-        vendor_id = null
+        vendor_id = null,
+        consents = [] // ✅ new field
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -28,6 +29,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     let parsedPackages = [];
     let parsedPreferences = [];
+    let parsedConsents = [];
 
     // Parse packages
     try {
@@ -47,6 +49,16 @@ const addToCartService = asyncHandler(async (req, res) => {
         }
     } catch (e) {
         return res.status(400).json({ message: "'preferences' must be a valid JSON array.", error: e.message });
+    }
+
+    // Parse consents
+    try {
+        parsedConsents = typeof consents === 'string' ? JSON.parse(consents) : consents;
+        if (parsedConsents && !Array.isArray(parsedConsents)) {
+            return res.status(400).json({ message: "'consents' must be an array." });
+        }
+    } catch (e) {
+        return res.status(400).json({ message: "'consents' must be a valid JSON array.", error: e.message });
     }
 
     const connection = await db.getConnection();
@@ -76,27 +88,28 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         const cart_id = insertCart.insertId;
 
-        // ✅ Step 2: Insert cart_packages and cart_package_items
         for (const pkg of parsedPackages) {
-            const { package_id = null, sub_packages = [], addons = [] } = pkg;
+            const { package_id = null, sub_packages = [], addons = [], consents = [] } = pkg;
 
             const [insertPkg] = await connection.query(
                 "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
                 [cart_id, package_id]
             );
 
+            // ✅ Insert sub-packages
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
 
                 await connection.query(
                     `INSERT INTO cart_package_items
-                        (cart_id, sub_package_id, price, package_id, item_id, quantity)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+                (cart_id, sub_package_id, price, package_id, item_id, quantity)
+             VALUES (?, ?, ?, ?, ?, ?)`,
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
 
+            // ✅ Insert addons
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
@@ -104,6 +117,18 @@ const addToCartService = asyncHandler(async (req, res) => {
                 await connection.query(
                     "INSERT INTO cart_addons (cart_id, package_id, addon_id, price) VALUES (?, ?, ?, ?)",
                     [cart_id, package_id, addon_id, price]
+                );
+            }
+
+            // ✅ Insert consents
+            for (const consent of consents) {
+                const { consent_id, answer = null } = consent;
+                if (!consent_id) continue;
+
+                await connection.query(
+                    `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+             VALUES (?, ?, ?, ?)`,
+                    [cart_id, package_id, consent_id, answer]
                 );
             }
         }
@@ -411,4 +436,3 @@ const deleteCartItem = asyncHandler(async (req, res) => {
 
 
 module.exports = { addToCartService, getUserCart, checkoutCartService, deleteCartItem };
-    
