@@ -1031,8 +1031,6 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
 const removeVendorPackage = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
-    console.log(vendorId);
-
     const { vendor_packages_id } = req.params;
 
     if (!vendor_packages_id) {
@@ -1109,8 +1107,6 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
              WHERE employee_id = ? AND vendor_id = ?`,
             [employee_id, vendorId]
         );
-        
-        console.log(existingRows);
 
         if (existingRows.length === 0) {
             return res.status(404).json({ message: "Employee not found or does not belong to your company" });
