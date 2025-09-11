@@ -27,26 +27,31 @@ const createEmployee = asyncHandler(async (req, res) => {
             "SELECT vendorType FROM vendors WHERE vendor_id = ?",
             [vendor_id]
         );
-        console.log(vendorRows);
-
         if (vendorRows.length === 0) {
             return res.status(404).json({ message: "Vendor not found" });
         }
 
         const vendor = vendorRows[0];
-
-        if (vendor.vendorType !== 'company') {
+        if (vendor.vendorType !== "company") {
             return res.status(403).json({ message: "Only company vendors can create employees" });
         }
 
+        // 🏢 Get vendorName once here (reusable everywhere)
+        const [vendorInfo] = await db.query(
+            `SELECT companyName FROM company_details WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+        const vendorName = vendorInfo[0]?.companyName || `Vendor #${vendor_id}`;
+
         // 🔑 2️⃣ Generate random password
-        const plainPassword = crypto.randomBytes(4).toString('hex');
+        const plainPassword = crypto.randomBytes(4).toString("hex");
 
         // 🔒 3️⃣ Hash password
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
         // 📦 4️⃣ Insert into employee table
-        const [result] = await db.query(`
+        const [result] = await db.query(
+            `
             INSERT INTO company_employees (
                 vendor_id,
                 first_name,
@@ -56,37 +61,26 @@ const createEmployee = asyncHandler(async (req, res) => {
                 password,
                 is_active
             ) VALUES (?, ?, ?, ?, ?, ?, 1)
-        `, [
-            vendor_id,
-            first_name,
-            last_name,
-            email,
-            phone,
-            hashedPassword
-        ]);
+            `,
+            [vendor_id, first_name, last_name, email, phone, hashedPassword]
+        );
 
+        // 🔔 Admin notification
         try {
             const employeeFullName = `${first_name} ${last_name}`;
-            const [vendorInfo] = await db.query(
-                `SELECT companyName FROM company_details WHERE vendor_id = ?`,
-                [vendor_id]
-            );
-
-            const vendorName = vendorInfo[0]?.companyName || `Vendor #${vendor_id}`;
-
             await db.query(
                 `INSERT INTO notifications (
-            user_type,
-            user_id,
-            title,
-            body,
-            is_read,
-            sent_at
-        ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                    user_type,
+                    user_id,
+                    title,
+                    body,
+                    is_read,
+                    sent_at
+                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 [
-                    'admin',
+                    "admin",
                     null,
-                    'New Employee Added',
+                    "New Employee Added",
                     `Vendor ${vendorName} (Vendor ID: ${vendor_id}) has added a new employee: ${employeeFullName}.`
                 ]
             );
@@ -94,18 +88,17 @@ const createEmployee = asyncHandler(async (req, res) => {
             console.error("⚠️ Failed to insert admin notification:", err.message);
         }
 
+        // 🔔 Vendor notification
         try {
             await sendEmployeeCreationNotification(vendor_id, `${first_name} ${last_name}`);
         } catch (err) {
             console.error("Error sending employee creation notification:", err.message);
-            // Don't fail the employee creation if notification fails
-            console.warn("Employee created but notification not sent:", err.message);
         }
 
+        // 📧 5️⃣ Send password via email
         try {
-            // 📧 5️⃣ Send password via email
             const transporter = nodemailer.createTransport({
-                service: 'gmail',
+                service: "gmail",
                 auth: {
                     user: process.env.EMAIL_USER,
                     pass: process.env.EMAIL_PASS
@@ -115,38 +108,35 @@ const createEmployee = asyncHandler(async (req, res) => {
             const mailOptions = {
                 from: `"${vendorName}" <${process.env.EMAIL_USER}>`,
                 to: email,
-                subject: 'Your Employee Login Credentials',
+                subject: "Your Employee Login Credentials",
                 html: `
-                <p>Hi ${first_name},</p>
-                <p>You’ve been added as an employee under our company.</p>
-                <p><strong>Login Credentials:</strong></p>
-                <ul>
-                    <li>Email: ${email}</li>
-                    <li>Password: <b>${plainPassword}</b></li>
-                </ul>
-                <p>Please login and update your password after first login.</p>
-                <p>Thanks,<br/>${vendor.name}</p>
-            `
+                    <p>Hi ${first_name},</p>
+                    <p>You’ve been added as an employee under <strong>${vendorName}</strong>.</p>
+                    <p><strong>Login Credentials:</strong></p>
+                    <ul>
+                        <li>Email: ${email}</li>
+                        <li>Password: <b>${plainPassword}</b></li>
+                    </ul>
+                    <p>Please login and update your password after first login.</p>
+                    <p>Thanks,<br/>${vendorName}</p>
+                `
             };
 
             await transporter.sendMail(mailOptions);
-
         } catch (err) {
             console.error("Error sending email:", err.message);
-            // Don't fail the employee creation if email fails
-            console.warn("Employee created but email not sent:", err.message);
         }
 
         res.status(201).json({
             message: "Employee created and login credentials sent to email",
             employee_id: result.insertId
         });
-
     } catch (error) {
         console.error("Error creating employee:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const employeeLogin = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
