@@ -13,8 +13,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
   const [selectedService, setSelectedService] = useState(null);
   const [selectedPackages, setSelectedPackages] = useState([]);
   const [selectedSubPackages, setSelectedSubPackages] = useState([]);
-  const [selectedPreferences, setSelectedPreferences] = useState([]);
-  const [selectedAddons, setSelectedAddons] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -88,26 +86,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
                     }))
                   );
                 }
-
-                // Preferences
-                if (pkg.preferences?.length) {
-                  setSelectedPreferences(
-                    pkg.preferences.map((pref) => ({
-                      value: pref.preference_id,
-                      label: pref.preference_value,
-                    }))
-                  );
-                }
-
-                // Addons
-                if (pkg.addons?.length) {
-                  setSelectedAddons(
-                    pkg.addons.map((addon) => ({
-                      value: addon.addon_id,
-                      label: addon.addon_name,
-                    }))
-                  );
-                }
               }
             }
           }
@@ -127,8 +105,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
     setSelectedService(null);
     setSelectedPackages([]);
     setSelectedSubPackages([]);
-    setSelectedPreferences([]);
-    setSelectedAddons([]);
   };
 
   const handleModalClose = () => {
@@ -152,22 +128,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
     return (pkgDetail?.sub_packages || []).map((sp) => ({
       value: sp.sub_package_id,
       label: sp.item_name,
-    }));
-  });
-
-  const allSelectedPreferences = selectedPackages.flatMap((pkg) => {
-    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
-    return (pkgDetail?.preferences || []).map((pref) => ({
-      value: pref.preference_id,
-      label: pref.preference_value,
-    }));
-  });
-
-  const allSelectedAddons = selectedPackages.flatMap((pkg) => {
-    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
-    return (pkgDetail?.addons || []).map((addon) => ({
-      value: addon.addon_id,
-      label: addon.addon_name,
     }));
   });
 
@@ -199,50 +159,22 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
         )
         .map((sub) => ({ sub_package_id: sub.value }));
 
-      const preferences = selectedPreferences
-        .filter((pref) =>
-          allPackages
-            .find((p) => p.package_id === pkgId)
-            ?.preferences?.some((p) => p.preference_id === pref.value)
-        )
-        .map((pref) => ({ preference_id: pref.value }));
-
-      const addons = selectedAddons
-        .filter((addon) =>
-          allPackages
-            .find((p) => p.package_id === pkgId)
-            ?.addons?.some((a) => a.addon_id === addon.value)
-        )
-        .map((addon) => ({ addon_id: addon.value }));
-
       return {
         package_id: pkgId,
         sub_packages: subPackages,
-        preferences,
-        addons,
       };
     });
 
-    // const isValid = builtPackages.every(
-    //   (p) => p.sub_packages.length > 0 && p.preferences.length > 0
-    // );
-    // if (!isValid) {
-    //   toast.error(
-    //     "Each package must have at least one sub-package and one preference."
-    //   );
-    //   return;
-    // }
-
     try {
       setSubmitting(true);
-      await api.post("/api/vendor/applyservice", {
+      const response = await api.post("/api/vendor/applyservice", {
         selectedPackages: builtPackages,
       });
-      toast.success("Service requested successfully!");
+      toast.success(response.data.message || "Service requested successfully!");
       handleModalClose();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to request service.");
+      toast.error(err.response.data.error || "Failed to request service.");
     } finally {
       setSubmitting(false);
     }
@@ -276,8 +208,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
               setSelectedService(null);
               setSelectedPackages([]);
               setSelectedSubPackages([]);
-              setSelectedPreferences([]);
-              setSelectedAddons([]);
             }}
             styles={customSelectStyles}
             placeholder="Select category"
@@ -300,8 +230,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
                 setSelectedService(value);
                 setSelectedPackages([]);
                 setSelectedSubPackages([]);
-                setSelectedPreferences([]);
-                setSelectedAddons([]);
               }}
               styles={customSelectStyles}
               placeholder="Select service"
@@ -324,8 +252,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
               onChange={(value) => {
                 setSelectedPackages(value || []);
                 setSelectedSubPackages([]);
-                setSelectedPreferences([]);
-                setSelectedAddons([]);
               }}
               styles={customSelectStyles}
               placeholder="Select packages"
@@ -351,48 +277,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
               onChange={(value) => setSelectedSubPackages(value || [])}
               styles={customSelectStyles}
               placeholder="Select sub-packages"
-              isMulti
-              isClearable
-              menuPortalTarget={
-                typeof window !== "undefined" ? document.body : null
-              }
-              menuPosition="fixed"
-            />
-          </div>
-        )}
-
-        {/* Preferences */}
-        {allSelectedPreferences.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Preferences
-            </label>
-            <Select
-              options={allSelectedPreferences}
-              value={selectedPreferences}
-              onChange={(value) => setSelectedPreferences(value || [])}
-              styles={customSelectStyles}
-              placeholder="Select preferences"
-              isMulti
-              isClearable
-              menuPortalTarget={
-                typeof window !== "undefined" ? document.body : null
-              }
-              menuPosition="fixed"
-            />
-          </div>
-        )}
-
-        {/* Addons */}
-        {allSelectedAddons.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Addons</label>
-            <Select
-              options={allSelectedAddons}
-              value={selectedAddons}
-              onChange={(value) => setSelectedAddons(value || [])}
-              styles={customSelectStyles}
-              placeholder="Select addons"
               isMulti
               isClearable
               menuPortalTarget={

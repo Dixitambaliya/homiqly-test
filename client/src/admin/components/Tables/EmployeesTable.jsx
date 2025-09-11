@@ -13,7 +13,7 @@ const EmployeesTable = ({ employees, isLoading, onViewEmployee }) => {
       ),
     },
     {
-      title: "Name",
+      title: "Employee Name",
       render: (row) => (
         <div className="flex items-center">
           {row.profile_image ? (
@@ -33,6 +33,13 @@ const EmployeesTable = ({ employees, isLoading, onViewEmployee }) => {
             {row.employee_name}
           </div>
         </div>
+      ),
+    },
+    {
+      title: "Company",
+      key: "companyName",
+      render: (row) => (
+        <div className="text-sm text-gray-900">{row.companyName}</div>
       ),
     },
     {

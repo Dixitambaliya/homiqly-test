@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiEye, FiX } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EmployeesTable from "../components/Tables/EmployeesTable";
+import EmployeeDetailsModal from "../components/Modals/EmployeeDetailsModal"; // <-- new import
+import { FiSearch } from "react-icons/fi";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
@@ -11,6 +12,10 @@ const Employees = () => {
   const [error, setError] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  // New: filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("all");
 
   useEffect(() => {
     fetchEmployees();
@@ -29,6 +34,7 @@ const Employees = () => {
     } catch (error) {
       console.error("Error fetching employees:", error);
       setError("Failed to load employees");
+      toast.error("Failed to load employees");
     } finally {
       setLoading(false);
     }
@@ -38,6 +44,39 @@ const Employees = () => {
     setSelectedEmployee(employee);
     setShowDetailsModal(true);
   };
+
+  const closeModal = () => {
+    setShowDetailsModal(false);
+    setSelectedEmployee(null);
+  };
+
+  // Derived list of unique company names for dropdown
+  const companyOptions = useMemo(() => {
+    const setNames = new Set();
+    employees.forEach((e) => {
+      if (e.companyName) setNames.add(e.companyName);
+    });
+    return ["all", ...Array.from(setNames).sort()];
+  }, [employees]);
+
+  // Filter employees based on searchTerm (email or employee_name) and companyFilter
+  const filteredEmployees = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return employees.filter((emp) => {
+      // Company filter
+      if (companyFilter !== "all" && emp.companyName !== companyFilter) {
+        return false;
+      }
+
+      // If no search term, it's a match
+      if (!term) return true;
+
+      // Check name or email
+      const name = (emp.employee_name || "").toLowerCase();
+      const email = (emp.email || "").toLowerCase();
+      return name.includes(term) || email.includes(term);
+    });
+  }, [employees, searchTerm, companyFilter]);
 
   if (loading) {
     return (
@@ -57,92 +96,54 @@ const Employees = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">
           Employee Management
         </h2>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          {/* Search */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <FiSearch />
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email..."
+              className="pl-10 pr-4 py-2 border rounded-lg w-full sm:w-80 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          {/* Company dropdown */}
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="py-2 px-3 border rounded-lg text-sm bg-white focus:outline-none"
+          >
+            {companyOptions.map((c) => (
+              <option key={c} value={c}>
+                {c === "all" ? "All Companies" : c}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <EmployeesTable
-        employees={employees}
+        employees={filteredEmployees}
         isLoading={loading}
         onViewEmployee={viewEmployeeDetails}
       />
 
-      {showDetailsModal && selectedEmployee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Employee Details
-              </h2>
-              <button
-                onClick={() => setShowDetailsModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition"
-              >
-                <FiX className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-6 space-y-6">
-              {/* Row 1 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-lg p-4 border">
-                  <p className="text-sm text-gray-500 mb-1">Employee ID</p>
-                  <p className="text-gray-800 font-medium">
-                    {selectedEmployee.employee_id}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4 border">
-                  <p className="text-sm text-gray-500 mb-1">Status</p>
-                  <p
-                    className={`font-medium ${
-                      selectedEmployee.is_active
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {selectedEmployee.is_active ? "Active" : "Inactive"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Row 2 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Full Name</p>
-                  <p className="text-gray-800 font-medium">
-                    {selectedEmployee.employee_name}
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Email</p>
-                  <p className="text-gray-800 font-medium">
-                    {selectedEmployee.email}
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Phone</p>
-                  <p className="text-gray-800 font-medium">
-                    {selectedEmployee.phone || "N/A"}
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Created At</p>
-                  <p className="text-gray-800 font-medium">
-                    {new Date(selectedEmployee.created_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* New single-line modal usage */}
+      <EmployeeDetailsModal
+        employee={selectedEmployee}
+        isOpen={showDetailsModal}
+        onClose={closeModal}
+      />
     </div>
   );
 };

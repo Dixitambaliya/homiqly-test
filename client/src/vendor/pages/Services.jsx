@@ -191,7 +191,7 @@ const Services = () => {
                           )}
 
                           {/* Preferences */}
-                          {pkg.preferences?.length > 0 && (
+                          {/* {pkg.preferences?.length > 0 && (
                             <div className="mb-3">
                               <p className="text-sm font-semibold text-gray-700">
                                 Preferences:
@@ -232,7 +232,7 @@ const Services = () => {
                                 ))}
                               </div>
                             </div>
-                          )}
+                          )} */}
 
                           <div className="flex justify-end">
                             <Button
