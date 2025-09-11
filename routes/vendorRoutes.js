@@ -44,9 +44,7 @@ router.get("/getpaymenthistory", authenticationToken, getVendorFullPaymentHistor
 router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
 
-
 router.put("/employee/:employee_id", multiUpload, handleUploads, authenticationToken, editEmployeeProfileByCompany)
-
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)
 
 module.exports = router;

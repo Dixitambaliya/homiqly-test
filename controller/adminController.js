@@ -6,7 +6,15 @@ const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const asyncHandler = require("express-async-handler");
+const nodemailer = require("nodemailer");
 
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
 
 const getVendor = asyncHandler(async (req, res) => {
     try {
@@ -1384,6 +1392,104 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     }
 });
 
+const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
+    const admin_id = req.user.admin_id; // must exist
+    const { vendor_id } = req.params;
+    const { value, note } = req.body; // value = 0 or 1, note = optional string
+
+    if (!admin_id) {
+        return res.status(403).json({ message: "Only admins can perform this action" });
+    }
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    if (![0, 1].includes(value)) {
+        return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
+    }
+
+    try {
+        // 1️⃣ Update vendor setting
+        await db.query(`
+            INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE
+                manual_assignment_enabled = VALUES(manual_assignment_enabled)
+        `, [vendor_id, value]);
+
+        // 2️⃣ Send notification to admin (optional)
+        try {
+            const messageText = `Admin has turned manual assignment ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'} for Vendor ID ${vendor_id}. ${note ? "Note: " + note : ""}`;
+
+            await db.query(`
+                INSERT INTO notifications (title, body, is_read, sent_at, user_type)
+                VALUES (?, ?, 0, NOW(), 'admin')
+            `, [
+                'Vendor Manual Assignment Update',
+                messageText
+            ]);
+        } catch (err) {
+            console.error("Failed to create admin notification:", err);
+        }
+
+        // 3️⃣ Send email to vendor
+        try {
+            let vendorEmail = null;
+            let vendorName = "Vendor";
+
+            // Check if vendor is an individual
+            const [individualRows] = await db.query(
+                "SELECT email, name FROM individual_details WHERE vendor_id = ?",
+                [vendor_id]
+            );
+
+            if (individualRows.length > 0) {
+                vendorEmail = individualRows[0].email;
+                vendorName = individualRows[0].name;
+            } else {
+                // Check if vendor is a company
+                const [companyRows] = await db.query(
+                    "SELECT companyEmail, companyName FROM company_details WHERE vendor_id = ?",
+                    [vendor_id]
+                );
+
+                if (companyRows.length > 0) {
+                    vendorEmail = companyRows[0].companyEmail;
+                    vendorName = companyRows[0].companyName || "Company Vendor";
+                }
+            }
+
+            if (vendorEmail) {
+                const mailText = `Hello ${vendorName},\n\nYour manual assignment for services has been ${value === 1 ? 'disabled (ON)' : 'enabled (OFF)'} by the admin.${note ? "\n\nNote from admin: " + note : ""}\n\nIf you have any questions, please contact support.\n\nThanks,\nTeam`;
+
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: vendorEmail,
+                    subject: "Manual Assignment Status Changed by Admin",
+                    text: mailText
+                };
+
+                await transporter.sendMail(mailOptions);
+            }
+        } catch (err) {
+            console.error("Failed to send email to vendor:", err);
+        }
+
+        res.status(200).json({
+            message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
+            vendor_id,
+            manual_assignment_enabled: value,
+            note: note || null
+        });
+
+    } catch (err) {
+        console.error("Error toggling manual vendor assignment:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
 
 
 module.exports = {
@@ -1402,5 +1508,6 @@ module.exports = {
     getAllPackages,
     getAllEmployeesForAdmin,
     getAllVendorPackageRequests,
-    updateVendorPackageRequestStatus
+    updateVendorPackageRequestStatus,
+    toggleManualVendorAssignmentByAdmin
 };
