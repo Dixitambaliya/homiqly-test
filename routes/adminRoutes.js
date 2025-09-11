@@ -33,7 +33,9 @@ router.delete("/deletepackage/:package_id", authenticationToken, deletePackageBy
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 router.get("/getallemployees", authenticationToken, getAllEmployeesForAdmin)
 router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequests)
+
 router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
+
 router.get("/getpayments", authenticationToken, getAllPayments)
 router.get("/getallpackages", authenticationToken, getAllPackages)
 

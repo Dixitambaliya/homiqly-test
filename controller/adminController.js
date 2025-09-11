@@ -105,16 +105,18 @@ const getUsers = asyncHandler(async (req, res) => {
 const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
     try {
         const [employees] = await db.query(`
-      SELECT
-        ce.employee_id,
-        CONCAT(ce.first_name, ' ', ce.last_name) AS employee_name,
-        ce.profile_image,
-        ce.email,
-        ce.phone,
-        ce.is_active,
-        ce.created_at
-      FROM company_employees ce
-    `);
+            SELECT
+            cd.companyName,
+            ce.employee_id,
+            CONCAT(ce.first_name, ' ', ce.last_name) AS employee_name,
+            ce.profile_image,
+            ce.email,
+            ce.phone,
+            ce.is_active,
+            ce.created_at
+                FROM company_employees ce
+                LEFT JOIN company_details cd ON ce.vendor_id = cd.vendor_id
+`);
 
         res.status(200).json({
             employees,
@@ -345,7 +347,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -494,7 +495,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -675,118 +675,123 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "vendor_id and selectedPackages[] are required." });
         }
 
-        // ✅ Check vendor existence and type
+        // ✅ Check vendor existence
         const [vendorExists] = await connection.query(
             `SELECT vendor_id, vendorType FROM vendors WHERE vendor_id = ?`,
             [vendor_id]
         );
         if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
 
-        const vendorType = vendorExists[0].vendorType;
-
-        // ✅ Check manual toggle status
+        // ✅ Manual toggle check
         const [toggleResult] = await connection.query(
             `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
             [vendor_id]
         );
         const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1;
-        if (!isEnabled) {
-            throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
-        }
+        if (!isEnabled) throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
 
-        // ✅ Get vendor’s already assigned packages
-        const [existingPackages] = await connection.query(
-            `SELECT package_id FROM vendor_packages WHERE vendor_id = ?`,
+        // ✅ Fetch vendor details
+        const [vendorDetails] = await connection.query(
+            `
+            SELECT v.vendor_id, v.vendorType, 
+                   COALESCE(i.name, c.companyName) AS vendorName,
+                   COALESCE(i.email, c.companyEmail) AS vendorEmail
+            FROM vendors v
+            LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+            LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+            WHERE v.vendor_id = ?
+            `,
             [vendor_id]
         );
-        const existingIds = new Set(existingPackages.map(p => p.package_id));
-
-        // ✅ Get vendor’s applied packages
-        const [appliedPackages] = await connection.query(
-            `SELECT package_id FROM vendor_package_applications WHERE vendor_id = ?`,
-            [vendor_id]
-        );
-        const appliedIds = new Set(appliedPackages.map(p => p.package_id));
+        const vendorData = vendorDetails[0];
 
         const newlyAssigned = [];
 
         for (const pkg of selectedPackages) {
-            const { package_id } = pkg;
+            const { package_id, sub_packages = [] } = pkg;
 
-            // 🚨 Error if already in vendor_packages
-            if (existingIds.has(package_id)) {
-                throw new Error(`Vendor ID ${vendor_id} already has package ID ${package_id} assigned.`);
-            }
-
-            // 🚨 Error if already applied for this package
-            if (appliedIds.has(package_id)) {
-                throw new Error(`Vendor ID ${vendor_id} already has a pending application for package ID ${package_id}.`);
-            }
-
-            // ✅ Step 1: Get service_type_id from package
+            // ✅ Check if package exists
             const [pkgRow] = await connection.query(
-                `SELECT service_type_id FROM packages WHERE package_id = ?`,
+                `SELECT package_id, packageName FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
 
-            const service_type_id = pkgRow[0].service_type_id;
-
-            // ✅ Step 2: Get service_id and category from service_type
-            const [serviceDetails] = await connection.query(
-                `SELECT s.service_id, s.service_categories_id
-                 FROM service_type st
-                 JOIN services s ON st.service_id = s.service_id
-                 WHERE st.service_type_id = ?`,
-                [service_type_id]
-            );
-            if (serviceDetails.length === 0) throw new Error(`Service Type ID ${service_type_id} not valid.`);
-
-            const { service_id, service_categories_id } = serviceDetails[0];
-
-            // ✅ Insert vendor-package
-            await connection.query(
+            // ✅ Insert into vendor_packages table
+            const [insertResult] = await connection.query(
                 `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
+            const vendor_packages_id = insertResult.insertId;
 
-            // ✅ Insert services and categories
-            if (vendorType === "company") {
-                await connection.query(
-                    `INSERT IGNORE INTO company_services (vendor_id, service_id) VALUES (?, ?)`,
-                    [vendor_id, service_id]
-                );
-                await connection.query(
-                    `INSERT IGNORE INTO company_service_categories (vendor_id, service_categories_id) VALUES (?, ?)`,
-                    [vendor_id, service_categories_id]
-                );
-            } else {
-                await connection.query(
-                    `INSERT IGNORE INTO individual_services (vendor_id, service_id) VALUES (?, ?)`,
-                    [vendor_id, service_id]
-                );
-                await connection.query(
-                    `INSERT IGNORE INTO individual_service_categories (vendor_id, service_categories_id) VALUES (?, ?)`,
-                    [vendor_id, service_categories_id]
-                );
+            // ✅ Insert sub-packages into vendor_package_items
+            if (Array.isArray(sub_packages) && sub_packages.length > 0) {
+                for (const sub of sub_packages) {
+                    const subpackage_id = sub.sub_package_id;
+                    await connection.query(
+                        `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id) 
+                         VALUES (?, ?, ?, ?)`,
+                        [vendor_packages_id, vendor_id, package_id, subpackage_id]
+                    );
+                }
             }
 
-            newlyAssigned.push(pkg);
+            newlyAssigned.push({
+                package_id,
+                vendor_packages_id,
+                selected_subpackages: sub_packages.map(sp => sp.sub_package_id)
+            });
         }
 
         await connection.commit();
         connection.release();
 
+        // ✅ Send admin notification email
+        try {
+            const transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                }
+            });
+
+            const emailHtml = `
+                <p><strong>Vendor:</strong> ${vendorData.vendorName} (ID: ${vendor_id})</p>
+                <p><strong>Email:</strong> ${vendorData.vendorEmail}</p>
+                <p>has applied for the following packages:</p>
+                <ul>
+                    ${newlyAssigned.map(p => `
+                        <li>
+                            <strong>Package ID:</strong> ${p.package_id} <br/>
+                            <strong>Sub-Packages:</strong> ${p.selected_subpackages.length > 0 ? p.selected_subpackages.join(", ") : "None"}
+                        </li>
+                    `).join("")}
+                </ul>
+            `;
+
+            await transporter.sendMail({
+                from: `"Vendor System" <${process.env.EMAIL_USER}>`,
+                to: process.env.EMAIL_USER, // admin email
+                subject: "New Package Application Submitted",
+                html: emailHtml
+            });
+
+            console.log("✅ Admin notification email sent successfully.");
+        } catch (mailErr) {
+            console.error("⚠️ Failed to send admin email:", mailErr.message);
+        }
+
         res.status(200).json({
-            message: "Packages and related services/categories successfully assigned to vendor.",
-            assigned: newlyAssigned
+            message: "Packages successfully applied. Admin approval pending.",
+            appliedPackages: newlyAssigned
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Assign error:", err);
-        res.status(400).json({ error: err.message }); // return validation error
+        console.error("Assign packages error:", err);
+        res.status(400).json({ error: err.message });
     }
 });
 
@@ -1279,9 +1284,12 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
 
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
     try {
         const { application_id } = req.params;
-        const { status } = req.body; // 1 for approved, 2 for rejected
+        const { status } = req.body; // 1 = approved, 2 = rejected
 
         if (!application_id || status === undefined) {
             return res.status(400).json({ message: "application_id and status are required" });
@@ -1291,7 +1299,8 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid status. Use 0 (pending), 1 (approved), or 2 (rejected)." });
         }
 
-        const [result] = await db.query(
+        // ✅ Update the application status
+        const [updateResult] = await connection.query(
             `
             UPDATE vendor_package_applications
             SET status = ?, 
@@ -1301,15 +1310,73 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
             [status, status, application_id]
         );
 
-        if (result.affectedRows === 0) {
+        if (updateResult.affectedRows === 0) {
+            await connection.rollback();
+            connection.release();
             return res.status(404).json({ message: "Application not found" });
         }
 
+        // ✅ If approved, transfer and delete from application tables
+        if (Number(status) === 1) {
+            // Get application details
+            const [appRows] = await connection.query(
+                `SELECT vendor_id, package_id FROM vendor_package_applications WHERE application_id = ?`,
+                [application_id]
+            );
+            if (appRows.length === 0) throw new Error("Application details not found");
+
+            const { vendor_id, package_id } = appRows[0];
+
+            // Insert into vendor_packages
+            const [vpResult] = await connection.query(
+                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                [vendor_id, package_id]
+            );
+            const vendor_packages_id = vpResult.insertId;
+
+            // Get sub-package items from vendor_package_item_applications
+            const [subPkgRows] = await connection.query(
+                `SELECT package_item_id FROM vendor_package_item_applications WHERE application_id = ?`,
+                [application_id]
+            );
+
+            // Insert sub-packages into vendor_package_items
+            if (subPkgRows.length > 0) {
+                const insertSubPackages = subPkgRows.map(sp => [
+                    vendor_packages_id,
+                    vendor_id,
+                    package_id,
+                    sp.package_item_id
+                ]);
+
+                await connection.query(
+                    `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
+                     VALUES ?`,
+                    [insertSubPackages]
+                );
+            }
+
+            // ✅ Delete transferred entries from application tables
+            await connection.query(
+                `DELETE FROM vendor_package_item_applications WHERE application_id = ?`,
+                [application_id]
+            );
+            await connection.query(
+                `DELETE FROM vendor_package_applications WHERE application_id = ?`,
+                [application_id]
+            );
+        }
+
+        await connection.commit();
+        connection.release();
+
         res.status(200).json({
-            message: `Application ${application_id} status updated to ${status}.`
+            message: `Application ${application_id} status updated to ${status} successfully and data transferred.`
         });
 
     } catch (err) {
+        await connection.rollback();
+        connection.release();
         console.error("Error updating application status:", err);
         res.status(500).json({
             message: "Internal server error",
