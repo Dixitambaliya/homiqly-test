@@ -55,7 +55,7 @@ const DashboardLayout = () => {
     { path: "/vendor/profile", name: "Profile", icon: <FiUser className="w-5 h-5" /> },
     { path: "/vendor/services", name: "Apply for Services", icon: <FiShoppingBag className="w-5 h-5" /> },
     { path: "/vendor/bookings", name: "Bookings", icon: <FiShoppingBag className="w-5 h-5" /> },
-    { path: "/vendor/supply-kits", name: "Supply Kits", icon: <FiBox className="w-5 h-5" /> },
+    // { path: "/vendor/supply-kits", name: "Supply Kits", icon: <FiBox className="w-5 h-5" /> },
 
     // ✅ Show Employees only if vendorType !== "individual"
     ...(vendorType !== "individual"
