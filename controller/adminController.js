@@ -1395,7 +1395,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id; // must exist
     const { vendor_id } = req.params;
-    const { value, note } = req.body; // value = 0 or 1, note = optional string
+    const { status, note } = req.body; // status = 0 or 1, note = optional string
 
     if (!admin_id) {
         return res.status(403).json({ message: "Only admins can perform this action" });
@@ -1405,8 +1405,8 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "vendor_id is required" });
     }
 
-    if (![0, 1].includes(value)) {
-        return res.status(400).json({ message: "Value must be 0 (off) or 1 (on)" });
+    if (![0, 1].includes(status)) {
+        return res.status(400).json({ message: "status must be 0 (off) or 1 (on)" });
     }
 
     try {
@@ -1416,11 +1416,11 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
             VALUES (?, ?)
             ON DUPLICATE KEY UPDATE
                 manual_assignment_enabled = VALUES(manual_assignment_enabled)
-        `, [vendor_id, value]);
+        `, [vendor_id, status]);
 
         // 2️⃣ Send notification to admin (optional)
         try {
-            const messageText = `Admin has turned manual assignment ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'} for Vendor ID ${vendor_id}. ${note ? "Note: " + note : ""}`;
+            const messageText = `Admin has turned manual assignment ${status === 1 ? 'ON (disabled)' : 'OFF (enabled)'} for Vendor ID ${vendor_id}. ${note ? "Note: " + note : ""}`;
 
             await db.query(`
                 INSERT INTO notifications (title, body, is_read, sent_at, user_type)
@@ -1461,7 +1461,7 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
             }
 
             if (vendorEmail) {
-                const mailText = `Hello ${vendorName},\n\nYour manual assignment for services has been ${value === 1 ? 'disabled (ON)' : 'enabled (OFF)'} by the admin.${note ? "\n\nNote from admin: " + note : ""}\n\nIf you have any questions, please contact support.\n\nThanks,\nTeam`;
+                const mailText = `Hello ${vendorName},\n\nYour manual assignment for services has been ${status === 1 ? 'disabled (ON)' : 'enabled (OFF)'} by the admin.${note ? "\n\nNote from admin: " + note : ""}\n\nIf you have any questions, please contact support.\n\nThanks,\nTeam`;
 
                 const mailOptions = {
                     from: process.env.EMAIL_USER,
@@ -1477,9 +1477,9 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
         }
 
         res.status(200).json({
-            message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
+            message: `Manual assignment for vendor ${vendor_id} is now ${status === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
             vendor_id,
-            manual_assignment_enabled: value,
+            manual_assignment_enabled: status,
             note: note || null
         });
 
