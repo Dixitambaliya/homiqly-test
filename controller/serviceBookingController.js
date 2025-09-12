@@ -681,7 +681,6 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
 
             // Fetch vendor name
             let vendorName = `Vendor #${vendor_id}`;
-            console.log("vendor_id:", vendor_id, "vendorType:", vendorType);
 
             let query = '';
             if (vendorType === 'individual') {
@@ -692,14 +691,11 @@ const assignBookingToVendor = asyncHandler(async (req, res) => {
 
             if (query) {
                 const [rows] = await connection.query(query, [vendor_id]);
-                console.log("Fetched vendor rows:", rows);
 
                 if (rows.length > 0) {
                     vendorName = rows[0].name;
                 }
             }
-
-            console.log("Final vendorName:", vendorName);
 
             // ✅ 7. Insert notification for user with vendor name in body
             await connection.query(
