@@ -72,10 +72,10 @@ const GeneralSettings = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto p-4">
       <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
 
-      <Card title="General Settings" icon={<FiSave className="h-5 w-5" />}>
+      {/* <Card title="General Settings" icon={<FiSave className="h-5 w-5" />}>
         <form onSubmit={saveGeneralSettings}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormSelect
@@ -129,7 +129,7 @@ const GeneralSettings = () => {
             </Button>
           </div>
         </form>
-      </Card>
+      </Card> */}
 
       <Card title="Change Password" icon={<FiLock className="h-5 w-5" />}>
         <form onSubmit={changePassword}>
