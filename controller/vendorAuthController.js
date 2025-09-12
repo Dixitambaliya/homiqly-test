@@ -43,6 +43,7 @@ const registerVendor = async (req, res) => {
             contactPerson,
             companyPhone,
             services,
+            packages = [],
             confirmation,
         } = req.body;
 
@@ -170,6 +171,30 @@ const registerVendor = async (req, res) => {
                     serviceLocation,
                 ]);
             }
+        }
+
+        // ✅ Parse vendor-selected packages
+        const parsedPackages = packages ? JSON.parse(packages) : [];
+
+        for (const pkg of parsedPackages) {
+            const { package_id } = pkg;
+
+            // 1. Check if package exists
+            const [packageExists] = await db.query(
+                "SELECT package_id FROM packages WHERE package_id = ?",
+                [package_id]
+            );
+            if (packageExists.length === 0) {
+                return res.status(400).json({ error: `Package ID ${package_id} does not exist.` });
+            }
+
+            // 2. Insert vendor package application
+            const [vpRes] = await conn.query(
+                `INSERT INTO vendor_package_applications 
+                 (vendor_id, package_id, status) 
+                 VALUES (?, ?, 0)`,
+                [vendor_id, package_id]
+            );
         }
 
         await conn.commit();

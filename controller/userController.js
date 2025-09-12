@@ -144,7 +144,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
 

@@ -2,37 +2,37 @@ const adminGetQueries = {
 
     vendorDetails: `
 SELECT
-    vendors.vendor_id,
-    vendors.vendorType,
-    vendors.is_authenticated,
+    v.vendor_id,
+    v.vendorType,
+    v.is_authenticated,
 
     -- Individual Vendor Details
-    individual_details.vendor_id AS individual_id,
-    individual_details.name AS individual_name,
-    individual_details.email AS individual_email,
-    individual_details.phone AS individual_phone,
-    individual_details.otherInfo AS individual_otherInfo,
-    individual_details.resume AS individual_resume,
+    i.vendor_id AS individual_id,
+    i.name AS individual_name,
+    i.email AS individual_email,
+    i.phone AS individual_phone,
+    i.otherInfo AS individual_otherInfo,
+    i.resume AS individual_resume,
 
     -- Company Vendor Details
-    company_details.vendor_id AS company_id,
-    company_details.companyName AS company_companyName,
-    company_details.googleBusinessProfileLink AS company_googleBusinessProfileLink,
-    company_details.companyEmail AS company_companyEmail,
-    company_details.companyPhone AS company_companyPhone,
-    company_details.companyAddress AS company_companyAddress,
-    company_details.contactPerson AS company_contactPerson,
+    c.vendor_id AS company_id,
+    c.companyName AS company_companyName,
+    c.googleBusinessProfileLink AS company_googleBusinessProfileLink,
+    c.companyEmail AS company_companyEmail,
+    c.companyPhone AS company_companyPhone,
+    c.companyAddress AS company_companyAddress,
+    c.contactPerson AS company_contactPerson,
 
     -- Vendor settings
-    vendor_settings.manual_assignment_enabled AS status,
+    vs.manual_assignment_enabled AS status,
 
-    -- Services JSON Array
+    -- Services JSON (still aggregated)
     COALESCE(
         CONCAT(
             '[',
             GROUP_CONCAT(
                 DISTINCT CASE
-                    WHEN vendors.vendorType = 'individual' THEN JSON_OBJECT(
+                    WHEN v.vendorType = 'individual' THEN JSON_OBJECT(
                         'category_id', sc.service_categories_id,
                         'categoryName', sc.serviceCategory,
                         'service_id', s.service_id,
@@ -40,7 +40,7 @@ SELECT
                         'serviceLocation', iser.serviceLocation,
                         'serviceDescription', iser.serviceDescription
                     )
-                    WHEN vendors.vendorType = 'company' THEN JSON_OBJECT(
+                    WHEN v.vendorType = 'company' THEN JSON_OBJECT(
                         'category_id', sc.service_categories_id,
                         'categoryName', sc.serviceCategory,
                         'service_id', s.service_id,
@@ -54,37 +54,60 @@ SELECT
             ']'
         ),
         '[]'
-    ) AS services
+    ) AS services,
 
-FROM vendors
+    -- ✅ Packages (subquery, no GROUP_CONCAT in main select)
+    (
+        SELECT CONCAT(
+            '[',
+            GROUP_CONCAT(
+                JSON_OBJECT(
+                    'application_id', vpa.application_id,
+                    'package_id', p.package_id,
+                    'packageName', p.packageName,
+                    'status', vpa.status,
+                    'applied_at', vpa.applied_at,
+                    'approved_at', vpa.approved_at
+                )
+            ),
+            ']'
+        )
+        FROM vendor_package_applications vpa
+        INNER JOIN packages p ON p.package_id = vpa.package_id
+        WHERE vpa.vendor_id = v.vendor_id
+    ) AS packages,
 
--- Join individual and company profile data
-LEFT JOIN individual_details AS individual_details
-    ON vendors.vendor_id = individual_details.vendor_id
+    -- ✅ Package Items for those packages (nested subquery)
+    (
+        SELECT CONCAT(
+            '[',
+            GROUP_CONCAT(
+                JSON_OBJECT(
+                    'application_id', vpi.application_id,
+                    'package_item_id', pi.item_id,
+                    'itemName', pi.itemName,
+                    'timeRequired', pi.timeRequired
+                )
+            ),
+            ']'
+        )
+        FROM vendor_package_item_application vpi
+        INNER JOIN package_items pi ON pi.package_item_id = vpi.package_item_id
+        INNER JOIN vendor_package_applications vpa2 ON vpa2.application_id = vpi.application_id
+        WHERE vpa2.vendor_id = v.vendor_id
+    ) AS package_items
 
-LEFT JOIN company_details AS company_details
-    ON vendors.vendor_id = company_details.vendor_id
+FROM vendors v
 
--- Join individual and company services
-LEFT JOIN individual_services AS iser
-    ON vendors.vendor_id = iser.vendor_id
+LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+LEFT JOIN individual_services iser ON v.vendor_id = iser.vendor_id
+LEFT JOIN company_services cser ON v.vendor_id = cser.vendor_id
+LEFT JOIN services s ON s.service_id = COALESCE(iser.service_id, cser.service_id)
+LEFT JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
 
-LEFT JOIN company_services AS cser
-    ON vendors.vendor_id = cser.vendor_id
-
--- Join the actual services table
-LEFT JOIN services AS s
-    ON s.service_id = COALESCE(iser.service_id, cser.service_id)
-
--- ✅ Correct category join via services
-LEFT JOIN service_categories AS sc
-    ON sc.service_categories_id = s.service_categories_id
-
--- Vendor settings
-LEFT JOIN vendor_settings
-    ON vendors.vendor_id = vendor_settings.vendor_id
-
-GROUP BY vendors.vendor_id;
+GROUP BY v.vendor_id
 `,
 
 

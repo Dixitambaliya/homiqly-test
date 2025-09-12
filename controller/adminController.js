@@ -1552,6 +1552,92 @@ const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+const deleteUserByAdmin = asyncHandler(async (req, res) => {
+    try {
+        const admin_id = req.user.admin_id; // ensure only admins can delete
+        const { user_id } = req.params;
+
+        if (!admin_id) {
+            return res.status(403).json({ message: "Only admins can perform this action" });
+        }
+
+        if (!user_id) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+
+        // check if user exists
+        const [user] = await db.query("SELECT user_id FROM users WHERE user_id = ?", [user_id]);
+        if (user.length === 0) {
+            return res.status(404).json({ message: `User with ID ${user_id} not found` });
+        }
+
+        // delete user
+        await db.query("DELETE FROM users WHERE user_id = ?", [user_id]);
+
+        res.status(200).json({
+            message: `User with ID ${user_id} deleted successfully`
+        });
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const editEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
+    const admin_id = req.user.admin_id; // admin making the request
+    const { employee_id } = req.params;
+    const { first_name, last_name, phone, email } = req.body;
+
+    if (!admin_id) {
+        return res.status(401).json({ message: "Unauthorized: Only admins can edit employee profiles" });
+    }
+    if (!employee_id) {
+        return res.status(400).json({ message: "Missing required field: employee_id" });
+    }
+
+    const newProfileImage = req.uploadedFiles?.profile_image?.[0]?.url || null;
+
+    try {
+        // Step 1: Fetch existing employee record
+        const [existingRows] = await db.query(
+            `SELECT first_name, last_name, phone, email, profile_image 
+             FROM company_employees 
+             WHERE employee_id = ?`,
+            [employee_id]
+        );
+
+        if (existingRows.length === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+
+        const existing = existingRows[0];
+
+        // Step 2: Merge with new values
+        const updatedFirstName = first_name || existing.first_name;
+        const updatedLastName = last_name || existing.last_name;
+        const updatedPhone = phone || existing.phone;
+        const updatedEmail = email || existing.email;
+        const updatedProfileImage = newProfileImage || existing.profile_image;
+
+        // Step 3: Update employee record (no vendor check here)
+        const [result] = await db.query(
+            `UPDATE company_employees
+             SET first_name = ?, last_name = ?, phone = ?, email = ?, profile_image = ?
+             WHERE employee_id = ?`,
+            [updatedFirstName, updatedLastName, updatedPhone, updatedEmail, updatedProfileImage, employee_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(400).json({ message: "Nothing was updated" });
+        }
+
+        res.status(200).json({ message: "Employee profile updated successfully by admin" });
+    } catch (err) {
+        console.error("Error updating employee profile by admin:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 
 
 module.exports = {
@@ -1572,5 +1658,7 @@ module.exports = {
     getAllVendorPackageRequests,
     updateVendorPackageRequestStatus,
     toggleManualVendorAssignmentByAdmin,
-    removeVendorPackageByAdmin
+    removeVendorPackageByAdmin,
+    deleteUserByAdmin,
+    editEmployeeProfileByAdmin
 };
