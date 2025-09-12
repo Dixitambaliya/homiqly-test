@@ -144,21 +144,17 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-
     try {
         // Fetch the latest cart for the user
         const [cartRows] = await db.query(
             `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
             [user_id]
         );
-
         if (cartRows.length === 0) {
             return res.status(200).json({ message: "Cart is empty", cart: null });
         }
-
         const cart = cartRows[0];
         const cart_id = cart.cart_id;
 
@@ -216,32 +212,50 @@ const getUserCart = asyncHandler(async (req, res) => {
             [cart_id]
         );
 
-        // Group sub-packages, addons, and preferences under each package
+        // Fetch all consents linked to the cart (per package)
+        const [cartConsents] = await db.query(
+            `SELECT
+                cc.package_id,
+                cc.consent_id,
+                c.question,
+                cc.answer
+             FROM cart_consents cc
+             LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+             WHERE cc.cart_id = ?`,
+            [cart_id]
+        );
+
+        // Group sub-packages, addons, preferences, and consents under each package
         const groupedPackages = cartPackages.map(pkg => {
             const sub_packages = cartPackageItems
                 .filter(item => item.package_id === pkg.package_id)
                 .map(item => ({
                     ...item
                 }));
-
             const addons = cartAddons
                 .filter(addon => addon.package_id === pkg.package_id)
                 .map(addon => ({
                     ...addon
                 }));
-
             const preferences = cartPreferences
                 .filter(pref => pref.package_id === pkg.package_id)
                 .map(pref => ({
                     preference_id: pref.preference_id,
                     preferenceValue: pref.preferenceValue
                 }));
-
+            const consents = cartConsents
+                .filter(con => con.package_id === pkg.package_id)
+                .map(con => ({
+                    consent_id: con.consent_id,
+                    consentText: con.question,
+                    answer: con.answer
+                }));
             return {
                 ...pkg,
                 sub_packages,
                 addons,
-                preferences
+                preferences,
+                consents
             };
         });
 
@@ -258,7 +272,6 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const checkoutCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
