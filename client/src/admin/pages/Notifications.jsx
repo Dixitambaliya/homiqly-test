@@ -5,6 +5,7 @@ import { FiSend } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import Select from "react-select";
 import Button from "../../shared/components/Button/Button";
+
 const Notifications = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -18,6 +19,7 @@ const Notifications = () => {
     title: "",
     body: "",
     data: {},
+    channel: "notification", // <-- added channel default
   });
 
   // Load users/vendors/employees based on user_type
@@ -42,6 +44,7 @@ const Notifications = () => {
           case "vendor":
             if (!formData.vendor_type) {
               toast.warn("Please select a Vendor Type first.");
+              setLoading(false);
               return;
             }
             response = await axios.get(
@@ -106,6 +109,7 @@ const Notifications = () => {
       title: formData.title,
       body: formData.body,
       data: formData.data,
+      channel: formData.channel, // <-- include channel in payload
     };
 
     if (formData.user_type === "vendor") {
@@ -144,6 +148,7 @@ const Notifications = () => {
       title: "",
       body: "",
       data: {},
+      channel: "notification", // reset to default
     });
     setUserList([]);
   };
@@ -245,6 +250,22 @@ const Notifications = () => {
                 </div>
               )}
 
+              {/* Channel dropdown - ADDED */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Channel*
+                </label>
+                <select
+                  name="channel"
+                  value={formData.channel}
+                  onChange={handleInputChange}
+                  className="w-full border px-3 py-2 rounded"
+                >
+                  <option value="notification">Notification</option>
+                  <option value="mail">Mail</option>
+                </select>
+              </div>
+
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -277,14 +298,9 @@ const Notifications = () => {
 
               {/* Submit Button */}
               <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center"
-                >
+                <Button type="submit" disabled={submitting}>
                   {submitting ? (
                     <>
-                      <LoadingSpinner size="sm" color="white" />
                       <span className="ml-2">Sending...</span>
                     </>
                   ) : (
