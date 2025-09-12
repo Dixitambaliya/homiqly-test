@@ -121,8 +121,8 @@ const sendNotification = asyncHandler(async (req, res) => {
                     successCount++;
                     try {
                         await db.query(
-                            `INSERT INTO notifications (user_type, user_id, title, body, data, sent_at, channel)
-                             VALUES (?, ?, ?, ?, ?, NOW(), 'mail')`,
+                            `INSERT INTO notifications (user_type, user_id, title, body, data, sent_at)
+                             VALUES (?, ?, ?, ?, ?, NOW())`,
                             [user_type, row.id, title, body, JSON.stringify(data || {})]
                         );
                     } catch (dbErr) {
