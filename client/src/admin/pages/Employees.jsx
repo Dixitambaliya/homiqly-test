@@ -3,7 +3,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EmployeesTable from "../components/Tables/EmployeesTable";
-import EmployeeDetailsModal from "../components/Modals/EmployeeDetailsModal"; // <-- new import
+import EmployeeDetailsModal from "../components/Modals/EmployeeDetailsModal"; // <-- modal has edit built-in
 import { FiSearch } from "react-icons/fi";
 import FormInput from "../../shared/components/Form/FormInput";
 
@@ -28,12 +28,12 @@ const Employees = () => {
       const token = localStorage.getItem("adminToken");
       const response = await axios.get("/api/admin/getallemployees", {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: token ? `Bearer ${token}` : undefined,
         },
       });
       setEmployees(response.data.employees || []);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
+    } catch (err) {
+      console.error("Error fetching employees:", err);
       setError("Failed to load employees");
       toast.error("Failed to load employees");
     } finally {
@@ -49,6 +49,67 @@ const Employees = () => {
   const closeModal = () => {
     setShowDetailsModal(false);
     setSelectedEmployee(null);
+  };
+
+  // Called by EmployeeDetailsModal after a successful edit
+  const handleUpdatedEmployee = (updatedEmployee) => {
+    // normalize id key
+    const updatedId = updatedEmployee.employee_id ?? updatedEmployee.id;
+    setEmployees((prev) =>
+      prev.map((e) => {
+        const eid = e.employee_id ?? e.id;
+        return eid === updatedId ? { ...e, ...updatedEmployee } : e;
+      })
+    );
+    // also update selectedEmployee if modal still open
+    if (selectedEmployee) {
+      const selId = selectedEmployee.employee_id ?? selectedEmployee.id;
+      if (selId === updatedId) {
+        setSelectedEmployee((p) => ({ ...p, ...updatedEmployee }));
+      }
+    }
+  };
+
+  const handleDeleteEmployee = async (employee) => {
+    if (!employee) return;
+    const name = employee.employee_name ?? employee.email ?? "this employee";
+    const ok = window.confirm(`Are you sure you want to delete ${name}?`);
+    if (!ok) return;
+
+    try {
+      const token = localStorage.getItem("adminToken");
+      const id = employee.employee_id ?? employee.id;
+      // endpoint based on your screenshots: /api/admin/delete-employee/:id
+      const resp = await axios.delete(`/api/admin/delete-employee/${id}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : undefined,
+        },
+      });
+
+      // optimistic removal from state
+      setEmployees((prev) =>
+        prev.filter((e) => {
+          const eid = e.employee_id ?? e.id;
+          return eid !== id;
+        })
+      );
+
+      // if deleting the employee currently open in modal, close modal
+      const selId = selectedEmployee
+        ? selectedEmployee.employee_id ?? selectedEmployee.id
+        : null;
+      if (selId === id) {
+        closeModal();
+      }
+
+      toast.success(
+        (resp && resp.data && resp.data.message) ||
+          "Employee deleted successfully"
+      );
+    } catch (err) {
+      console.error("Error deleting employee:", err);
+      toast.error("Failed to delete employee");
+    }
   };
 
   // Derived list of unique company names for dropdown
@@ -104,8 +165,6 @@ const Employees = () => {
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          {/* Search */}
-
           <FormInput
             type="text"
             value={searchTerm}
@@ -114,7 +173,7 @@ const Employees = () => {
             icon={<FiSearch />}
             className=" w-full sm:w-80"
           />
-          {/* Company dropdown */}
+
           <select
             value={companyFilter}
             onChange={(e) => setCompanyFilter(e.target.value)}
@@ -133,13 +192,14 @@ const Employees = () => {
         employees={filteredEmployees}
         isLoading={loading}
         onViewEmployee={viewEmployeeDetails}
+        onDeleteEmployee={handleDeleteEmployee} // NEW: pass delete handler
       />
 
-      {/* New single-line modal usage */}
       <EmployeeDetailsModal
         employee={selectedEmployee}
         isOpen={showDetailsModal}
         onClose={closeModal}
+        onUpdated={handleUpdatedEmployee} // NEW: modal will call this after successful edit
       />
     </div>
   );

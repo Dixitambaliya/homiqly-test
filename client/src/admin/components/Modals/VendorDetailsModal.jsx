@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import Modal from "../../../shared/components/Modal/Modal";
-import { Button } from "../../../shared/components/Button";
+import { Button, IconButton } from "../../../shared/components/Button";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import api from "../../../lib/axiosConfig";
+import { Trash2 } from "lucide-react";
 
 const VendorDetailsModal = ({
   isOpen,
@@ -39,6 +40,25 @@ const VendorDetailsModal = ({
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [pendingValue, setPendingValue] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleApprove = async () => {
+    try {
+      setSaving(true);
+      await onApprove(vendor.vendor_id);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      setSaving(true);
+      await onReject(vendor.vendor_id);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const newStatus =
@@ -71,6 +91,14 @@ const VendorDetailsModal = ({
       setShowNoteModal(true);
     } else {
       updateVendorStatus(1);
+    }
+  };
+
+  const handleDeleteService = async () => {
+    try {
+      const response = await api.delete(`/api/admin/removepackage`);
+    } catch (err) {
+      console.error("Failed to delete service", err);
     }
   };
 
@@ -259,18 +287,30 @@ const VendorDetailsModal = ({
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {vendor.services.map((service, index) => (
-                <div key={index} className="bg-white p-3 rounded-lg border">
-                  <div className="font-medium text-gray-900 text-sm">
-                    {service.serviceName}
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">
-                    Category: {service.categoryName}
-                  </div>
-                  {service.serviceLocation && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      Location: {service.serviceLocation}
+                <div
+                  key={index}
+                  className="flex justify-between p-3 rounded-lg border"
+                >
+                  <div>
+                    <div className="font-medium text-gray-900 text-sm">
+                      {service.serviceName}
                     </div>
-                  )}
+                    <div className="text-xs text-gray-600 mt-1">
+                      Category: {service.categoryName}
+                    </div>
+                    {service.serviceLocation && (
+                      <div className="text-xs text-gray-600 mt-1">
+                        Location: {service.serviceLocation}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <IconButton
+                      variant="lightDanger"
+                      icon={<Trash2 className="w-4 h-4" />}
+                      // onClick={() => }
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -281,22 +321,19 @@ const VendorDetailsModal = ({
         <div className="flex justify-end space-x-3 mt-4 pt-4 border-t">
           <Button
             variant="lightPrimary"
-            onClick={() => {
-              onApprove(vendor.vendor_id);
-            }}
+            onClick={handleApprove}
             icon={<span>✓</span>}
+            disabled={saving || vendor.is_authenticated == 1}
           >
-            Approve
+            {saving ? "Approving..." : "Approve"}
           </Button>
           <Button
             variant="lightError"
-            onClick={() => {
-              onReject(vendor.vendor_id);
-              /* left intentionally blank */
-            }}
+            onClick={handleReject}
             icon={<span>✕</span>}
+            disabled={saving || vendor.is_authenticated == 0 || vendor.is_authenticated == 2}
           >
-            Reject
+            {saving ? "Rejecting..." : "Reject"}
           </Button>
         </div>
       </Modal>
@@ -326,7 +363,7 @@ const VendorDetailsModal = ({
           />
           <div className="flex justify-end space-x-2 mt-3">
             <Button
-              variant="secondary"
+              variant="ghost"
               onClick={() => {
                 setShowNoteModal(false);
                 setNoteText("");
@@ -335,11 +372,7 @@ const VendorDetailsModal = ({
             >
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleSubmitNote}
-              disabled={isUpdating}
-            >
+            <Button onClick={handleSubmitNote} disabled={isUpdating}>
               {isUpdating ? "Saving..." : "Save & Turn OFF"}
             </Button>
           </div>

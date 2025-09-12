@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 const Button = ({
   children,
   type = "button",
-  variant = "primary",
+  variant = "lightPrimary",
   size = "md",
   onClick,
   disabled = false,
