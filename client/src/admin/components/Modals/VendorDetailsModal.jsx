@@ -82,7 +82,7 @@ const VendorDetailsModal = ({
     <>
       <Modal isOpen={isOpen} onClose={onClose} title="Vendor Details" size="lg">
         {/* Header / meta row */}
-        <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start justify-between gap-4 mb-4 p-6">
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <h4 className="text-xs font-semibold text-gray-500 mb-1">
@@ -99,54 +99,46 @@ const VendorDetailsModal = ({
                 {vendor.vendorType}
               </p>
             </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 mb-1">
-                Registration Date
-              </h4>
-              <p className="text-sm text-gray-900">
-                {new Date(vendor.created_at).toLocaleDateString()}
-              </p>
-            </div>
           </div>
 
           <div className="min-w-[200px] flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              <div className="text-xs font-semibold text-gray-500">Status</div>
-              <StatusBadge status={localStatus} />
+            <div className="flex flex-col ">
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                Status
+              </div>
+              <StatusBadge status={vendor.is_authenticated} />
             </div>
-
-            {/* Toggle switch (controls vendor.status only) */}
-            <div className="flex flex-col items-end">
-              <label
-                className="inline-flex items-center cursor-pointer select-none"
-                aria-label="Toggle vendor status"
+          </div>
+          {/* Toggle switch (controls vendor.status only) */}
+          <div className="flex flex-col items-end">
+            <label
+              className="inline-flex items-center cursor-pointer select-none"
+              aria-label="Toggle vendor status"
+            >
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={localStatus === 1}
+                onChange={handleToggleClick}
+                disabled={isUpdating}
+              />
+              <div
+                className={`w-12 h-6 rounded-full relative transition-colors ${
+                  localStatus === 1 ? "bg-green-500" : "bg-gray-300"
+                }`}
+                role="switch"
+                aria-checked={localStatus === 1}
               >
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={localStatus === 1}
-                  onChange={handleToggleClick}
-                  disabled={isUpdating}
-                />
-                <div
-                  className={`w-12 h-6 rounded-full relative transition-colors ${
-                    localStatus === 1 ? "bg-green-500" : "bg-gray-300"
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform ${
+                    localStatus === 1 ? "translate-x-6" : "translate-x-0"
                   }`}
-                  role="switch"
-                  aria-checked={localStatus === 1}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform ${
-                      localStatus === 1 ? "translate-x-6" : "translate-x-0"
-                    }`}
-                  />
-                </div>
-              </label>
-              {isUpdating && (
-                <div className="text-xs text-gray-500 mt-1">Updating…</div>
-              )}
-            </div>
+                />
+              </div>
+            </label>
+            {isUpdating && (
+              <div className="text-xs text-gray-500 mt-1">Updating…</div>
+            )}
           </div>
         </div>
 
@@ -290,7 +282,7 @@ const VendorDetailsModal = ({
           <Button
             variant="lightPrimary"
             onClick={() => {
-              /* left intentionally blank */
+              onApprove(vendor.vendor_id);
             }}
             icon={<span>✓</span>}
           >
@@ -299,6 +291,7 @@ const VendorDetailsModal = ({
           <Button
             variant="lightError"
             onClick={() => {
+              onReject(vendor.vendor_id);
               /* left intentionally blank */
             }}
             icon={<span>✕</span>}
