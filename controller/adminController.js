@@ -1638,6 +1638,44 @@ const editEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+const deleteEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
+    const admin_id = req.user.admin_id; // admin making the request
+    const { employee_id } = req.params;
+
+    if (!admin_id) {
+        return res.status(401).json({ message: "Unauthorized: Only admins can delete employee profiles" });
+    }
+    if (!employee_id) {
+        return res.status(400).json({ message: "Missing required field: employee_id" });
+    }
+
+    try {
+        // Step 1: Check if employee exists
+        const [existingRows] = await db.query(
+            `SELECT employee_id FROM company_employees WHERE employee_id = ?`,
+            [employee_id]
+        );
+
+        if (existingRows.length === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+
+        // Step 2: Delete employee record
+        const [result] = await db.query(
+            `DELETE FROM company_employees WHERE employee_id = ?`,
+            [employee_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(400).json({ message: "Employee could not be deleted" });
+        }
+
+        res.status(200).json({ message: "Employee profile deleted successfully by admin" });
+    } catch (err) {
+        console.error("Error deleting employee profile by admin:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
 
 
 module.exports = {
@@ -1660,5 +1698,6 @@ module.exports = {
     toggleManualVendorAssignmentByAdmin,
     removeVendorPackageByAdmin,
     deleteUserByAdmin,
-    editEmployeeProfileByAdmin
+    editEmployeeProfileByAdmin,
+    deleteEmployeeProfileByAdmin
 };

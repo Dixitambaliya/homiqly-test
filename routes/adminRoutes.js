@@ -18,7 +18,8 @@ const { getVendor,
     toggleManualVendorAssignmentByAdmin,
     removeVendorPackageByAdmin,
     deleteUserByAdmin,
-    editEmployeeProfileByAdmin
+    editEmployeeProfileByAdmin,
+    deleteEmployeeProfileByAdmin
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -44,5 +45,6 @@ router.put("/editvendorstatus/:vendor_id", authenticationToken, toggleManualVend
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
 router.delete("/deleteusers/:user_id", authenticationToken, deleteUserByAdmin)
 router.put("/editemployees/:employee_id", authenticationToken, multiUpload, handleUploads, editEmployeeProfileByAdmin)
+router.delete("/delete-employee/:employee_id", authenticationToken, deleteEmployeeProfileByAdmin)
 
 module.exports = router
