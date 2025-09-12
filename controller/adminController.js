@@ -1489,6 +1489,68 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
+    // Assumes admin auth middleware verified role/permissions already
+    const { vendor_packages_id } = req.params;
+
+    if (!vendor_packages_id) {
+        return res.status(400).json({ message: "vendor_packages_id is required" });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        // Ensure package exists
+        const [[pkg]] = await connection.query(
+            `SELECT vendor_packages_id, vendor_id 
+             FROM vendor_packages 
+             WHERE vendor_packages_id = ?`,
+            [vendor_packages_id]
+        );
+
+        if (!pkg) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Package not found" });
+        }
+
+        // Delete related sub-packages/items first
+        await connection.query(
+            `DELETE FROM vendor_package_items WHERE vendor_packages_id = ?`,
+            [vendor_packages_id]
+        );
+
+        // Delete related addons if your schema has them (optional safeguard)
+        // await connection.query(
+        //     `DELETE FROM vendor_package_addons WHERE vendor_packages_id = ?`,
+        //     [vendor_packages_id]
+        // );
+
+        // Delete the vendor package
+        await connection.query(
+            `DELETE FROM vendor_packages WHERE vendor_packages_id = ?`,
+            [vendor_packages_id]
+        );
+
+        await connection.commit();
+
+        res.status(200).json({
+            success: true,
+            message: "Vendor package removed successfully by admin",
+            vendor_packages_id
+        });
+    } catch (err) {
+        await connection.rollback();
+        console.error("Admin remove vendor package error:", err);
+        res.status(500).json({
+            success: false,
+            message: "Failed to remove vendor package",
+            error: err.message
+        });
+    } finally {
+        connection.release();
+    }
+});
 
 
 
@@ -1509,5 +1571,6 @@ module.exports = {
     getAllEmployeesForAdmin,
     getAllVendorPackageRequests,
     updateVendorPackageRequestStatus,
-    toggleManualVendorAssignmentByAdmin
+    toggleManualVendorAssignmentByAdmin,
+    removeVendorPackageByAdmin
 };

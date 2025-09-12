@@ -15,7 +15,8 @@ const { getVendor,
     getAllEmployeesForAdmin,
     getAllVendorPackageRequests,
     updateVendorPackageRequestStatus,
-    toggleManualVendorAssignmentByAdmin
+    toggleManualVendorAssignmentByAdmin,
+    removeVendorPackageByAdmin
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -38,5 +39,7 @@ router.put("/approverejectapplication/:application_id", authenticationToken, upd
 router.get("/getpayments", authenticationToken, getAllPayments)
 router.get("/getallpackages", authenticationToken, getAllPackages)
 router.put("/editvendorstatus/:vendor_id", authenticationToken, toggleManualVendorAssignmentByAdmin)
+
+router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
 
 module.exports = router
