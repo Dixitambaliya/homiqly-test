@@ -116,7 +116,8 @@ const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
             SELECT
             cd.companyName,
             ce.employee_id,
-            CONCAT(ce.first_name, ' ', ce.last_name) AS employee_name,
+            ce.first_name,
+            ce.last_name,
             ce.profile_image,
             ce.email,
             ce.phone,
