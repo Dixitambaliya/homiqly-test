@@ -982,26 +982,18 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                   ), '...'
                 ) AS vendorName,
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-                ROUND(AVG(r.rating), 1) AS avgRating,
-                COUNT(r.rating_id) AS totalRatings
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone
             FROM vendors v
             LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
             LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
             INNER JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
             INNER JOIN packages p ON p.package_id = vp.package_id
-            LEFT JOIN vendor_package_items vpi ON vpi.vendor_package_id = vp.vendor_package_id
-            LEFT JOIN package_items pi ON pi.package_item_id = vpi.package_item_id
+            LEFT JOIN vendor_package_items vpi ON vpi.vendor_packages_id = vp.vendor_packages_id
+            LEFT JOIN package_items pi ON pi.item_id = vpi.package_item_id
             LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-            LEFT JOIN vendor_service_ratings r 
-                ON r.vendor_id = v.vendor_id
-                AND r.package_id = vp.package_id
-            WHERE (
-                (? IS NULL OR vp.package_id = ?)
-                AND (? IS NULL OR vpi.package_item_id = ?)
-            )
-            AND vp.status = 1 -- ✅ only approved/active packages
-            AND (vst.manual_assignment_enabled = 1)
+            WHERE (vst.manual_assignment_enabled = 1)
+            AND (? IS NULL OR vp.package_id = ?)
+            AND (? IS NULL OR vpi.package_item_id = ?)
             AND NOT EXISTS (
                 SELECT 1
                 FROM service_booking sb
@@ -1025,9 +1017,14 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
         const [vendors] = await db.query(sql, params);
 
+        if (!vendors || vendors.length === 0) {
+            return res.status(404).json({
+                message: "No vendors found for the given criteria"
+            });
+        }
+
         res.status(200).json({
             message: "Available vendors fetched successfully",
-            requested: { date, time, package_id, package_item_id },
             vendors
         });
     } catch (err) {

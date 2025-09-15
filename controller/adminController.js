@@ -665,7 +665,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
             // ✅ Check if package exists
             const [pkgRow] = await connection.query(
-                `SELECT package_id, packageName FROM packages WHERE package_id = ?`,
+                `SELECT package_id FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
@@ -736,8 +736,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         }
 
         res.status(200).json({
-            message: "Packages successfully applied. Admin approval pending.",
-            appliedPackages: newlyAssigned
+            message: "Packages successfully applied. Admin approval pending."
         });
 
     } catch (err) {
