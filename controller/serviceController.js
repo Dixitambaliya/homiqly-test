@@ -18,7 +18,11 @@ const generateSlug = (text) => {
 };
 
 const addCategory = asyncHandler(async (req, res) => {
-    const { categoryName, subCategories = [] } = req.body; // subCategories should be an array
+    const { categoryName } = req.body;
+
+    if (!categoryName) {
+        return res.status(400).json({ message: "Category name is required" });
+    }
 
     const connection = await db.getConnection();
     try {
@@ -40,28 +44,17 @@ const addCategory = asyncHandler(async (req, res) => {
         );
         const serviceCategoryId = result.insertId;
 
-        // Insert subcategories if provided
-        if (Array.isArray(subCategories) && subCategories.length > 0) {
-            const subcategoryValues = subCategories.map((sub) => [sub.trim(), serviceCategoryId]);
-            await connection.query(
-                `INSERT INTO service_subcategoriestype (subCategories, service_categories_id) VALUES ?`,
-                [subcategoryValues]
-            );
-        }
-
-        // Commit transaction
         await connection.commit();
 
         // Send FCM notification to vendors
         const [rows] = await connection.query(
             "SELECT fcmToken FROM vendors WHERE fcmToken IS NOT NULL"
         );
-
         const tokens = rows.map((row) => row.fcmToken).filter(Boolean);
         if (tokens.length > 0) {
             const message = {
                 notification: {
-                    title: "New service Available!",
+                    title: "New Category Available!",
                     body: `Explore services under the new category: ${categoryName}`,
                 },
                 tokens,
@@ -71,7 +64,7 @@ const addCategory = asyncHandler(async (req, res) => {
         }
 
         res.status(201).json({
-            message: "Category and subcategories added successfully",
+            message: "Category added successfully",
             serviceCategoryId,
         });
     } catch (err) {
@@ -83,17 +76,14 @@ const addCategory = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addService = asyncHandler(async (req, res) => {
-    let { serviceName, categoryName, serviceDescription, subCategory } = req.body;
+    let { serviceName, categoryName, serviceDescription, targetGender } = req.body;
 
-    if (!serviceName || !categoryName) {
-        return res.status(400).json({ message: "All fields are required" });
+    if (!serviceName || !categoryName || !targetGender) {
+        return res.status(400).json({ message: "serviceName, categoryName, and targetGender are required" });
     }
 
-    const subCategoryValue = subCategory || null;
     const serviceImage = req.uploadedFiles?.serviceImage?.[0]?.url || null;
-
     if (!serviceImage) {
         return res.status(400).json({ message: "Service image is required" });
     }
@@ -127,15 +117,13 @@ const addService = asyncHandler(async (req, res) => {
         const service_categories_id = existingCategory[0].service_categories_id;
         const slug = generateSlug(serviceName);
 
-        // ✅ Insert service with subCategory directly
-        const [insertResult] = await connection.query(
+        // ✅ Insert service with gender
+        await connection.query(
             `INSERT INTO services 
-            (service_categories_id, serviceName, serviceDescription, serviceImage, slug, subCategory) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [service_categories_id, serviceName, serviceDescription, serviceImage, slug, subCategoryValue]
+            (service_categories_id, serviceName, serviceDescription, serviceImage, slug, targetGender) 
+            VALUES (?, ?, ?, ?, ?, ?)` ,
+            [service_categories_id, serviceName, serviceDescription, serviceImage, slug, targetGender]
         );
-
-        // ✅ No need to insert into `service_subcategories` table anymore
 
         // ✅ Send FCM Notifications
         const [rows] = await connection.query(
@@ -147,7 +135,7 @@ const addService = asyncHandler(async (req, res) => {
             const message = {
                 notification: {
                     title: "New Service Available!",
-                    body: `${serviceName} (${subCategory}) has been added under ${categoryName}`,
+                    body: `${serviceName} (${targetGender}) has been added under ${categoryName}`,
                 },
                 tokens,
             };
@@ -166,45 +154,41 @@ const addService = asyncHandler(async (req, res) => {
     }
 });
 
+// const addSubCategory = asyncHandler(async (req, res) => {
+//     const { serviceCategoryId, subCategories } = req.body;
 
+//     if (!serviceCategoryId || !subCategories) {
+//         return res.status(400).json({ message: "serviceCategoryId and subCategories are required" });
+//     }
 
-const addSubCategory = asyncHandler(async (req, res) => {
-    const { serviceCategoryId, subCategories } = req.body;
+//     // Check if category exists
+//     const [category] = await db.query(
+//         `SELECT service_categories_id FROM service_categories WHERE service_categories_id = ?`,
+//         [serviceCategoryId]
+//     );
+//     if (category.length === 0) {
+//         return res.status(404).json({ message: "Category not found" });
+//     }
 
-    if (!serviceCategoryId || !subCategories) {
-        return res.status(400).json({ message: "serviceCategoryId and subCategories are required" });
-    }
+//     // Prevent duplicate
+//     const [existing] = await db.query(
+//         `SELECT 1 FROM service_subcategoriestype WHERE service_categories_id = ? AND subCategories = ?`,
+//         [serviceCategoryId, subCategories.trim()]
+//     );
+//     if (existing.length > 0) {
+//         return res.status(409).json({ message: "Subcategory already exists under this category" });
+//     }
 
-    // Check if category exists
-    const [category] = await db.query(
-        `SELECT service_categories_id FROM service_categories WHERE service_categories_id = ?`,
-        [serviceCategoryId]
-    );
-    if (category.length === 0) {
-        return res.status(404).json({ message: "Category not found" });
-    }
+//     const [result] = await db.query(
+//         `INSERT INTO service_subcategoriestype (subCategories, service_categories_id) VALUES (?, ?)`,
+//         [subCategories.trim(), serviceCategoryId]
+//     );
 
-    // Prevent duplicate
-    const [existing] = await db.query(
-        `SELECT 1 FROM service_subcategoriestype WHERE service_categories_id = ? AND subCategories = ?`,
-        [serviceCategoryId, subCategories.trim()]
-    );
-    if (existing.length > 0) {
-        return res.status(409).json({ message: "Subcategory already exists under this category" });
-    }
-
-    const [result] = await db.query(
-        `INSERT INTO service_subcategoriestype (subCategories, service_categories_id) VALUES (?, ?)`,
-        [subCategories.trim(), serviceCategoryId]
-    );
-
-    res.status(201).json({
-        message: "Subcategory created successfully",
-        subcategory_id: result.insertId
-    });
-});
-
-
+//     res.status(201).json({
+//         message: "Subcategory created successfully",
+//         subcategory_id: result.insertId
+//     });
+// });
 
 const getSubCategories = asyncHandler(async (req, res) => {
     try {
@@ -221,7 +205,6 @@ const getSubCategories = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
 
 const addServiceCity = asyncHandler(async (req, res) => {
     const { serviceCity } = req.body;
@@ -403,7 +386,7 @@ const getService = asyncHandler(async (req, res) => {
             service: row.serviceName,
             serviceId: row.service_id,
             subCategory: row.subCategory,
-            serviceCategory: row.serviceCategory
+            serviceGender: row.targetGender
         }))
 
         res.status(200).json({
@@ -704,6 +687,6 @@ module.exports = {
     deleteServiceCity,
     getAdminService,
     getServiceTypeById,
-    addSubCategory,
+    // addSubCategory,
     getSubCategories
 }

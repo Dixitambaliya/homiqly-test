@@ -20,7 +20,7 @@ const userGetQueries = {
     getServices: `SELECT
     services.service_id,
     services.serviceName,
-    services.subCategory,
+    services.targetGender,
     service_categories.serviceCategory AS serviceCategory
         FROM services
         LEFT JOIN service_categories ON services.service_categories_id = service_categories.service_categories_id;`,

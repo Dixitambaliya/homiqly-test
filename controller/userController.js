@@ -299,7 +299,7 @@ const addUserData = asyncHandler(async (req, res) => {
     }
 });
 
-const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
+const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {   
     const { service_type_id } = req.params;
 
     if (!service_type_id) {
@@ -316,19 +316,12 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                 CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
                         'package_id', p.package_id,
-                        'title', p.packageName,
-                        'description', p.description,
-                        'price', p.totalPrice,
-                        'price'
-                        'time_required', p.totalTime,
-                        'package_media', p.packageMedia,
-                        'vendor_id', vp.vendor_id
+                        'description', p.description
                     )
                 ), ']') AS packages
 
             FROM service_type st
             INNER JOIN packages p ON p.service_type_id = st.service_type_id
-            INNER JOIN vendor_packages vp ON vp.package_id = p.package_id
 
             WHERE st.service_type_id = ?
             GROUP BY st.service_type_id

@@ -483,10 +483,8 @@ const getAvailablePackagesForVendor = asyncHandler(async (req, res) => {
         SELECT
           sc.service_categories_id,
           sc.serviceCategory,
-
           s.service_id,
           s.serviceName,
-
           st.service_type_id,
           st.serviceTypeName,
           st.serviceTypeMedia,
@@ -495,11 +493,7 @@ const getAvailablePackagesForVendor = asyncHandler(async (req, res) => {
             SELECT CONCAT('[', GROUP_CONCAT(
               JSON_OBJECT(
                 'package_id', p.package_id,
-                'packageName', p.packageName,
-                'packageMedia', p.packageMedia,
                 'description', p.description,
-                'totalPrice', p.totalPrice,
-                'totalTime', p.totalTime,
                 'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
                 'subPackages', IFNULL((
                   SELECT CONCAT('[', GROUP_CONCAT(

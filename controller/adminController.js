@@ -16,6 +16,8 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
@@ -356,53 +358,56 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName = null, packages, preferences } = req.body;
+        const { serviceId, serviceTypeName, packages, preferences } = req.body;
 
+        // 1️⃣ Validate inputs
+        if (!serviceId || !serviceTypeName) {
+            throw new Error("serviceId and serviceTypeName are required.");
+        }
         if (!packages) {
             throw new Error("Missing required field: packages.");
         }
 
-        const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
-
-        // 1️⃣ Determine service_type_id
-        let service_type_id;
-        if (!serviceTypeName) {
-            const [dummyResult] = await connection.query(
-                `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia) VALUES (?, ?, ?)`,
-                [serviceId, null, null]
-            );
-            service_type_id = dummyResult.insertId;
-        } else {
-            const [existingServiceType] = await connection.query(
-                `SELECT service_type_id FROM service_type 
-                 WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
-                [serviceId, serviceTypeName.trim()]
-            );
-
-            if (existingServiceType.length > 0) {
-                service_type_id = existingServiceType[0].service_type_id;
-                if (serviceTypeMedia) {
-                    await connection.query(
-                        `UPDATE service_type SET serviceTypeMedia = ? WHERE service_type_id = ?`,
-                        [serviceTypeMedia, service_type_id]
-                    );
-                }
-            } else {
-                const [stResult] = await connection.query(
-                    `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
-                     VALUES (?, ?, ?)` ,
-                    [serviceId, serviceTypeName.trim(), serviceTypeMedia || null]
-                );
-                service_type_id = stResult.insertId;
-            }
+        const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url;
+        if (!serviceTypeMedia) {
+            throw new Error("serviceTypeMedia (image) is required.");
         }
 
-        // 2️⃣ Parse packages
+        // 2️⃣ Verify service exists
+        const [serviceCheck] = await connection.query(
+            `SELECT service_id, serviceName, targetGender FROM services WHERE service_id = ? LIMIT 1`,
+            [serviceId]
+        );
+        if (serviceCheck.length === 0) {
+            throw new Error("Invalid serviceId. Service does not exist.");
+        }
+        const serviceGender = serviceCheck[0].targetGender;
+
+        // 3️⃣ Ensure service type is unique
+        const [existingServiceType] = await connection.query(
+            `SELECT service_type_id FROM service_type 
+             WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
+            [serviceId, serviceTypeName.trim()]
+        );
+        if (existingServiceType.length > 0) {
+            throw new Error("Service type already exists for this service.");
+        }
+
+        // 4️⃣ Insert service type
+        const [stResult] = await connection.query(
+            `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+             VALUES (?, ?, ?)`,
+            [serviceId, serviceTypeName.trim(), serviceTypeMedia]
+        );
+        const service_type_id = stResult.insertId;
+
+        // 5️⃣ Parse and insert packages
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             throw new Error("At least one package is required.");
@@ -410,24 +415,15 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
         for (let i = 0; i < parsedPackages.length; i++) {
             const pkg = parsedPackages[i];
-            const media = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
             const [pkgResult] = await connection.query(
-                `INSERT INTO packages 
-                (service_type_id, packageName, description, totalPrice, totalTime, packageMedia)
-                VALUES (?, ?, ?, ?, ?, ?, ?)` ,
-                [
-                    service_type_id,
-                    pkg.package_name || null,
-                    pkg.description || null,
-                    pkg.total_price || 0,
-                    pkg.total_time || 0,
-                    media
-                ]
+                `INSERT INTO packages (service_type_id)
+                 VALUES (?)`,
+                [service_type_id]
             );
             const package_id = pkgResult.insertId;
 
-            // 📌 Insert sub-packages
+            // 📌 Sub-packages
             for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
                 const sub = pkg.sub_packages[j];
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
@@ -445,14 +441,15 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // 📌 Insert addons
+            // 📌 Addons
             for (let k = 0; k < (pkg.addons || []).length; k++) {
                 const addon = pkg.addons[k];
                 const addon_media = req.uploadedFiles?.[`addon_media_${i}_${k}`]?.[0]?.url || null;
 
                 await connection.query(
-                    `INSERT INTO package_addons (package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
-                     VALUES (?, ?, ?, ?, ?, ?)` ,
+                    `INSERT INTO package_addons 
+                     (package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
                         addon.addon_name || null,
@@ -464,18 +461,18 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
             }
 
-            // 📌 Insert consent form questions (per package)
+            // 📌 Consent forms
             if (Array.isArray(pkg.consentForm) && pkg.consentForm.length > 0) {
                 for (const question of pkg.consentForm) {
                     await connection.query(
                         `INSERT INTO package_consent_forms (package_id, question, is_required)
-                         VALUES (?, ?, ?)` ,
+                         VALUES (?, ?, ?)`,
                         [package_id, question.text || null, question.is_required ? 1 : 0]
                     );
                 }
             }
 
-            // 📌 Insert preferences
+            // 📌 Preferences (per package)
             if (preferences) {
                 const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
                 for (const pref of parsedPrefs) {
@@ -494,7 +491,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
         res.status(201).json({
             message: "✅ Packages created successfully",
-            service_type_id
+            service_type_id,
+            serviceGender
         });
 
     } catch (err) {
@@ -505,165 +503,118 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
       SELECT
-        st.service_type_id,
-        st.serviceTypeName AS service_type_name,
-        st.serviceTypeMedia AS service_type_media,
-
-        s.service_id,
-        s.serviceName AS service_name,
-
         sc.service_categories_id AS service_category_id,
         sc.serviceCategory AS service_category_name,
+        s.service_id,
+        s.serviceName AS service_name,
+        s.targetGender,
 
         COALESCE((
-        SELECT CONCAT('[', GROUP_CONCAT(
+          SELECT CONCAT('[', GROUP_CONCAT(
             JSON_OBJECT(
-            'package_id', p.package_id,
-            'title', p.packageName,
-            'description', p.description,
-            'price', p.totalPrice,
-            'time_required', p.totalTime,
-            'package_media', p.packageMedia,
-            'sub_packages', IFNULL((
+              'package_id', p.package_id,
+              -- add serviceType info here
+              'service_type_id', st.service_type_id,
+              'service_type_name', st.serviceTypeName,
+              'service_type_media', st.serviceTypeMedia,
+
+              'sub_packages', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                JSON_OBJECT(
+                  JSON_OBJECT(
                     'sub_package_id', pi.item_id,
                     'item_name', pi.itemName,
                     'description', pi.description,
                     'price', pi.price,
                     'time_required', pi.timeRequired,
                     'item_media', pi.itemMedia
-                )
+                  )
                 ), ']')
                 FROM package_items pi
                 WHERE pi.package_id = p.package_id
-            ), '[]'),
-            'preferences', IFNULL((
+              ), '[]'),
+              'preferences', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                JSON_OBJECT(
+                  JSON_OBJECT(
                     'preference_id', bp.preference_id,
                     'preference_value', bp.preferenceValue,
                     'preference_price', bp.preferencePrice
-                )
+                  )
                 ), ']')
                 FROM booking_preferences bp
                 WHERE bp.package_id = p.package_id
-            ), '[]'),
-            'addons', IFNULL((
+              ), '[]'),
+              'addons', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                JSON_OBJECT(
+                  JSON_OBJECT(
                     'addon_id', pa.addon_id,
                     'addon_name', pa.addonName,
                     'description', pa.addonDescription,
                     'price', pa.addonPrice
-                )
+                  )
                 ), ']')
                 FROM package_addons pa
                 WHERE pa.package_id = p.package_id
-            ), '[]'),
-            'consent_forms', IFNULL((
+              ), '[]'),
+              'consent_forms', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
-                JSON_OBJECT(
+                  JSON_OBJECT(
                     'consent_id', pcf.consent_id,
                     'question', pcf.question
-                )
+                  )
                 ), ']')
                 FROM package_consent_forms pcf
                 WHERE pcf.package_id = p.package_id
-            ), '[]')
+              ), '[]')
             )
-        ), ']')
-        FROM packages p
-        WHERE p.service_type_id = st.service_type_id
+          ), ']')
+          FROM packages p
+          JOIN service_type st ON st.service_type_id = p.service_type_id
+          WHERE st.service_id = s.service_id
         ), '[]') AS packages
 
-
-      FROM service_type st
-      JOIN services s ON s.service_id = st.service_id
+      FROM services s
       JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
-
-      ORDER BY st.service_type_id DESC
+      ORDER BY s.service_id DESC
     `);
 
-        const parsedResult = rows.flatMap(row => {
+        const parsedResult = rows.map(row => {
             let parsedPackages = [];
-
             try {
-                const rawPackages = JSON.parse(row.packages);
+                parsedPackages = JSON.parse(row.packages).map(pkg => ({
+                    package_id: pkg.package_id,
+                    // include serviceType info
+                    service_type_id: pkg.service_type_id,
+                    service_type_name: pkg.service_type_name,
+                    service_type_media: pkg.service_type_media,
 
-                parsedPackages = rawPackages.map(pkg => {
-                    let sub_packages = [];
-                    let preferences = [];
-                    let addons = [];
-                    let consent_forms = [];
-
-                    try {
-                        sub_packages = typeof pkg.sub_packages === "string"
-                            ? JSON.parse(pkg.sub_packages)
-                            : [];
-                    } catch (e) {
-                        console.warn(`❌ Invalid sub_packages JSON in package ${pkg.package_id}:`, e.message);
-                    }
-
-                    try {
-                        preferences = typeof pkg.preferences === "string"
-                            ? JSON.parse(pkg.preferences)
-                            : [];
-                    } catch (e) {
-                        console.warn(`❌ Invalid preferences JSON in package ${pkg.package_id}:`, e.message);
-                    }
-
-                    try {
-                        addons = typeof pkg.addons === "string"
-                            ? JSON.parse(pkg.addons)
-                            : [];
-                    } catch (e) {
-                        console.warn(`❌ Invalid addons JSON in package ${pkg.package_id}:`, e.message);
-                    }
-                    try {
-                        consent_forms = typeof pkg.consent_forms === "string"
-                            ? JSON.parse(pkg.consent_forms)
-                            : [];
-                    } catch (e) {
-                        console.warn(`❌ Invalid consent_forms JSON in package ${pkg.package_id}:`, e.message);
-                    }
-
-                    return {
-                        package_id: pkg.package_id,
-                        title: pkg.title,
-                        description: pkg.description,
-                        price: pkg.price,
-                        time_required: pkg.time_required,
-                        package_media: pkg.package_media,
-                        sub_packages,
-                        preferences,
-                        addons,
-                        consent_forms
-                    };
-                });
+                    sub_packages: typeof pkg.sub_packages === "string" ? JSON.parse(pkg.sub_packages) : [],
+                    preferences: typeof pkg.preferences === "string" ? JSON.parse(pkg.preferences) : [],
+                    addons: typeof pkg.addons === "string" ? JSON.parse(pkg.addons) : [],
+                    consent_forms: typeof pkg.consent_forms === "string" ? JSON.parse(pkg.consent_forms) : []
+                }));
             } catch (e) {
-                console.warn(`❌ Invalid packages JSON in service_type_id ${row.service_type_id}:`, e.message);
+                console.warn(`❌ Invalid JSON in service_id ${row.service_id}:`, e.message);
             }
 
-            if (!parsedPackages || parsedPackages.length === 0) {
-                return [];
-            }
-
-            return [{
-                ...row,
+            return {
+                service_category_id: row.service_category_id,
+                service_category_name: row.service_category_name,
+                service_id: row.service_id,
+                service_name: row.service_name,
+                service_gender: row.targetGender,
                 packages: parsedPackages
-            }];
+            };
         });
 
         res.status(200).json({
             message: "Admin packages fetched successfully",
             result: parsedResult
         });
-
     } catch (error) {
         console.error("Error fetching admin-created packages:", error);
         res.status(500).json({
