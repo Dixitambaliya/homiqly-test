@@ -400,7 +400,7 @@ const getService = asyncHandler(async (req, res) => {
             service: row.serviceName,
             serviceId: row.service_id,
             subCategory: row.subCategory,
-            serviceGender: row.serviceFilter
+            serviceFilter: row.serviceFilter
         }))
 
         res.status(200).json({

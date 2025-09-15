@@ -12,7 +12,7 @@ SELECT
     s.slug
 FROM service_categories sc
 LEFT JOIN services s
-    ON s.service_categories_id = sc.service_categories_id;
+    ON s.service_categories_id = sc.service_categories_id
 `,
 
     getServiceCategories: `
