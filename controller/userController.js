@@ -101,6 +101,10 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
             }
 
+
+
+
+            
             // find or add service
             let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
 
