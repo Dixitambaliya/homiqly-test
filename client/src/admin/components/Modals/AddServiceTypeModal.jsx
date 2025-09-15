@@ -1,33 +1,36 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../../../shared/components/Modal/Modal";
 import { Button, IconButton } from "../../../shared/components/Button";
+import { FormInput, FormSelect } from "../../../shared/components/Form";
 import {
-  FormInput,
-  FormSelect,
-  FormTextarea,
-  FormFileInput,
-} from "../../../shared/components/Form";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
+  FiPlus,
+  FiTrash2,
+  FiPackage,
+  FiStar,
+  FiSettings,
+  FiGift,
+  FiX,
+  FiImage,
+} from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
+import { TabButton } from "../../../shared/components/Button/TabButton";
+import { SectionCard } from "../../../shared/components/Card/SectionCard";
+import { CustomFileInput } from "../../../shared/components/CustomFileInput";
+import { ItemCard } from "../../../shared/components/Card/ItemCard";
 
 const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("basic");
   const [filteredSubCategories, setFilteredSubCategories] = useState([]);
 
   const [formData, setFormData] = useState({
     serviceId: "",
     serviceCategoryId: "",
-    subCategory: "", // 👈 new
     serviceTypeName: "",
     serviceTypeMedia: null,
     packages: [
       {
-        package_name: "",
-        description: "",
-        total_price: "",
-        total_time: "",
-        packageMedia: null,
         sub_packages: [
           {
             item_name: "",
@@ -52,6 +55,10 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   const [categories, setCategories] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
 
+  // Image preview states
+  const [imagePreview, setImagePreview] = useState(null);
+  const [subPackageImagePreviews, setSubPackageImagePreviews] = useState({});
+
   // Fetch categories on component mount
   useEffect(() => {
     const fetchCategories = async () => {
@@ -72,7 +79,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       ...prev,
       serviceCategoryId: selectedId,
       serviceId: "",
-      subCategory: "", // reset subCategory
+      subCategory: "",
     }));
 
     const selectedCategory = categories.find(
@@ -80,7 +87,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     );
 
     setFilteredServices(selectedCategory?.services || []);
-    setFilteredSubCategories(selectedCategory?.subCategories || []); // 👈 new
+    setFilteredSubCategories(selectedCategory?.subCategories || []);
   };
 
   const handleInputChange = (e) => {
@@ -92,65 +99,28 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   };
 
   const handleFileChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      serviceTypeMedia: e.target.files[0],
-    }));
-  };
-
-  const handlePackageChange = (index, field, value) => {
-    const updated = [...formData.packages];
-    updated[index][field] = value;
-    setFormData((prev) => ({ ...prev, packages: updated }));
-  };
-
-  const handlePackageFileChange = (index, file) => {
-    const updated = [...formData.packages];
-    updated[index].packageMedia = file;
-    setFormData((prev) => ({ ...prev, packages: updated }));
-  };
-
-  const addPackage = () => {
-    setFormData((prev) => ({
-      ...prev,
-      packages: [
-        ...prev.packages,
-        {
-          package_name: "",
-          description: "",
-          total_price: "",
-          total_time: "",
-          packageMedia: null,
-          sub_packages: [
-            {
-              item_name: "",
-              description: "",
-              item_images: null,
-              price: "",
-              time_required: "",
-            },
-          ],
-          addons: [
-            {
-              addon_name: "",
-              description: "",
-              price: "",
-            },
-          ],
-        },
-      ],
-    }));
-  };
-
-  const removePackage = (index) => {
-    if (formData.packages.length > 1) {
-      const updated = [...formData.packages];
-      updated.splice(index, 1);
+    const file = e.target.files[0];
+    if (file) {
       setFormData((prev) => ({
         ...prev,
-        packages: updated,
+        serviceTypeMedia: file,
       }));
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
+  };
+
+  const removeMainImage = () => {
+    setFormData((prev) => ({
+      ...prev,
+      serviceTypeMedia: null,
+    }));
+    setImagePreview(null);
   };
 
   // Sub-packages
@@ -164,6 +134,30 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages[subIndex].item_images = file;
     setFormData((prev) => ({ ...prev, packages: updated }));
+
+    // Create preview
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSubPackageImagePreviews((prev) => ({
+          ...prev,
+          [`${pkgIndex}_${subIndex}`]: reader.result,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeSubPackageImage = (pkgIndex, subIndex) => {
+    const updated = [...formData.packages];
+    updated[pkgIndex].sub_packages[subIndex].item_images = null;
+    setFormData((prev) => ({ ...prev, packages: updated }));
+
+    setSubPackageImagePreviews((prev) => {
+      const newPreviews = { ...prev };
+      delete newPreviews[`${pkgIndex}_${subIndex}`];
+      return newPreviews;
+    });
   };
 
   const addSubPackage = (pkgIndex) => {
@@ -182,9 +176,16 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages.splice(subIndex, 1);
     setFormData((prev) => ({ ...prev, packages: updated }));
+
+    // Remove image preview
+    setSubPackageImagePreviews((prev) => {
+      const newPreviews = { ...prev };
+      delete newPreviews[`${pkgIndex}_${subIndex}`];
+      return newPreviews;
+    });
   };
 
-  // Add-ons (NEW)
+  // Add-ons
   const handleAddonChange = (pkgIndex, addonIndex, field, value) => {
     const updated = [...formData.packages];
     updated[pkgIndex].addons[addonIndex][field] = value;
@@ -207,8 +208,149 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFormData((prev) => ({ ...prev, packages: updated }));
   };
 
+  // Validation functions for each tab
+  const validateBasicInfo = () => {
+    if (!formData.serviceCategoryId) {
+      toast.error("Please select a category");
+      return false;
+    }
+    if (!formData.serviceId) {
+      toast.error("Please select a service");
+      return false;
+    }
+    if (!formData.serviceTypeName.trim()) {
+      toast.error("Please enter service type name");
+      return false;
+    }
+    if (!formData.serviceTypeMedia) {
+      toast.error("Please upload service type image");
+      return false;
+    }
+    return true;
+  };
+
+  const validatePackages = () => {
+    for (let pkgIndex = 0; pkgIndex < formData.packages.length; pkgIndex++) {
+      const pkg = formData.packages[pkgIndex];
+      for (let subIndex = 0; subIndex < pkg.sub_packages.length; subIndex++) {
+        const sub = pkg.sub_packages[subIndex];
+        if (!sub.item_name.trim()) {
+          toast.error(`Please enter item name for sub-package ${subIndex + 1}`);
+          return false;
+        }
+        if (!sub.price || parseFloat(sub.price) <= 0) {
+          toast.error(
+            `Please enter valid price for sub-package ${subIndex + 1}`
+          );
+          return false;
+        }
+        if (!sub.time_required.trim()) {
+          toast.error(
+            `Please enter time required for sub-package ${subIndex + 1}`
+          );
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const validateAddons = () => {
+    for (let pkgIndex = 0; pkgIndex < formData.packages.length; pkgIndex++) {
+      const pkg = formData.packages[pkgIndex];
+      for (let addonIndex = 0; addonIndex < pkg.addons.length; addonIndex++) {
+        const addon = pkg.addons[addonIndex];
+        if (!addon.addon_name.trim()) {
+          toast.error(`Please enter add-on name for add-on ${addonIndex + 1}`);
+          return false;
+        }
+        if (!addon.price || parseFloat(addon.price) <= 0) {
+          toast.error(`Please enter valid price for add-on ${addonIndex + 1}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const validatePreferences = () => {
+    for (let index = 0; index < formData.preferences.length; index++) {
+      const pref = formData.preferences[index];
+      if (!pref.preference_value.trim()) {
+        toast.error(`Please enter preference name for preference ${index + 1}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Check if current tab is valid for Next button
+  const isCurrentTabValid = () => {
+    switch (activeTab) {
+      case "basic":
+        return validateBasicInfo();
+      case "packages":
+        return validatePackages();
+      case "addons":
+        return validateAddons();
+      case "preferences":
+        return validatePreferences();
+      default:
+        return false;
+    }
+  };
+
+  // Check if current tab can proceed (without showing toast)
+  const canProceedToNext = () => {
+    switch (activeTab) {
+      case "basic":
+        return (
+          formData.serviceCategoryId &&
+          formData.serviceId &&
+          formData.serviceTypeName.trim() &&
+          formData.serviceTypeMedia
+        );
+      case "packages":
+        return formData.packages.every((pkg) =>
+          pkg.sub_packages.every(
+            (sub) =>
+              sub.item_name.trim() &&
+              sub.price &&
+              parseFloat(sub.price) > 0 &&
+              sub.time_required.trim()
+          )
+        );
+      case "addons":
+        return formData.packages.every((pkg) =>
+          pkg.addons.every(
+            (addon) =>
+              addon.addon_name.trim() &&
+              addon.price &&
+              parseFloat(addon.price) > 0
+          )
+        );
+      case "preferences":
+        return formData.preferences.every((pref) =>
+          pref.preference_value.trim()
+        );
+      default:
+        return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate all tabs before submission
+    if (
+      !validateBasicInfo() ||
+      !validatePackages() ||
+      !validateAddons() ||
+      !validatePreferences()
+    ) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -216,22 +358,17 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       formDataToSend.append("serviceId", formData.serviceId);
       formDataToSend.append("serviceCategoryId", formData.serviceCategoryId);
       formDataToSend.append("serviceTypeName", formData.serviceTypeName);
-      formDataToSend.append("subCategory", formData.subCategory || ""); // 👈 new
-
       if (formData.serviceTypeMedia) {
         formDataToSend.append("serviceTypeMedia", formData.serviceTypeMedia);
       }
 
-      // Build cleaned packages JSON and append files separately
       const cleanedPackages = formData.packages.map((pkg, pkgIndex) => {
         const { sub_packages, packageMedia, addons = [], ...rest } = pkg;
 
-        // Package image (file)
         if (packageMedia) {
           formDataToSend.append(`packageMedia_${pkgIndex}`, packageMedia);
         }
 
-        // Sub-packages: strip file field and append as itemMedia_X
         const cleanedSubPackages = (sub_packages || []).map((sub, subIndex) => {
           const { item_images, ...subRest } = sub;
           if (item_images) {
@@ -243,7 +380,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
           return subRest;
         });
 
-        // Add-ons: plain JSON (no files)
         const cleanedAddons = (addons || []).map((a) => ({
           addon_name: a.addon_name || "",
           description: a.description || "",
@@ -297,11 +433,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       serviceTypeMedia: null,
       packages: [
         {
-          package_name: "",
-          description: "",
-          total_price: "",
-          total_time: "",
-          packageMedia: null,
           sub_packages: [
             {
               item_name: "",
@@ -323,6 +454,17 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       preferences: [{ preference_value: "", preference_price: "" }],
     });
     setFilteredServices([]);
+    setActiveTab("basic");
+    setImagePreview(null);
+    setSubPackageImagePreviews({});
+  };
+
+  const handleNext = () => {
+    if (isCurrentTabValid()) {
+      const tabs = ["basic", "packages", "addons", "preferences"];
+      const currentIndex = tabs.indexOf(activeTab);
+      setActiveTab(tabs[currentIndex + 1]);
+    }
   };
 
   return (
@@ -333,439 +475,413 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         onClose();
       }}
       title="Add New Service Type"
-      size="lg"
+      size="xl"
+      className="!max-w-5xl"
     >
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-4">
-          <FormSelect
-            label="Category"
-            name="serviceCategoryId"
-            value={formData.serviceCategoryId || ""}
-            onChange={handleCategoryChange}
-            placeholder="Select a category"
-            options={categories.map((cat) => ({
-              label: cat.categoryName || "",
-              value: String(cat.serviceCategoryId), // FIXED ✅
-            }))}
-            required
+      <div className="flex flex-col h-[80vh]">
+        {/* Tab Navigation */}
+        <div className="flex gap-2 p-6 pb-2 border-b border-gray-100">
+          <TabButton
+            disabled
+            id="basic"
+            label="Basic Info"
+            icon={FiSettings}
+            isActive={activeTab === "basic"}
+            onClick={() => setActiveTab("basic")}
           />
-
-          <FormSelect
-            label="Service"
-            name="serviceId"
-            value={formData.serviceId || ""}
-            onChange={handleInputChange}
-            placeholder="Select a service"
-            options={filteredServices
-              .filter((s) => s?.serviceId)
-              .map((service) => ({
-                label: service?.serviceName || "",
-                value: String(service?.serviceId),
-              }))}
-            required
+          <TabButton
+            disabled
+            id="packages"
+            label="Packages"
+            icon={FiPackage}
+            isActive={activeTab === "packages"}
+            onClick={() => setActiveTab("packages")}
           />
+          <TabButton
+            disabled
+            id="addons"
+            label="Add-ons"
+            icon={FiGift}
+            isActive={activeTab === "addons"}
+            onClick={() => setActiveTab("addons")}
+          />
+          <TabButton
+            disabled
+            id="preferences"
+            label="Preferences"
+            icon={FiStar}
+            isActive={activeTab === "preferences"}
+            onClick={() => setActiveTab("preferences")}
+          />
+        </div>
 
-          {filteredSubCategories.length > 0 && (
-            <FormSelect
-              label="Service Type"
-              name="subCategory"
-              value={formData.subCategory || ""}
-              onChange={handleInputChange}
-              placeholder="Select Service Type or choose 'Yes/No'"
-              options={[
-                // ...filteredSubCategories.map((sub) => ({
-                //   label: sub,
-                //   value: sub.toLowerCase(),
-                // })),
-                { label: "Yes", value: "yes" },
-                { label: "No", value: "no" },
-              ]}
-              required
-            />
-          )}
-
-          {formData.subCategory === "yes" && (
-            <>
-              <FormInput
-                label="Service Type Name"
-                name="serviceTypeName"
-                value={formData.serviceTypeName}
-                onChange={handleInputChange}
-                placeholder="e.g., Bridal Makeup Package"
-                required
-              />
-
-              <FormFileInput
-                label="Service Type Image"
-                name="serviceTypeMedia"
-                accept="image/*"
-                onChange={handleFileChange}
-                required
-                showPreview
-              />
-            </>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Packages*
-            </label>
-            <div className="space-y-4">
-              {formData.packages.map((pkg, pkgIndex) => (
-                <div
-                  key={pkgIndex}
-                  className="p-3 border border-gray-200 rounded-md bg-gray-50"
-                >
-                  <div className="flex justify-between items-center mb-2">
-                    <h5 className="text-sm font-medium">
-                      Package {pkgIndex + 1}
-                    </h5>
-                    {formData.packages.length > 1 && (
-                      <IconButton
-                        variant="lightDanger"
-                        icon={<FiTrash2 />}
-                        onClick={() => removePackage(pkgIndex)}
-                      />
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FormInput
-                      label="Package Name"
-                      value={pkg.package_name}
-                      onChange={(e) =>
-                        handlePackageChange(
-                          pkgIndex,
-                          "package_name",
-                          e.target.value
-                        )
-                      }
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <form onSubmit={handleSubmit}>
+            {activeTab === "basic" && (
+              <div className="space-y-6">
+                <SectionCard title="Service Information">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormSelect
+                      label="Category"
+                      name="serviceCategoryId"
+                      value={formData.serviceCategoryId || ""}
+                      onChange={handleCategoryChange}
+                      placeholder="Select a category"
+                      options={categories.map((cat) => ({
+                        label: cat.categoryName || "",
+                        value: String(cat.serviceCategoryId),
+                      }))}
                       required
                     />
-                    <FormInput
-                      label="Description"
-                      value={pkg.description}
-                      onChange={(e) =>
-                        handlePackageChange(
-                          pkgIndex,
-                          "description",
-                          e.target.value
-                        )
-                      }
-                    />
-                    <FormInput
-                      label="Price ($)"
-                      type="number"
-                      value={pkg.total_price}
-                      onChange={(e) =>
-                        handlePackageChange(
-                          pkgIndex,
-                          "total_price",
-                          e.target.value
-                        )
-                      }
+
+                    <FormSelect
+                      label="Service"
+                      name="serviceId"
+                      value={formData.serviceId || ""}
+                      onChange={handleInputChange}
+                      placeholder="Select a service"
+                      options={filteredServices
+                        .filter((s) => s?.serviceId)
+                        .map((service) => ({
+                          label: service?.serviceName || "",
+                          value: String(service?.serviceId),
+                        }))}
                       required
-                    />
-                    <FormInput
-                      label="Time Required"
-                      value={pkg.total_time}
-                      onChange={(e) =>
-                        handlePackageChange(
-                          pkgIndex,
-                          "total_time",
-                          e.target.value
-                        )
-                      }
-                      required
-                    />
-                    <FormFileInput
-                      label="Package Image"
-                      accept="image/*"
-                      onChange={(e) =>
-                        handlePackageFileChange(pkgIndex, e.target.files[0])
-                      }
                     />
                   </div>
 
-                  {/* Sub-Packages */}
-                  <div className="mt-4">
-                    <h6 className="text-sm font-semibold mb-2">Sub-Packages</h6>
-                    {pkg.sub_packages.map((sub, subIndex) => (
-                      <div
-                        key={subIndex}
-                        className="mb-3 p-2 border rounded bg-white"
-                      >
-                        <div className="flex justify-between items-center">
-                          <h6 className="text-xs font-medium">
-                            Sub-Package {subIndex + 1}
-                          </h6>
-                          {pkg.sub_packages.length > 1 && (
-                            <IconButton
-                              variant="lightDanger"
-                              icon={<FiTrash2 />}
-                              onClick={() =>
-                                removeSubPackage(pkgIndex, subIndex)
-                              }
-                            />
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                          <FormInput
-                            label="Item Name"
-                            value={sub.item_name}
-                            onChange={(e) =>
-                              handleSubPackageChange(
-                                pkgIndex,
-                                subIndex,
-                                "item_name",
-                                e.target.value
-                              )
-                            }
-                            required
-                          />
-                          <FormInput
-                            label="Description"
-                            value={sub.description}
-                            onChange={(e) =>
-                              handleSubPackageChange(
-                                pkgIndex,
-                                subIndex,
-                                "description",
-                                e.target.value
-                              )
-                            }
-                          />
-                          <FormInput
-                            label="Price"
-                            type="number"
-                            value={sub.price}
-                            onChange={(e) =>
-                              handleSubPackageChange(
-                                pkgIndex,
-                                subIndex,
-                                "price",
-                                e.target.value
-                              )
-                            }
-                            required
-                          />
-                          <FormInput
-                            label="Time Required"
-                            value={sub.time_required}
-                            onChange={(e) =>
-                              handleSubPackageChange(
-                                pkgIndex,
-                                subIndex,
-                                "time_required",
-                                e.target.value
-                              )
-                            }
-                          />
-                          <FormFileInput
-                            label="Image"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handleSubPackageFileChange(
-                                pkgIndex,
-                                subIndex,
-                                e.target.files[0]
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addSubPackage(pkgIndex)}
-                      icon={<FiPlus className="mr-1" />}
-                    >
-                      Add Sub-Package
-                    </Button>
-                  </div>
-
-                  {/* Add-ons (NEW) */}
                   <div className="mt-6">
-                    <h6 className="text-sm font-semibold mb-2">Add-ons</h6>
-                    {pkg.addons.map((addon, addonIndex) => (
-                      <div
-                        key={addonIndex}
-                        className="mb-3 p-2 border rounded bg-white"
-                      >
-                        <div className="flex justify-between items-center">
-                          <h6 className="text-xs font-medium">
-                            Add-on {addonIndex + 1}
-                          </h6>
-                          {pkg.addons.length > 1 && (
-                            <IconButton
-                              variant="lightDanger"
-                              icon={<FiTrash2 />}
-                              onClick={() => removeAddon(pkgIndex, addonIndex)}
-                            />
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                          <FormInput
-                            label="Add-on Name"
-                            value={addon.addon_name}
-                            onChange={(e) =>
-                              handleAddonChange(
-                                pkgIndex,
-                                addonIndex,
-                                "addon_name",
-                                e.target.value
-                              )
+                    <FormInput
+                      label="Service Type Name"
+                      name="serviceTypeName"
+                      value={formData.serviceTypeName}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Bridal Makeup Package"
+                      required
+                    />
+                  </div>
+
+                  <div className="mt-6">
+                    <CustomFileInput
+                      label="Service Type Image"
+                      onChange={handleFileChange}
+                      preview={imagePreview}
+                      onRemove={removeMainImage}
+                      required
+                    />
+                  </div>
+                </SectionCard>
+              </div>
+            )}
+
+            {activeTab === "packages" && (
+              <div className="space-y-6">
+                {formData.packages.map((pkg, pkgIndex) => (
+                  <div key={pkgIndex} className="space-y-6">
+                    <SectionCard title="Sub-Packages">
+                      <div className="space-y-4">
+                        {pkg.sub_packages.map((sub, subIndex) => (
+                          <ItemCard
+                            key={subIndex}
+                            title={`Sub-Package ${subIndex + 1}`}
+                            showRemove={pkg.sub_packages.length > 1}
+                            onRemove={() =>
+                              removeSubPackage(pkgIndex, subIndex)
                             }
-                          />
-                          <FormInput
-                            label="Price"
-                            type="number"
-                            value={addon.price}
-                            onChange={(e) =>
-                              handleAddonChange(
-                                pkgIndex,
-                                addonIndex,
-                                "price",
-                                e.target.value
-                              )
-                            }
-                          />
-                          <FormInput
-                            label="Description"
-                            value={addon.description}
-                            onChange={(e) =>
-                              handleAddonChange(
-                                pkgIndex,
-                                addonIndex,
-                                "description",
-                                e.target.value
-                              )
-                            }
-                          />
-                        </div>
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              <FormInput
+                                label="Item Name"
+                                value={sub.item_name}
+                                onChange={(e) =>
+                                  handleSubPackageChange(
+                                    pkgIndex,
+                                    subIndex,
+                                    "item_name",
+                                    e.target.value
+                                  )
+                                }
+                                required
+                              />
+                              <FormInput
+                                label="Price"
+                                type="number"
+                                value={sub.price}
+                                onChange={(e) =>
+                                  handleSubPackageChange(
+                                    pkgIndex,
+                                    subIndex,
+                                    "price",
+                                    e.target.value
+                                  )
+                                }
+                                required
+                              />
+                              <FormInput
+                                label="Time Required"
+                                value={sub.time_required}
+                                onChange={(e) =>
+                                  handleSubPackageChange(
+                                    pkgIndex,
+                                    subIndex,
+                                    "time_required",
+                                    e.target.value
+                                  )
+                                }
+                                required
+                              />
+                              <div className="md:col-span-2">
+                                <FormInput
+                                  label="Description (Optional)"
+                                  value={sub.description}
+                                  onChange={(e) =>
+                                    handleSubPackageChange(
+                                      pkgIndex,
+                                      subIndex,
+                                      "description",
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                              </div>
+                              <CustomFileInput
+                                label="Image"
+                                onChange={(e) =>
+                                  handleSubPackageFileChange(
+                                    pkgIndex,
+                                    subIndex,
+                                    e.target.files[0]
+                                  )
+                                }
+                                preview={
+                                  subPackageImagePreviews[
+                                    `${pkgIndex}_${subIndex}`
+                                  ]
+                                }
+                                onRemove={() =>
+                                  removeSubPackageImage(pkgIndex, subIndex)
+                                }
+                              />
+                            </div>
+                          </ItemCard>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => addSubPackage(pkgIndex)}
+                          icon={<FiPlus />}
+                          className="w-full border-dashed"
+                        >
+                          Add Sub-Package
+                        </Button>
                       </div>
+                    </SectionCard>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "addons" && (
+              <div className="space-y-6">
+                {formData.packages.map((pkg, pkgIndex) => (
+                  <div key={pkgIndex} className="space-y-6">
+                    <SectionCard title="Add-ons">
+                      <div className="space-y-4">
+                        {pkg.addons.map((addon, addonIndex) => (
+                          <ItemCard
+                            key={addonIndex}
+                            title={`Add-on ${addonIndex + 1}`}
+                            showRemove={pkg.addons.length > 1}
+                            onRemove={() => removeAddon(pkgIndex, addonIndex)}
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              <FormInput
+                                label="Add-on Name"
+                                value={addon.addon_name}
+                                onChange={(e) =>
+                                  handleAddonChange(
+                                    pkgIndex,
+                                    addonIndex,
+                                    "addon_name",
+                                    e.target.value
+                                  )
+                                }
+                                required
+                              />
+                              <FormInput
+                                label="Price"
+                                type="number"
+                                value={addon.price}
+                                onChange={(e) =>
+                                  handleAddonChange(
+                                    pkgIndex,
+                                    addonIndex,
+                                    "price",
+                                    e.target.value
+                                  )
+                                }
+                                required
+                              />
+                              <div className="md:col-span-2 lg:col-span-1">
+                                <FormInput
+                                  label="Description (Optional)"
+                                  value={addon.description}
+                                  onChange={(e) =>
+                                    handleAddonChange(
+                                      pkgIndex,
+                                      addonIndex,
+                                      "description",
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </ItemCard>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => addAddon(pkgIndex)}
+                          icon={<FiPlus />}
+                          className="w-full border-dashed"
+                        >
+                          Add Add-on
+                        </Button>
+                      </div>
+                    </SectionCard>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "preferences" && (
+              <div className="space-y-6">
+                <SectionCard title="Service Preferences">
+                  <div className="space-y-4">
+                    {formData.preferences.map((pref, index) => (
+                      <ItemCard
+                        key={index}
+                        title={`Preference ${index + 1}`}
+                        showRemove={formData.preferences.length > 1}
+                        onRemove={() => {
+                          const updated = formData.preferences.filter(
+                            (_, i) => i !== index
+                          );
+                          setFormData((prev) => ({
+                            ...prev,
+                            preferences: updated,
+                          }));
+                        }}
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormInput
+                            label="Preference Name"
+                            placeholder="e.g., Private Room"
+                            value={pref.preference_value}
+                            onChange={(e) => {
+                              const updated = [...formData.preferences];
+                              updated[index].preference_value = e.target.value;
+                              setFormData((prev) => ({
+                                ...prev,
+                                preferences: updated,
+                              }));
+                            }}
+                            required
+                          />
+                          <FormInput
+                            label="Additional Price (Optional)"
+                            placeholder="0"
+                            type="number"
+                            value={pref.preference_price}
+                            onChange={(e) => {
+                              const updated = [...formData.preferences];
+                              updated[index].preference_price = e.target.value;
+                              setFormData((prev) => ({
+                                ...prev,
+                                preferences: updated,
+                              }));
+                            }}
+                          />
+                        </div>
+                      </ItemCard>
                     ))}
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
-                      onClick={() => addAddon(pkgIndex)}
-                      icon={<FiPlus className="mr-1" />}
-                    >
-                      Add Add-on
-                    </Button>
-                  </div>
-                </div>
-              ))}
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addPackage}
-                icon={<FiPlus className="mr-1" />}
-              >
-                Add Another Package
-              </Button>
-            </div>
-          </div>
-
-          {/* Preferences (service-type level) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Preferences
-            </label>
-            <div className="space-y-3">
-              {formData.preferences.map((pref, index) => (
-                <div key={index} className="flex gap-2 items-center">
-                  <FormInput
-                    placeholder="Enter preference (e.g., Private Room)"
-                    value={pref.preference_value}
-                    onChange={(e) => {
-                      const updated = [...formData.preferences];
-                      updated[index].preference_value = e.target.value;
-                      setFormData((prev) => ({
-                        ...prev,
-                        preferences: updated,
-                      }));
-                    }}
-                    required
-                  />
-                  <FormInput
-                    placeholder="Price for preference "
-                    type="number"
-                    value={pref.preference_price}
-                    onChange={(e) => {
-                      const updated = [...formData.preferences];
-                      updated[index].preference_price = e.target.value;
-                      setFormData((prev) => ({
-                        ...prev,
-                        preferences: updated,
-                      }));
-                    }}
-                  />
-                  {formData.preferences.length > 1 && (
-                    <IconButton
-                      variant="lightDanger"
-                      icon={<FiTrash2 />}
-                      type="button"
-                      onClick={() => {
-                        const updated = formData.preferences.filter(
-                          (_, i) => i !== index
-                        );
+                      onClick={() =>
                         setFormData((prev) => ({
                           ...prev,
-                          preferences: updated,
-                        }));
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
+                          preferences: [
+                            ...prev.preferences,
+                            { preference_value: "", preference_price: "" },
+                          ],
+                        }))
+                      }
+                      icon={<FiPlus />}
+                      className="w-full border-dashed"
+                    >
+                      Add Preference
+                    </Button>
+                  </div>
+                </SectionCard>
+              </div>
+            )}
+          </form>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+          <div className="flex gap-2">
+            {activeTab !== "basic" && (
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                onClick={() =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    preferences: [
-                      ...prev.preferences,
-                      { preference_value: "", preference_price: "" },
-                    ],
-                  }))
-                }
-                icon={<FiPlus className="mr-1" />}
+                onClick={() => {
+                  const tabs = ["basic", "packages", "addons", "preferences"];
+                  const currentIndex = tabs.indexOf(activeTab);
+                  setActiveTab(tabs[currentIndex - 1]);
+                }}
               >
-                Add Preference
+                Previous
               </Button>
-            </div>
+            )}
+            {activeTab !== "preferences" && (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleNext}
+                disabled={!canProceedToNext()}
+              >
+                Next
+              </Button>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetForm();
+                onClose();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loading || isSubmitting}
+              isLoading={loading || isSubmitting}
+              onClick={handleSubmit}
+            >
+              {loading ? "Submitting..." : "Submit for Approval"}
+            </Button>
           </div>
         </div>
-
-        <div className="mt-6 flex justify-end space-x-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              resetForm();
-              onClose();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={loading || isSubmitting}
-            isLoading={loading || isSubmitting}
-          >
-            {loading ? "Submitting..." : "Submit for Approval"}
-          </Button>
-        </div>
-      </form>
+      </div>
     </Modal>
   );
 };
