@@ -599,7 +599,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 service_category_name: row.service_category_name,
                 service_id: row.service_id,
                 service_name: row.service_name,
-                service_gender: row.serviceFilter,
+                service_filter: row.serviceFilter,
                 packages: parsedPackages
             };
         });

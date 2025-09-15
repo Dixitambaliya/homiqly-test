@@ -960,7 +960,7 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
 
 const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
-        const { date, time, service_id = null } = req.query;
+        const { date, time, package_id = null, package_item_id = null } = req.query;
 
         if (!date || !time) {
             return res
@@ -972,70 +972,70 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         const blocking = [1, 3];
 
         const sql = `
-      SELECT DISTINCT   
-        v.vendor_id,
-        v.vendorType,
-        CONCAT(
-          LEFT(
-            IF(v.vendorType = 'company', cdet.companyName, idet.name),
-            4
-          ),
-          '...'
-        ) AS vendorName,
-        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-        ROUND(AVG(r.rating), 1) AS avgRating,
-        COUNT(r.rating_id) AS totalRatings
-      FROM vendors v
-      LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
-      LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
-      LEFT JOIN individual_services vs  ON vs.vendor_id = v.vendor_id
-      LEFT JOIN company_services    cs  ON cs.vendor_id = v.vendor_id
-      LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-      LEFT JOIN vendor_service_ratings r 
-        ON r.vendor_id = v.vendor_id
-        AND r.service_id = COALESCE(vs.service_id, cs.service_id)
-
-        WHERE (
-            ? IS NULL 
-            OR (v.vendorType = 'individual' AND vs.service_id = ?)
-            OR (v.vendorType = 'company'    AND cs.service_id = ?)
-        )
-        AND (vst.manual_assignment_enabled = 1)
-        AND NOT EXISTS (
-          SELECT 1
-          FROM service_booking sb
-          WHERE sb.vendor_id = v.vendor_id
-            AND sb.bookingDate = ?
-            AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
-            AND sb.bookingTime = ?
-        )
-    GROUP BY 
-    v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
-      ORDER BY vendorName ASC
-    `;
+            SELECT DISTINCT
+                v.vendor_id,
+                v.vendorType,
+                CONCAT(
+                  LEFT(
+                    IF(v.vendorType = 'company', cdet.companyName, idet.name),
+                    4
+                  ), '...'
+                ) AS vendorName,
+                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+                ROUND(AVG(r.rating), 1) AS avgRating,
+                COUNT(r.rating_id) AS totalRatings
+            FROM vendors v
+            LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
+            LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
+            INNER JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
+            INNER JOIN packages p ON p.package_id = vp.package_id
+            LEFT JOIN vendor_package_items vpi ON vpi.vendor_package_id = vp.vendor_package_id
+            LEFT JOIN package_items pi ON pi.package_item_id = vpi.package_item_id
+            LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
+            LEFT JOIN vendor_service_ratings r 
+                ON r.vendor_id = v.vendor_id
+                AND r.package_id = vp.package_id
+            WHERE (
+                (? IS NULL OR vp.package_id = ?)
+                AND (? IS NULL OR vpi.package_item_id = ?)
+            )
+            AND vp.status = 1 -- ✅ only approved/active packages
+            AND (vst.manual_assignment_enabled = 1)
+            AND NOT EXISTS (
+                SELECT 1
+                FROM service_booking sb
+                WHERE sb.vendor_id = v.vendor_id
+                  AND sb.bookingDate = ?
+                  AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
+                  AND sb.bookingTime = ?
+            )
+            GROUP BY 
+                v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
+            ORDER BY vendorName ASC
+        `;
 
         const params = [
-            service_id, service_id, service_id,// service type filter
-            date,                              // bookingDate
-            ...blocking,                       // booking statuses
-            time                               // exact booking time match
+            package_id, package_id,                  // package filter
+            package_item_id, package_item_id,        // package item filter
+            date,                                   // booking date
+            ...blocking,                            // blocked booking statuses
+            time                                    // booking time
         ];
 
         const [vendors] = await db.query(sql, params);
 
         res.status(200).json({
             message: "Available vendors fetched successfully",
-            requested: { date, time, service_id },
+            requested: { date, time, package_id, package_item_id },
             vendors
         });
     } catch (err) {
         console.error("getAvailableVendors error:", err);
-        res
-            .status(500)
-            .json({ message: "Internal server error", error: err.message });
+        res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 module.exports = {
     bookService,
