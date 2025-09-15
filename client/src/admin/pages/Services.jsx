@@ -13,6 +13,7 @@ import {
   FormSelect,
   FormTextarea,
 } from "../../shared/components/Form";
+import { ServiceFilterModal } from "../components/Modals/ServiceFilterModal";
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -25,6 +26,10 @@ const Services = () => {
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [showEditServiceModal, setShowEditServiceModal] = useState(false);
   const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
+  const [serviceFilters, setServiceFilters] = useState([]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState(null);
+  const [filterMode, setFilterMode] = useState("add"); // or 'edit'
 
   // selection for edit
   const [selectedService, setSelectedService] = useState(null);
@@ -36,13 +41,12 @@ const Services = () => {
     categoryName: "",
     serviceDescription: "",
     serviceImage: null,
-    subCategory: "", // 👈 add this
+    serviceFilter: "", // 👈 add this
   });
 
   // category form state now includes subCategories (array of strings)
   const [categoryFormData, setCategoryFormData] = useState({
     categoryName: "",
-    subCategories: [], // array of strings
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -73,6 +77,19 @@ const Services = () => {
       setLoading(false);
     }
   };
+
+  // Fetch filters
+  const fetchServiceFilters = async () => {
+    try {
+      const res = await api.get("/api/service/getservicefilter"); // your endpoint
+      setServiceFilters(res.data || []);
+    } catch (err) {
+      toast.error("Failed to load service filters");
+    }
+  };
+  useEffect(() => {
+    fetchServiceFilters();
+  }, []);
 
   // Build react-select options for subcategories from existing categories (unique)
   const buildSubCategoryOptions = () => {
@@ -131,7 +148,7 @@ const Services = () => {
       const formDataToSend = new FormData();
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
-      formDataToSend.append("subCategory", serviceFormData.subCategory || "");
+      formDataToSend.append("serviceFilter", serviceFormData.serviceFilter || "");
       formDataToSend.append(
         "serviceDescription",
         serviceFormData.serviceDescription || ""
@@ -175,7 +192,7 @@ const Services = () => {
       formDataToSend.append("serviceId", selectedService.serviceId);
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
-      formDataToSend.append("subCategory", serviceFormData.subCategory || "");
+      formDataToSend.append("serviceFilter", serviceFormData.serviceFilter || "");
       formDataToSend.append(
         "serviceDescription",
         serviceFormData.serviceDescription || ""
@@ -316,7 +333,7 @@ const Services = () => {
       categoryName: "",
       serviceDescription: "",
       serviceImage: null,
-      subCategory: "",
+      serviceFilter: "",
     });
     setImagePreview(null);
   };
@@ -334,7 +351,7 @@ const Services = () => {
 
   // prepare and open edit forms
   const editService = (service) => {
-    console.log("service",service);
+    console.log("service", service);
     setSelectedService(service);
     setServiceFormData({
       serviceName: service.serviceName,
@@ -399,6 +416,16 @@ const Services = () => {
         <h2 className="text-2xl font-bold text-gray-800">Service Management</h2>
         <div className="flex space-x-2">
           <Button
+            variant="primary"
+            onClick={() => {
+              setSelectedFilter(null);
+              setFilterMode("add");
+              setShowFilterModal(true);
+            }}
+          >
+            Add Service Filter
+          </Button>
+          <Button
             variant="lightPrimary"
             onClick={() => setShowAddServiceModal(true)}
           >
@@ -437,9 +464,7 @@ const Services = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Category Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Subcategories
-                    </th>
+
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
@@ -461,29 +486,6 @@ const Services = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
                           {category.serviceCategory}
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-wrap gap-2">
-                          {Array.isArray(category.subCategoryTypes) &&
-                          category.subCategoryTypes.length > 0 ? (
-                            category.subCategoryTypes.map((s, idx) => {
-                              const label = s.subCategory || s;
-                              return (
-                                <span
-                                  key={idx}
-                                  className="text-xs bg-gray-100 px-2 py-1 rounded-full"
-                                >
-                                  {label}
-                                </span>
-                              );
-                            })
-                          ) : (
-                            <span className="text-xs text-gray-500">
-                              — none —
-                            </span>
-                          )}
                         </div>
                       </td>
 
@@ -589,6 +591,69 @@ const Services = () => {
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <p className="text-gray-600">No services found.</p>
           </div>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <h3 className="text-xl font-semibold mb-4">Service Filters</h3>
+        {serviceFilters.length > 0 ? (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Service Filter
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {serviceFilters.map((filter) => (
+                  <tr key={filter.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">{filter.service_filter_id}</td>
+                    <td className="px-4 py-2">{filter.serviceFilter}</td>
+                    <td className="px-4 py-2 text-right space-x-2">
+                      <IconButton
+                        variant="lightInfo"
+                        size="sm"
+                        icon={<FaPen />}
+                        onClick={() => {
+                          setSelectedFilter(filter);
+                          setFilterMode("edit");
+                          setShowFilterModal(true);
+                        }}
+                      />
+                      <IconButton
+                        variant="lightDanger"
+                        size="sm"
+                        icon={<FiTrash2 />}
+                        onClick={async () => {
+                          if (window.confirm("Are you sure?")) {
+                            try {
+                              await api.delete(
+                                `/api/service/deletefilter/${filter.service_filter_id}`
+                              );
+                              toast.success("Filter deleted");
+                              fetchServiceFilters();
+                            } catch (err) {
+                              toast.error("Error deleting filter");
+                            }
+                          }
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-500">No service filters found.</p>
         )}
       </div>
 
@@ -799,12 +864,12 @@ const Services = () => {
                       htmlFor="subCategory"
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Subcategory
+                      serviceFilter
                     </label>
                     <FormSelect
-                      id="subCategory"
-                      name="subCategory"
-                      value={serviceFormData.subCategory}
+                      id="serviceFilter"
+                      name="serviceFilter"
+                      value={serviceFormData.serviceFilter}
                       onChange={handleServiceInputChange}
                       options={getSubCategoryOptions(
                         serviceFormData.categoryName
@@ -911,25 +976,6 @@ const Services = () => {
                     required
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Subcategories (optional)
-                  </label>
-                  <CreatableSelect
-                    isMulti
-                    name="subCategories"
-                    options={subOptions}
-                    value={categorySelectValue}
-                    onChange={handleCategorySubChange}
-                    placeholder="Type and press Enter to add a subcategory"
-                    isClearable
-                    formatCreateLabel={(inputValue) => `Create "${inputValue}"`}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    You can type new subcategory names or pick existing ones.
-                  </p>
-                </div>
               </div>
 
               <div className="mt-6 flex justify-end space-x-3">
@@ -987,24 +1033,6 @@ const Services = () => {
                     required
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Subcategories
-                  </label>
-                  <CreatableSelect
-                    isMulti
-                    name="subCategories"
-                    options={subOptions}
-                    value={categorySelectValue}
-                    onChange={handleCategorySubChange}
-                    placeholder="Edit subcategories"
-                    isClearable
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Update subcategory names. New ones will be submitted.
-                  </p>
-                </div>
               </div>
 
               <div className="mt-6 flex justify-end space-x-3">
@@ -1029,6 +1057,14 @@ const Services = () => {
           </div>
         </div>
       )}
+
+      <ServiceFilterModal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        mode={filterMode}
+        filterData={selectedFilter}
+        onSave={fetchServiceFilters}
+      />
     </div>
   );
 };
