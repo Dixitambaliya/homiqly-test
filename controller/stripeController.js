@@ -349,7 +349,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
     // Packages
     const [packages] = await connection.query(
-      `SELECT p.package_id, p.packageName, p.totalPrice, p.totalTime, p.packageMedia
+      `SELECT 
+       p.package_id
        FROM service_booking_packages sbp
        JOIN packages p ON sbp.package_id = p.package_id
        WHERE sbp.booking_id = ?`,

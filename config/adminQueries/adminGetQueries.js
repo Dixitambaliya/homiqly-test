@@ -243,12 +243,6 @@ SELECT
     p.currency AS payment_currency,
 
     pk.package_id,
-    pk.packageName,
-    pk.totalPrice,
-    pk.totalTime,
-    pk.availabilityCity,
-    pk.packageMedia,
-
     pi.item_id AS package_item_id,
     pi.itemName AS package_item_name,
     pi.price AS package_item_price,

@@ -67,7 +67,8 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
 
             // ✅ Check package exists
             const [packageExists] = await connection.query(
-                `SELECT package_id, packageName, description, packageMedia 
+                `SELECT 
+                 package_id 
                  FROM packages WHERE package_id = ?`,
                 [package_id]
             );
@@ -617,9 +618,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         const [packages] = await db.query(
             `SELECT 
                 vp.vendor_packages_id,
-                vp.package_id,
-                p.packageName,
-                p.packageMedia
+                vp.package_id
             FROM vendor_packages vp
             JOIN packages p ON vp.package_id = p.package_id
             WHERE vp.vendor_id = ?
@@ -653,8 +652,6 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         const result = packages.map(pkg => ({
             vendor_packages_id: pkg.vendor_packages_id,
             package_id: pkg.package_id,
-            package_name: pkg.packageName,
-            package_media: pkg.packageMedia,
             sub_packages: subPackages
                 .filter(sp => sp.vendor_packages_id === pkg.vendor_packages_id)
                 .map(sp => ({

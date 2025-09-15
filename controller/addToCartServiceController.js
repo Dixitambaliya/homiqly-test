@@ -172,10 +172,6 @@ const getUserCart = asyncHandler(async (req, res) => {
         const [cartPackages] = await db.query(
             `SELECT
                 cp.package_id,
-                p.packageName,
-                p.totalPrice,
-                p.totalTime,
-                p.packageMedia
              FROM cart_packages cp
              LEFT JOIN packages p ON cp.package_id = p.package_id
              WHERE cp.cart_id = ?`,

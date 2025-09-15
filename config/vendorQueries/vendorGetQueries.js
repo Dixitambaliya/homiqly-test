@@ -18,12 +18,6 @@ const vendorGetQueries = {
         COALESCE(individual_services.serviceDescription, company_services.serviceDescription) AS serviceDescription,
 
         packages.package_id,
-        packages.packageName,
-        packages.description AS packageDescription,
-        packages.totalPrice,
-        packages.totalTime,
-        packages.packageMedia,
-
         package_items.item_id,
         package_items.itemName,
         package_items.itemMedia,
@@ -183,11 +177,6 @@ const vendorGetQueries = {
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
                             'package_id', package_table.package_id,
-                            'title', package_table.packageName,
-                            'description', package_table.description,
-                            'price', package_table.totalPrice,
-                            'time_required', package_table.totalTime,
-                            'package_media', package_table.packageMedia,
 
                             'sub_packages', IFNULL((
                                 SELECT CONCAT('[', GROUP_CONCAT(
@@ -251,11 +240,6 @@ const vendorGetQueries = {
             SELECT CONCAT('[', GROUP_CONCAT(
               JSON_OBJECT(
                 'package_id', p.package_id,
-                'packageName', p.packageName,
-                'packageMedia', p.packageMedia,
-                'description', p.description,
-                'totalPrice', p.totalPrice,
-                'totalTime', p.totalTime,
                 'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
                 'subPackages', IFNULL((
                   SELECT CONCAT('[', GROUP_CONCAT(

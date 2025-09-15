@@ -228,11 +228,7 @@ const getBookings = asyncHandler(async (req, res) => {
                 // ===== Fetch Packages =====
                 const [bookingPackages] = await db.query(`
                     SELECT
-                        p.package_id,
-                        p.packageName,
-                        p.totalPrice,
-                        p.totalTime,
-                        p.packageMedia
+                        p.package_id
                     FROM service_booking_packages sbp
                     JOIN packages p ON sbp.package_id = p.package_id
                     WHERE sbp.booking_id = ?
@@ -770,23 +766,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             // ✅ Check package
             const [existingPackage] = await connection.query(adminPutQueries.getPackageById, [package_id]);
             if (!existingPackage.length) continue;
-            const existing = existingPackage[0];
-
-            // ✅ Update package
-            const packageName = pkg.package_name ?? existing.packageName;
-            const description = pkg.description ?? existing.description;
-            const totalPrice = pkg.total_price ?? existing.totalPrice;
-            const totalTime = pkg.total_time ?? existing.totalTime;
-            const packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || existing.packageMedia;
-
-            await connection.query(adminPutQueries.updatePackage, [
-                packageName,
-                description,
-                totalPrice,
-                totalTime,
-                packageMedia,
-                package_id
-            ]);
 
             // ✅ Handle SubPackages
             if (Array.isArray(pkg.subPackages)) {
@@ -885,7 +864,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 // If you want cleanup, uncomment:
                 // await connection.query(adminPutQueries.deleteRemovedAddons, [package_id, submittedAddonIds]);
             }
-            console.log(pkg.addons);
+
 
             // ✅ Handle Preferences
             // ✅ Handle Preferences (like addons)
@@ -1067,11 +1046,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
           cdet.profileImage AS company_profile_image,
 
           -- Package Info
-          pkg.package_id,
-          pkg.packageName,
-          pkg.totalPrice,
-          pkg.totalTime,
-          pkg.packageMedia
+          pkg.package_id
 
       FROM payments p
       JOIN users u ON p.user_id = u.user_id
@@ -1205,11 +1180,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-
-                p.packageName,
-                p.packageMedia,
-                p.totalPrice,
-                p.totalTime,
 
                 s.serviceName,
                 s.serviceImage,

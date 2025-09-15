@@ -397,11 +397,6 @@ const getEmployeesWithPackages = asyncHandler(async (req, res) => {
                 SELECT
                     ep.id AS employee_package_id,
                     ep.package_id,
-                    p.packageName,
-                    p.description,
-                    p.totalPrice,
-                    p.totalTime,
-                    p.packageMedia,
                     p.service_type_id,
                     st.serviceTypeName,
                     st.service_id,
@@ -935,9 +930,7 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
 
             const [bookingPackages] = await db.query(`
                 SELECT
-                    p.packageName,
-                    p.totalTime,
-                    p.packageMedia
+                    p.package_id
                 FROM service_booking_packages sbp
                 JOIN packages p ON sbp.package_id = p.package_id
                 WHERE sbp.booking_id = ?
