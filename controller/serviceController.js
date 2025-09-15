@@ -154,57 +154,76 @@ const addService = asyncHandler(async (req, res) => {
     }
 });
 
-// const addSubCategory = asyncHandler(async (req, res) => {
-//     const { serviceCategoryId, subCategories } = req.body;
+// ✅ Create Service Filter
+const addServiceFilter = asyncHandler(async (req, res) => {
+    const { serviceFilter } = req.body;
 
-//     if (!serviceCategoryId || !subCategories) {
-//         return res.status(400).json({ message: "serviceCategoryId and subCategories are required" });
-//     }
-
-//     // Check if category exists
-//     const [category] = await db.query(
-//         `SELECT service_categories_id FROM service_categories WHERE service_categories_id = ?`,
-//         [serviceCategoryId]
-//     );
-//     if (category.length === 0) {
-//         return res.status(404).json({ message: "Category not found" });
-//     }
-
-//     // Prevent duplicate
-//     const [existing] = await db.query(
-//         `SELECT 1 FROM service_subcategoriestype WHERE service_categories_id = ? AND subCategories = ?`,
-//         [serviceCategoryId, subCategories.trim()]
-//     );
-//     if (existing.length > 0) {
-//         return res.status(409).json({ message: "Subcategory already exists under this category" });
-//     }
-
-//     const [result] = await db.query(
-//         `INSERT INTO service_subcategoriestype (subCategories, service_categories_id) VALUES (?, ?)`,
-//         [subCategories.trim(), serviceCategoryId]
-//     );
-
-//     res.status(201).json({
-//         message: "Subcategory created successfully",
-//         subcategory_id: result.insertId
-//     });
-// });
-
-const getSubCategories = asyncHandler(async (req, res) => {
-    try {
-        // Fetch all subcategories
-        const [subCategories] = await db.query(
-            `SELECT subCategories, service_categories_id FROM service_subcategories`
-        );
-
-        res.status(200).json({
-            subCategories
-        });
-    } catch (err) {
-        console.error("Error fetching all subcategories:", err);
-        res.status(500).json({ error: "Internal server error" });
+    if (!serviceFilter) {
+        return res.status(400).json({ message: "serviceFilter is required" });
     }
+
+    const [existing] = await db.query(
+        "SELECT * FROM service_filters WHERE serviceFilter = ?",
+        [serviceFilter]
+    );
+
+    if (existing.length > 0) {
+        return res.status(400).json({ message: "Service filter already exists" });
+    }
+
+    await db.query(
+        "INSERT INTO service_filters (serviceFilter) VALUES (?)",
+        [serviceFilter]
+    );
+
+    res.status(201).json({ message: "Service filter created successfully" });
 });
+
+const getServiceFilters = asyncHandler(async (req, res) => {
+    const [filters] = await db.query("SELECT service_filter_id , serviceFilter FROM service_filters ORDER BY serviceFilter ASC");
+    res.status(200).json(filters);
+});
+
+// ✅ Update Service Filter
+const updateServiceFilter = asyncHandler(async (req, res) => {
+    const { service_filter_id } = req.params;
+    const { serviceFilter } = req.body;
+
+    const [existing] = await db.query(
+        "SELECT * FROM service_filters WHERE service_filter_id = ?",
+        [service_filter_id]
+    );
+
+    if (existing.length === 0) {
+        return res.status(404).json({ message: "Service filter not found" });
+    }
+
+    await db.query(
+        "UPDATE service_filters SET serviceFilter = ? WHERE service_filter_id = ?",
+        [serviceFilter || existing[0].serviceFilter, service_filter_id]
+    );
+
+    res.status(200).json({ message: "Service filter updated successfully" });
+});
+
+// ✅ Delete Service Filter
+const deleteServiceFilter = asyncHandler(async (req, res) => {
+    const { service_filter_id } = req.params;
+
+    const [existing] = await db.query(
+        "SELECT * FROM service_filters WHERE service_filter_id = ?",
+        [service_filter_id]
+    );
+
+    if (existing.length === 0) {
+        return res.status(404).json({ message: "Service filter not found" });
+    }
+
+    await db.query("DELETE FROM service_filters WHERE service_filter_id = ?", [service_filter_id]);
+
+    res.status(200).json({ message: "Service filter deleted successfully" });
+});
+
 
 const addServiceCity = asyncHandler(async (req, res) => {
     const { serviceCity } = req.body;
@@ -682,6 +701,8 @@ module.exports = {
     deleteServiceCity,
     getAdminService,
     getServiceTypeById,
-    // addSubCategory,
-    getSubCategories
+    addServiceFilter,
+    getServiceFilters,
+    updateServiceFilter,
+    deleteServiceFilter
 }
