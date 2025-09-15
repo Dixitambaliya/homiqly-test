@@ -341,14 +341,9 @@ const getAdminService = asyncHandler(async (req, res) => {
                 acc[category] = {
                     categoryName: category,
                     serviceCategoryId: row.serviceCategoryId,
-                    subCategories: [],
+                    serviceFilter: row.serviceFilter,
                     services: []
                 };
-            }
-
-            // ✅ Add subCategory if present
-            if (row.subCategory && !acc[category].subCategories.includes(row.subCategory)) {
-                acc[category].subCategories.push(row.subCategory);
             }
 
             // ✅ Add service if not already added

@@ -6,19 +6,14 @@ SELECT
     sc.serviceCategory AS categoryName,
     s.service_id AS serviceId,
     s.serviceName,
-    s.subCategory,
     s.serviceDescription,
     s.serviceImage,
-    s.slug,
-    ss.subcategory_type_id,
-    ss.subCategories AS subCategory
+    s.targetGender AS serviceFilter,
+    s.slug
 FROM service_categories sc
 LEFT JOIN services s
-    ON s.service_categories_id = sc.service_categories_id
-LEFT JOIN service_subcategoriestype ss
-    ON ss.service_categories_id = s.service_categories_id;
+    ON s.service_categories_id = sc.service_categories_id;
 `,
-
 
     getServiceCategories: `
     SELECT
