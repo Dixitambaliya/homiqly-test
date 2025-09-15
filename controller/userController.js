@@ -112,7 +112,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
-                    serviceGender: row.gender,
+                    serviceFilter: row.gender,
                     slug: row.slug,
                     serviceTypes: []
                 };
@@ -300,7 +300,7 @@ const addUserData = asyncHandler(async (req, res) => {
     }
 });
 
-const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {   
+const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
 
     if (!service_type_id) {
