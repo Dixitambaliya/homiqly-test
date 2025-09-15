@@ -481,13 +481,13 @@ const getcity = asyncHandler(async (req, res) => {
     }
 });
 
+const { serviceId, serviceName, categoryName, serviceDescription, serviceFilter } = req.body;
 const editService = asyncHandler(async (req, res) => {
-    const { serviceId, serviceName, categoryName, serviceDescription, serviceFilter } = req.body;
-    const serviceImage = req.file?.path; // optional
 
     if (!serviceId || !serviceName || !categoryName) {
         return res.status(400).json({ message: "Missing required fields" });
     }
+    const serviceImage = req.uploadedFiles?.serviceImage?.[0]?.url || null;
 
     const connection = await db.getConnection();
     try {
