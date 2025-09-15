@@ -28,10 +28,8 @@ const userGetQueries = {
     getAllServicesWithCategory: `
        SELECT 
         sst.subcategory_type_id,
-        sst.subCategories,
         c.service_categories_id AS serviceCategoryId,
         c.serviceCategory AS categoryName,
-        s.subCategory AS subcategoryName,
         s.service_id AS serviceId,
         s.serviceName,
         s.serviceDescription,
