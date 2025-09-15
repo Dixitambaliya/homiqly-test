@@ -101,10 +101,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
             }
 
-
-
-
-            
             // find or add service
             let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
 
@@ -116,7 +112,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
-                    serviceFilter: row.gender,
+                    serviceFilter: row.serviceFilter,
                     slug: row.slug,
                     serviceTypes: []
                 };

@@ -117,7 +117,7 @@ const addService = asyncHandler(async (req, res) => {
         const service_categories_id = existingCategory[0].service_categories_id;
         const slug = generateSlug(serviceName);
 
-        // ✅ Insert service with gender
+        // ✅ Insert service with serviceFilter
         await connection.query(
             `INSERT INTO services 
             (service_categories_id, serviceName, serviceDescription, serviceImage, slug, serviceFilter) 

@@ -17,7 +17,6 @@ const transporter = nodemailer.createTransport({
 });
 
 
-
 const getVendor = asyncHandler(async (req, res) => {
     try {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
@@ -358,7 +357,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -502,7 +500,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
