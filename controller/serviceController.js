@@ -482,7 +482,7 @@ const getcity = asyncHandler(async (req, res) => {
 });
 
 const editService = asyncHandler(async (req, res) => {
-    const { serviceId, serviceName, categoryName, serviceDescription, subCategory } = req.body;
+    const { serviceId, serviceName, categoryName, serviceDescription, serviceFilter } = req.body;
     const serviceImage = req.file?.path; // optional
 
     if (!serviceId || !serviceName || !categoryName) {
@@ -509,26 +509,18 @@ const editService = asyncHandler(async (req, res) => {
 
         const service_categories_id = existingCategory[0].service_categories_id;
 
-        // ✅ Decide subCategory value:
-        // - If provided in request, use that
-        // - If not provided, keep the existing one
-        const subCategoryValue =
-            subCategory !== undefined && subCategory !== null
-                ? subCategory
-                : existingService[0].subCategory; // preserve old one
-
         // 3. Build dynamic query
         const query = serviceImage
             ? `UPDATE services 
-               SET service_categories_id = ?, serviceName = ?, serviceDescription = ?, serviceImage = ?, subCategory = ?
+               SET service_categories_id = ?, serviceName = ?, serviceDescription = ?, serviceImage = ?, serviceFilter = ?
                WHERE service_id = ?`
             : `UPDATE services 
-               SET service_categories_id = ?, serviceName = ?, serviceDescription = ?, subCategory = ?
+               SET service_categories_id = ?, serviceName = ?, serviceDescription = ?, serviceFilter = ?
                WHERE service_id = ?`;
 
         const params = serviceImage
-            ? [service_categories_id, serviceName, serviceDescription, serviceImage, subCategoryValue, serviceId]
-            : [service_categories_id, serviceName, serviceDescription, subCategoryValue, serviceId];
+            ? [service_categories_id, serviceName, serviceDescription, serviceImage, serviceFilter, serviceId]
+            : [service_categories_id, serviceName, serviceDescription, serviceFilter, serviceId];
 
         // 4. Update service
         await connection.query(query, params);
