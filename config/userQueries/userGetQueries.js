@@ -33,6 +33,7 @@ const userGetQueries = {
         s.service_id AS serviceId,
         s.serviceName,
         s.serviceDescription,
+        s.targetGender AS gender,
         s.serviceImage,
         s.slug,
         st.service_type_id,

@@ -112,6 +112,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
+                    serviceGender: row.gender,
                     slug: row.slug,
                     serviceTypes: []
                 };
