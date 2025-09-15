@@ -8,7 +8,7 @@ SELECT
     s.serviceName,
     s.serviceDescription,
     s.serviceImage,
-    s.targetGender AS serviceFilter,
+    s.serviceFilter AS serviceFilter,
     s.slug
 FROM service_categories sc
 LEFT JOIN services s

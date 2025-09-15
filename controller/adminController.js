@@ -381,13 +381,13 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
         // 2️⃣ Verify service exists
         const [serviceCheck] = await connection.query(
-            `SELECT service_id, serviceName, targetGender FROM services WHERE service_id = ? LIMIT 1`,
+            `SELECT service_id, serviceName, serviceFilter FROM services WHERE service_id = ? LIMIT 1`,
             [serviceId]
         );
         if (serviceCheck.length === 0) {
             throw new Error("Invalid serviceId. Service does not exist.");
         }
-        const serviceGender = serviceCheck[0].targetGender;
+        const serviceGender = serviceCheck[0].serviceFilter;
 
         // 3️⃣ Ensure service type is unique
         const [existingServiceType] = await connection.query(
@@ -512,7 +512,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         sc.serviceCategory AS service_category_name,
         s.service_id,
         s.serviceName AS service_name,
-        s.targetGender,
+        s.serviceFilter,
 
         COALESCE((
           SELECT CONCAT('[', GROUP_CONCAT(
@@ -606,7 +606,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 service_category_name: row.service_category_name,
                 service_id: row.service_id,
                 service_name: row.service_name,
-                service_gender: row.targetGender,
+                service_gender: row.serviceFilter,
                 packages: parsedPackages
             };
         });

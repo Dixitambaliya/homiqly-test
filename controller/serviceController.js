@@ -77,10 +77,10 @@ const addCategory = asyncHandler(async (req, res) => {
 });
 
 const addService = asyncHandler(async (req, res) => {
-    let { serviceName, categoryName, serviceDescription, targetGender } = req.body;
+    let { serviceName, categoryName, serviceDescription, serviceFilter } = req.body;
 
-    if (!serviceName || !categoryName || !targetGender) {
-        return res.status(400).json({ message: "serviceName, categoryName, and targetGender are required" });
+    if (!serviceName || !categoryName || !serviceFilter) {
+        return res.status(400).json({ message: "serviceName, categoryName, and serviceFilter are required" });
     }
 
     const serviceImage = req.uploadedFiles?.serviceImage?.[0]?.url || null;
@@ -120,9 +120,9 @@ const addService = asyncHandler(async (req, res) => {
         // ✅ Insert service with gender
         await connection.query(
             `INSERT INTO services 
-            (service_categories_id, serviceName, serviceDescription, serviceImage, slug, targetGender) 
+            (service_categories_id, serviceName, serviceDescription, serviceImage, slug, serviceFilter) 
             VALUES (?, ?, ?, ?, ?, ?)` ,
-            [service_categories_id, serviceName, serviceDescription, serviceImage, slug, targetGender]
+            [service_categories_id, serviceName, serviceDescription, serviceImage, slug, serviceFilter]
         );
 
         // ✅ Send FCM Notifications
@@ -135,7 +135,7 @@ const addService = asyncHandler(async (req, res) => {
             const message = {
                 notification: {
                     title: "New Service Available!",
-                    body: `${serviceName} (${targetGender}) has been added under ${categoryName}`,
+                    body: `${serviceName} (${serviceFilter}) has been added under ${categoryName}`,
                 },
                 tokens,
             };
@@ -381,7 +381,7 @@ const getService = asyncHandler(async (req, res) => {
             service: row.serviceName,
             serviceId: row.service_id,
             subCategory: row.subCategory,
-            serviceGender: row.targetGender
+            serviceGender: row.serviceFilter
         }))
 
         res.status(200).json({
