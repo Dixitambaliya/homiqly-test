@@ -59,8 +59,6 @@ LEFT JOIN service_subcategoriestype sst
    SELECT
     st.service_type_id,
     st.service_id,
-    st.serviceTypeName,
-    st.serviceTypeMedia,
     st.created_at
 FROM service_type st
 WHERE st.service_id = ?

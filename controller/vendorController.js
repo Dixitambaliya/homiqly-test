@@ -14,7 +14,7 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     }
 
     const [types] = await db.query(
-        `SELECT service_type_id, serviceTypeName, serviceTypeMedia
+        `SELECT service_type_id, serviceTypeMedia
          FROM service_type
          WHERE service_id = ?`,
         [service_id]
@@ -486,8 +486,6 @@ const getAvailablePackagesForVendor = asyncHandler(async (req, res) => {
           s.service_id,
           s.serviceName,
           st.service_type_id,
-          st.serviceTypeName,
-          st.serviceTypeMedia,
 
           COALESCE((
             SELECT CONCAT('[', GROUP_CONCAT(
@@ -533,7 +531,7 @@ const getAvailablePackagesForVendor = asyncHandler(async (req, res) => {
         ${whereClause}
 
         GROUP BY st.service_type_id
-        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+        ORDER BY sc.serviceCategory, s.serviceName DESC
       `, params);
 
         const parsed = rows.map(row => {

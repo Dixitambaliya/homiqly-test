@@ -6,8 +6,6 @@ const vendorGetQueries = {
         vendors.vendorType,
 
         service_type.service_type_id,
-        service_type.serviceTypeName,
-        service_type.serviceTypeMedia,
 
         services.service_id,
         services.serviceName,

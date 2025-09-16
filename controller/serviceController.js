@@ -249,12 +249,12 @@ const addServiceCity = asyncHandler(async (req, res) => {
 })
 
 const addServiceType = asyncHandler(async (req, res) => {
-    const { service_id, subtype_id = null, subtypeName = null, serviceTypeName } = req.body;
+    const { service_id, subtype_id = null, subtypeName = null } = req.body;
     const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url || null;
     const subtypeMedia = req.uploadedFiles?.subtypeMedia?.[0]?.url || null;
 
-    if (!service_id || !serviceTypeName) {
-        return res.status(400).json({ message: "service_id and serviceTypeName are required." });
+    if (!service_id) {
+        return res.status(400).json({ message: "service_id are required." });
     }
 
     // Ensure service exists
@@ -301,8 +301,8 @@ const addServiceType = asyncHandler(async (req, res) => {
 
     // Prevent duplicate serviceType under same service + subtype
     const [existingType] = await db.query(
-        `SELECT 1 FROM service_subtypes WHERE service_id = ? AND (subtype_id <=> ?) AND subtypeName = ?`,
-        [service_id, finalSubtypeId, serviceTypeName.trim()]
+        `SELECT 1 FROM service_subtypes WHERE service_id = ? AND (subtype_id <=> ?)`,
+        [service_id, finalSubtypeId]
     );
     if (existingType.length > 0) {
         return res.status(409).json({ message: "Service type already exists under this service/subtype." });
@@ -310,9 +310,9 @@ const addServiceType = asyncHandler(async (req, res) => {
 
     // Insert new service type
     const [result] = await db.query(
-        `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
+        `INSERT INTO service_type (service_id, serviceTypeMedia)
          VALUES (?, ?, ?)`,
-        [service_id, serviceTypeName.trim(), serviceTypeMedia]
+        [service_id, serviceTypeMedia]
     );
 
     res.status(201).json({

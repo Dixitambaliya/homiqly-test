@@ -196,9 +196,6 @@ const getBookings = asyncHandler(async (req, res) => {
                 sc.serviceCategory,
                 s.serviceName,
 
-                st.serviceTypeName,
-                st.serviceTypeMedia,
-
                 v.vendor_id,
                 v.vendorType,
 

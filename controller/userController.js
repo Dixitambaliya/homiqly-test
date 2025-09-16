@@ -63,8 +63,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
             return {
                 service_type_id: row.service_type_id,
                 serviceName: row.serviceName,
-                serviceTypeName: row.serviceTypeName,
-                serviceTypeMedia: row.serviceTypeMedia,
                 serviceDescription: row.serviceDescription,
                 is_approved: row.is_approved,
                 created_at: row.created_at,
@@ -140,9 +138,7 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
         const [rows] = await db.query(`
             SELECT
                 s.service_type_id,
-                s.service_id,
-                s.serviceTypeName,
-                s.serviceTypeMedia
+                s.service_id
                 FROM service_type s
             WHERE s.service_id = ?
             ORDER BY service_type_id DESC
@@ -295,8 +291,6 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
         const [rows] = await db.query(`
             SELECT
                 st.service_type_id,
-                st.serviceTypeName,
-                st.serviceTypeMedia,
 
                 CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
@@ -319,8 +313,6 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
 
         const result = rows.map(row => ({
             service_type_id: row.service_type_id,
-            serviceTypeName: row.serviceTypeName,
-            serviceTypeMedia: row.serviceTypeMedia,
             packages: JSON.parse(row.packages || '[]')
         }));
 

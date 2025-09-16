@@ -5,7 +5,6 @@ const bookingGetQueries = {
           sb.*,
     s.serviceName,
     sc.serviceCategory,
-    st.serviceTypeName,
     sb.payment_status AS payment_status,
     (p.amount * (1 - ? / 100)) AS payment_amount,
     p.currency AS payment_currency,

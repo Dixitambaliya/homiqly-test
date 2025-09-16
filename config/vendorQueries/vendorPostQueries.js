@@ -2,7 +2,7 @@ const vendorPostQueries = {
 
     getServiceIdByName: `SELECT service_id FROM services WHERE serviceName = ?`,
 
-    checkServiceType: `SELECT 1 FROM service_type WHERE service_id = ? AND serviceTypeName = ?`,
+    checkServiceType: `SELECT 1 FROM service_type WHERE service_id = ?`,
 
 
 
