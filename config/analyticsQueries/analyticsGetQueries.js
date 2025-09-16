@@ -1,14 +1,12 @@
 const analyticsGetQueries = {
     getDashboardStats: `
-        SELECT 
-            (SELECT COUNT(*) FROM users WHERE is_approved = 1) as total_users,
-            (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) as total_vendors,
-            (SELECT COUNT(*) FROM contractors WHERE is_active = 1) as total_contractors,
-            (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1) as completed_bookings,
-            (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 0) as pending_bookings
-             JOIN service_booking_packages sbp ON p.package_id = sbp.package_id
-             JOIN service_booking sb ON sbp.booking_id = sb.booking_id
-             WHERE sb.bookingStatus = 1) as total_revenue
+SELECT 
+    (SELECT COUNT(*) FROM users WHERE is_approved = 1) AS total_users,
+    (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) AS total_vendors,
+    (SELECT COUNT(*) FROM contractors WHERE is_active = 1) AS total_contractors,
+    (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1) AS completed_bookings,
+    (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 0) AS pending_bookings;
+
     `,
 
     getBookingTrends: `
