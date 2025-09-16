@@ -13,7 +13,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         notes = null,
         bookingDate = null,
         bookingTime = null,
-        preferences = []
+        preferences = [],
+        consents = [] // ✅ moved here, outside packages
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -27,6 +28,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     let parsedPackages = [];
     let parsedPreferences = [];
+    let parsedConsents = [];
 
     // Parse & validate packages
     try {
@@ -45,6 +47,13 @@ const addToCartService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Invalid preferences JSON", error: e.message });
     }
 
+    // Parse consents
+    try {
+        parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
+    } catch (e) {
+        return res.status(400).json({ message: "Invalid consents JSON", error: e.message });
+    }
+
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
@@ -52,7 +61,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
-                user_id,service_id, service_type_id,
+                user_id, service_id, service_type_id,
                 service_categories_id, bookingDate, bookingTime,
                 bookingStatus, notes, bookingMedia
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -76,8 +85,7 @@ const addToCartService = asyncHandler(async (req, res) => {
             const {
                 package_id = null,
                 sub_packages = [],
-                addons = [],
-                consents = [] // ⬅️ moved inside package
+                addons = []
             } = pkg;
 
             // Insert into cart_packages
@@ -109,18 +117,6 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, package_id, addon_id, price]
                 );
             }
-
-            // ✅ Insert consents (per package)
-            for (const consent of consents) {
-                const { consent_id, answer = null } = consent;
-                if (!consent_id) continue;
-
-                await connection.query(
-                    `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
-                     VALUES (?, ?, ?, ?)`,
-                    [cart_id, package_id, consent_id, answer]
-                );
-            }
         }
 
         // ✅ Step 3: Insert preferences (global to cart)
@@ -131,6 +127,18 @@ const addToCartService = asyncHandler(async (req, res) => {
             await connection.query(
                 "INSERT INTO cart_preferences (cart_id, preference_id) VALUES (?, ?)",
                 [cart_id, preference_id]
+            );
+        }
+
+        // ✅ Step 4: Insert consents (global to cart)
+        for (const consent of parsedConsents) {
+            const { consent_id, answer = null } = consent;
+            if (!consent_id) continue;
+
+            await connection.query(
+                `INSERT INTO cart_consents (cart_id, consent_id, answer)
+                 VALUES (?, ?, ?)`,
+                [cart_id, consent_id, answer]
             );
         }
 
@@ -149,6 +157,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
