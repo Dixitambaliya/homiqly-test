@@ -25,8 +25,7 @@ SELECT
     getServiceCategoryStats: `
         SELECT 
             sc.serviceCategory,
-            COUNT(sb.booking_id) as booking_count,
-            AVG(p.totalPrice) as avg_price
+            COUNT(sb.booking_id) as booking_count
         FROM service_categories sc
         LEFT JOIN services s ON sc.service_categories_id = s.service_categories_id
         LEFT JOIN service_booking sb ON s.service_id = sb.service_id
