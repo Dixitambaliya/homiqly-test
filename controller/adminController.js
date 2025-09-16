@@ -402,6 +402,23 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             );
             const package_id = pkgResult.insertId;
 
+            // Consent Forms for this package
+            for (let c = 0; c < (pkg.consentForm || []).length; c++) {
+                const consent = pkg.consentForm[c];
+                if (!consent.question) continue;
+
+                await connection.query(
+                    `INSERT INTO package_consent_forms (package_id, question, is_required)
+                     VALUES (?, ?, ?)`,
+                    [
+                        package_id,
+                        consent.question,
+                        consent.is_required ?? 0
+                    ]
+                );
+            }
+
+
             // Sub-packages
             for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
                 const sub = pkg.sub_packages[j];
@@ -460,9 +477,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "✅ Packages with sub-packages, preferences, and addons created successfully",
-            service_type_id,
-            serviceFilter
+            message: "✅ Packages with sub-packages, preferences, addons, and consent forms created successfully"
         });
 
     } catch (err) {
@@ -478,95 +493,108 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-      SELECT
-        sc.service_categories_id AS service_category_id,
-        sc.serviceCategory AS service_category_name,
-        s.service_id,
-        s.serviceName AS service_name,
-        s.serviceFilter,
+            SELECT
+                sc.service_categories_id AS service_category_id,
+                sc.serviceCategory AS service_category_name,
+                s.service_id,
+                s.serviceName AS service_name,
+                s.serviceFilter,
 
-        COALESCE((
-          SELECT CONCAT('[', GROUP_CONCAT(
-            JSON_OBJECT(
-              'package_id', p.package_id,
-              -- add serviceType info here
-              'service_type_id', st.service_type_id,
-              'service_type_name', st.serviceTypeName,
-              'service_type_media', st.serviceTypeMedia,
+                COALESCE((
+                    SELECT CONCAT('[', GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'package_id', p.package_id,
+                            'service_type_id', st.service_type_id,
+                            'service_type_name', st.serviceTypeName,
+                            'service_type_media', st.serviceTypeMedia,
 
-              'sub_packages', IFNULL((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'sub_package_id', pi.item_id,
-                    'item_name', pi.itemName,
-                    'description', pi.description,
-                    'price', pi.price,
-                    'time_required', pi.timeRequired,
-                    'item_media', pi.itemMedia
-                  )
-                ), ']')
-                FROM package_items pi
-                WHERE pi.package_id = p.package_id
-              ), '[]'),
-              'preferences', IFNULL((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'preference_id', bp.preference_id,
-                    'preference_value', bp.preferenceValue,
-                    'preference_price', bp.preferencePrice
-                  )
-                ), ']')
-                FROM booking_preferences bp
-                WHERE bp.package_id = p.package_id
-              ), '[]'),
-              'addons', IFNULL((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'addon_id', pa.addon_id,
-                    'addon_name', pa.addonName,
-                    'description', pa.addonDescription,
-                    'price', pa.addonPrice
-                  )
-                ), ']')
-                FROM package_addons pa
-                WHERE pa.package_id = p.package_id
-              ), '[]'),
-              'consentForm', IFNULL((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'consent_id', pcf.consent_id,
-                    'question', pcf.question
-                  )
-                ), ']')
-                FROM package_consent_forms pcf
-                WHERE pcf.package_id = p.package_id
-              ), '[]')
-            )
-          ), ']')
-          FROM packages p
-          JOIN service_type st ON st.service_type_id = p.service_type_id
-          WHERE st.service_id = s.service_id
-        ), '[]') AS packages
+                            'sub_packages', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'sub_package_id', pi.item_id,
+                                        'item_name', pi.itemName,
+                                        'description', pi.description,
+                                        'price', pi.price,
+                                        'time_required', pi.timeRequired,
+                                        'item_media', pi.itemMedia,
 
-      FROM services s
-      JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
-      ORDER BY s.service_id DESC
-    `);
+                                        -- preferences linked to this sub_package
+                                        'preferences', IFNULL((
+                                            SELECT CONCAT('[', GROUP_CONCAT(
+                                                JSON_OBJECT(
+                                                    'preference_id', bp.preference_id,
+                                                    'preference_value', bp.preferenceValue,
+                                                    'preference_price', bp.preferencePrice
+                                                )
+                                            ), ']')
+                                            FROM booking_preferences bp
+                                            WHERE bp.package_item_id = pi.item_id
+                                        ), '[]'),
+
+                                        -- addons linked to this sub_package
+                                        'addons', IFNULL((
+                                            SELECT CONCAT('[', GROUP_CONCAT(
+                                                JSON_OBJECT(
+                                                    'addon_id', pa.addon_id,
+                                                    'addon_name', pa.addonName,
+                                                    'description', pa.addonDescription,
+                                                    'price', pa.addonPrice,
+                                                    'time_required', pa.addonTime,
+                                                    'addon_media', pa.addonMedia
+                                                )
+                                            ), ']')
+                                            FROM package_addons pa
+                                            WHERE pa.package_item_id = pi.item_id
+                                        ), '[]')
+                                    )
+                                ), ']')
+                                FROM package_items pi
+                                WHERE pi.package_id = p.package_id
+                            ), '[]'),
+
+                            'consentForm', IFNULL((
+                                SELECT CONCAT('[', GROUP_CONCAT(
+                                    JSON_OBJECT(
+                                        'consent_id', pcf.consent_id,
+                                        'question', pcf.question
+                                    )
+                                ), ']')
+                                FROM package_consent_forms pcf
+                                WHERE pcf.package_id = p.package_id
+                            ), '[]')
+                        )
+                    ), ']')
+                    FROM packages p
+                    JOIN service_type st ON st.service_type_id = p.service_type_id
+                    WHERE st.service_id = s.service_id
+                ), '[]') AS packages
+
+            FROM services s
+            JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+            ORDER BY s.service_id DESC
+        `);
 
         const parsedResult = rows.map(row => {
             let parsedPackages = [];
             try {
                 parsedPackages = JSON.parse(row.packages).map(pkg => ({
                     package_id: pkg.package_id,
-                    // include serviceType info
                     service_type_id: pkg.service_type_id,
                     service_type_name: pkg.service_type_name,
                     service_type_media: pkg.service_type_media,
 
-                    sub_packages: typeof pkg.sub_packages === "string" ? JSON.parse(pkg.sub_packages) : [],
-                    preferences: typeof pkg.preferences === "string" ? JSON.parse(pkg.preferences) : [],
-                    addons: typeof pkg.addons === "string" ? JSON.parse(pkg.addons) : [],
-                    consentForm: typeof pkg.consentForm === "string" ? JSON.parse(pkg.consentForm) : []
+                    sub_packages: (typeof pkg.sub_packages === "string" ? JSON.parse(pkg.sub_packages) : pkg.sub_packages).map(sp => ({
+                        sub_package_id: sp.sub_package_id,
+                        item_name: sp.item_name,
+                        description: sp.description,
+                        price: sp.price,
+                        time_required: sp.time_required,
+                        item_media: sp.item_media,
+                        preferences: typeof sp.preferences === "string" ? JSON.parse(sp.preferences) : sp.preferences,
+                        addons: typeof sp.addons === "string" ? JSON.parse(sp.addons) : sp.addons
+                    })),
+
+                    consentForm: typeof pkg.consentForm === "string" ? JSON.parse(pkg.consentForm) : pkg.consentForm
                 }));
             } catch (e) {
                 console.warn(`❌ Invalid JSON in service_id ${row.service_id}:`, e.message);
@@ -594,6 +622,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
