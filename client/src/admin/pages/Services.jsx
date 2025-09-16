@@ -127,11 +127,6 @@ const Services = () => {
     setCategoryFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCategorySubChange = (selectedOptions) => {
-    const arr = selectedOptions ? selectedOptions.map((o) => o.value) : [];
-    setCategoryFormData((prev) => ({ ...prev, subCategories: arr }));
-  };
-
   const handleAddService = async (e) => {
     e.preventDefault();
     if (
@@ -148,7 +143,10 @@ const Services = () => {
       const formDataToSend = new FormData();
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
-      formDataToSend.append("serviceFilter", serviceFormData.serviceFilter || "");
+      formDataToSend.append(
+        "serviceFilter",
+        serviceFormData.serviceFilter || ""
+      );
       formDataToSend.append(
         "serviceDescription",
         serviceFormData.serviceDescription || ""
@@ -192,7 +190,10 @@ const Services = () => {
       formDataToSend.append("serviceId", selectedService.serviceId);
       formDataToSend.append("serviceName", serviceFormData.serviceName);
       formDataToSend.append("categoryName", serviceFormData.categoryName);
-      formDataToSend.append("serviceFilter", serviceFormData.serviceFilter || "");
+      formDataToSend.append(
+        "serviceFilter",
+        serviceFormData.serviceFilter || ""
+      );
       formDataToSend.append(
         "serviceDescription",
         serviceFormData.serviceDescription || ""
@@ -349,6 +350,13 @@ const Services = () => {
     });
   };
 
+  const getServiceFilterOptions = () => {
+    return serviceFilters.map((filter) => ({
+      value: filter.service_filter_id,
+      label: filter.serviceFilter,
+    }));
+  };
+
   // prepare and open edit forms
   const editService = (service) => {
     console.log("service", service);
@@ -358,6 +366,8 @@ const Services = () => {
       categoryName: service.categoryName,
       serviceDescription: service.description || "",
       serviceImage: null,
+      serviceFilter: service.serviceFilter || service.subCategory || "",
+
       subCategory: service.subCategory || "",
     });
     setImagePreview(service.serviceImage || null);
@@ -416,7 +426,7 @@ const Services = () => {
         <h2 className="text-2xl font-bold text-gray-800">Service Management</h2>
         <div className="flex space-x-2">
           <Button
-            variant="primary"
+            variant="lightWarning"
             onClick={() => {
               setSelectedFilter(null);
               setFilterMode("add");
@@ -713,23 +723,21 @@ const Services = () => {
                     placeholder="Select Category"
                   />
                 </div>
-                {serviceFormData.categoryName && (
+                {serviceFilters.length > 0 && (
                   <div>
                     <label
-                      htmlFor="subCategory"
+                      htmlFor="serviceFilter"
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Subcategory
+                      Service Filter
                     </label>
                     <FormSelect
-                      id="subCategory"
-                      name="subCategory"
-                      value={serviceFormData.subCategory}
+                      id="serviceFilter"
+                      name="serviceFilter"
+                      value={serviceFormData.serviceFilter}
                       onChange={handleServiceInputChange}
-                      options={getSubCategoryOptions(
-                        serviceFormData.categoryName
-                      )}
-                      placeholder="Select Subcategory"
+                      options={getServiceFilterOptions()}
+                      placeholder="Select Service Filter"
                     />
                   </div>
                 )}
@@ -858,23 +866,21 @@ const Services = () => {
                   />
                 </div>
 
-                {serviceFormData.categoryName && (
+                {serviceFilters.length > 0 && (
                   <div>
                     <label
-                      htmlFor="subCategory"
+                      htmlFor="serviceFilter"
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      serviceFilter
+                      Service Filter
                     </label>
                     <FormSelect
                       id="serviceFilter"
                       name="serviceFilter"
-                      value={serviceFormData.serviceFilter}
+                      value={serviceFormData.serviceFilter ?? ""}
                       onChange={handleServiceInputChange}
-                      options={getSubCategoryOptions(
-                        serviceFormData.categoryName
-                      )}
-                      placeholder="Select Subcategory"
+                      options={getServiceFilterOptions()}
+                      placeholder="Select Service Filter"
                     />
                   </div>
                 )}
@@ -931,9 +937,7 @@ const Services = () => {
                 </Button>
                 <Button type="submit" disabled={submitting}>
                   {submitting ? (
-                    <>
-                      <span className="ml-2">Updating...</span>
-                    </>
+                    <span className="ml-2">Updating...</span>
                   ) : (
                     "Update Service"
                   )}
