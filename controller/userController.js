@@ -108,30 +108,15 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 service = {
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
+                    service_type_id: row.service_type_id,
                     title: row.serviceName,
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
                     serviceFilter: row.serviceFilter,
-                    slug: row.slug,
-                    serviceTypes: []
+                    slug: row.slug
                 };
                 grouped[category].services.push(service);
             }
-
-            // push serviceType if available
-            if (row.service_type_id && service) {
-                service.serviceTypes.push({
-                    subType: row.subTypeName,
-                    service_type_id: row.service_type_id,
-                    serviceTypeName: row.serviceTypeName,
-                    serviceTypeMedia: row.serviceTypeMedia
-                });
-            }
-        });
-
-        // 🔹 Remove services without serviceTypes
-        Object.values(grouped).forEach(category => {
-            category.services = category.services.filter(service => service.serviceTypes.length > 0);
         });
 
         // 🔹 Remove categories without any services
@@ -143,6 +128,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id

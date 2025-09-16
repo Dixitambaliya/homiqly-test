@@ -488,8 +488,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -622,7 +620,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
