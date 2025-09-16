@@ -503,8 +503,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         JSON_OBJECT(
                             'package_id', p.package_id,
                             'service_type_id', st.service_type_id,
-                            'service_type_name', st.serviceTypeName,
-                            'service_type_media', st.serviceTypeMedia,
 
                             'sub_packages', IFNULL((
                                 SELECT CONCAT('[', GROUP_CONCAT(
@@ -578,8 +576,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 parsedPackages = JSON.parse(row.packages).map(pkg => ({
                     package_id: pkg.package_id,
                     service_type_id: pkg.service_type_id,
-                    service_type_name: pkg.service_type_name,
-                    service_type_media: pkg.service_type_media,
 
                     sub_packages: (typeof pkg.sub_packages === "string" ? JSON.parse(pkg.sub_packages) : pkg.sub_packages).map(sp => ({
                         sub_package_id: sp.sub_package_id,

@@ -36,9 +36,7 @@ const userGetQueries = {
         s.serviceFilter,
         s.serviceImage,
         s.slug,
-        st.service_type_id,
-        st.serviceTypeName,
-        st.serviceTypeMedia
+        st.service_type_id
 FROM service_categories c
 LEFT JOIN services s 
     ON s.service_categories_id = c.service_categories_id
