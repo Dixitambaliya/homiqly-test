@@ -13,7 +13,6 @@ const addToCartService = asyncHandler(async (req, res) => {
         notes = null,
         bookingDate = null,
         bookingTime = null,
-        vendor_id = null,
         preferences = []
     } = req.body;
 
@@ -53,13 +52,12 @@ const addToCartService = asyncHandler(async (req, res) => {
         // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
-                user_id, vendor_id, service_id, service_type_id,
+                user_id,service_id, service_type_id,
                 service_categories_id, bookingDate, bookingTime,
                 bookingStatus, notes, bookingMedia
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 user_id,
-                vendor_id,
                 serviceId,
                 service_type_id,
                 service_categories_id,
