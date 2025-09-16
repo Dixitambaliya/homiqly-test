@@ -912,11 +912,11 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 ]);
             }
             // ✅ Handle Consent Forms
-            if (Array.isArray(pkg.consent_forms)) {
+            if (Array.isArray(pkg.consentForm)) {
                 const submittedConsentIds = [];
 
-                for (let c = 0; c < pkg.consent_forms.length; c++) {
-                    const form = pkg.consent_forms[c];
+                for (let c = 0; c < pkg.consentForm.length; c++) {
+                    const form = pkg.consentForm[c];
                     const consent_id = form.consent_id;
 
                     if (consent_id) {
