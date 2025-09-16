@@ -342,47 +342,54 @@ const editServiceType = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     const { vendor_id } = req.user;
-    const { service_type_id, packages } = req.body;
+    const { packages } = req.body;
 
     try {
-        if (!service_type_id || !packages || !Array.isArray(packages)) {
-            throw new Error("Service Type ID and packages array are required.");
+        if (!packages || !Array.isArray(packages)) {
+            throw new Error("Packages array is required.");
         }
 
         for (const pkg of packages) {
             const {
+                vendor_packages_id,
                 package_id,
-                title,
-                description,
-                price,
-                time_required,
                 sub_packages
             } = pkg;
 
-            // Update the package
-            await connection.query(
-                `UPDATE packages
-                 SET packageName = ?, description = ?, totalPrice = ?, totalTime = ?
-                 WHERE package_id = ? AND vendor_id = ?`,
-                [title, description, price, time_required, package_id, vendor_id]
+            if (!vendor_packages_id || !package_id) {
+                throw new Error("vendor_packages_id and package_id are required.");
+            }
+
+            // Ensure the vendor actually owns this vendor_packages entry
+            const [checkVendorPkg] = await connection.query(
+                `SELECT * FROM vendor_packages 
+                 WHERE vendor_packages_id = ? AND vendor_id = ? AND package_id = ?`,
+                [vendor_packages_id, vendor_id, package_id]
             );
 
-            // Optional: update sub-packages if provided
+            if (checkVendorPkg.length === 0) {
+                throw new Error(`Vendor does not own vendor_packages_id ${vendor_packages_id}`);
+            }
+
+            // ---------------- SUB-PACKAGES ----------------
             if (Array.isArray(sub_packages)) {
                 for (const sub of sub_packages) {
                     const {
                         sub_package_id,
-                        title: itemName,
-                        description: itemDesc,
-                        price: itemPrice,
-                        time_required: itemTime
+                        sub_package_name,
+                        sub_package_description,
+                        sub_package_media
                     } = sub;
+
+                    if (!sub_package_id) {
+                        throw new Error("sub_package_id is required for sub_packages update.");
+                    }
 
                     await connection.query(
                         `UPDATE package_items
-                         SET itemName = ?, description = ?, price = ?, timeRequired = ?
-                         WHERE item_id = ? AND vendor_id = ?`,
-                        [itemName, itemDesc, itemPrice, itemTime, sub_package_id, vendor_id]
+                         SET itemName = ?, description = ?, itemMedia = ?
+                         WHERE item_id = ? AND package_id = ?`,
+                        [sub_package_name, sub_package_description, sub_package_media, sub_package_id, package_id]
                     );
                 }
             }
@@ -392,15 +399,19 @@ const editServiceType = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: "Service type packages and items updated successfully."
+            message: "Service type (vendor packages + sub-packages) updated successfully."
         });
     } catch (err) {
         await connection.rollback();
         connection.release();
         console.error("Error updating service type:", err);
-        res.status(500).json({ error: "Failed to update service type", details: err.message });
+        res.status(500).json({
+            error: "Failed to update service type",
+            details: err.message
+        });
     }
 });
+
 
 const deletePackage = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

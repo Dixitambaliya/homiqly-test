@@ -733,7 +733,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         }
 
         res.status(200).json({
-            message: "Packages successfully applied. Admin approval pending."
+            message: "Packages successfully applied"
         });
 
     } catch (err) {
