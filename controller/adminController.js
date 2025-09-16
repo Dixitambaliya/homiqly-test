@@ -556,7 +556,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 FROM package_addons pa
                 WHERE pa.package_id = p.package_id
               ), '[]'),
-              'consent_forms', IFNULL((
+              'consentForm', IFNULL((
                 SELECT CONCAT('[', GROUP_CONCAT(
                   JSON_OBJECT(
                     'consent_id', pcf.consent_id,
@@ -591,7 +591,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                     sub_packages: typeof pkg.sub_packages === "string" ? JSON.parse(pkg.sub_packages) : [],
                     preferences: typeof pkg.preferences === "string" ? JSON.parse(pkg.preferences) : [],
                     addons: typeof pkg.addons === "string" ? JSON.parse(pkg.addons) : [],
-                    consent_forms: typeof pkg.consent_forms === "string" ? JSON.parse(pkg.consent_forms) : []
+                    consentForm: typeof pkg.consentForm === "string" ? JSON.parse(pkg.consentForm) : []
                 }));
             } catch (e) {
                 console.warn(`❌ Invalid JSON in service_id ${row.service_id}:`, e.message);
