@@ -265,11 +265,8 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         {
           package_id: packageData.package_id ?? null,
           // We keep package-level fields minimal — the server likely prioritizes sub_packages
-          package_name: title,
-          description,
-          total_price: totalPrice,
-          total_time: timeRequired,
-          subPackages: subPackages.map((s) => ({
+
+          sub_packages: subPackages.map((s) => ({
             sub_package_id: s.sub_package_id ?? null,
             item_name: s.item_name,
             description: s.description,
