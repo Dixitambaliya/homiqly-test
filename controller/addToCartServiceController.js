@@ -61,8 +61,8 @@ const addToCartService = asyncHandler(async (req, res) => {
                 serviceId,
                 service_type_id,
                 service_categories_id,
-                bookingDate,
-                bookingTime,
+                bookingDate && bookingDate.trim() !== "" ? bookingDate : null,
+                bookingTime && bookingTime.trim() !== "" ? bookingTime : null,
                 0,
                 notes,
                 bookingMedia
