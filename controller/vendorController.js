@@ -618,8 +618,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
                 vp.package_id
             FROM vendor_packages vp
             JOIN packages p ON vp.package_id = p.package_id
-            WHERE vp.vendor_id = ?
-            ORDER BY p.packageName`,
+            WHERE vp.vendor_id = ?`,
             [vendorId]
         );
 
