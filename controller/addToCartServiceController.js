@@ -14,8 +14,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         bookingDate = null,
         bookingTime = null,
         vendor_id = null,
-        preferences = [],
-        consents = []
+        preferences = []
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -29,11 +28,10 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     let parsedPackages = [];
     let parsedPreferences = [];
-    let parsedConsents = [];
 
     // Parse & validate packages
     try {
-        parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
+        parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
             return res.status(400).json({ message: "'packages' must be a non-empty array." });
         }
@@ -41,12 +39,11 @@ const addToCartService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
     }
 
-    // Parse preferences & consents
+    // Parse preferences
     try {
-        parsedPreferences = typeof preferences === 'string' ? JSON.parse(preferences) : preferences;
-        parsedConsents = typeof consents === 'string' ? JSON.parse(consents) : consents;
+        parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
     } catch (e) {
-        return res.status(400).json({ message: "Invalid preferences/consents JSON", error: e.message });
+        return res.status(400).json({ message: "Invalid preferences JSON", error: e.message });
     }
 
     const connection = await db.getConnection();
@@ -81,7 +78,8 @@ const addToCartService = asyncHandler(async (req, res) => {
             const {
                 package_id = null,
                 sub_packages = [],
-                addons = []
+                addons = [],
+                consents = [] // ⬅️ moved inside package
             } = pkg;
 
             // Insert into cart_packages
@@ -113,28 +111,28 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, package_id, addon_id, price]
                 );
             }
+
+            // ✅ Insert consents (per package)
+            for (const consent of consents) {
+                const { consent_id, answer = null } = consent;
+                if (!consent_id) continue;
+
+                await connection.query(
+                    `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+                     VALUES (?, ?, ?, ?)`,
+                    [cart_id, package_id, consent_id, answer]
+                );
+            }
         }
 
-        // ✅ Step 3: Insert preferences (applied to cart)
+        // ✅ Step 3: Insert preferences (global to cart)
         for (const pref of parsedPreferences) {
-            const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
+            const preference_id = typeof pref === "object" ? pref.preference_id : pref;
             if (!preference_id) continue;
 
             await connection.query(
                 "INSERT INTO cart_preferences (cart_id, preference_id) VALUES (?, ?)",
                 [cart_id, preference_id]
-            );
-        }
-
-        // ✅ Step 4: Insert consents (applied to cart)
-        for (const consent of parsedConsents) {
-            const { consent_id, answer = null } = consent;
-            if (!consent_id) continue;
-
-            await connection.query(
-                `INSERT INTO cart_consents (cart_id, consent_id, answer)
-                 VALUES (?, ?, ?)`,
-                [cart_id, consent_id, answer]
             );
         }
 
@@ -153,6 +151,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
