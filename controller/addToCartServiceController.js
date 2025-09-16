@@ -140,6 +140,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                  VALUES (?, ?, ?)`,
                 [cart_id, consent_id, answer]
             );
+
         }
 
         await connection.commit();

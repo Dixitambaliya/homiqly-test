@@ -361,72 +361,56 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, serviceTypeName, packages, preferences } = req.body;
+        const { serviceId, packages } = req.body;
 
-        // 1️⃣ Validate inputs
-        if (!serviceId || !serviceTypeName) {
-            throw new Error("serviceId and serviceTypeName are required.");
-        }
-        if (!packages) {
-            throw new Error("Missing required field: packages.");
-        }
+        if (!serviceId) throw new Error("serviceId is required.");
+        if (!packages) throw new Error("Missing required field: packages.");
 
-        const serviceTypeMedia = req.uploadedFiles?.serviceTypeMedia?.[0]?.url;
-        if (!serviceTypeMedia) {
-            throw new Error("serviceTypeMedia (image) is required.");
-        }
-
-        // 2️⃣ Verify service exists
+        // Verify service exists
         const [serviceCheck] = await connection.query(
             `SELECT service_id, serviceName, serviceFilter FROM services WHERE service_id = ? LIMIT 1`,
             [serviceId]
         );
-        if (serviceCheck.length === 0) {
-            throw new Error("Invalid serviceId. Service does not exist.");
-        }
-        const serviceGender = serviceCheck[0].serviceFilter;
+        if (serviceCheck.length === 0) throw new Error("Invalid serviceId. Service does not exist.");
+        const serviceFilter = serviceCheck[0].serviceFilter;
 
-        // 3️⃣ Ensure service type is unique
+        // Ensure one service_type exists
         const [existingServiceType] = await connection.query(
-            `SELECT service_type_id FROM service_type 
-             WHERE service_id = ? AND serviceTypeName = ? LIMIT 1`,
-            [serviceId, serviceTypeName.trim()]
+            `SELECT service_type_id FROM service_type WHERE service_id = ? LIMIT 1`,
+            [serviceId]
         );
+        let service_type_id;
         if (existingServiceType.length > 0) {
-            throw new Error("Service type already exists for this service.");
+            service_type_id = existingServiceType[0].service_type_id;
+        } else {
+            const [stResult] = await connection.query(
+                `INSERT INTO service_type (service_id) VALUES (?)`,
+                [serviceId]
+            );
+            service_type_id = stResult.insertId;
         }
 
-        // 4️⃣ Insert service type
-        const [stResult] = await connection.query(
-            `INSERT INTO service_type (service_id, serviceTypeName, serviceTypeMedia)
-             VALUES (?, ?, ?)`,
-            [serviceId, serviceTypeName.trim(), serviceTypeMedia]
-        );
-        const service_type_id = stResult.insertId;
-
-        // 5️⃣ Parse and insert packages
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
-        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
-            throw new Error("At least one package is required.");
-        }
 
         for (let i = 0; i < parsedPackages.length; i++) {
             const pkg = parsedPackages[i];
 
+            // Insert package
             const [pkgResult] = await connection.query(
-                `INSERT INTO packages (service_type_id)
-                 VALUES (?)`,
+                `INSERT INTO packages (service_type_id) VALUES (?)`,
                 [service_type_id]
             );
             const package_id = pkgResult.insertId;
 
-            // 📌 Sub-packages
+            // Sub-packages
             for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
                 const sub = pkg.sub_packages[j];
                 const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
 
-                await connection.query(
-                    adminPostQueries.insertPackageItem,
+                const [subResult] = await connection.query(
+                    `INSERT INTO package_items
+                     (package_id, itemName, description, price, timeRequired, itemMedia)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         package_id,
                         sub.item_name || null,
@@ -436,48 +420,37 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                         itemMedia
                     ]
                 );
-            }
+                const sub_package_id = subResult.insertId;
 
-            // 📌 Addons
-            for (let k = 0; k < (pkg.addons || []).length; k++) {
-                const addon = pkg.addons[k];
-                const addon_media = req.uploadedFiles?.[`addon_media_${i}_${k}`]?.[0]?.url || null;
-
-                await connection.query(
-                    `INSERT INTO package_addons 
-                     (package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                        package_id,
-                        addon.addon_name || null,
-                        addon.description || null,
-                        addon.price || 0,
-                        addon.addon_time || 0,
-                        addon_media
-                    ]
-                );
-            }
-
-            // 📌 Consent forms
-            if (Array.isArray(pkg.consentForm) && pkg.consentForm.length > 0) {
-                for (const question of pkg.consentForm) {
-                    await connection.query(
-                        `INSERT INTO package_consent_forms (package_id, question, is_required)
-                         VALUES (?, ?, ?)`,
-                        [package_id, question.text || null, question.is_required ? 1 : 0]
-                    );
-                }
-            }
-
-            // 📌 Preferences (per package)
-            if (preferences) {
-                const parsedPrefs = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-                for (const pref of parsedPrefs) {
+                // Preferences for this sub-package
+                for (let p = 0; p < (sub.preferences || []).length; p++) {
+                    const pref = sub.preferences[p];
                     if (!pref.preference_value) continue;
 
                     await connection.query(
-                        adminPostQueries.insertBookingPreference,
-                        [package_id, pref.preference_value.trim(), pref.preference_price ?? 0]
+                        `INSERT INTO booking_preferences (package_item_id, preferenceValue, preferencePrice)
+                         VALUES (?, ?, ?)`,
+                        [sub_package_id, pref.preference_value.trim(), pref.preference_price ?? 0]
+                    );
+                }
+
+                // Addons for this sub-package
+                for (let k = 0; k < (sub.addons || []).length; k++) {
+                    const addon = sub.addons[k];
+                    const addonMedia = req.uploadedFiles?.[`addon_media_${i}_${j}_${k}`]?.[0]?.url || null;
+
+                    await connection.query(
+                        `INSERT INTO package_addons
+                         (package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
+                         VALUES (?, ?, ?, ?, ?, ?)`,
+                        [
+                            sub_package_id,
+                            addon.addon_name || null,
+                            addon.description || null,
+                            addon.price || 0,
+                            addon.time_required || 0,
+                            addonMedia
+                        ]
                     );
                 }
             }
@@ -487,9 +460,9 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(201).json({
-            message: "✅ Packages created successfully",
+            message: "✅ Packages with sub-packages, preferences, and addons created successfully",
             service_type_id,
-            serviceGender
+            serviceFilter
         });
 
     } catch (err) {
@@ -499,6 +472,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {

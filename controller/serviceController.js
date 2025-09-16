@@ -359,6 +359,7 @@ const getAdminService = asyncHandler(async (req, res) => {
             if (!acc[category]) {
                 acc[category] = {
                     categoryName: category,
+                    serviceCategoryId: row.serviceCategoryId,
                     services: []
                 };
             }
