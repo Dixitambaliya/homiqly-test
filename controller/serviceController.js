@@ -360,7 +360,6 @@ const getAdminService = asyncHandler(async (req, res) => {
                 acc[category] = {
                     categoryName: category,
                     serviceCategoryId: row.serviceCategoryId,
-                    serviceFilter: row.serviceFilter,
                     services: []
                 };
             }
@@ -370,6 +369,7 @@ const getAdminService = asyncHandler(async (req, res) => {
                 acc[category].services.push({
                     serviceId: row.serviceId,
                     serviceCategoryId: row.serviceCategoryId,
+                    serviceFilter: row.serviceFilter,
                     title: row.title,
                     description: row.serviceDescription,
                     serviceName: row.serviceName,
