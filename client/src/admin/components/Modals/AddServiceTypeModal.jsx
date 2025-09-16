@@ -11,6 +11,7 @@ import {
   FiGift,
   FiX,
   FiImage,
+  FiFolder,
 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
@@ -19,11 +20,22 @@ import { SectionCard } from "../../../shared/components/Card/SectionCard";
 import { CustomFileInput } from "../../../shared/components/CustomFileInput";
 import { ItemCard } from "../../../shared/components/Card/ItemCard";
 
+const TABS = [
+  { id: "basic", label: "Basic Info", icon: FiSettings },
+  { id: "packages", label: "Packages", icon: FiPackage },
+  { id: "addons", label: "Add-ons", icon: FiGift },
+  { id: "preferences", label: "Preferences", icon: FiStar },
+  { id: "consentForm", label: "Consent Form", icon: FiFolder },
+];
+
 const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("basic");
+  const [activeTab, setActiveTab] = useState(TABS[0].id);
   const [filteredSubCategories, setFilteredSubCategories] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [filteredServices, setFilteredServices] = useState([]);
 
+  // Place consentForm inside packages (no root-level consentForm)
   const [formData, setFormData] = useState({
     serviceId: "",
     serviceCategoryId: "",
@@ -47,19 +59,16 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             price: "",
           },
         ],
+        consentForm: [{ text: "", is_required: "" }],
       },
     ],
     preferences: [{ preference_value: "", preference_price: "" }],
   });
 
-  const [categories, setCategories] = useState([]);
-  const [filteredServices, setFilteredServices] = useState([]);
-
-  // Image preview states
+  // Image previews
   const [imagePreview, setImagePreview] = useState(null);
   const [subPackageImagePreviews, setSubPackageImagePreviews] = useState({});
 
-  // Fetch categories on component mount
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -74,18 +83,15 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
 
   const handleCategoryChange = (e) => {
     const selectedId = e.target.value;
-
     setFormData((prev) => ({
       ...prev,
       serviceCategoryId: selectedId,
       serviceId: "",
       subCategory: "",
     }));
-
     const selectedCategory = categories.find(
       (cat) => String(cat?.serviceCategoryId) === String(selectedId)
     );
-
     setFilteredServices(selectedCategory?.services || []);
     setFilteredSubCategories(selectedCategory?.subCategories || []);
   };
@@ -105,12 +111,8 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         ...prev,
         serviceTypeMedia: file,
       }));
-
-      // Create preview
       const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result);
-      };
+      reader.onload = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
     }
   };
@@ -134,8 +136,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages[subIndex].item_images = file;
     setFormData((prev) => ({ ...prev, packages: updated }));
-
-    // Create preview
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
@@ -152,7 +152,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages[subIndex].item_images = null;
     setFormData((prev) => ({ ...prev, packages: updated }));
-
     setSubPackageImagePreviews((prev) => {
       const newPreviews = { ...prev };
       delete newPreviews[`${pkgIndex}_${subIndex}`];
@@ -176,8 +175,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     const updated = [...formData.packages];
     updated[pkgIndex].sub_packages.splice(subIndex, 1);
     setFormData((prev) => ({ ...prev, packages: updated }));
-
-    // Remove image preview
     setSubPackageImagePreviews((prev) => {
       const newPreviews = { ...prev };
       delete newPreviews[`${pkgIndex}_${subIndex}`];
@@ -208,7 +205,58 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFormData((prev) => ({ ...prev, packages: updated }));
   };
 
-  // Validation functions for each tab
+  // --- Consent form handlers (package-scoped) ---
+  const handleConsentFormChange = (pkgIndex, index, field, value) => {
+    const updatedPackages = [...formData.packages];
+    // ensure array exists
+    if (!Array.isArray(updatedPackages[pkgIndex].consentForm)) {
+      updatedPackages[pkgIndex].consentForm = [{ text: "", is_required: "" }];
+    }
+    updatedPackages[pkgIndex].consentForm[index][field] = value;
+    setFormData((prev) => ({ ...prev, packages: updatedPackages }));
+  };
+
+  const addConsentForm = (pkgIndex) => {
+    const updatedPackages = [...formData.packages];
+    if (!Array.isArray(updatedPackages[pkgIndex].consentForm)) {
+      updatedPackages[pkgIndex].consentForm = [];
+    }
+    updatedPackages[pkgIndex].consentForm.push({ text: "", is_required: "" });
+    setFormData((prev) => ({ ...prev, packages: updatedPackages }));
+  };
+
+  const removeConsentForm = (pkgIndex, index) => {
+    const updatedPackages = [...formData.packages];
+    if (!Array.isArray(updatedPackages[pkgIndex].consentForm)) return;
+    updatedPackages[pkgIndex].consentForm.splice(index, 1);
+    setFormData((prev) => ({ ...prev, packages: updatedPackages }));
+  };
+
+  // Preferences
+  const handlePreferenceChange = (index, field, value) => {
+    const updated = [...formData.preferences];
+    updated[index][field] = value;
+    setFormData((prev) => ({ ...prev, preferences: updated }));
+  };
+
+  const addPreference = () => {
+    setFormData((prev) => ({
+      ...prev,
+      preferences: [
+        ...prev.preferences,
+        { preference_value: "", preference_price: "" },
+      ],
+    }));
+  };
+
+  const removePreference = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      preferences: prev.preferences.filter((_, i) => i !== index),
+    }));
+  };
+
+  // Validation
   const validateBasicInfo = () => {
     if (!formData.serviceCategoryId) {
       toast.error("Please select a category");
@@ -284,7 +332,35 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     return true;
   };
 
-  // Check if current tab is valid for Next button
+  // Validate consent forms across all packages
+  const validateConsentForm = () => {
+    for (let pkgIndex = 0; pkgIndex < formData.packages.length; pkgIndex++) {
+      const pkg = formData.packages[pkgIndex];
+      const consentArr = pkg.consentForm || [];
+      for (let index = 0; index < consentArr.length; index++) {
+        const consent = consentArr[index];
+        if (!consent.text || !consent.text.trim()) {
+          toast.error(
+            `Consent statement required for package ${pkgIndex + 1}, item ${
+              index + 1
+            }`
+          );
+          return false;
+        }
+        if (consent.is_required === "" || consent.is_required == null) {
+          toast.error(
+            `Please select required/optional for consent item ${
+              index + 1
+            } in package ${pkgIndex + 1}`
+          );
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  // Extended tab validation
   const isCurrentTabValid = () => {
     switch (activeTab) {
       case "basic":
@@ -295,12 +371,14 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         return validateAddons();
       case "preferences":
         return validatePreferences();
+      case "consentForm":
+        return validateConsentForm();
       default:
         return false;
     }
   };
 
-  // Check if current tab can proceed (without showing toast)
+  // Extended "canProceedToNext" for Next button
   const canProceedToNext = () => {
     switch (activeTab) {
       case "basic":
@@ -333,20 +411,27 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         return formData.preferences.every((pref) =>
           pref.preference_value.trim()
         );
+      case "consentForm":
+        return formData.packages.every((pkg) =>
+          (pkg.consentForm || []).every(
+            (item) => item.text.trim() && item.is_required !== ""
+          )
+        );
       default:
         return false;
     }
   };
 
+  // Main submit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate all tabs before submission
     if (
       !validateBasicInfo() ||
       !validatePackages() ||
       !validateAddons() ||
-      !validatePreferences()
+      !validatePreferences() ||
+      !validateConsentForm()
     ) {
       return;
     }
@@ -362,8 +447,15 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         formDataToSend.append("serviceTypeMedia", formData.serviceTypeMedia);
       }
 
+      // Prepare packages (sub_packages Add-ons logic stays same)
       const cleanedPackages = formData.packages.map((pkg, pkgIndex) => {
-        const { sub_packages, packageMedia, addons = [], ...rest } = pkg;
+        const {
+          sub_packages,
+          packageMedia,
+          addons = [],
+          consentForm = [],
+          ...rest
+        } = pkg;
 
         if (packageMedia) {
           formDataToSend.append(`packageMedia_${pkgIndex}`, packageMedia);
@@ -386,10 +478,12 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
           price: a.price || "",
         }));
 
+        // consentForm (kept as-is: array of {text,is_required})
         return {
           ...rest,
           sub_packages: cleanedSubPackages,
           addons: cleanedAddons,
+          consentForm: consentForm || [],
         };
       });
 
@@ -398,6 +492,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         "preferences",
         JSON.stringify(formData.preferences)
       );
+      // consentForm already included in packages, no top-level consentForm to append
 
       const response = await api.post(
         "/api/admin/addpackages",
@@ -424,6 +519,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     }
   };
 
+  // Reset all states
   const resetForm = () => {
     setFormData({
       serviceId: "",
@@ -449,21 +545,31 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
               price: "",
             },
           ],
+          consentForm: [{ text: "", is_required: "" }],
         },
       ],
       preferences: [{ preference_value: "", preference_price: "" }],
     });
     setFilteredServices([]);
-    setActiveTab("basic");
+    setActiveTab(TABS[0].id);
     setImagePreview(null);
     setSubPackageImagePreviews({});
   };
 
+  // Tab navigation logic with consentForm included
   const handleNext = () => {
     if (isCurrentTabValid()) {
-      const tabs = ["basic", "packages", "addons", "preferences"];
-      const currentIndex = tabs.indexOf(activeTab);
-      setActiveTab(tabs[currentIndex + 1]);
+      const currentIndex = TABS.findIndex((tab) => tab.id === activeTab);
+      if (currentIndex < TABS.length - 1) {
+        setActiveTab(TABS[currentIndex + 1].id);
+      }
+    }
+  };
+
+  const handlePrevious = () => {
+    const currentIndex = TABS.findIndex((tab) => tab.id === activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(TABS[currentIndex - 1].id);
     }
   };
 
@@ -481,40 +587,18 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       <div className="flex flex-col h-[80vh]">
         {/* Tab Navigation */}
         <div className="flex gap-2 p-6 pb-2 border-b border-gray-100">
-          <TabButton
-            disabled
-            id="basic"
-            label="Basic Info"
-            icon={FiSettings}
-            isActive={activeTab === "basic"}
-            onClick={() => setActiveTab("basic")}
-          />
-          <TabButton
-            disabled
-            id="packages"
-            label="Packages"
-            icon={FiPackage}
-            isActive={activeTab === "packages"}
-            onClick={() => setActiveTab("packages")}
-          />
-          <TabButton
-            disabled
-            id="addons"
-            label="Add-ons"
-            icon={FiGift}
-            isActive={activeTab === "addons"}
-            onClick={() => setActiveTab("addons")}
-          />
-          <TabButton
-            disabled
-            id="preferences"
-            label="Preferences"
-            icon={FiStar}
-            isActive={activeTab === "preferences"}
-            onClick={() => setActiveTab("preferences")}
-          />
+          {TABS.map((tab) => (
+            <TabButton
+              className=""
+              key={tab.id}
+              id={tab.id}
+              label={tab.label}
+              icon={tab.icon}
+              isActive={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+            />
+          ))}
         </div>
-
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6">
           <form onSubmit={handleSubmit}>
@@ -534,7 +618,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       }))}
                       required
                     />
-
                     <FormSelect
                       label="Service"
                       name="serviceId"
@@ -550,7 +633,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       required
                     />
                   </div>
-
                   <div className="mt-6">
                     <FormInput
                       label="Service Type Name"
@@ -561,7 +643,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       required
                     />
                   </div>
-
                   <div className="mt-6">
                     <CustomFileInput
                       label="Service Type Image"
@@ -574,12 +655,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                 </SectionCard>
               </div>
             )}
-
             {activeTab === "packages" && (
               <div className="space-y-6">
                 {formData.packages.map((pkg, pkgIndex) => (
                   <div key={pkgIndex} className="space-y-6">
-                    <SectionCard title="Sub-Packages">
+                    <SectionCard
+                      title={`Package ${pkgIndex + 1} — Sub-Packages`}
+                    >
                       <div className="space-y-4">
                         {pkg.sub_packages.map((sub, subIndex) => (
                           <ItemCard
@@ -681,12 +763,11 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                 ))}
               </div>
             )}
-
             {activeTab === "addons" && (
               <div className="space-y-6">
                 {formData.packages.map((pkg, pkgIndex) => (
                   <div key={pkgIndex} className="space-y-6">
-                    <SectionCard title="Add-ons">
+                    <SectionCard title={`Package ${pkgIndex + 1} — Add-ons`}>
                       <div className="space-y-4">
                         {pkg.addons.map((addon, addonIndex) => (
                           <ItemCard
@@ -755,7 +836,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                 ))}
               </div>
             )}
-
             {activeTab === "preferences" && (
               <div className="space-y-6">
                 <SectionCard title="Service Preferences">
@@ -765,29 +845,20 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                         key={index}
                         title={`Preference ${index + 1}`}
                         showRemove={formData.preferences.length > 1}
-                        onRemove={() => {
-                          const updated = formData.preferences.filter(
-                            (_, i) => i !== index
-                          );
-                          setFormData((prev) => ({
-                            ...prev,
-                            preferences: updated,
-                          }));
-                        }}
+                        onRemove={() => removePreference(index)}
                       >
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormInput
                             label="Preference Name"
                             placeholder="e.g., Private Room"
                             value={pref.preference_value}
-                            onChange={(e) => {
-                              const updated = [...formData.preferences];
-                              updated[index].preference_value = e.target.value;
-                              setFormData((prev) => ({
-                                ...prev,
-                                preferences: updated,
-                              }));
-                            }}
+                            onChange={(e) =>
+                              handlePreferenceChange(
+                                index,
+                                "preference_value",
+                                e.target.value
+                              )
+                            }
                             required
                           />
                           <FormInput
@@ -795,14 +866,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                             placeholder="0"
                             type="number"
                             value={pref.preference_price}
-                            onChange={(e) => {
-                              const updated = [...formData.preferences];
-                              updated[index].preference_price = e.target.value;
-                              setFormData((prev) => ({
-                                ...prev,
-                                preferences: updated,
-                              }));
-                            }}
+                            onChange={(e) =>
+                              handlePreferenceChange(
+                                index,
+                                "preference_price",
+                                e.target.value
+                              )
+                            }
                           />
                         </div>
                       </ItemCard>
@@ -810,15 +880,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          preferences: [
-                            ...prev.preferences,
-                            { preference_value: "", preference_price: "" },
-                          ],
-                        }))
-                      }
+                      onClick={addPreference}
                       icon={<FiPlus />}
                       className="w-full border-dashed"
                     >
@@ -828,26 +890,84 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                 </SectionCard>
               </div>
             )}
+            {activeTab === "consentForm" && (
+              <div className="space-y-6">
+                {/* Show consent forms grouped by package */}
+                {formData.packages.map((pkg, pkgIndex) => (
+                  <SectionCard
+                    key={pkgIndex}
+                    title={`Package ${pkgIndex + 1} — Consent Items`}
+                  >
+                    <div className="space-y-4">
+                      {(pkg.consentForm || []).map((consentItem, index) => (
+                        <ItemCard
+                          key={index}
+                          title={`Consent Item ${index + 1}`}
+                          showRemove={(pkg.consentForm || []).length > 1}
+                          onRemove={() => removeConsentForm(pkgIndex, index)}
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormInput
+                              label="Consent Statement"
+                              placeholder="Enter consent statement"
+                              value={consentItem.text}
+                              onChange={(e) =>
+                                handleConsentFormChange(
+                                  pkgIndex,
+                                  index,
+                                  "text",
+                                  e.target.value
+                                )
+                              }
+                              required
+                            />
+                            <FormSelect
+                              label="Required?"
+                              value={consentItem.is_required}
+                              onChange={(e) =>
+                                handleConsentFormChange(
+                                  pkgIndex,
+                                  index,
+                                  "is_required",
+                                  e.target.value
+                                )
+                              }
+                              options={[
+                                { label: "Required", value: "true" },
+                                { label: "Optional", value: "false" },
+                              ]}
+                              placeholder="Select option"
+                              required
+                            />
+                          </div>
+                        </ItemCard>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addConsentForm(pkgIndex)}
+                        icon={<FiPlus />}
+                        className="w-full border-dashed"
+                      >
+                        Add Consent Item
+                      </Button>
+                    </div>
+                  </SectionCard>
+                ))}
+              </div>
+            )}
           </form>
         </div>
 
         {/* Footer Actions */}
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
           <div className="flex gap-2">
-            {activeTab !== "basic" && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const tabs = ["basic", "packages", "addons", "preferences"];
-                  const currentIndex = tabs.indexOf(activeTab);
-                  setActiveTab(tabs[currentIndex - 1]);
-                }}
-              >
+            {activeTab !== TABS[0].id && (
+              <Button type="button" variant="outline" onClick={handlePrevious}>
                 Previous
               </Button>
             )}
-            {activeTab !== "preferences" && (
+            {activeTab !== TABS[TABS.length - 1].id && (
               <Button
                 type="button"
                 variant="primary"
@@ -858,7 +978,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
               </Button>
             )}
           </div>
-
           <div className="flex gap-3">
             <Button
               type="button"
