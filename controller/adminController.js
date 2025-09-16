@@ -749,7 +749,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { packages, preferences } = req.body;
+        const { packages } = req.body;
         if (!packages) throw new Error("Missing required field: packages");
 
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
@@ -759,43 +759,41 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             const package_id = pkg.package_id;
             if (!package_id) continue;
 
-            // ✅ Check package
+            // ✅ Verify package exists
             const [existingPackage] = await connection.query(adminPutQueries.getPackageById, [package_id]);
             if (!existingPackage.length) continue;
 
-            // ✅ Handle SubPackages
-            if (Array.isArray(pkg.subPackages)) {
+            // ✅ Handle Sub-Packages
+            if (Array.isArray(pkg.sub_packages)) {
                 const submittedItemIds = [];
 
-                for (let j = 0; j < pkg.subPackages.length; j++) {
-                    const sub = pkg.subPackages[j];
+                for (let j = 0; j < pkg.sub_packages.length; j++) {
+                    const sub = pkg.sub_packages[j];
                     const sub_id = sub.sub_package_id;
 
+                    let sub_package_id;
                     if (sub_id) {
+                        // update existing sub_package
                         const [oldItem] = await connection.query(adminPutQueries.getPackageItemById, [sub_id]);
                         if (!oldItem.length) continue;
                         const old = oldItem[0];
 
-                        const itemName = sub.item_name ?? old.itemName;
-                        const itemDesc = sub.description ?? old.description;
-                        const price = sub.price ?? old.price;
-                        const timeRequired = sub.time_required ?? old.timeRequired;
                         const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
 
                         await connection.query(adminPutQueries.updatePackageItem, [
-                            itemName,
-                            itemDesc,
-                            price,
-                            timeRequired,
+                            sub.item_name ?? old.itemName,
+                            sub.description ?? old.description,
+                            sub.price ?? old.price,
+                            sub.time_required ?? old.timeRequired,
                             itemMedia,
                             sub_id,
                             package_id
                         ]);
 
-                        submittedItemIds.push(sub_id);
+                        sub_package_id = sub_id;
                     } else {
+                        // insert new sub_package
                         const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
-
                         const [newItem] = await connection.query(adminPutQueries.insertPackageItem, [
                             package_id,
                             sub.item_name,
@@ -804,159 +802,133 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                             sub.time_required,
                             itemMedia
                         ]);
-
-                        submittedItemIds.push(newItem.insertId);
+                        sub_package_id = newItem.insertId;
                     }
-                }
-            }
 
-            // ✅ Handle Addons
-            if (Array.isArray(pkg.addons)) {
-                const submittedAddonIds = [];
+                    submittedItemIds.push(sub_package_id);
 
-                for (let k = 0; k < pkg.addons.length; k++) {
-                    const addon = pkg.addons[k];
-                    const addon_id = addon.addon_id;
+                    // ✅ Handle Preferences for this sub_package
+                    if (Array.isArray(sub.preferences)) {
+                        const submittedPrefIds = [];
+                        for (let p = 0; p < sub.preferences.length; p++) {
+                            const pref = sub.preferences[p];
+                            if (pref.preference_id) {
+                                const [oldPref] = await connection.query(adminPutQueries.getPreferenceById, [pref.preference_id]);
+                                if (!oldPref.length) continue;
 
-                    if (addon_id) {
-                        const [oldAddon] = await connection.query(adminPutQueries.getAddonById, [addon_id]);
-                        if (!oldAddon.length) continue;
-                        const old = oldAddon[0];
+                                await connection.query(adminPutQueries.updatePackagePreference, [
+                                    pref.preference_value ?? oldPref[0].preferenceValue,
+                                    pref.preference_price ?? oldPref[0].preferencePrice,
+                                    pref.preference_id,
+                                    sub_package_id
+                                ]);
 
-                        const addonName = addon.addon_name ?? old.addonName;
-                        const addonDescription = addon.description ?? old.addonDescription;
-                        const addonPrice = addon.price ?? old.addonPrice;
-                        const addonTime = addon.addon_time ?? old.addonTime; // optional
-                        const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || old.addonMedia;
+                                submittedPrefIds.push(pref.preference_id);
+                            } else {
+                                const [newPref] = await connection.query(adminPutQueries.insertPackagePreference, [
+                                    sub_package_id,
+                                    pref.preference_value,
+                                    pref.preference_price ?? 0
+                                ]);
+                                submittedPrefIds.push(newPref.insertId);
+                            }
+                        }
 
-                        await connection.query(adminPutQueries.updateAddon, [
-                            addonName,
-                            addonDescription,
-                            addonPrice,
-                            addonTime,
-                            addonMedia,
-                            addon_id,
-                            package_id
+                        await connection.query(adminPutQueries.deleteRemovedPreferences, [
+                            sub_package_id,
+                            submittedPrefIds.length ? submittedPrefIds : [0]
                         ]);
-
-                        submittedAddonIds.push(addon_id);
-                    } else {
-                        const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${k}`]?.[0]?.url || null;
-
-                        const [newAddon] = await connection.query(adminPutQueries.insertAddon, [
-                            package_id,
-                            addon.addon_name,
-                            addon.description,
-                            addon.price,
-                            addon.addon_time,
-                            addonMedia
-                        ]);
-
-                        submittedAddonIds.push(newAddon.insertId);
                     }
-                }
 
-                // ❌ Not deleting old addons → preserve mode
-                // If you want cleanup, uncomment:
-                // await connection.query(adminPutQueries.deleteRemovedAddons, [package_id, submittedAddonIds]);
-            }
+                    // ✅ Handle Addons for this sub_package
+                    if (Array.isArray(sub.addons)) {
+                        const submittedAddonIds = [];
+                        for (let k = 0; k < sub.addons.length; k++) {
+                            const addon = sub.addons[k];
+                            if (addon.addon_id) {
+                                const [oldAddon] = await connection.query(adminPutQueries.getAddonById, [addon.addon_id]);
+                                if (!oldAddon.length) continue;
 
+                                const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || oldAddon[0].addonMedia;
 
-            // ✅ Handle Preferences
-            // ✅ Handle Preferences (like addons)
-            if (Array.isArray(preferences)) {
-                const submittedPrefIds = [];
+                                await connection.query(adminPutQueries.updateAddon, [
+                                    addon.addon_name ?? oldAddon[0].addonName,
+                                    addon.description ?? oldAddon[0].addonDescription,
+                                    addon.price ?? oldAddon[0].addonPrice,
+                                    addon.time_required ?? oldAddon[0].addonTime,
+                                    addonMedia,
+                                    addon.addon_id,
+                                    sub_package_id
+                                ]);
 
-                for (let p = 0; p < preferences.length; p++) {
-                    const pref = preferences[p];
-                    const preference_id = pref.preference_id;
+                                submittedAddonIds.push(addon.addon_id);
+                            } else {
+                                const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || null;
 
-                    if (preference_id) {
-                        // update existing
-                        const [oldPref] = await connection.query(adminPutQueries.getPreferenceById, [preference_id]);
-                        if (!oldPref.length) continue;
-                        const old = oldPref[0];
+                                const [newAddon] = await connection.query(adminPutQueries.insertAddon, [
+                                    sub_package_id,
+                                    addon.addon_name,
+                                    addon.description,
+                                    addon.price,
+                                    addon.time_required,
+                                    addonMedia
+                                ]);
+                                submittedAddonIds.push(newAddon.insertId);
+                            }
+                        }
 
-                        const preference_value = pref.preference_value ?? old.preference_value;
-                        const preference_price = pref.preference_price ?? old.preference_price;
-
-                        await connection.query(adminPutQueries.updatePackagePreference, [
-                            preference_value,
-                            preference_price,
-                            preference_id,
-                            package_id
+                        await connection.query(adminPutQueries.deleteRemovedAddons, [
+                            sub_package_id,
+                            submittedAddonIds.length ? submittedAddonIds : [0]
                         ]);
-
-                        submittedPrefIds.push(preference_id);
-                    } else {
-                        // insert new
-                        const [newPref] = await connection.query(adminPutQueries.insertPackagePreference, [
-                            package_id,
-                            pref.preference_value,
-                            pref.preference_price ?? 0
-                        ]);
-                        submittedPrefIds.push(newPref.insertId);
                     }
                 }
 
-                // cleanup removed preferences
-                await connection.query(adminPutQueries.deleteRemovedPreferences, [
+                // Cleanup removed sub_packages
+                await connection.query(adminPutQueries.deleteRemovedPackageItems, [
                     package_id,
-                    submittedPrefIds.length ? submittedPrefIds : [0] // avoid empty IN ()
+                    submittedItemIds.length ? submittedItemIds : [0]
                 ]);
             }
-            // ✅ Handle Consent Forms
+
+            // ✅ Handle Consent Forms (package level)
             if (Array.isArray(pkg.consentForm)) {
                 const submittedConsentIds = [];
 
                 for (let c = 0; c < pkg.consentForm.length; c++) {
                     const form = pkg.consentForm[c];
-                    const consent_id = form.consent_id;
-
-                    if (consent_id) {
-                        // update existing
-                        const [oldForm] = await connection.query(
-                            adminPutQueries.getConsentFormById,
-                            [consent_id]
-                        );
+                    if (form.consent_id) {
+                        const [oldForm] = await connection.query(adminPutQueries.getConsentFormById, [form.consent_id]);
                         if (!oldForm.length) continue;
-                        const old = oldForm[0];
-
-                        const question = form.question ?? old.question;
-                        const is_required =
-                            form.is_required !== undefined ? form.is_required : old.is_required;
 
                         await connection.query(adminPutQueries.updateConsentForm, [
-                            question,
-                            is_required,
-                            consent_id,
-                            package_id,
+                            form.question ?? oldForm[0].question,
+                            form.is_required !== undefined ? form.is_required : oldForm[0].is_required,
+                            form.consent_id,
+                            package_id
                         ]);
 
-                        submittedConsentIds.push(consent_id);
+                        submittedConsentIds.push(form.consent_id);
                     } else {
-                        // insert new
-                        const [newForm] = await connection.query(
-                            adminPutQueries.insertConsentForm,
-                            [package_id, form.question, form.is_required ?? 0]
-                        );
+                        const [newForm] = await connection.query(adminPutQueries.insertConsentForm, [
+                            package_id,
+                            form.question,
+                            form.is_required ?? 0
+                        ]);
                         submittedConsentIds.push(newForm.insertId);
                     }
                 }
 
-                // cleanup removed consent forms
                 await connection.query(adminPutQueries.deleteRemovedConsentForms, [
                     package_id,
-                    submittedConsentIds.length ? submittedConsentIds : [0],
+                    submittedConsentIds.length ? submittedConsentIds : [0]
                 ]);
             }
-
-
         }
 
         await connection.commit();
         connection.release();
-        res.status(200).json({ message: "Packages updated successfully" });
+        res.status(200).json({ message: "✅ Packages updated successfully with sub-packages, preferences, addons, and consent forms" });
 
     } catch (err) {
         await connection.rollback();
@@ -965,6 +937,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;

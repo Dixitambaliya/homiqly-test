@@ -19,7 +19,7 @@ SELECT * FROM package_addons WHERE addon_id = ?;
 `,
 
   insertAddon: `
-  INSERT INTO package_addons(package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
+  INSERT INTO package_addons(package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
   VALUES(?, ?, ?, ?, ?, ?);
 `,
 
@@ -30,21 +30,21 @@ SELECT * FROM package_addons WHERE addon_id = ?;
   addonPrice = ?,
   addonTime = ?,
   addonMedia = ?
-    WHERE addon_id = ? AND package_id = ?
+    WHERE addon_id = ? AND package_item_id = ?
       `,
 
   updatePackagePreference: `
   UPDATE booking_preferences 
     SET preferenceValue = ?, preferencePrice = ? 
-    WHERE preference_id = ? AND package_id = ?;
+    WHERE preference_id = ? AND package_item_id = ?;
 `,
 
   getPreferenceById: `
-  SELECT * FROM booking_preferences WHERE preference_id = ?;
+  SELECT * FROM booking_preferences WHERE preference_id = ? 
 `,
   deleteRemovedPreferences: `
   DELETE FROM booking_preferences 
-    WHERE package_id = ? AND preference_id NOT IN (?);
+    WHERE package_item_id = ? AND preference_id NOT IN (?);
 `,
 
   getConsentFormById: `
@@ -106,6 +106,11 @@ VALUES(?, ?, ?, ?, ?, ?)
   // Delete existing preferences
   deletePackagePreferences: `
     DELETE FROM booking_preferences WHERE package_id = ?
+  `,
+
+  deleteRemovedAddons: `
+    DELETE FROM package_addons
+    WHERE package_item_id = ? AND addon_id NOT IN (?)
   `,
 
   // Insert new preference
