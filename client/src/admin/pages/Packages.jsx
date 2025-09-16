@@ -5,6 +5,9 @@ import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EditPackageModal from "../components/Modals/EditPackageModal";
+import FormSelect from "../../shared/components/Form/FormSelect"; // assume correct import
+import { FormInput } from "../../shared/components/Form";
+import { Search } from "lucide-react";
 
 const safeSrc = (src) => (typeof src === "string" ? src.trim() : "");
 const fmtTime = (t) => (t ? String(t).trim() : "—");
@@ -13,14 +16,21 @@ const fmtPrice = (n) =>
     ? `$${Number(n)}`
     : "—";
 
+// Page component
 const Packages = () => {
+  // States
   const [showAddModal, setShowAddModal] = useState(false);
   const [groupedPackages, setGroupedPackages] = useState({});
+  const [allServices, setAllServices] = useState([]); // for filtering
   const [loading, setLoading] = useState(true);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [expanded, setExpanded] = useState({});
+  const [search, setSearch] = useState(""); // merged search for service_name + item_name
+  const [category, setCategory] = useState(""); // current category filter
+  const [categories, setCategories] = useState([]); // all categories
 
+  // Fetch function
   const fetchPackages = async () => {
     try {
       setLoading(true);
@@ -28,17 +38,24 @@ const Packages = () => {
       const rawData = Array.isArray(response.data)
         ? response.data
         : response.data?.result || [];
-
-      const grouped = rawData.reduce((acc, item) => {
-        const category = item.service_category_name || "Other";
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(item);
-        return acc;
-      }, {});
-      setGroupedPackages(grouped);
+      setAllServices(rawData);
+      // Extract category list from rawData
+      const uniqueCategories = Object.keys(
+        rawData.reduce((acc, item) => {
+          const category = item.service_category_name || "Other";
+          acc[category] = true;
+          return acc;
+        }, {})
+      );
+      setCategories(
+        uniqueCategories.map((cat) => ({
+          value: cat,
+          label: cat,
+        }))
+      );
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching packages:", error);
-    } finally {
       setLoading(false);
     }
   };
@@ -52,7 +69,6 @@ const Packages = () => {
       "Are you sure you want to delete this package?"
     );
     if (!confirmed) return;
-
     try {
       await api.delete(`/api/admin/deletepackage/${packageId}`);
       fetchPackages();
@@ -61,16 +77,52 @@ const Packages = () => {
     }
   };
 
-  // NEW: toggle expand/collapse state for a given package id
+  // toggle expand/collapse state for a given package id
   const toggleExpand = (packageId) => {
     setExpanded((prev) => ({
       ...prev,
       [packageId]: !prev[packageId],
     }));
   };
-
-  // NEW: convenience to check expanded
   const isExpanded = (packageId) => !!expanded[packageId];
+
+  // FILTER Functions
+  // Main filter for all three inputs
+  const filteredServices = allServices.filter((service) => {
+    // Category filter
+    const matchesCategory =
+      category === "" || service.service_category_name === category;
+
+    // service_name filter
+    const serviceName = (service.service_name || "").toLowerCase();
+    const matchesServiceName =
+      search === "" || serviceName.includes(search.toLowerCase());
+
+    // item_name filter (search in all item names in sub_packages of any package in this service)
+    let matchesItemName = false;
+    if (Array.isArray(service.packages)) {
+      matchesItemName = service.packages.some(
+        (pkg) =>
+          Array.isArray(pkg.sub_packages) &&
+          pkg.sub_packages.some((sub) =>
+            (sub.item_name || "").toLowerCase().includes(search.toLowerCase())
+          )
+      );
+    }
+    // If search is blank, always true; if not, match service or item
+    const matchesSearch =
+      search === "" || matchesServiceName || matchesItemName;
+
+    return matchesCategory && matchesSearch;
+  });
+
+  // Group the filtered services by category
+  const displayPackages = filteredServices.reduce((acc, item) => {
+    const categoryKey = item.service_category_name || "Other";
+    if (!acc[categoryKey]) acc[categoryKey] = [];
+    acc[categoryKey].push(item);
+    return acc;
+  }, {});
 
   if (loading)
     return (
@@ -87,8 +139,7 @@ const Packages = () => {
             All Packages
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            This panel lists all service types and their packages with full
-            details.
+            Filter by service name, item name or category.
           </p>
         </div>
         <div>
@@ -101,9 +152,30 @@ const Packages = () => {
           </Button>
         </div>
       </div>
-
+      {/* Filters row */}
+      <div className="flex justify-between  gap-4 items-center mb-10">
+        <FormInput
+          className="w-1/3"
+          type="text"
+          icon={<Search />}
+          placeholder="Search Service Name or Item Name"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="w-1/6">
+          <FormSelect
+            className=""
+            id="category"
+            name="category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            options={[{ value: "", label: "All Categories" }, ...categories]}
+            placeholder="Select Category"
+          />
+        </div>
+      </div>
       <div className="space-y-10">
-        {Object.entries(groupedPackages).map(([categoryName, services]) => (
+        {Object.entries(displayPackages).map(([categoryName, services]) => (
           <section key={categoryName}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl font-semibold text-sky-700">
@@ -113,32 +185,28 @@ const Packages = () => {
                 {services.length} service{services.length !== 1 ? "s" : ""}
               </span>
             </div>
-
             <div className="space-y-6">
               {services.map((service) => (
-                // each service groups one or more packages
                 <div
                   key={service.service_id ?? service.service_name}
                   className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"
                 >
-                  {/* For each package under this service render a package-card */}
+                  {/* Service card */}
                   <div className="p-5 space-y-4">
                     <div className="flex items-start gap-4">
-                      {/* Show first package media if exists as a preview (safe fallback) */}
                       {Array.isArray(service.packages) &&
-                        service.packages[0]?.service_type_media && (
+                        service.packages?.service_type_media && (
                           <img
                             src={
-                              safeSrc(service.packages[0].service_type_media) ||
+                              safeSrc(service.packages.service_type_media) ||
                               "https://via.placeholder.com/120?text=Service"
                             }
                             alt={
-                              service.packages[0].service_type_name || "Service"
+                              service.packages.service_type_name || "Service"
                             }
                             className="w-28 h-28 object-cover rounded-lg border"
                           />
                         )}
-
                       <div className="flex-1">
                         <div className="flex items-start justify-between">
                           <div>
@@ -147,7 +215,7 @@ const Packages = () => {
                             </h4>
                             <p className="text-sm text-gray-600 mt-1">
                               {service.service_filter
-                                ? `Gender: ${service.service_filter}`
+                                ? `Filter: ${service.service_filter}`
                                 : ""}
                             </p>
                             <div className="mt-3 flex flex-wrap gap-3">
@@ -157,11 +225,9 @@ const Packages = () => {
                               </span>
                             </div>
                           </div>
-                          {/* placeholder for actions at service-level if needed */}
                         </div>
                       </div>
                     </div>
-
                     {/* All packages for this service */}
                     <div className="border-t border-gray-100 pt-4">
                       <div className="space-y-5">
@@ -196,7 +262,6 @@ const Packages = () => {
                                         </>
                                       )}
                                     </button>
-
                                     <div>
                                       <div className="text-sm font-medium text-gray-900">
                                         {pkg.service_type_name ||
@@ -209,7 +274,6 @@ const Packages = () => {
                                       </div>
                                     </div>
                                   </div>
-
                                   <div className="flex items-center gap-2">
                                     <Button
                                       size="sm"
@@ -233,18 +297,16 @@ const Packages = () => {
                                     </Button>
                                   </div>
                                 </div>
-
                                 {/* Expandable details */}
                                 <div
-                                  className={`px-4 pb-4 transition-[max-height,opacity] duration-300 ease-in-out ${
+                                  className={`px-4  transition-[max-height,opacity] duration-300 ease-in-out ${
                                     expandedState
-                                      ? "pt-2 max-h-[2000px] opacity-100"
+                                      ? "pt-2 max-h-[2000px] opacity-100 pb-4"
                                       : "pt-0 max-h-0 opacity-0"
                                   } overflow-hidden`}
                                   aria-hidden={!expandedState}
                                 >
                                   <div className="border-t border-gray-200 my-3" />
-
                                   {/* Sub-packages / Items */}
                                   <div className="mt-1">
                                     <h6 className="text-sm font-semibold text-gray-800 mb-2">
@@ -294,7 +356,6 @@ const Packages = () => {
                                       </p>
                                     )}
                                   </div>
-
                                   {/* Preferences */}
                                   <div className="mt-4">
                                     <h6 className="text-sm font-semibold text-gray-800 mb-2">
@@ -327,7 +388,6 @@ const Packages = () => {
                                       </p>
                                     )}
                                   </div>
-
                                   {/* Add-ons */}
                                   <div className="mt-4">
                                     <h6 className="text-sm font-semibold text-gray-800 mb-2">
@@ -381,13 +441,11 @@ const Packages = () => {
           </section>
         ))}
       </div>
-
       <AddServiceTypeModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         refresh={fetchPackages}
       />
-
       <EditPackageModal
         isOpen={showEditModal}
         onClose={() => {

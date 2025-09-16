@@ -433,6 +433,8 @@ const Services = () => {
               setShowFilterModal(true);
             }}
           >
+            {" "}
+            <FiPlus className="mr-2" />
             Add Service Filter
           </Button>
           <Button

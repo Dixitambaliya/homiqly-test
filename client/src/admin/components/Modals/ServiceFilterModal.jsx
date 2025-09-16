@@ -31,10 +31,14 @@ export const ServiceFilterModal = ({
       if (mode === "add") {
         await api.post("/api/service/addservicefilter", { serviceFilter });
         toast.success("Filter added");
+        setServiceFilter("");
       } else {
-        await api.put(`/api/service/updateservicefilter/${filterData.service_filter_id}`, {
-          serviceFilter,
-        });
+        await api.put(
+          `/api/service/updateservicefilter/${filterData.service_filter_id}`,
+          {
+            serviceFilter,
+          }
+        );
         toast.success("Filter updated");
       }
       onSave();
@@ -46,11 +50,12 @@ export const ServiceFilterModal = ({
 
   return (
     <Modal
+      size="sm"
       isOpen={isOpen}
       onClose={onClose}
       title={`${mode === "add" ? "Add" : "Edit"} Service Filter`}
     >
-      <div className="p-4 space-y-4">
+      <div className=" space-y-4">
         <FormInput
           label="Filter Name"
           value={serviceFilter}
