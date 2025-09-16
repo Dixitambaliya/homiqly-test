@@ -16,21 +16,19 @@ const fmtPrice = (n) =>
     ? `$${Number(n)}`
     : "—";
 
-// Page component
-const Packages = () => {
-  // States
+// Improved Packages page (UI focused)
+export default function Packages() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [groupedPackages, setGroupedPackages] = useState({});
-  const [allServices, setAllServices] = useState([]); // for filtering
+  const [allServices, setAllServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [expanded, setExpanded] = useState({});
-  const [search, setSearch] = useState(""); // merged search for service_name + item_name
-  const [category, setCategory] = useState(""); // current category filter
-  const [categories, setCategories] = useState([]); // all categories
+  const [expanded, setExpanded] = useState({}); // per-package expansion
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState([]);
 
-  // Fetch function
   const fetchPackages = async () => {
     try {
       setLoading(true);
@@ -39,23 +37,18 @@ const Packages = () => {
         ? response.data
         : response.data?.result || [];
       setAllServices(rawData);
-      // Extract category list from rawData
+
       const uniqueCategories = Object.keys(
         rawData.reduce((acc, item) => {
-          const category = item.service_category_name || "Other";
-          acc[category] = true;
+          const cat = item.service_category_name || "Other";
+          acc[cat] = true;
           return acc;
         }, {})
       );
-      setCategories(
-        uniqueCategories.map((cat) => ({
-          value: cat,
-          label: cat,
-        }))
-      );
+      setCategories(uniqueCategories.map((c) => ({ value: c, label: c })));
       setLoading(false);
-    } catch (error) {
-      console.error("Error fetching packages:", error);
+    } catch (err) {
+      console.error("Error fetching packages:", err);
       setLoading(false);
     }
   };
@@ -72,33 +65,23 @@ const Packages = () => {
     try {
       await api.delete(`/api/admin/deletepackage/${packageId}`);
       fetchPackages();
-    } catch (error) {
-      console.error("Error deleting package:", error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  // toggle expand/collapse state for a given package id
   const toggleExpand = (packageId) => {
-    setExpanded((prev) => ({
-      ...prev,
-      [packageId]: !prev[packageId],
-    }));
+    setExpanded((s) => ({ ...s, [packageId]: !s[packageId] }));
   };
-  const isExpanded = (packageId) => !!expanded[packageId];
 
-  // FILTER Functions
-  // Main filter for all three inputs
+  // Filtering
   const filteredServices = allServices.filter((service) => {
-    // Category filter
     const matchesCategory =
       category === "" || service.service_category_name === category;
-
-    // service_name filter
     const serviceName = (service.service_name || "").toLowerCase();
     const matchesServiceName =
       search === "" || serviceName.includes(search.toLowerCase());
 
-    // item_name filter (search in all item names in sub_packages of any package in this service)
     let matchesItemName = false;
     if (Array.isArray(service.packages)) {
       matchesItemName = service.packages.some(
@@ -109,18 +92,16 @@ const Packages = () => {
           )
       );
     }
-    // If search is blank, always true; if not, match service or item
+
     const matchesSearch =
       search === "" || matchesServiceName || matchesItemName;
-
     return matchesCategory && matchesSearch;
   });
 
-  // Group the filtered services by category
   const displayPackages = filteredServices.reduce((acc, item) => {
-    const categoryKey = item.service_category_name || "Other";
-    if (!acc[categoryKey]) acc[categoryKey] = [];
-    acc[categoryKey].push(item);
+    const key = item.service_category_name || "Other";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
     return acc;
   }, {});
 
@@ -152,19 +133,19 @@ const Packages = () => {
           </Button>
         </div>
       </div>
-      {/* Filters row */}
-      <div className="flex justify-between  gap-4 items-center mb-10">
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center mb-8">
         <FormInput
-          className="w-1/3"
+          className="w-full sm:w-2/3"
           type="text"
           icon={<Search />}
           placeholder="Search Service Name or Item Name"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="w-1/6">
+        <div className="w-full sm:w-1/3">
           <FormSelect
-            className=""
             id="category"
             name="category"
             value={category}
@@ -174,6 +155,8 @@ const Packages = () => {
           />
         </div>
       </div>
+
+      {/* Groups */}
       <div className="space-y-10">
         {Object.entries(displayPackages).map(([categoryName, services]) => (
           <section key={categoryName}>
@@ -185,253 +168,295 @@ const Packages = () => {
                 {services.length} service{services.length !== 1 ? "s" : ""}
               </span>
             </div>
-            <div className="space-y-6">
+
+            <div className="grid gap-6">
               {services.map((service) => (
                 <div
                   key={service.service_id ?? service.service_name}
                   className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"
                 >
-                  {/* Service card */}
-                  <div className="p-5 space-y-4">
-                    <div className="flex items-start gap-4">
-                      {Array.isArray(service.packages) &&
-                        service.packages?.service_type_media && (
+                  <div className="p-6">
+                    <div className="flex gap-4 items-center">
+                      {/* Left: image */}
+                      <div className="flex-shrink-0">
+                        {service.service_image && (
                           <img
                             src={
-                              safeSrc(service.packages.service_type_media) ||
+                              safeSrc(service.service_image) ||
+                              (Array.isArray(service.packages) &&
+                                service.packages[0]?.service_type_media) ||
                               "https://via.placeholder.com/120?text=Service"
                             }
-                            alt={
-                              service.packages.service_type_name || "Service"
-                            }
+                            alt={service.service_name || "Service"}
                             className="w-28 h-28 object-cover rounded-lg border"
                           />
                         )}
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-xl font-semibold text-gray-900">
+                      </div>
+
+                      {/* Middle: basic info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="truncate">
+                            <h4 className="text-xl font-semibold text-gray-900 truncate">
                               {service.service_name || "—"}
                             </h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {service.service_filter
-                                ? `Filter: ${service.service_filter}`
-                                : ""}
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-3">
+
+                            <div className="mt-3 flex flex-wrap gap-2">
                               <span className="text-sm bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                                 {service.packages?.length || 0} package
                                 {service.packages?.length !== 1 ? "s" : ""}
                               </span>
                             </div>
                           </div>
+
+                          {/* Quick stats column */}
+                          <div className="text-right">
+                            <div className="text-sm text-gray-500">
+                              {service.service_filter}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    {/* All packages for this service */}
-                    <div className="border-t border-gray-100 pt-4">
-                      <div className="space-y-5">
-                        {Array.isArray(service.packages) &&
-                        service.packages.length > 0 ? (
-                          service.packages.map((pkg) => {
-                            const expandedState = isExpanded(pkg.package_id);
-                            return (
-                              <div
-                                key={pkg.package_id}
-                                className="bg-gray-50 rounded-xl border overflow-hidden"
-                              >
-                                {/* Compact header row with expand/collapse */}
-                                <div className="flex items-center justify-between gap-4 p-4">
-                                  <div className="flex items-center gap-3">
-                                    <button
-                                      onClick={() =>
-                                        toggleExpand(pkg.package_id)
-                                      }
-                                      aria-expanded={expandedState}
-                                      className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md text-sm hover:shadow-sm"
-                                    >
-                                      {expandedState ? (
-                                        <>
-                                          <FiChevronUp />
-                                          <span>Collapse</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FiChevronDown />
-                                          <span>Expand</span>
-                                        </>
-                                      )}
-                                    </button>
-                                    <div>
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {pkg.service_type_name ||
-                                          `Package #${pkg.package_id}`}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        {pkg.time_required
-                                          ? `Time: ${pkg.time_required}`
-                                          : ""}
+
+                        {/* Packages list (compact headers) */}
+                        <div className="mt-6 space-y-4">
+                          {Array.isArray(service.packages) &&
+                          service.packages.length > 0 ? (
+                            service.packages.map((pkg) => {
+                              const expandedState = !!expanded[pkg.package_id];
+                              return (
+                                <div
+                                  key={pkg.package_id}
+                                  className="rounded-lg border bg-gray-50 overflow-hidden"
+                                >
+                                  {/* Header */}
+                                  <div className="flex items-center justify-between p-4">
+                                    <div className="flex items-center gap-4 min-w-0">
+                                      <button
+                                        onClick={() =>
+                                          toggleExpand(pkg.package_id)
+                                        }
+                                        aria-expanded={expandedState}
+                                        className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md text-sm hover:shadow-sm"
+                                      >
+                                        {expandedState ? (
+                                          <>
+                                            <FiChevronUp />
+                                            <span>Collapse</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <FiChevronDown />
+                                            <span>Expand</span>
+                                          </>
+                                        )}
+                                      </button>
+
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-medium text-gray-900 truncate">
+                                          {pkg.service_type_name ||
+                                            `Package #${pkg.package_id}`}
+                                        </div>
+                                        <div className="text-xs text-gray-500 truncate">
+                                          {pkg.time_required
+                                            ? `Time: ${pkg.time_required}`
+                                            : ""}
+                                        </div>
                                       </div>
                                     </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setSelectedPackage(pkg);
+                                          setShowEditModal(true);
+                                        }}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="error"
+                                        onClick={() =>
+                                          handleDeletePackage(pkg.package_id)
+                                        }
+                                        icon={<FiTrash2 />}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setSelectedPackage(pkg);
-                                        setShowEditModal(true);
-                                      }}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="error"
-                                      onClick={() =>
-                                        handleDeletePackage(pkg.package_id)
-                                      }
-                                      icon={<FiTrash2 />}
-                                    >
-                                      Delete
-                                    </Button>
-                                  </div>
-                                </div>
-                                {/* Expandable details */}
-                                <div
-                                  className={`px-4  transition-[max-height,opacity] duration-300 ease-in-out ${
-                                    expandedState
-                                      ? "pt-2 max-h-[2000px] opacity-100 pb-4"
-                                      : "pt-0 max-h-0 opacity-0"
-                                  } overflow-hidden`}
-                                  aria-hidden={!expandedState}
-                                >
-                                  <div className="border-t border-gray-200 my-3" />
-                                  {/* Sub-packages / Items */}
-                                  <div className="mt-1">
-                                    <h6 className="text-sm font-semibold text-gray-800 mb-2">
-                                      Items included
-                                    </h6>
-                                    {Array.isArray(pkg.sub_packages) &&
-                                    pkg.sub_packages.length > 0 ? (
-                                      <ul className="space-y-2">
-                                        {pkg.sub_packages.map((sub) => (
-                                          <li
-                                            key={sub.sub_package_id}
-                                            className="flex items-start gap-3 bg-white rounded p-3 border"
-                                          >
-                                            <img
-                                              src={
-                                                safeSrc(sub.item_media) ||
-                                                "https://via.placeholder.com/80?text=Item"
-                                              }
-                                              alt={sub.item_name || "Item"}
-                                              className="w-14 h-14 object-cover rounded border flex-shrink-0"
-                                            />
-                                            <div>
-                                              <div className="flex items-center justify-between gap-3">
-                                                <p className="text-sm font-medium text-gray-900">
-                                                  {sub.item_name}
-                                                </p>
-                                                <div className="text-sm text-sky-700 font-medium">
-                                                  {fmtPrice(sub.price)}
+
+                                  {/* Details panel: make it capped height with its own scrollbar so it doesn't push page */}
+                                  <div
+                                    className={`px-4 transition-all duration-300 ease-in-out ${
+                                      expandedState
+                                        ? "pb-6 pt-4 max-h-[900px] opacity-100"
+                                        : "pt-0 pb-0 max-h-0 opacity-0"
+                                    }`}
+                                    aria-hidden={!expandedState}
+                                  >
+                                    <div className="space-y-6 max-h-[420px] overflow-auto pr-2">
+                                      {/* Sub-packages grid */}
+                                      {Array.isArray(pkg.sub_packages) &&
+                                      pkg.sub_packages.length > 0 ? (
+                                        <ul className="space-y-4">
+                                          {pkg.sub_packages.map((sub) => (
+                                            <li
+                                              key={sub.sub_package_id}
+                                              className="bg-white rounded-lg border p-4 shadow-sm"
+                                            >
+                                              <div className="grid grid-cols-12 gap-4 items-start">
+                                                <div className="col-span-2">
+                                                  <img
+                                                    src={
+                                                      safeSrc(sub.item_media) ||
+                                                      "https://via.placeholder.com/80?text=Item"
+                                                    }
+                                                    alt={
+                                                      sub.item_name || "Item"
+                                                    }
+                                                    className="w-20 h-20 object-cover rounded-md border"
+                                                  />
+                                                </div>
+
+                                                <div className="col-span-7">
+                                                  <div className="flex justify-between items-start">
+                                                    <div className="min-w-0">
+                                                      <p className="text-base font-medium text-gray-900 truncate">
+                                                        {sub.item_name}
+                                                      </p>
+                                                      <p className="text-xs text-gray-500 mt-1">
+                                                        Time:{" "}
+                                                        {fmtTime(
+                                                          sub.time_required
+                                                        )}
+                                                      </p>
+                                                    </div>
+
+                                                    <div className="ml-4 text-right">
+                                                      <p className="text-sm font-semibold text-sky-700">
+                                                        {fmtPrice(sub.price)}
+                                                      </p>
+                                                    </div>
+                                                  </div>
+
+                                                  {sub.description && (
+                                                    <p className="text-sm text-gray-600 mt-3 whitespace-pre-line">
+                                                      {sub.description}
+                                                    </p>
+                                                  )}
+
+                                                  {/* Preferences + Addons shown as horizontal chips to reduce height */}
+                                                  <div className="mt-3 flex flex-wrap gap-2">
+                                                    {Array.isArray(
+                                                      sub.preferences
+                                                    ) &&
+                                                    sub.preferences.length >
+                                                      0 ? (
+                                                      sub.preferences.map(
+                                                        (pref) => (
+                                                          <div
+                                                            key={
+                                                              pref.preference_id
+                                                            }
+                                                            className="px-3 py-1 bg-gray-50 border rounded-full text-xs text-gray-800"
+                                                          >
+                                                            {
+                                                              pref.preference_value
+                                                            }{" "}
+                                                            •{" "}
+                                                            {fmtPrice(
+                                                              pref.preference_price
+                                                            )}
+                                                          </div>
+                                                        )
+                                                      )
+                                                    ) : (
+                                                      <div className="text-xs text-gray-400 italic">
+                                                        No preferences
+                                                      </div>
+                                                    )}
+
+                                                    {Array.isArray(
+                                                      sub.addons
+                                                    ) &&
+                                                      sub.addons.length > 0 && (
+                                                        <div className="flex items-center gap-2">
+                                                          {sub.addons
+                                                            .slice(0, 3)
+                                                            .map((addon) => (
+                                                              <div
+                                                                key={
+                                                                  addon.addon_id
+                                                                }
+                                                                className="px-3 py-1 bg-gray-50 border rounded-full text-xs"
+                                                              >
+                                                                {
+                                                                  addon.addon_name
+                                                                }{" "}
+                                                                •{" "}
+                                                                {fmtPrice(
+                                                                  addon.price
+                                                                )}
+                                                              </div>
+                                                            ))}
+                                                          {sub.addons.length >
+                                                            3 && (
+                                                            <div className="px-3 py-1 bg-gray-50 border rounded-full text-xs">
+                                                              +
+                                                              {sub.addons
+                                                                .length -
+                                                                3}{" "}
+                                                              more
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                  </div>
+                                                </div>
+
+                                                <div className="col-span-3 text-right">
+                                                  {/* actions for item if needed */}
                                                 </div>
                                               </div>
-                                              <p className="text-xs text-gray-500 mt-1">
-                                                Time:{" "}
-                                                {fmtTime(sub.time_required)}
-                                              </p>
-                                              {sub.description && (
-                                                <p className="text-sm text-gray-600 mt-1">
-                                                  {sub.description}
-                                                </p>
-                                              )}
-                                            </div>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="text-sm text-gray-500">
-                                        No items listed.
-                                      </p>
-                                    )}
-                                  </div>
-                                  {/* Preferences */}
-                                  <div className="mt-4">
-                                    <h6 className="text-sm font-semibold text-gray-800 mb-2">
-                                      Preferences
-                                    </h6>
-                                    {Array.isArray(pkg.preferences) &&
-                                    pkg.preferences.length > 0 ? (
-                                      <div className="space-y-2">
-                                        {pkg.preferences.map((pref) => (
-                                          <div
-                                            key={pref.preference_id}
-                                            className="flex items-center justify-between p-3 bg-white border rounded"
-                                          >
-                                            <div className="text-sm text-gray-800">
-                                              {pref.preference_value}
-                                            </div>
-                                            <div className="text-sm text-gray-600">
-                                              {pref.preference_price
-                                                ? fmtPrice(
-                                                    pref.preference_price
-                                                  )
-                                                : "—"}
-                                            </div>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <div className="text-sm text-gray-500 italic">
+                                          No items listed.
+                                        </div>
+                                      )}
+
+                                      {/* Consent form compact */}
+                                      {Array.isArray(pkg.consentForm) &&
+                                        pkg.consentForm.length > 0 && (
+                                          <div>
+                                            <h6 className="text-sm font-semibold text-gray-700 mb-2">
+                                              Consent Form
+                                            </h6>
+                                            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                              {pkg.consentForm.map((c) => (
+                                                <li key={c.consent_id}>
+                                                  {c.question}
+                                                </li>
+                                              ))}
+                                            </ul>
                                           </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-gray-500">
-                                        No preferences.
-                                      </p>
-                                    )}
-                                  </div>
-                                  {/* Add-ons */}
-                                  <div className="mt-4">
-                                    <h6 className="text-sm font-semibold text-gray-800 mb-2">
-                                      Add-ons
-                                    </h6>
-                                    {Array.isArray(pkg.addons) &&
-                                    pkg.addons.length > 0 ? (
-                                      <div className="space-y-2">
-                                        {pkg.addons.map((addon) => (
-                                          <div
-                                            key={addon.addon_id}
-                                            className="flex items-start justify-between gap-3 p-3 bg-white border rounded"
-                                          >
-                                            <div>
-                                              <div className="text-sm font-medium text-gray-900">
-                                                {addon.addon_name}
-                                              </div>
-                                              {addon.description && (
-                                                <div className="text-xs text-gray-600 mt-1">
-                                                  {addon.description}
-                                                </div>
-                                              )}
-                                            </div>
-                                            <div className="text-sm font-semibold text-sky-700">
-                                              {fmtPrice(addon.price)}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-gray-500">
-                                        No add-ons.
-                                      </p>
-                                    )}
+                                        )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="text-sm text-gray-500">
-                            No packages available for this service.
-                          </div>
-                        )}
+                              );
+                            })
+                          ) : (
+                            <div className="text-sm text-gray-500">
+                              No packages available for this service.
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -441,6 +466,7 @@ const Packages = () => {
           </section>
         ))}
       </div>
+
       <AddServiceTypeModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
@@ -457,6 +483,4 @@ const Packages = () => {
       />
     </div>
   );
-};
-
-export default Packages;
+}
