@@ -464,7 +464,7 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                   WHERE r.package_id = p.package_id
                 ), 0) AS totalReviews,
 
-                -- Sub-packages
+                -- Sub-packages (with preferences & addons inside)
                 COALESCE((
                   SELECT CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
@@ -473,52 +473,49 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                       'description', pi.description,
                       'price', pi.price,
                       'time_required', pi.timeRequired,
-                      'item_media', pi.itemMedia
+                      'item_media', pi.itemMedia,
+                      'preferences', (
+                        SELECT CONCAT('[', GROUP_CONCAT(
+                          JSON_OBJECT(
+                            'preference_id', bp.preference_id,
+                            'preference_value', bp.preferenceValue,
+                            'preference_price', bp.preferencePrice
+                          )
+                        ), ']')
+                        FROM booking_preferences bp
+                        WHERE bp.package_item_id = pi.item_id
+                      ),
+                      'addons', (
+                        SELECT CONCAT('[', GROUP_CONCAT(
+                          JSON_OBJECT(
+                            'addon_id', pa.addon_id,
+                            'addon_name', pa.addonName,
+                            'addon_description', pa.addonDescription,
+                            'price', pa.addonPrice,
+                            'addon_time', pa.addonTime,
+                            'addon_media', pa.addonMedia
+                          )
+                        ), ']')
+                        FROM package_addons pa
+                        WHERE pa.package_item_id = pi.item_id
+                      )
                     )
                   ), ']')
                   FROM package_items pi
                   WHERE pi.package_id = p.package_id
                 ), '[]') AS sub_packages,
 
-                -- Addons
+                -- Consent Forms (still package-level)
                 COALESCE((
                   SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                      'addon_id', pa.addon_id,
-                      'addon_name', pa.addonName,
-                      'addon_description', pa.addonDescription,
-                      'price', pa.addonPrice,
-                      'addon_time', pa.addonTime,
-                      'addon_media', pa.addonMedia
-                    )
+                      JSON_OBJECT(
+                        'consent_id', pcf.consent_id,
+                        'question', pcf.question,
+                        'is_required', pcf.is_required
+                      )
                   ), ']')
-                  FROM package_addons pa
-                  WHERE pa.package_id = p.package_id
-                ), '[]') AS addons,
-
-                -- Preferences
-                COALESCE((
-                  SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                      'preference_id', bp.preference_id,
-                      'preference_value', bp.preferenceValue,
-                      'preference_price', bp.preferencePrice
-                    )
-                  ), ']')
-                  FROM booking_preferences bp
-                  WHERE bp.package_id = p.package_id
-                ), '[]') AS preferences,
-
-                -- Consent Forms
-                COALESCE((
-                SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                    'consent_id', pcf.consent_id,
-                    'question', pcf.question
-                    )
-                ), ']')
-                FROM package_consent_forms pcf
-                WHERE pcf.package_id = p.package_id
+                  FROM package_consent_forms pcf
+                  WHERE pcf.package_id = p.package_id
                 ), '[]') AS consent_forms
 
             FROM packages p
@@ -532,9 +529,11 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
             package_id: row.package_id,
             averageRating: row.averageRating,
             totalReviews: row.totalReviews,
-            sub_packages: JSON.parse(row.sub_packages || "[]"),
-            addons: JSON.parse(row.addons || "[]"),
-            preferences: JSON.parse(row.preferences || "[]"),
+            sub_packages: JSON.parse(row.sub_packages || "[]").map(sp => ({
+                ...sp,
+                preferences: sp.preferences ? JSON.parse(sp.preferences) : [],
+                addons: sp.addons ? JSON.parse(sp.addons) : []
+            })),
             consent_forms: JSON.parse(row.consent_forms || "[]")
         }));
 
@@ -547,6 +546,8 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 
 
