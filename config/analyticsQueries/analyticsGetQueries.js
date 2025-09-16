@@ -5,8 +5,7 @@ const analyticsGetQueries = {
             (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) as total_vendors,
             (SELECT COUNT(*) FROM contractors WHERE is_active = 1) as total_contractors,
             (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1) as completed_bookings,
-            (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 0) as pending_bookings,
-            (SELECT SUM(totalPrice) FROM packages p 
+            (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 0) as pending_bookings
              JOIN service_booking_packages sbp ON p.package_id = sbp.package_id
              JOIN service_booking sb ON sbp.booking_id = sb.booking_id
              WHERE sb.bookingStatus = 1) as total_revenue

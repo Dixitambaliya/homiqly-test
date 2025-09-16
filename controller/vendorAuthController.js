@@ -177,7 +177,7 @@ const registerVendor = async (req, res) => {
         const parsedPackages = packages ? JSON.parse(packages) : [];
 
         for (const pkg of parsedPackages) {
-            const { package_id } = pkg;
+            const { package_id, sub_packages = [] } = pkg;
 
             // 1. Check if package exists
             const [packageExists] = await db.query(
@@ -191,11 +191,43 @@ const registerVendor = async (req, res) => {
             // 2. Insert vendor package application
             const [vpRes] = await conn.query(
                 `INSERT INTO vendor_package_applications 
-                 (vendor_id, package_id, status) 
-                 VALUES (?, ?, 0)`,
+                (vendor_id, package_id, status) 
+                VALUES (?, ?, 0)`,
                 [vendor_id, package_id]
             );
+            const application_id = vpRes.insertId;
+
+            // 3. ✅ Handle sub-packages (package_items)
+            if (Array.isArray(sub_packages) && sub_packages.length > 0) {
+                for (const sub of sub_packages) {
+                    const { item_id } = sub;
+
+                    // Check if sub-package exists
+                    const [subExists] = await db.query(
+                        `SELECT 
+                            item_id 
+                            FROM package_items 
+                            WHERE 
+                            item_id = ? AND package_id = ?`,
+                        [item_id, package_id]
+                    );
+                    if (subExists.length === 0) {
+                        return res.status(400).json({
+                            error: `Sub-package ID ${item_id} does not exist for package ${package_id}.`
+                        });
+                    }
+
+                    // Insert vendor sub-package application
+                    await conn.query(
+                        `INSERT INTO vendor_package_item_application
+                        (application_id, package_item_id) 
+                        VALUES (?, ?)`,
+                        [application_id, item_id]
+                    );
+                }
+            }
         }
+
 
         await conn.commit();
         // Send notification to vendor (custom function)
