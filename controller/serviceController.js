@@ -358,8 +358,6 @@ const getAdminService = asyncHandler(async (req, res) => {
 
             if (!acc[category]) {
                 acc[category] = {
-                    categoryName: category,
-                    serviceCategoryId: row.serviceCategoryId,
                     services: []
                 };
             }
@@ -368,6 +366,7 @@ const getAdminService = asyncHandler(async (req, res) => {
             if (row.serviceId && !acc[category].services.some(s => s.serviceId === row.serviceId)) {
                 acc[category].services.push({
                     serviceId: row.serviceId,
+                    categoryName: category,
                     serviceCategoryId: row.serviceCategoryId,
                     serviceFilter: row.serviceFilter,
                     title: row.title,
