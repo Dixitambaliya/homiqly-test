@@ -127,11 +127,20 @@ const Services = () => {
                       />
                     )}
                     <div className="p-5">
-                      <h4 className="text-xl font-semibold text-gray-800">
+                      <h3 className="text-xl font-semibold text-gray-800">
                         {service.service_type_name}
+                      </h3>
+                      <h4>
+                        Service:
+                        <span className="font-semibold text-gray-800">
+                          {service.service_name}
+                        </span>
                       </h4>
-                      <p className="text-sm text-gray-500 mb-3">
-                        Service: {service.service_name}
+                      <p>
+                        service filter :{" "}
+                        <span className="font-semibold text-gray-800">
+                          {service.service_filter}
+                        </span>
                       </p>
 
                       {service.packages.map((pkg) => (
@@ -139,26 +148,6 @@ const Services = () => {
                           key={pkg.package_id}
                           className="mt-6 bg-gray-50 border border-gray-200 p-4 rounded-xl"
                         >
-                          <img
-                            src={pkg.package_media}
-                            alt={pkg.title}
-                            className="w-full h-36 object-cover rounded-md mb-3"
-                          />
-                          <div className="flex justify-between items-center mb-1">
-                            <h5 className="text-md font-bold text-gray-800">
-                              {pkg.title}
-                            </h5>
-                            <p className="text-sm font-medium text-blue-700">
-                              ${pkg.price}
-                            </p>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-1">
-                            {pkg.description}
-                          </p>
-                          <p className="text-xs text-gray-500 mb-3">
-                            Time: {pkg.time_required}
-                          </p>
-
                           {/* Sub-Packages */}
                           {pkg.sub_packages?.length > 0 && (
                             <div className="mb-3">
