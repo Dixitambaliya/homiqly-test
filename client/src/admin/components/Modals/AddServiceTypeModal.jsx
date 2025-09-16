@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../../../shared/components/Modal/Modal";
 import { Button, IconButton } from "../../../shared/components/Button";
-import { FormInput, FormSelect, FormTextarea } from "../../../shared/components/Form";
+import {
+  FormInput,
+  FormSelect,
+  FormTextarea,
+} from "../../../shared/components/Form";
 import {
   FiPlus,
   FiTrash2,
@@ -333,7 +337,10 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
           ? pkg
           : {
               ...pkg,
-              consentForm: [...pkg.consentForm, { question: "", is_required: "" }],
+              consentForm: [
+                ...pkg.consentForm,
+                { question: "", is_required: "" },
+              ],
             }
       );
       return { ...prev, packages };
@@ -387,26 +394,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   };
 
   const validateConsentForm = () => {
-    for (let i = 0; i < formData.packages.length; i++) {
-      const consentArr = formData.packages[i].consentForm || [];
-      for (let j = 0; j < consentArr.length; j++) {
-        const c = consentArr[j];
-        if (!c.question || !c.question.trim()) {
-          toast.error(
-            `Consent statement required for package ${i + 1}, item ${j + 1}`
-          );
-          return false;
-        }
-        if (c.is_required === "" || c.is_required == null) {
-          toast.error(
-            `Select required/optional for consent item ${j + 1} in package ${
-              i + 1
-            }`
-          );
-          return false;
-        }
-      }
-    }
     return true;
   };
 
@@ -693,7 +680,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           />
                           <div className="md:col-span-2">
                             <FormTextarea
-                            rows={4}
+                              rows={4}
                               label="Description (Optional)"
                               value={sub.description}
                               onChange={(e) =>
