@@ -22,16 +22,17 @@ const getVendor = asyncHandler(async (req, res) => {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
 
         const processedVendors = vendors.map(vendor => {
+            // Parse JSON fields safely
             const parsedServices = vendor.services ? JSON.parse(vendor.services) : [];
+            const parsedPackages = vendor.packages ? JSON.parse(vendor.packages) : [];
+            const parsedPackageItems = vendor.package_items ? JSON.parse(vendor.package_items) : [];
 
             // Remove fields not needed based on vendorType
             if (vendor.vendorType === "individual") {
-                // Remove all company_* fields
                 for (let key in vendor) {
                     if (key.startsWith("company_")) delete vendor[key];
                 }
             } else if (vendor.vendorType === "company") {
-                // Remove all individual_* fields
                 for (let key in vendor) {
                     if (key.startsWith("individual_")) delete vendor[key];
                 }
@@ -39,7 +40,9 @@ const getVendor = asyncHandler(async (req, res) => {
 
             return {
                 ...vendor,
-                services: parsedServices
+                services: parsedServices,
+                packages: parsedPackages,
+                package_items: parsedPackageItems
             };
         });
 

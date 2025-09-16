@@ -64,7 +64,6 @@ SELECT
                 JSON_OBJECT(
                     'application_id', vpa.application_id,
                     'package_id', p.package_id,
-                    'packageName', p.packageName,
                     'status', vpa.status,
                     'applied_at', vpa.applied_at,
                     'approved_at', vpa.approved_at
@@ -92,7 +91,7 @@ SELECT
             ']'
         )
         FROM vendor_package_item_application vpi
-        INNER JOIN package_items pi ON pi.package_item_id = vpi.package_item_id
+        INNER JOIN package_items pi ON pi.item_id = vpi.package_item_id
         INNER JOIN vendor_package_applications vpa2 ON vpa2.application_id = vpi.application_id
         WHERE vpa2.vendor_id = v.vendor_id
     ) AS package_items
