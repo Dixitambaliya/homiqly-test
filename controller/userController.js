@@ -506,18 +506,17 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
                         price: row.sub_price,
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
-                        preferences: {},
                         addons: []
                     });
                 }
                 const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                // Preferences grouped
+                // Preferences grouped as preferences0, preferences1, ...
                 if (row.preference_id != null) {
-                    const group = row.preferenceGroup || 0;
-                    if (!sp.preferences[group]) sp.preferences[group] = [];
-                    if (!sp.preferences[group].some(p => p.preference_id === row.preference_id)) {
-                        sp.preferences[group].push({
+                    const prefKey = `preferences${row.preferenceGroup || 0}`;
+                    if (!sp[prefKey]) sp[prefKey] = [];
+                    if (!sp[prefKey].some(p => p.preference_id === row.preference_id)) {
+                        sp[prefKey].push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
                             preference_price: row.preferencePrice
@@ -601,6 +600,117 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+const getPackageDetailsById = asyncHandler(async (req, res) => {
+    const { package_id } = req.params;
+
+    try {
+        const [rows] = await db.query(
+            `SELECT 
+                p.package_id,
+                p.packageName,
+                pi.item_id AS sub_package_id,
+                pi.itemName AS item_name,
+                pi.description AS sub_description,
+                pi.price AS sub_price,
+                pi.timeRequired AS sub_time_required,
+                pi.itemMedia AS item_media,
+                pa.addon_id,
+                pa.addonName AS addon_name,
+                pa.addonDescription AS addon_description,
+                pa.addonPrice AS addon_price,
+                pa.addonTime AS addon_time_required,
+                pa.addonMedia AS addon_media,
+                bp.preference_id,
+                bp.preferenceValue,
+                bp.preferencePrice,
+                bp.preferenceGroup,
+                pcf.consent_id,
+                pcf.question AS consent_question,
+                pcf.is_required
+            FROM packages p
+            LEFT JOIN package_items pi ON pi.package_id = p.package_id
+            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
+            WHERE p.package_id = ?
+            ORDER BY pi.item_id, bp.preferenceGroup`,
+            [package_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Package not found" });
+        }
+
+        const pkg = {
+            package_id: rows[0].package_id,
+            packageName: rows[0].packageName,
+            sub_packages: [],
+            consentForm: []
+        };
+
+        const subPackageMap = new Map();
+
+        for (const row of rows) {
+            if (row.sub_package_id) {
+                if (!subPackageMap.has(row.sub_package_id)) {
+                    subPackageMap.set(row.sub_package_id, {
+                        sub_package_id: row.sub_package_id,
+                        item_name: row.item_name,
+                        description: row.sub_description,
+                        price: row.sub_price,
+                        time_required: row.sub_time_required,
+                        item_media: row.item_media,
+                        addons: [],
+                        // preferences as preferences0, preferences1 ...
+                    });
+                }
+
+                const sp = subPackageMap.get(row.sub_package_id);
+
+                // Addons
+                if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+                    sp.addons.push({
+                        addon_id: row.addon_id,
+                        addon_name: row.addon_name,
+                        description: row.addon_description,
+                        price: row.addon_price,
+                        time_required: row.addon_time_required,
+                        addon_media: row.addon_media
+                    });
+                }
+
+                // Preferences grouped as preferences0, preferences1, ...
+                if (row.preference_id != null) {
+                    const groupKey = `preferences${row.preferenceGroup || 0}`;
+                    if (!sp[groupKey]) sp[groupKey] = [];
+                    if (!sp[groupKey].some(p => p.preference_id === row.preference_id)) {
+                        sp[groupKey].push({
+                            preference_id: row.preference_id,
+                            preference_value: row.preferenceValue,
+                            preference_price: row.preferencePrice
+                        });
+                    }
+                }
+            }
+
+            // Consent forms
+            if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
+                pkg.consentForm.push({
+                    consent_id: row.consent_id,
+                    question: row.consent_question,
+                    is_required: row.is_required
+                });
+            }
+        }
+
+        pkg.sub_packages = Array.from(subPackageMap.values());
+
+        res.status(200).json({ message: "Package details fetched successfully", package: pkg });
+    } catch (err) {
+        console.error("Error fetching package details:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
 
 
 module.exports = {
@@ -617,5 +727,6 @@ module.exports = {
     getPackagesDetails,
     deleteBooking,
     getVendorPackagesByServiceTypeId,
-    getPackagesByServiceType
+    getPackagesByServiceType,
+    getPackageDetailsById
 }
