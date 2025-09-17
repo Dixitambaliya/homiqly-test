@@ -567,35 +567,136 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
 
     try {
-        const [rows] = await db.query(
+        // 1️⃣ Get basic package list
+        const [packages] = await db.query(
             `SELECT 
-                st.service_type_id,
                 p.package_id,
                 p.packageName,
                 p.packageMedia
-             FROM service_type st
-             LEFT JOIN packages p ON st.service_type_id = p.service_type_id
-             WHERE st.service_type_id = ?`,
+             FROM packages p
+             WHERE p.service_type_id = ?`,
             [service_type_id]
         );
 
-        if (rows.length === 0) {
+        if (!packages.length) {
             return res.status(404).json({ message: "No packages found for this service type" });
         }
 
-        // Group by service_type_id
-        const result = {
-            service_type_id: rows[0].service_type_id,
-            packages: rows.map(r => ({
-                package_id: r.package_id,
-                packageName: r.packageName,
-                packageMedia: r.packageMedia
-            }))
-        };
+        // 2️⃣ Get full details of the first package
+        const firstPackageId = packages[0].package_id;
+        const [detailsRows] = await db.query(`
+            SELECT
+                p.package_id,
+                p.packageName,
+                p.packageMedia,
+                pi.item_id AS sub_package_id,
+                pi.itemName AS item_name,
+                pi.description AS sub_description,
+                pi.price AS sub_price,
+                pi.timeRequired AS sub_time_required,
+                pi.itemMedia AS item_media,
+                pa.addon_id,
+                pa.addonName AS addon_name,
+                pa.addonDescription AS addon_description,
+                pa.addonPrice AS addon_price,
+                pa.addonTime AS addon_time_required,
+                pa.addonMedia AS addon_media,
+                bp.preference_id,
+                bp.preferenceValue,
+                bp.preferencePrice,
+                bp.preferenceGroup,
+                pcf.consent_id,
+                pcf.question AS consent_question
+            FROM packages p
+            LEFT JOIN package_items pi ON pi.package_id = p.package_id
+            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
+            WHERE p.package_id = ?
+            ORDER BY pi.item_id, bp.preferenceGroup
+        `, [firstPackageId]);
 
-        res.status(200).json(result);
+        // 3️⃣ Transform details into nested structure with preferences0, preferences1, etc.
+        const packageDetailsMap = new Map();
+
+        for (const row of detailsRows) {
+            if (!packageDetailsMap.has(row.package_id)) {
+                packageDetailsMap.set(row.package_id, {
+                    package_id: row.package_id,
+                    packageName: row.packageName,
+                    packageMedia: row.packageMedia,
+                    sub_packages: new Map(),
+                    consentForm: []
+                });
+            }
+
+            const pkg = packageDetailsMap.get(row.package_id);
+
+            // Sub-packages
+            if (row.sub_package_id) {
+                if (!pkg.sub_packages.has(row.sub_package_id)) {
+                    pkg.sub_packages.set(row.sub_package_id, {
+                        sub_package_id: row.sub_package_id,
+                        item_name: row.item_name,
+                        description: row.sub_description,
+                        price: row.sub_price,
+                        time_required: row.sub_time_required,
+                        item_media: row.item_media,
+                        addons: []
+                    });
+                }
+                const sp = pkg.sub_packages.get(row.sub_package_id);
+
+                // Preferences (preferences0, preferences1, ...)
+                if (row.preference_id != null) {
+                    const groupIndex = row.preferenceGroup || 0;
+                    const prefKey = `preferences${groupIndex}`;
+                    if (!sp[prefKey]) sp[prefKey] = [];
+                    if (!sp[prefKey].some(p => p.preference_value === row.preferenceValue)) {
+                        sp[prefKey].push({
+                            preference_id: row.preference_id,
+                            preference_value: row.preferenceValue,
+                            preference_price: row.preferencePrice
+                        });
+                    }
+                }
+
+                // Addons
+                if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+                    sp.addons.push({
+                        addon_id: row.addon_id,
+                        addon_name: row.addon_name,
+                        description: row.addon_description,
+                        price: row.addon_price,
+                        time_required: row.addon_time_required,
+                        addon_media: row.addon_media
+                    });
+                }
+            }
+
+            // Consent forms
+            if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
+                pkg.consentForm.push({
+                    consent_id: row.consent_id,
+                    question: row.consent_question
+                });
+            }
+        }
+
+        const firstPackageDetails = Array.from(packageDetailsMap.values()).map(p => ({
+            ...p,
+            sub_packages: Array.from(p.sub_packages.values())
+        }))[0];
+
+        // 4️⃣ Respond
+        res.status(200).json({
+            message: "Packages fetched successfully",
+            packages, // list of all packages (basic info)
+            firstPackageDetails // full details of the first package
+        });
+
     } catch (err) {
-        console.error("Error fetching packages:", err);
+        console.error("Error fetching packages with details:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
