@@ -486,6 +486,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 s.serviceName AS service_name,
                 s.serviceFilter,
                 p.package_id,
+                p.packageName,
+                p.packageMedia,
                 st.service_type_id,
                 pi.item_id AS sub_package_id,
                 pi.itemName AS item_name,
@@ -535,6 +537,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 if (!service.packages.has(row.package_id)) {
                     service.packages.set(row.package_id, {
                         package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
                         service_type_id: row.service_type_id,
                         sub_packages: new Map(),
                         consentForm: []
@@ -568,6 +572,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         // Avoid duplicate
                         if (!sp[prefKey].some(p => p.preference_value === row.preferenceValue)) {
                             sp[prefKey].push({
+                                preference_id: row.preference_id,
                                 preference_value: row.preferenceValue,
                                 preference_price: row.preferencePrice
                             });
