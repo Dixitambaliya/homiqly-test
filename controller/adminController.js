@@ -528,8 +528,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                                                 JSON_OBJECT(
                                                     'preference_id', bp.preference_id,
                                                     'preference_value', bp.preferenceValue,
-                                                    'preference_price', bp.preferencePrice,
-                                                    'preferenceGroup', bp.preferenceGroup
+                                                    'preference_price', bp.preferencePrice
                                                 )
                                             ), ']')
                                             FROM booking_preferences bp
