@@ -429,9 +429,15 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                             if (Array.isArray(prefs)) {
                                 for (const pref of prefs) {
                                     await connection.query(
-                                        `INSERT INTO booking_preferences (package_item_id, preferenceValue, preferencePrice, preferenceGroup)
-                                         VALUES (?, ?, ?, ?)`,
-                                        [itemId, pref.preference_value, pref.preference_price || 0, groupIndex || 0]
+                                        `INSERT INTO booking_preferences (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
+                                         VALUES (?, ?, ?, ?, ?)`,
+                                        [
+                                            itemId,
+                                            pref.preference_value,
+                                            pref.preference_price || 0,
+                                            groupIndex || 0,
+                                            pref.is_required != null ? pref.is_required : 0
+                                        ]
                                     );
                                 }
                             }
