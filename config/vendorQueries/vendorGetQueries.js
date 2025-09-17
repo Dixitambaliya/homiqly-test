@@ -230,8 +230,6 @@ const vendorGetQueries = {
           s.serviceName,
 
           st.service_type_id,
-          st.serviceTypeName,
-          st.serviceTypeMedia,
 
           -- Packages grouped per service_type
           COALESCE((
@@ -275,7 +273,7 @@ const vendorGetQueries = {
         JOIN service_type st ON st.service_id = s.service_id
 
         GROUP BY st.service_type_id
-        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+        ORDER BY sc.serviceCategory, s.serviceName DESC
     `
 }
 

@@ -113,8 +113,6 @@ GROUP BY v.vendor_id
     getAllServiceTypes: `
     SELECT
         st.service_type_id,
-        st.serviceTypeName,
-        st.serviceTypeMedia,
 
         s.service_id,
         s.serviceName,
@@ -220,8 +218,6 @@ SELECT
     s.serviceName,
 
     st.service_type_id,
-    st.serviceTypeName,
-    st.serviceTypeMedia,
 
     v.vendor_id,
     v.vendorType,
@@ -289,8 +285,6 @@ SELECT
     getAdminCreatedPackages: `
     SELECT
         st.service_type_id,
-        st.serviceTypeName,
-        st.serviceTypeMedia,
 
         s.service_id,
         s.serviceName,
