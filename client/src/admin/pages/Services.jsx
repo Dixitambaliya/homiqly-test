@@ -352,7 +352,7 @@ const Services = () => {
 
   const getServiceFilterOptions = () => {
     return serviceFilters.map((filter) => ({
-      value: filter.service_filter_id,
+      value: filter.serviceFilter,
       label: filter.serviceFilter,
     }));
   };

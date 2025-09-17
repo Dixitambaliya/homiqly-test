@@ -11,7 +11,8 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
 
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
-  const [selectedPackages, setSelectedPackages] = useState([]);
+
+  // Removed selectedPackages -- user will select sub-packages directly
   const [selectedSubPackages, setSelectedSubPackages] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,7 +59,7 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
 
         setGroupedPackages(grouped);
 
-        // Prefill initialPackage
+        // Prefill initialPackage: set category, service, and sub-packages from that package
         if (initialPackage) {
           const { service_category_id, service_id, package_id } =
             initialPackage;
@@ -72,20 +73,14 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
             if (srv) {
               setSelectedService({ value: service_id, label: srv.serviceName });
               const pkg = srv.packages.find((p) => p.package_id === package_id);
-              if (pkg) {
-                setSelectedPackages([
-                  { value: pkg.package_id, label: pkg.title },
-                ]);
-
-                // Sub-packages
-                if (pkg.sub_packages?.length) {
-                  setSelectedSubPackages(
-                    pkg.sub_packages.map((sp) => ({
-                      value: sp.sub_package_id,
-                      label: sp.item_name,
-                    }))
-                  );
-                }
+              if (pkg && pkg.sub_packages?.length) {
+                setSelectedSubPackages(
+                  pkg.sub_packages.map((sp) => ({
+                    value: sp.sub_package_id,
+                    label: sp.item_name,
+                    package_id: pkg.package_id,
+                  }))
+                );
               }
             }
           }
@@ -103,7 +98,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
   const resetSelections = () => {
     setSelectedCategory(null);
     setSelectedService(null);
-    setSelectedPackages([]);
     setSelectedSubPackages([]);
   };
 
@@ -112,24 +106,22 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
     onClose();
   };
 
+  // Service object and its packages for selected category/service
   const selectedServiceObj =
     groupedPackages[selectedCategory?.value]?.services?.[
       selectedService?.value
     ] || {};
   const allPackages = selectedServiceObj?.packages || [];
 
-  const packageOptions = allPackages.map((pkg) => ({
-    value: pkg.package_id,
-    label: pkg.title,
-  }));
-
-  const allSelectedSubPackages = selectedPackages.flatMap((pkg) => {
-    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
-    return (pkgDetail?.sub_packages || []).map((sp) => ({
-      value: sp.sub_package_id,
-      label: sp.item_name,
-    }));
-  });
+  // Build sub-package options across all packages of the selected service.
+  // Each sub-package option includes package_id so the submit can infer package_id.
+  const subPackageOptions = allPackages.flatMap((pkg) =>
+    (pkg.sub_packages || []).map((sub) => ({
+      value: sub.sub_package_id,
+      label: sub.item_name,
+      package_id: pkg.package_id,
+    }))
+  );
 
   const customSelectStyles = {
     control: (base, state) => ({
@@ -148,22 +140,20 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
   };
 
   const handleSubmit = async () => {
-    const builtPackages = selectedPackages.map((pkg) => {
-      const pkgId = pkg.value;
+    // Group selected sub-packages by package_id and assemble payload
+    const groupedByPackage = selectedSubPackages.reduce((acc, sub) => {
+      const pkgId = sub.package_id;
+      if (!acc[pkgId]) acc[pkgId] = { package_id: pkgId, sub_packages: [] };
+      acc[pkgId].sub_packages.push({ sub_package_id: sub.value });
+      return acc;
+    }, {});
 
-      const subPackages = selectedSubPackages
-        .filter((sub) =>
-          allPackages
-            .find((p) => p.package_id === pkgId)
-            ?.sub_packages?.some((sp) => sp.sub_package_id === sub.value)
-        )
-        .map((sub) => ({ sub_package_id: sub.value }));
+    const builtPackages = Object.values(groupedByPackage);
 
-      return {
-        package_id: pkgId,
-        sub_packages: subPackages,
-      };
-    });
+    if (builtPackages.length === 0) {
+      toast.error("Please select at least one sub-package.");
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -174,7 +164,10 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
       handleModalClose();
     } catch (err) {
       console.error(err);
-      toast.error(err.response.data.error || "Failed to request service.");
+      toast.error(
+        err?.response?.data?.error ||
+          "Failed to request service. Please try again."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -189,6 +182,15 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
         groupedPackages[selectedCategory.value]?.services || {}
       ).map((srv) => ({ value: srv.serviceId, label: srv.serviceName }))
     : [];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        {/* keep simple loading fallback while fetching */}
+        <div className="text-sm text-gray-600">Loading services...</div>
+      </div>
+    );
+  }
 
   return (
     <Modal
@@ -206,7 +208,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
             onChange={(value) => {
               setSelectedCategory(value);
               setSelectedService(null);
-              setSelectedPackages([]);
               setSelectedSubPackages([]);
             }}
             styles={customSelectStyles}
@@ -228,7 +229,6 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
               value={selectedService}
               onChange={(value) => {
                 setSelectedService(value);
-                setSelectedPackages([]);
                 setSelectedSubPackages([]);
               }}
               styles={customSelectStyles}
@@ -242,37 +242,14 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
           </div>
         )}
 
-        {/* Packages */}
-        {selectedService && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Packages</label>
-            <Select
-              options={packageOptions}
-              value={selectedPackages}
-              onChange={(value) => {
-                setSelectedPackages(value || []);
-                setSelectedSubPackages([]);
-              }}
-              styles={customSelectStyles}
-              placeholder="Select packages"
-              isMulti
-              isClearable
-              menuPortalTarget={
-                typeof window !== "undefined" ? document.body : null
-              }
-              menuPosition="fixed"
-            />
-          </div>
-        )}
-
-        {/* Sub-Packages */}
-        {allSelectedSubPackages.length > 0 && (
+        {/* Sub-Packages (select directly across all packages for the chosen service) */}
+        {selectedService && subPackageOptions.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
               Sub-Packages
             </label>
             <Select
-              options={allSelectedSubPackages}
+              options={subPackageOptions}
               value={selectedSubPackages}
               onChange={(value) => setSelectedSubPackages(value || [])}
               styles={customSelectStyles}
@@ -284,6 +261,10 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
               }
               menuPosition="fixed"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Choose sub-packages. The form will infer package IDs automatically
+              when submitting.
+            </p>
           </div>
         )}
       </div>
@@ -299,7 +280,7 @@ const ApplyServiceModal = ({ isOpen, onClose, initialPackage }) => {
             submitting ||
             !selectedCategory ||
             !selectedService ||
-            selectedPackages.length === 0
+            selectedSubPackages.length === 0
           }
         >
           {submitting ? "Submitting..." : "Request Service"}
