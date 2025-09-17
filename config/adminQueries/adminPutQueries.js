@@ -34,17 +34,20 @@ SELECT * FROM package_addons WHERE addon_id = ?;
       `,
 
   updatePackagePreference: `
-  UPDATE booking_preferences 
-    SET preferenceValue = ?, preferencePrice = ? 
-    WHERE preference_id = ? AND package_item_id = ?;
+UPDATE booking_preferences
+SET preferenceValue = ?, preferencePrice = ?, preferenceGroup = ?
+WHERE preference_id = ? AND package_item_id = ?
+
 `,
 
   getPreferenceById: `
-  SELECT * FROM booking_preferences WHERE preference_id = ? 
+     SELECT * FROM booking_preferences 
+    WHERE preference_id = ? 
+    LIMIT 1 
 `,
   deleteRemovedPreferences: `
   DELETE FROM booking_preferences 
-    WHERE package_item_id = ? AND preference_id NOT IN (?);
+    WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (?)
 `,
 
   getConsentFormById: `
@@ -115,8 +118,8 @@ VALUES(?, ?, ?, ?, ?, ?)
 
   // Insert new preference
   insertPackagePreference: `
-    INSERT INTO booking_preferences(package_item_id, preferenceValue , preferencePrice)
-VALUES(?, ? , ?)
+    INSERT INTO booking_preferences (package_item_id, preferenceGroup, preferenceValue, preferencePrice) 
+    VALUES (?, ?, ?, ?)
   `,
   toggleManualVendorAssignment: `
     INSERT INTO settings(setting_key, setting_value)
