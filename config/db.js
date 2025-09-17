@@ -14,17 +14,18 @@ const pool = mysql.createPool({
 });
 
 // Apply session settings for every new pooled connection
-pool.on("connection", async (connection) => {
-    try {
-        await connection.query(
-            "SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))"
-        );
-        await connection.query("SET SESSION group_concat_max_len = 1000000");
-        console.log("✅ Session settings applied for new connection");
-    } catch (err) {
-        console.error("❌ Failed to apply session settings:", err.message);
-    }
+pool.on("connection", (connection) => {
+    connection.promise().query(
+        "SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))"
+    ).catch(err => console.error("❌ Failed to set sql_mode:", err.message));
+
+    connection.promise().query(
+        "SET SESSION group_concat_max_len = 1000000"
+    ).catch(err => console.error("❌ Failed to set group_concat_max_len:", err.message));
+
+    console.log("✅ Session settings applied for new connection");
 });
+
 
 // Test connection function
 async function testConnection() {
