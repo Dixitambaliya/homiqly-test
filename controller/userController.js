@@ -564,6 +564,43 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     }
 });
 
+const getPackagesByServiceType = asyncHandler(async (req, res) => {
+    const { service_type_id } = req.params;
+
+    try {
+        const [rows] = await db.query(
+            `SELECT 
+                st.service_type_id,
+                p.package_id,
+                p.packageName,
+                p.packageMedia
+             FROM service_type st
+             LEFT JOIN packages p ON st.service_type_id = p.service_type_id
+             WHERE st.service_type_id = ?`,
+            [service_type_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "No packages found for this service type" });
+        }
+
+        // Group by service_type_id
+        const result = {
+            service_type_id: rows[0].service_type_id,
+            packages: rows.map(r => ({
+                package_id: r.package_id,
+                packageName: r.packageName,
+                packageMedia: r.packageMedia
+            }))
+        };
+
+        res.status(200).json(result);
+    } catch (err) {
+        console.error("Error fetching packages:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
 
 
 module.exports = {
@@ -579,5 +616,6 @@ module.exports = {
     getPackagesByServiceTypeId,
     getPackagesDetails,
     deleteBooking,
-    getVendorPackagesByServiceTypeId
+    getVendorPackagesByServiceTypeId,
+    getPackagesByServiceType
 }

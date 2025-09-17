@@ -359,127 +359,122 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
     try {
         const { serviceId, packages } = req.body;
+        if (!serviceId || !packages) {
+            return res.status(400).json({ message: "serviceId and packages are required" });
+        }
 
-        if (!serviceId) throw new Error("serviceId is required.");
-        if (!packages) throw new Error("Missing required field: packages.");
-
-        // Verify service exists
-        const [serviceCheck] = await connection.query(
-            `SELECT service_id, serviceName, serviceFilter FROM services WHERE service_id = ? LIMIT 1`,
-            [serviceId]
-        );
-        if (serviceCheck.length === 0) throw new Error("Invalid serviceId. Service does not exist.");
-
-        // Ensure one service_type exists
-        const [existingServiceType] = await connection.query(
-            `SELECT service_type_id FROM service_type WHERE service_id = ? LIMIT 1`,
-            [serviceId]
-        );
-        const service_type_id = existingServiceType.length > 0
-            ? existingServiceType[0].service_type_id
-            : (await connection.query(`INSERT INTO service_type (service_id) VALUES (?)`, [serviceId]))[0].insertId;
-
+        // Parse packages if sent as JSON string in form-data
         const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
 
+        // 1️⃣ Check if service exists
+        const [serviceCheck] = await connection.query(
+            `SELECT service_id FROM services WHERE service_id = ?`,
+            [serviceId]
+        );
+        if (serviceCheck.length === 0) {
+            return res.status(400).json({ message: "Service not found" });
+        }
+
+        // 2️⃣ Ensure service_type exists
+        let [serviceTypeCheck] = await connection.query(
+            `SELECT service_type_id FROM service_type WHERE service_id = ?`,
+            [serviceId]
+        );
+
+        let serviceTypeId;
+        if (serviceTypeCheck.length === 0) {
+            const [stInsert] = await connection.query(
+                `INSERT INTO service_type (service_id) VALUES (?)`,
+                [serviceId]
+            );
+            serviceTypeId = stInsert.insertId;
+        } else {
+            serviceTypeId = serviceTypeCheck[0].service_type_id;
+        }
+
+        // 3️⃣ Insert packages
         for (let i = 0; i < parsedPackages.length; i++) {
             const pkg = parsedPackages[i];
+            const packageImage = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
-            // Insert package
-            const [pkgResult] = await connection.query(
-                `INSERT INTO packages (service_type_id) VALUES (?)`,
-                [service_type_id]
-            );
-            const package_id = pkgResult.insertId;
-
-            // Consent Forms
-            for (const consent of (pkg.consentForm || [])) {
-                if (!consent.question) continue;
-                await connection.query(
-                    `INSERT INTO package_consent_forms (package_id, question, is_required) VALUES (?, ?, ?)`,
-                    [package_id, consent.question, consent.is_required ?? 0]
-                );
+            if (!pkg.packageName || !packageImage) {
+                throw new Error(`Package name and image are required for package index ${i}`);
             }
 
-            // Sub-packages
-            for (let j = 0; j < (pkg.sub_packages || []).length; j++) {
-                const sub = pkg.sub_packages[j];
-                const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+            const [pkgInsert] = await connection.query(
+                `INSERT INTO packages (service_type_id, packageName, packageMedia) 
+                 VALUES (?, ?, ?)`,
+                [serviceTypeId, pkg.packageName, packageImage]
+            );
+            const packageId = pkgInsert.insertId;
 
-                const [subResult] = await connection.query(
-                    `INSERT INTO package_items
-                     (package_id, itemName, description, price, timeRequired, itemMedia)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                        package_id,
-                        sub.item_name || null,
-                        sub.description || null,
-                        sub.price || 0,
-                        sub.time_required || 0,
-                        itemMedia
-                    ]
-                );
-                const sub_package_id = subResult.insertId;
+            // 4️⃣ Insert sub-packages
+            if (pkg.sub_packages && pkg.sub_packages.length > 0) {
+                for (let j = 0; j < pkg.sub_packages.length; j++) {
+                    const subPkg = pkg.sub_packages[j];
+                    const subPackageItemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
 
-                // Preferences: multiple groups per sub-package
-                for (const key of Object.keys(sub)) {
-                    if (key.startsWith("preferences")) {
-                        const groupIndex = parseInt(key.replace("preferences", ""));
-                        const prefGroup = sub[key]; // array of preferences
+                    const [subPkgInsert] = await connection.query(
+                        `INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
+                         VALUES (?, ?, ?, ?, ?, ?)`,
+                        [packageId, subPkg.item_name, subPkg.description || "", subPkg.price || 0, subPkg.time_required || 0, subPackageItemMedia]
+                    );
+                    const itemId = subPkgInsert.insertId;
 
-                        for (const pref of prefGroup) {
-                            if (!pref.preference_value) continue;
+                    // 5️⃣ Insert preferences (loop over keys like preferences0, preferences1, ...)
+                    for (const key of Object.keys(subPkg)) {
+                        if (key.startsWith("preferences")) {
+                            const groupIndex = key.replace("preferences", ""); // e.g. "0" or "1"
+                            const prefs = subPkg[key];
+                            if (Array.isArray(prefs)) {
+                                for (const pref of prefs) {
+                                    await connection.query(
+                                        `INSERT INTO booking_preferences (package_item_id, preferenceValue, preferencePrice, preferenceGroup)
+                                         VALUES (?, ?, ?, ?)`,
+                                        [itemId, pref.preference_value, pref.preference_price || 0, groupIndex || 0]
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    // 6️⃣ Insert addons
+                    if (subPkg.addons && subPkg.addons.length > 0) {
+                        for (let k = 0; k < subPkg.addons.length; k++) {
+                            const addon = subPkg.addons[k];
+                            const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || null;
+
                             await connection.query(
-                                `INSERT INTO booking_preferences
-                                 (package_item_id, preferenceGroup, preferenceValue, preferencePrice)
-                                 VALUES (?, ?, ?, ?)`,
-                                [
-                                    sub_package_id,
-                                    groupIndex,
-                                    pref.preference_value.trim(),
-                                    pref.preference_price ?? 0
-                                ]
+                                `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
+                                 VALUES (?, ?, ?, ?, ?, ?)`,
+                                [itemId, addon.addon_name, addon.description || "", addon.price || 0, addon.time_required || 0, addonMedia]
                             );
                         }
                     }
                 }
+            }
 
-                // Addons
-                for (let k = 0; k < (sub.addons || []).length; k++) {
-                    const addon = sub.addons[k];
-                    const addonMedia = req.uploadedFiles?.[`addon_media_${i}_${j}_${k}`]?.[0]?.url || null;
-
+            // 7️⃣ Insert consent forms
+            if (pkg.consentForm && pkg.consentForm.length > 0) {
+                for (const consent of pkg.consentForm) {
                     await connection.query(
-                        `INSERT INTO package_addons
-                         (package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        [
-                            sub_package_id,
-                            addon.addon_name || null,
-                            addon.description || null,
-                            addon.price || 0,
-                            addon.time_required || 0,
-                            addonMedia
-                        ]
+                        `INSERT INTO package_consent_forms (package_id, question, is_required) VALUES (?, ?, ?)`,
+                        [packageId, consent.question, consent.is_required || 0]
                     );
                 }
             }
         }
 
         await connection.commit();
-        connection.release();
-
-        res.status(201).json({
-            message: "✅ Packages with sub-packages, multiple preference groups, addons, and consent forms created successfully"
-        });
-
+        res.status(201).json({ message: "Package(s) created successfully", serviceTypeId });
     } catch (err) {
         await connection.rollback();
+        console.error("Error creating package:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
         connection.release();
-        console.error("Admin package creation error:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -557,21 +552,22 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             price: row.sub_price,
                             time_required: row.sub_time_required,
                             item_media: row.item_media,
-                            preferences: {},
                             addons: []
                         });
                     }
                     const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                    // Group preferences by preferenceGroup without duplicates
+                    // 5️⃣ Insert preferences (loop over preferenceGroup)
                     if (row.preference_id != null) {
-                        const group = row.preferenceGroup || 0;
-                        if (!sp.preferences[group]) sp.preferences[group] = [];
+                        // DB gives preferenceGroup as 0,1,2...
+                        const groupIndex = row.preferenceGroup || 0; // Use 0 if null
+                        const prefKey = `preferences${groupIndex}`;  // create preferences0, preferences1, etc.
 
-                        // Check if this preference_id already exists in the array
-                        if (!sp.preferences[group].some(p => p.preference_id === row.preference_id)) {
-                            sp.preferences[group].push({
-                                preference_id: row.preference_id,
+                        if (!sp[prefKey]) sp[prefKey] = [];
+
+                        // Avoid duplicate
+                        if (!sp[prefKey].some(p => p.preference_value === row.preferenceValue)) {
+                            sp[prefKey].push({
                                 preference_value: row.preferenceValue,
                                 preference_price: row.preferencePrice
                             });
@@ -622,6 +618,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
