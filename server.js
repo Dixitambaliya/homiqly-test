@@ -6,7 +6,6 @@ const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
 require("./controller/reminder")
-
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
