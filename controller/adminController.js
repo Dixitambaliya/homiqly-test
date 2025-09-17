@@ -436,26 +436,16 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 );
                 const sub_package_id = subResult.insertId;
 
-                // Preferences for this sub-package (now supports multiple groups)
+                // Preferences for this sub-package
                 for (let p = 0; p < (sub.preferences || []).length; p++) {
-                    const prefGroup = sub.preferences[p]; // <-- this is an array of objects
+                    const pref = sub.preferences[p];
+                    if (!pref.preference_value) continue;
 
-                    for (let q = 0; q < (prefGroup || []).length; q++) {
-                        const pref = prefGroup[q];
-                        if (!pref.preference_value) continue;
-
-                        await connection.query(
-                            `INSERT INTO booking_preferences 
-                            (package_item_id, preferenceGroup, preferenceValue, preferencePrice)
-                            VALUES (?, ?, ?, ?)`,
-                            [
-                                sub_package_id,
-                                p, // store which group this belongs to
-                                pref.preference_value.trim(),
-                                pref.preference_price ?? 0
-                            ]
-                        );
-                    }
+                    await connection.query(
+                        `INSERT INTO booking_preferences (package_item_id, preferenceValue, preferencePrice)
+                         VALUES (?, ?, ?)`,
+                        [sub_package_id, pref.preference_value.trim(), pref.preference_price ?? 0]
+                    );
                 }
 
                 // Addons for this sub-package
@@ -495,7 +485,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -522,7 +511,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                                         'time_required', pi.timeRequired,
                                         'item_media', pi.itemMedia,
 
-                                      -- preferences grouped into nested arrays
+                                        -- preferences linked to this sub_package
                                         'preferences', IFNULL((
                                             SELECT CONCAT('[', GROUP_CONCAT(
                                                 JSON_OBJECT(
@@ -536,7 +525,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                                         ), '[]'),
 
                                         -- addons linked to this sub_package
-                                        'addons', IFNULL(( 
+                                        'addons', IFNULL((
                                             SELECT CONCAT('[', GROUP_CONCAT(
                                                 JSON_OBJECT(
                                                     'addon_id', pa.addon_id,
@@ -624,7 +613,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
