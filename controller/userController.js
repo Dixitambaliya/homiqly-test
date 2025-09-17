@@ -538,11 +538,6 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
-
-
 module.exports = {
     getServiceCategories,
     getServiceByCategory,
