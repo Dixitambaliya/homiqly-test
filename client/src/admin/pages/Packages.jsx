@@ -35,20 +35,39 @@ function PreferencesChips({ preferences }) {
           </div>
           <ul className="space-y-1">
             {Array.isArray(prefs) && prefs.length > 0 ? (
-              prefs.map((p, idx) => (
-                <li
-                  key={`${groupKey}-${idx}`}
-                  className="flex items-center justify-between text-sm text-gray-800"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500" />
-                    {p.preference_value}
-                  </span>
-                  <span className="text-gray-500">
-                    {fmtPrice(p.preference_price)}
-                  </span>
-                </li>
-              ))
+              prefs.map((p, idx) => {
+                const isReq = Number(p.is_required) === 1; // handle 0/1
+                return (
+                  <li
+                    key={`${groupKey}-${idx}`}
+                    className="flex items-center justify-between text-sm text-gray-800"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      {p.preference_value}
+                    </span>
+
+                    <div className="flex items-center gap-3">
+                      {/* price */}
+                      <span className="text-gray-500">
+                        {fmtPrice(p.preference_price)}
+                      </span>
+
+                      {/* required/optional badge */}
+                      <span
+                        className={
+                          "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
+                          (isReq
+                            ? "bg-red-100 text-red-800 border border-red-200"
+                            : "bg-gray-100 text-gray-700 border border-gray-200")
+                        }
+                      >
+                        {isReq ? "Required" : "Optional"}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })
             ) : (
               <li className="text-xs text-gray-400 italic">No options</li>
             )}
@@ -163,6 +182,9 @@ function SubPackageItem({ sub }) {
 }
 
 function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
+  // helper for package thumbnail
+  const pkgThumb = safeSrc(pkg.packageMedia) || null;
+
   return (
     <div className="rounded-lg border bg-gray-50 overflow-hidden">
       <div className="flex items-center justify-between p-4">
@@ -184,15 +206,41 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
               </>
             )}
           </button>
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">
-              {pkg.service_type_name || `Package #${pkg.package_id}`}
+
+          {/* Thumbnail + title */}
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-white">
+              <img
+                src={pkgThumb || "https://via.placeholder.com/56?text=Pkg"}
+                alt={
+                  pkg.packageName ||
+                  pkg.service_type_name ||
+                  `Package ${pkg.package_id}`
+                }
+                className="w-full h-full object-cover"
+              />
             </div>
-            <div className="text-xs text-gray-500 truncate">
-              {pkg.time_required ? `Time: ${pkg.time_required}` : ""}
+
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-900 truncate">
+                {/* Prefer packageName inside package object */}
+                {pkg.packageName ||
+                  pkg.service_type_name ||
+                  `Package #${pkg.package_id}`}
+              </div>
+              <div className="text-xs text-gray-500 truncate">
+                {/* extra context: show service type name if different from packageName */}
+                {pkg.service_type_name &&
+                pkg.service_type_name !== pkg.packageName
+                  ? pkg.service_type_name
+                  : pkg.time_required
+                  ? `Time: ${pkg.time_required}`
+                  : ""}
+              </div>
             </div>
           </div>
         </div>
+
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => onEdit(pkg)}>
             Edit
@@ -207,6 +255,7 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
           </Button>
         </div>
       </div>
+
       <div
         className={`px-4 transition-all duration-300 ease-in-out ${
           expanded
@@ -226,17 +275,40 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
           ) : (
             <div className="text-sm text-gray-500 italic">No items listed.</div>
           )}
+
           {/* Consent Form */}
           {Array.isArray(pkg.consentForm) && pkg.consentForm.length > 0 && (
-            <div>
-              <h6 className="text-sm font-semibold text-gray-700 mb-2">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+              <h6 className="text-sm font-semibold text-gray-700 mb-3">
                 Consent Form
               </h6>
-              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                {pkg.consentForm.map((c) => (
-                  <li key={c.consent_id}>{c.question}</li>
-                ))}
-              </ul>
+
+              <div className="space-y-2">
+                {pkg.consentForm.map((c, i) => {
+                  const isReq = Number(c.is_required) === 1;
+                  return (
+                    <div
+                      key={c.consent_id ?? i}
+                      className="flex items-start justify-between gap-4 p-3 bg-gray-50 rounded-md border border-gray-100"
+                      role="group"
+                      aria-label={`Consent question ${i + 1}`}
+                    >
+                      <p className="text-sm text-gray-700">{c.question}</p>
+
+                      <span
+                        className={
+                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium " +
+                          (isReq
+                            ? "bg-red-100 text-red-800 border border-red-200"
+                            : "bg-gray-100 text-gray-700 border border-gray-200")
+                        }
+                      >
+                        {isReq ? "Required" : "Optional"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
