@@ -509,6 +509,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 pa.addonMedia AS addon_media,
                 pcf.consent_id,
                 pcf.question AS consent_question,
+                pcf.is_required AS prefrence_is_required,
                 bp.preference_id,
                 bp.preferenceValue,
                 bp.preferencePrice,
@@ -605,7 +606,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
                     pkg.consentForm.push({
                         consent_id: row.consent_id,
-                        question: row.consent_question
+                        question: row.consent_question,
+                        is_required: row.prefrence_is_required,
                     });
                 }
             }
@@ -858,11 +860,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                                     await connection.query(
                                         `UPDATE booking_preferences
-                                         SET preferenceValue = ?, preferencePrice = ?, preferenceGroup = ?
+                                         SET preferenceValue = ?, preferencePrice = ?, preferenceGroup = ? , is_required = ?
                                          WHERE preference_id = ? AND package_item_id = ?`,
                                         [
                                             pref.preference_value ?? oldPref[0].preferenceValue,
                                             pref.preference_price ?? oldPref[0].preferencePrice,
+                                            pref.is_required ?? oldPref[0].is_required,
                                             groupIndex,
                                             pref.preference_id,
                                             sub_package_id
