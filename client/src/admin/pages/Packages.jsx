@@ -19,18 +19,40 @@ const fmtPrice = (n) =>
 /* Presentational subcomponents from OLD UI */
 
 function PreferencesChips({ preferences }) {
-  if (!Array.isArray(preferences) || preferences.length === 0) {
+  if (!preferences || Object.keys(preferences).length === 0) {
     return <div className="text-xs text-gray-400 italic">No preferences</div>;
   }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {preferences.map((p) => (
+    <div className="space-y-4">
+      {Object.entries(preferences).map(([groupKey, prefs]) => (
         <div
-          key={p.preference_id}
-          className="px-3 py-1 bg-gray-50 border rounded-full text-xs text-gray-800"
-          title={`${p.preference_value} — ${fmtPrice(p.preference_price)}`}
+          key={groupKey}
+          className="border rounded-lg p-3 bg-white shadow-sm"
         >
-          {p.preference_value} • {fmtPrice(p.preference_price)}
+          <div className="text-sm font-semibold text-gray-700 mb-2">
+            Preference Group {groupKey}
+          </div>
+          <ul className="space-y-1">
+            {Array.isArray(prefs) && prefs.length > 0 ? (
+              prefs.map((p, idx) => (
+                <li
+                  key={`${groupKey}-${idx}`}
+                  className="flex items-center justify-between text-sm text-gray-800"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    {p.preference_value}
+                  </span>
+                  <span className="text-gray-500">
+                    {fmtPrice(p.preference_price)}
+                  </span>
+                </li>
+              ))
+            ) : (
+              <li className="text-xs text-gray-400 italic">No options</li>
+            )}
+          </ul>
         </div>
       ))}
     </div>
@@ -57,6 +79,32 @@ function AddonsChips({ addons }) {
 }
 
 function SubPackageItem({ sub }) {
+  // build a normalized preferences object in the form { "0": [...], "1": [...] }
+  const buildPreferencesObject = (subObj) => {
+    // If API already returns `preferences` as an object, use it directly
+    if (
+      subObj &&
+      typeof subObj.preferences === "object" &&
+      !Array.isArray(subObj.preferences)
+    ) {
+      return subObj.preferences;
+    }
+
+    // Otherwise collect keys like preferences0, preferences1, etc.
+    const prefKeys = Object.keys(subObj || {}).filter((k) =>
+      /^preferences\d+$/.test(k)
+    );
+    if (prefKeys.length === 0) return {};
+
+    return prefKeys.reduce((acc, k) => {
+      const idx = k.replace(/^preferences/, ""); // "preferences1" -> "1"
+      acc[idx] = subObj[k] || [];
+      return acc;
+    }, {});
+  };
+
+  const preferencesObj = buildPreferencesObject(sub);
+
   return (
     <li className="bg-white rounded-lg border p-4 shadow-sm">
       <div className="grid grid-cols-12 gap-4 items-start">
@@ -96,7 +144,7 @@ function SubPackageItem({ sub }) {
               <div className="text-xs font-semibold text-gray-700 mb-1">
                 Preferences
               </div>
-              <PreferencesChips preferences={sub.preferences} />
+              <PreferencesChips preferences={preferencesObj} />
             </div>
             <div>
               <div className="text-xs font-semibold text-gray-700 mb-1">
