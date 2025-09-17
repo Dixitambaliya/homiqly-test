@@ -437,106 +437,134 @@ const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [rows] = await db.query(
-            `
+        const [rows] = await db.query(`
             SELECT
                 p.package_id,
+                p.service_type_id,
 
                 -- Ratings
-                IFNULL((
-                  SELECT ROUND(AVG(r.rating), 1)
-                  FROM ratings r
-                  WHERE r.package_id = p.package_id
-                ), 0) AS averageRating,
-            
-                IFNULL((
-                  SELECT COUNT(r.rating_id)
-                  FROM ratings r
-                  WHERE r.package_id = p.package_id
-                ), 0) AS totalReviews,
+                IFNULL((SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.package_id = p.package_id), 0) AS averageRating,
+                IFNULL((SELECT COUNT(r.rating_id) FROM ratings r WHERE r.package_id = p.package_id), 0) AS totalReviews,
 
-                -- Sub-packages (with preferences & addons inside)
-                COALESCE((
-                  SELECT CONCAT('[', GROUP_CONCAT(
-                    JSON_OBJECT(
-                      'sub_package_id', pi.item_id,
-                      'title', pi.itemName,
-                      'description', pi.description,
-                      'price', pi.price,
-                      'time_required', pi.timeRequired,
-                      'item_media', pi.itemMedia,
-                      'preferences', (
-                        SELECT CONCAT('[', GROUP_CONCAT(
-                          JSON_OBJECT(
-                            'preference_id', bp.preference_id,
-                            'preference_value', bp.preferenceValue,
-                            'preference_price', bp.preferencePrice
-                          )
-                        ), ']')
-                        FROM booking_preferences bp
-                        WHERE bp.package_item_id = pi.item_id
-                      ),
-                      'addons', (
-                        SELECT CONCAT('[', GROUP_CONCAT(
-                          JSON_OBJECT(
-                            'addon_id', pa.addon_id,
-                            'addon_name', pa.addonName,
-                            'addon_description', pa.addonDescription,
-                            'price', pa.addonPrice,
-                            'addon_time', pa.addonTime,
-                            'addon_media', pa.addonMedia
-                          )
-                        ), ']')
-                        FROM package_addons pa
-                        WHERE pa.package_item_id = pi.item_id
-                      )
-                    )
-                  ), ']')
-                  FROM package_items pi
-                  WHERE pi.package_id = p.package_id
-                ), '[]') AS sub_packages,
+                -- Sub-packages & preferences
+                pi.item_id AS sub_package_id,
+                pi.itemName AS item_name,
+                pi.description AS sub_description,
+                pi.price AS sub_price,
+                pi.timeRequired AS sub_time_required,
+                pi.itemMedia AS item_media,
 
-                -- Consent Forms (still package-level)
-                COALESCE((
-                  SELECT CONCAT('[', GROUP_CONCAT(
-                      JSON_OBJECT(
-                        'consent_id', pcf.consent_id,
-                        'question', pcf.question,
-                        'is_required', pcf.is_required
-                      )
-                  ), ']')
-                  FROM package_consent_forms pcf
-                  WHERE pcf.package_id = p.package_id
-                ), '[]') AS consent_forms
+                bp.preference_id,
+                bp.preferenceValue,
+                bp.preferencePrice,
+                bp.preferenceGroup,
+
+                -- Addons
+                pa.addon_id,
+                pa.addonName AS addon_name,
+                pa.addonDescription AS addon_description,
+                pa.addonPrice AS addon_price,
+                pa.addonTime AS addon_time_required,
+                pa.addonMedia AS addon_media,
+
+                -- Consent Forms
+                pcf.consent_id,
+                pcf.question AS consent_question,
+                pcf.is_required
 
             FROM packages p
+            LEFT JOIN package_items pi ON pi.package_id = p.package_id
+            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
             WHERE p.service_type_id = ?
-            ORDER BY p.package_id DESC
-            `,
-            [service_type_id]
-        );
+            ORDER BY p.package_id, pi.item_id, bp.preferenceGroup
+        `, [service_type_id]);
 
-        const data = rows.map((row) => ({
-            package_id: row.package_id,
-            averageRating: row.averageRating,
-            totalReviews: row.totalReviews,
-            sub_packages: JSON.parse(row.sub_packages || "[]").map(sp => ({
-                ...sp,
-                preferences: sp.preferences ? JSON.parse(sp.preferences) : [],
-                addons: sp.addons ? JSON.parse(sp.addons) : []
-            })),
-            consent_forms: JSON.parse(row.consent_forms || "[]")
+        const packagesMap = new Map();
+
+        for (const row of rows) {
+            if (!packagesMap.has(row.package_id)) {
+                packagesMap.set(row.package_id, {
+                    package_id: row.package_id,
+                    service_type_id: row.service_type_id,
+                    averageRating: row.averageRating,
+                    totalReviews: row.totalReviews,
+                    sub_packages: new Map(),
+                    consentForm: []
+                });
+            }
+            const pkg = packagesMap.get(row.package_id);
+
+            // Sub-packages
+            if (row.sub_package_id) {
+                if (!pkg.sub_packages.has(row.sub_package_id)) {
+                    pkg.sub_packages.set(row.sub_package_id, {
+                        sub_package_id: row.sub_package_id,
+                        item_name: row.item_name,
+                        description: row.sub_description,
+                        price: row.sub_price,
+                        time_required: row.sub_time_required,
+                        item_media: row.item_media,
+                        preferences: {},
+                        addons: []
+                    });
+                }
+                const sp = pkg.sub_packages.get(row.sub_package_id);
+
+                // Preferences grouped
+                if (row.preference_id != null) {
+                    const group = row.preferenceGroup || 0;
+                    if (!sp.preferences[group]) sp.preferences[group] = [];
+                    if (!sp.preferences[group].some(p => p.preference_id === row.preference_id)) {
+                        sp.preferences[group].push({
+                            preference_id: row.preference_id,
+                            preference_value: row.preferenceValue,
+                            preference_price: row.preferencePrice
+                        });
+                    }
+                }
+
+                // Addons
+                if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+                    sp.addons.push({
+                        addon_id: row.addon_id,
+                        addon_name: row.addon_name,
+                        description: row.addon_description,
+                        price: row.addon_price,
+                        time_required: row.addon_time_required,
+                        addon_media: row.addon_media
+                    });
+                }
+            }
+
+            // Consent forms
+            if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
+                pkg.consentForm.push({
+                    consent_id: row.consent_id,
+                    question: row.consent_question,
+                    is_required: row.is_required
+                });
+            }
+        }
+
+        const data = Array.from(packagesMap.values()).map(p => ({
+            ...p,
+            sub_packages: Array.from(p.sub_packages.values())
         }));
 
         res.status(200).json({
             message: "Packages fetched successfully by service type ID",
-            packages: data,
+            packages: data
         });
+
     } catch (err) {
-        console.error("Error fetching packages by service type ID:", err);
+        console.error("Error fetching vendor packages:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 module.exports = {
     getServiceCategories,
