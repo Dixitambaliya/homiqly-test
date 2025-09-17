@@ -618,6 +618,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 bp.preferenceValue,
                 bp.preferencePrice,
                 bp.preferenceGroup,
+                bp.is_required AS preference_is_required,
                 pcf.consent_id,
                 pcf.question AS consent_question,
                 pcf.is_required
@@ -681,7 +682,8 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         sp[groupKey].push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
-                            preference_price: row.preferencePrice
+                            preference_price: row.preferencePrice,
+                            is_required: row.preference_is_required
                         });
                     }
                 }

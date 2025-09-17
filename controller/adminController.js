@@ -512,6 +512,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 bp.preference_id,
                 bp.preferenceValue,
                 bp.preferencePrice,
+                bp.is_required As preference_is_required,
                 bp.preferenceGroup
             FROM services s
             JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
@@ -580,7 +581,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             sp[prefKey].push({
                                 preference_id: row.preference_id,
                                 preference_value: row.preferenceValue,
-                                preference_price: row.preferencePrice
+                                preference_price: row.preferencePrice,
+                                is_required: row.preference_is_required
                             });
                         }
                     }
