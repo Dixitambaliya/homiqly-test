@@ -267,17 +267,19 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
           </button>
 
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
-              <img
-                src={pkgThumb || "https://via.placeholder.com/56?text=Pkg"}
-                alt={
-                  pkg.packageName ||
-                  pkg.service_type_name ||
-                  `Package ${pkg.package_id}`
-                }
-                className="w-full h-full object-cover"
-              />
-            </div>
+            {pkgThumb && (
+              <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
+                <img
+                  src={pkgThumb || "https://via.placeholder.com/56?text=Pkg"}
+                  alt={
+                    pkg.packageName ||
+                    pkg.service_type_name ||
+                    `Package ${pkg.package_id}`
+                  }
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
 
             <div className="min-w-0">
               <div className="text-sm font-medium text-gray-900 truncate">
