@@ -456,7 +456,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                     if (subPkg.addons && subPkg.addons.length > 0) {
                         for (let k = 0; k < subPkg.addons.length; k++) {
                             const addon = subPkg.addons[k];
-                            const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || null;
 
                             await connection.query(
                                 `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonTime)
@@ -915,36 +914,31 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                 );
                                 if (!oldAddon.length) continue;
 
-                                const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || oldAddon[0].addonMedia;
-
                                 await connection.query(
                                     `UPDATE package_addons
-                                     SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?, addonMedia = ?
+                                     SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
                                      WHERE addon_id = ? AND package_item_id = ?`,
                                     [
                                         addon.addon_name ?? oldAddon[0].addonName,
                                         addon.description ?? oldAddon[0].addonDescription,
                                         addon.price ?? oldAddon[0].addonPrice,
                                         addon.time_required ?? oldAddon[0].addonTime,
-                                        addonMedia,
                                         addon.addon_id,
                                         sub_package_id
                                     ]
                                 );
                                 submittedAddonIds.push(addon.addon_id);
                             } else {
-                                const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || null;
                                 const [newAddon] = await connection.query(
                                     `INSERT INTO package_addons
-                                     (package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
-                                     VALUES (?, ?, ?, ?, ?, ?)`,
+                                     (package_item_id, addonName, addonDescription, addonPrice, addonTime)
+                                     VALUES (?, ?, ?, ?, ?)`,
                                     [
                                         sub_package_id,
                                         addon.addon_name,
                                         addon.description,
                                         addon.price,
                                         addon.time_required,
-                                        addonMedia
                                     ]
                                 );
                                 submittedAddonIds.push(newAddon.insertId);
