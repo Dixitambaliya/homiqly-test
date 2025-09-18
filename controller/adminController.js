@@ -490,7 +490,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -658,14 +657,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         );
         if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
 
-        // ✅ Manual toggle check
-        const [toggleResult] = await connection.query(
-            `SELECT manual_assignment_enabled FROM vendor_settings WHERE vendor_id = ?`,
-            [vendor_id]
-        );
-        const isEnabled = toggleResult[0]?.manual_assignment_enabled === 1;
-        if (!isEnabled) throw new Error(`Manual assignment toggle must be ON for vendor ID ${vendor_id}.`);
-
         // ✅ Fetch vendor details
         const [vendorDetails] = await connection.query(
             `
@@ -681,48 +672,70 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         );
         const vendorData = vendorDetails[0];
 
+        // ✅ Remove existing assignments first
+        await connection.query(`DELETE FROM vendor_package_items WHERE vendor_id = ?`, [vendor_id]);
+        await connection.query(`DELETE FROM vendor_packages WHERE vendor_id = ?`, [vendor_id]);
+
         const newlyAssigned = [];
 
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
-            // ✅ Check if package exists
+            // ✅ Get packageName
             const [pkgRow] = await connection.query(
-                `SELECT package_id FROM packages WHERE package_id = ?`,
+                `SELECT package_id, packageName FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
 
-            // ✅ Insert into vendor_packages table
+            const packageName = pkgRow[0].packageName;
+
+            // ✅ Insert into vendor_packages
             const [insertResult] = await connection.query(
                 `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
                 [vendor_id, package_id]
             );
             const vendor_packages_id = insertResult.insertId;
 
-            // ✅ Insert sub-packages into vendor_package_items
+            // ✅ Collect sub-package details
+            const selectedSubPackages = [];
             if (Array.isArray(sub_packages) && sub_packages.length > 0) {
                 for (const sub of sub_packages) {
                     const subpackage_id = sub.sub_package_id;
+
+                    // Get sub-package name
+                    const [subRow] = await connection.query(
+                        `SELECT itemName FROM package_items WHERE item_id = ?`,
+                        [subpackage_id]
+                    );
+
+                    const subName = subRow.length > 0 ? subRow[0].itemName : "Unknown";
+
                     await connection.query(
                         `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id) 
-                         VALUES (?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?)`,
                         [vendor_packages_id, vendor_id, package_id, subpackage_id]
                     );
+
+                    selectedSubPackages.push({
+                        id: subpackage_id,
+                        name: subName
+                    });
                 }
             }
 
             newlyAssigned.push({
                 package_id,
+                packageName,
                 vendor_packages_id,
-                selected_subpackages: sub_packages.map(sp => sp.sub_package_id)
+                selected_subpackages: selectedSubPackages
             });
         }
 
         await connection.commit();
         connection.release();
 
-        // ✅ Send admin notification email
+        // ✅ Send vendor notification email
         try {
             const transporter = nodemailer.createTransport({
                 service: "gmail",
@@ -733,33 +746,36 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             });
 
             const emailHtml = `
-                <p><strong>Vendor:</strong> ${vendorData.vendorName} (ID: ${vendor_id})</p>
-                <p><strong>Email:</strong> ${vendorData.vendorEmail}</p>
-                <p>has applied for the following packages:</p>
-                <ul>
-                    ${newlyAssigned.map(p => `
-                        <li>
-                            <strong>Package ID:</strong> ${p.package_id} <br/>
-                            <strong>Sub-Packages:</strong> ${p.selected_subpackages.length > 0 ? p.selected_subpackages.join(", ") : "None"}
-                        </li>
-                    `).join("")}
-                </ul>
-            `;
+                    <p>Dear ${vendorData.vendorName},</p>
+                    <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
+                    <ul>
+                        ${newlyAssigned.map(p => `
+                            <li>
+                                <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
+                                <strong>Sub-Packages:</strong> 
+                                ${p.selected_subpackages.length > 0
+                    ? p.selected_subpackages.map(sp => `${sp.name} (ID: ${sp.id})`).join(", ")
+                    : "None"}
+                            </li>
+                        `).join("")}
+                    </ul>
+                    <p>You can now manage and offer these packages from your dashboard.</p>`
+
 
             await transporter.sendMail({
-                from: `"Vendor System" <${process.env.EMAIL_USER}>`,
-                to: process.env.EMAIL_USER, // admin email
-                subject: "New Package Application Submitted",
+                from: `"Admin Team" <${process.env.EMAIL_USER}>`,
+                to: vendorData.vendorEmail, // ✅ send to vendor
+                subject: "New Packages Assigned to You",
                 html: emailHtml
             });
 
-            console.log("✅ Admin notification email sent successfully.");
+            console.log("✅ Vendor notification email sent successfully.");
         } catch (mailErr) {
-            console.error("⚠️ Failed to send admin email:", mailErr.message);
+            console.error("⚠️ Failed to send vendor email:", mailErr.message);
         }
 
         res.status(200).json({
-            message: "Packages successfully applied"
+            message: "Packages successfully assigned to vendor"
         });
 
     } catch (err) {
@@ -769,6 +785,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
+
 
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
