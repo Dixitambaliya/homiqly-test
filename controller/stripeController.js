@@ -312,6 +312,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
     await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
     await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
+    await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [cart_id])
 
     await connection.commit();
 

@@ -421,21 +421,20 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                     );
                     const itemId = subPkgInsert.insertId;
 
-                    // 5️⃣ Insert preferences (loop over keys like preferences0, preferences1, ...)
-                    for (const key of Object.keys(subPkg)) {
-                        if (key.startsWith("preferences")) {
-                            const groupIndex = key.replace("preferences", ""); // e.g. "0" or "1"
-                            const prefs = subPkg[key];
+                    // ✅ Insert preferences (custom groups)
+                    if (subPkg.preferences && typeof subPkg.preferences === "object") {
+                        for (const [groupName, prefs] of Object.entries(subPkg.preferences)) {
                             if (Array.isArray(prefs)) {
                                 for (const pref of prefs) {
                                     await connection.query(
-                                        `INSERT INTO booking_preferences (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
-                                         VALUES (?, ?, ?, ?, ?)`,
+                                        `INSERT INTO booking_preferences 
+                     (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
+                     VALUES (?, ?, ?, ?, ?)`,
                                         [
                                             itemId,
                                             pref.preference_value,
                                             pref.preference_price || 0,
-                                            groupIndex || 0,
+                                            groupName, // store custom name as group
                                             pref.is_required != null ? pref.is_required : 0
                                         ]
                                     );
@@ -457,19 +456,21 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                             );
                         }
                     }
-                }
-            }
 
-            // 7️⃣ Insert consent forms
-            if (pkg.consentForm && pkg.consentForm.length > 0) {
-                for (const consent of pkg.consentForm) {
-                    await connection.query(
-                        `INSERT INTO package_consent_forms (package_id, question, is_required) VALUES (?, ?, ?)`,
-                        [packageId, consent.question, consent.is_required || 0]
-                    );
+                    // 7️⃣ Insert consent forms
+                    if (subPkg.consentForm && subPkg.consentForm.length > 0) {
+                        for (const consent of subPkg.consentForm) {
+                            await connection.query(
+                                `INSERT INTO package_consent_forms (package_item_id, question, is_required)
+                     VALUES (?, ?, ?)`,
+                                [itemId, consent.question, consent.is_required || 0]
+                            );
+                        }
+                    }
                 }
             }
         }
+
 
         await connection.commit();
         res.status(201).json({ message: "Package(s) created successfully", serviceTypeId });
@@ -509,11 +510,11 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 pa.addonMedia AS addon_media,
                 pcf.consent_id,
                 pcf.question AS consent_question,
-                pcf.is_required AS prefrence_is_required,
+                pcf.is_required AS consent_is_required,
                 bp.preference_id,
                 bp.preferenceValue,
                 bp.preferencePrice,
-                bp.is_required As preference_is_required,
+                bp.is_required AS preference_is_required,
                 bp.preferenceGroup
             FROM services s
             JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
@@ -521,7 +522,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
             LEFT JOIN packages p ON p.service_type_id = st.service_type_id
             LEFT JOIN package_items pi ON pi.package_id = p.package_id
             LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
-            LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
             LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
             ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
         `);
@@ -548,8 +549,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         packageName: row.packageName,
                         packageMedia: row.packageMedia,
                         service_type_id: row.service_type_id,
-                        sub_packages: new Map(),
-                        consentForm: []
+                        sub_packages: new Map()
                     });
                 }
                 const pkg = service.packages.get(row.package_id);
@@ -564,22 +564,20 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             price: row.sub_price,
                             time_required: row.sub_time_required,
                             item_media: row.item_media,
-                            addons: []
+                            addons: [],
+                            preferences: {},   // group by preferenceGroup
+                            consentForm: []   // consent linked to this sub_package
                         });
                     }
                     const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                    // 5️⃣ Insert preferences (loop over preferenceGroup)
+                    // Preferences grouped by preferenceGroup
                     if (row.preference_id != null) {
-                        // DB gives preferenceGroup as 0,1,2...
-                        const groupIndex = row.preferenceGroup || 0; // Use 0 if null
-                        const prefKey = `preferences${groupIndex}`;  // create preferences0, preferences1, etc.
+                        const groupKey = row.preferenceGroup;
+                        if (!sp.preferences[groupKey]) sp.preferences[groupKey] = [];
 
-                        if (!sp[prefKey]) sp[prefKey] = [];
-
-                        // Avoid duplicate
-                        if (!sp[prefKey].some(p => p.preference_value === row.preferenceValue)) {
-                            sp[prefKey].push({
+                        if (!sp.preferences[groupKey].some(p => p.preference_id === row.preference_id)) {
+                            sp.preferences[groupKey].push({
                                 preference_id: row.preference_id,
                                 preference_value: row.preferenceValue,
                                 preference_price: row.preferencePrice,
@@ -587,7 +585,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             });
                         }
                     }
-
 
                     // Addons
                     if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
@@ -600,15 +597,15 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             addon_media: row.addon_media
                         });
                     }
-                }
 
-                // Consent forms
-                if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
-                    pkg.consentForm.push({
-                        consent_id: row.consent_id,
-                        question: row.consent_question,
-                        is_required: row.prefrence_is_required,
-                    });
+                    // Consent forms per sub-package
+                    if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
+                        sp.consentForm.push({
+                            consent_id: row.consent_id,
+                            question: row.consent_question,
+                            is_required: row.consent_is_required,
+                        });
+                    }
                 }
             }
         }
@@ -633,6 +630,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -764,7 +762,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -804,8 +801,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     const sub_id = sub.sub_package_id;
                     let sub_package_id;
 
+                    // --- Insert / Update sub-package ---
                     if (sub_id) {
-                        // Update existing sub-package
                         const [oldItem] = await connection.query(
                             `SELECT * FROM package_items WHERE item_id = ?`,
                             [sub_id]
@@ -830,7 +827,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         );
                         sub_package_id = sub_id;
                     } else {
-                        // Insert new sub-package
                         const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
                         const [newItem] = await connection.query(
                             `INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
@@ -842,66 +838,66 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                     submittedItemIds.push(sub_package_id);
 
-                    // Handle preferences: keys like preferences0, preferences1, ...
-                    for (const key of Object.keys(sub)) {
-                        if (key.startsWith("preferences")) {
-                            const groupIndex = parseInt(key.replace("preferences", ""), 10);
-                            const prefsArray = sub[key];
+                    // --- Preferences (like create, with group rename) ---
+                    if (sub.preferences && typeof sub.preferences === "object") {
+                        for (const [groupName, prefsArray] of Object.entries(sub.preferences)) {
+                            if (!Array.isArray(prefsArray)) continue;
                             const submittedPrefIds = [];
 
                             for (const pref of prefsArray) {
-                                if (pref.preference_id) {
-                                    // Update existing
-                                    const [oldPref] = await connection.query(
-                                        `SELECT * FROM booking_preferences WHERE preference_id = ?`,
-                                        [pref.preference_id]
-                                    );
-                                    if (!oldPref.length) continue;
 
+                                if (pref.preference_id) {
+                                    // Update existing preference
                                     await connection.query(
                                         `UPDATE booking_preferences
-                                         SET preferenceValue = ?, preferencePrice = ?, preferenceGroup = ? , is_required = ?
+                                         SET preferenceValue = ?, preferencePrice = ?, is_required = ?, preferenceGroup = ?
                                          WHERE preference_id = ? AND package_item_id = ?`,
                                         [
-                                            pref.preference_value ?? oldPref[0].preferenceValue,
-                                            pref.preference_price ?? oldPref[0].preferencePrice,
-                                            pref.is_required ?? oldPref[0].is_required,
-                                            groupIndex,
+                                            pref.preference_value,
+                                            pref.preference_price ?? 0,
+                                            pref.is_required ?? 0,
+                                            groupName,
                                             pref.preference_id,
                                             sub_package_id
                                         ]
                                     );
                                     submittedPrefIds.push(pref.preference_id);
                                 } else {
-                                    // Insert new
+                                    // Insert new preference
                                     const [newPref] = await connection.query(
                                         `INSERT INTO booking_preferences
-                                         (package_item_id, preferenceGroup, preferenceValue, preferencePrice)
-                                         VALUES (?, ?, ?, ?)`,
-                                        [sub_package_id, groupIndex, pref.preference_value, pref.preference_price ?? 0]
+                                         (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
+                                         VALUES (?, ?, ?, ?, ?)`,
+                                        [
+                                            sub_package_id,
+                                            groupName,
+                                            pref.preference_value,
+                                            pref.preference_price ?? 0,
+                                            pref.is_required ?? 0
+                                        ]
                                     );
                                     submittedPrefIds.push(newPref.insertId);
                                 }
                             }
 
-                            // Delete removed preferences
+                            // Delete removed preferences from old group
                             if (submittedPrefIds.length) {
                                 const placeholders = submittedPrefIds.map(() => '?').join(',');
                                 await connection.query(
                                     `DELETE FROM booking_preferences
                                      WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (${placeholders})`,
-                                    [sub_package_id, groupIndex, ...submittedPrefIds]
+                                    [sub_package_id, groupName, ...submittedPrefIds]
                                 );
                             } else {
                                 await connection.query(
                                     `DELETE FROM booking_preferences WHERE package_item_id = ? AND preferenceGroup = ?`,
-                                    [sub_package_id, groupIndex]
+                                    [sub_package_id, groupName]
                                 );
                             }
                         }
                     }
 
-                    // Handle addons
+                    // --- Addons ---
                     if (Array.isArray(sub.addons)) {
                         const submittedAddonIds = [];
                         for (let k = 0; k < sub.addons.length; k++) {
@@ -949,10 +945,43 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                             }
                         }
 
-                        // Delete removed addons
                         await connection.query(
                             `DELETE FROM package_addons WHERE package_item_id = ? AND addon_id NOT IN (?)`,
                             [sub_package_id, submittedAddonIds.length ? submittedAddonIds : [0]]
+                        );
+                    }
+
+                    // --- Consent Forms per sub-package ---
+                    if (Array.isArray(sub.consentForm)) {
+                        const submittedConsentIds = [];
+                        for (const form of sub.consentForm) {
+                            if (form.consent_id) {
+                                await connection.query(
+                                    `UPDATE package_consent_forms
+                                     SET question = ?, is_required = ?
+                                     WHERE consent_id = ? AND package_item_id = ?`,
+                                    [
+                                        form.question,
+                                        form.is_required ?? 0,
+                                        form.consent_id,
+                                        sub_package_id
+                                    ]
+                                );
+                                submittedConsentIds.push(form.consent_id);
+                            } else {
+                                const [newForm] = await connection.query(
+                                    `INSERT INTO package_consent_forms (package_item_id, question, is_required)
+                                     VALUES (?, ?, ?)`,
+                                    [sub_package_id, form.question, form.is_required ?? 0]
+                                );
+                                submittedConsentIds.push(newForm.insertId);
+                            }
+                        }
+
+                        await connection.query(
+                            `DELETE FROM package_consent_forms
+                             WHERE package_item_id = ? AND consent_id NOT IN (?)`,
+                            [sub_package_id, submittedConsentIds.length ? submittedConsentIds : [0]]
                         );
                     }
                 }
@@ -963,52 +992,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     [package_id, submittedItemIds.length ? submittedItemIds : [0]]
                 );
             }
-
-            // Handle consent forms
-            if (Array.isArray(pkg.consentForm)) {
-                const submittedConsentIds = [];
-                for (const form of pkg.consentForm) {
-                    if (form.consent_id) {
-                        const [oldForm] = await connection.query(
-                            `SELECT * FROM package_consent_forms WHERE consent_id = ?`,
-                            [form.consent_id]
-                        );
-                        if (!oldForm.length) continue;
-
-                        await connection.query(
-                            `UPDATE package_consent_forms
-                             SET question = ?, is_required = ?
-                             WHERE consent_id = ? AND package_id = ?`,
-                            [
-                                form.question ?? oldForm[0].question,
-                                form.is_required ?? oldForm[0].is_required,
-                                form.consent_id,
-                                package_id
-                            ]
-                        );
-                        submittedConsentIds.push(form.consent_id);
-                    } else {
-                        const [newForm] = await connection.query(
-                            `INSERT INTO package_consent_forms (package_id, question, is_required)
-                             VALUES (?, ?, ?)`,
-                            [package_id, form.question, form.is_required ?? 0]
-                        );
-                        submittedConsentIds.push(newForm.insertId);
-                    }
-                }
-
-                // Delete removed consent forms
-                await connection.query(
-                    `DELETE FROM package_consent_forms WHERE package_id = ? AND consent_id NOT IN (?)`,
-                    [package_id, submittedConsentIds.length ? submittedConsentIds : [0]]
-                );
-            }
         }
 
         await connection.commit();
         connection.release();
         res.status(200).json({
-            message: "✅ Packages updated successfully with sub-packages, preference groups, addons, and consent forms"
+            message: "✅ Packages updated successfully with sub-packages, preference groups (renameable), addons, and consent forms"
         });
 
     } catch (err) {
@@ -1018,6 +1007,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
