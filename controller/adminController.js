@@ -397,16 +397,25 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             const pkg = parsedPackages[i];
             const packageImage = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || null;
 
-            if (!pkg.packageName || !packageImage) {
-                throw new Error(`Package name and image are required for package index ${i}`);
-            }
+            let packageId;
 
-            const [pkgInsert] = await connection.query(
-                `INSERT INTO packages (service_type_id, packageName, packageMedia) 
-                 VALUES (?, ?, ?)`,
-                [serviceTypeId, pkg.packageName, packageImage]
-            );
-            const packageId = pkgInsert.insertId;
+            if (pkg.packageName && packageImage) {
+                // Create package normally if both name and image exist
+                const [pkgInsert] = await connection.query(
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia) 
+                     VALUES (?, ?, ?)`,
+                    [serviceTypeId, pkg.packageName, packageImage]
+                );
+                packageId = pkgInsert.insertId;
+            } else {
+                // Missing name or image → create a default package
+                const [pkgInsert] = await connection.query(
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia) 
+                     VALUES (?, ?, ?)`,
+                    [serviceTypeId, null, null]
+                );
+                packageId = pkgInsert.insertId;
+            }
 
             // 4️⃣ Insert sub-packages
             if (pkg.sub_packages && pkg.sub_packages.length > 0) {
@@ -421,20 +430,20 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                     );
                     const itemId = subPkgInsert.insertId;
 
-                    // ✅ Insert preferences (custom groups)
+                    // ✅ Insert preferences
                     if (subPkg.preferences && typeof subPkg.preferences === "object") {
                         for (const [groupName, prefs] of Object.entries(subPkg.preferences)) {
                             if (Array.isArray(prefs)) {
                                 for (const pref of prefs) {
                                     await connection.query(
                                         `INSERT INTO booking_preferences 
-                     (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
-                     VALUES (?, ?, ?, ?, ?)`,
+                                         (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
+                                         VALUES (?, ?, ?, ?, ?)`,
                                         [
                                             itemId,
                                             pref.preference_value,
                                             pref.preference_price || 0,
-                                            groupName, // store custom name as group
+                                            groupName, // use main array key as group
                                             pref.is_required != null ? pref.is_required : 0
                                         ]
                                     );
@@ -443,7 +452,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // 6️⃣ Insert addons
+                    // 5️⃣ Insert addons
                     if (subPkg.addons && subPkg.addons.length > 0) {
                         for (let k = 0; k < subPkg.addons.length; k++) {
                             const addon = subPkg.addons[k];
@@ -457,12 +466,12 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // 7️⃣ Insert consent forms
+                    // 6️⃣ Insert consent forms
                     if (subPkg.consentForm && subPkg.consentForm.length > 0) {
                         for (const consent of subPkg.consentForm) {
                             await connection.query(
                                 `INSERT INTO package_consent_forms (package_item_id, question, is_required)
-                     VALUES (?, ?, ?)`,
+                                 VALUES (?, ?, ?)`,
                                 [itemId, consent.question, consent.is_required || 0]
                             );
                         }
@@ -470,7 +479,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 }
             }
         }
-
 
         await connection.commit();
         res.status(201).json({ message: "Package(s) created successfully", serviceTypeId });
@@ -482,6 +490,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
+
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -630,7 +639,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

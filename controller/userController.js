@@ -567,7 +567,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
 
     try {
-        // 1️⃣ Get basic package list
         const [packages] = await db.query(
             `SELECT 
                 p.package_id,
@@ -582,17 +581,24 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found for this service type" });
         }
 
-        // 4️⃣ Respond
+        // ✅ Filter out empty packages if you want OR return them but mark them as "empty"
+        const formatted = packages.map(pkg => ({
+            package_id: pkg.package_id,
+            packageName: pkg.packageName || null,
+            packageMedia: pkg.packageMedia || null,
+            // hasMainInfo: !!(pkg.packageName && pkg.packageMedia)
+        }));
+
         res.status(200).json({
             message: "Packages fetched successfully",
-            packages, // list of all packages (basic info)
+            packages: formatted,
         });
-
     } catch (err) {
         console.error("Error fetching packages with details:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
@@ -602,6 +608,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             `SELECT 
                 p.package_id,
                 p.packageName,
+                p.packageMedia,
                 pi.item_id AS sub_package_id,
                 pi.itemName AS item_name,
                 pi.description AS sub_description,
@@ -620,8 +627,9 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 bp.preferenceGroup,
                 bp.is_required AS preference_is_required,
                 pcf.consent_id,
+                pcf.package_item_id AS consent_package_item_id,
                 pcf.question AS consent_question,
-                pcf.is_required
+                pcf.is_required AS consent_is_required
             FROM packages p
             LEFT JOIN package_items pi ON pi.package_id = p.package_id
             LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
@@ -638,9 +646,10 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
 
         const pkg = {
             package_id: rows[0].package_id,
-            packageName: rows[0].packageName,
+            packageName: rows[0].packageName || null,
+            packageMedia: rows[0].packageMedia || null,
             sub_packages: [],
-            consentForm: []
+            // hasMainInfo: !!(rows[0].packageName && rows[0].packageMedia)
         };
 
         const subPackageMap = new Map();
@@ -656,7 +665,8 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
                         addons: [],
-                        preferences: {} // <-- new format
+                        preferences: {},
+                        consentForm: [] // initialize here
                     });
                 }
 
@@ -674,7 +684,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Preferences grouped by preferenceGroup directly
+                // Preferences grouped directly
                 if (row.preference_id != null) {
                     const groupName = row.preferenceGroup || "Default";
                     if (!sp.preferences[groupName]) sp.preferences[groupName] = [];
@@ -687,15 +697,17 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         });
                     }
                 }
-            }
 
-            // Consent forms
-            if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
-                pkg.consentForm.push({
-                    consent_id: row.consent_id,
-                    question: row.consent_question,
-                    is_required: row.is_required
-                });
+                // Consent forms per sub-package
+                if (row.consent_id) {
+                    if (!sp.consentForm.some(c => c.consent_id === row.consent_id)) {
+                        sp.consentForm.push({
+                            consent_id: row.consent_id,
+                            question: row.consent_question,
+                            is_required: row.consent_is_required
+                        });
+                    }
+                }
             }
         }
 
