@@ -494,45 +494,48 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT
-                sc.service_categories_id AS service_category_id,
-                sc.serviceCategory AS service_category_name,
-                s.service_id,
-                s.serviceName AS service_name,
-                s.serviceFilter,
-                p.package_id,
-                p.packageName,
-                p.packageMedia,
-                st.service_type_id,
-                pi.item_id AS sub_package_id,
-                pi.itemName AS item_name,
-                pi.description AS sub_description,
-                pi.price AS sub_price,
-                pi.timeRequired AS sub_time_required,
-                pi.itemMedia AS item_media,
-                pa.addon_id,
-                pa.addonName AS addon_name,
-                pa.addonDescription AS addon_description,
-                pa.addonPrice AS addon_price,
-                pa.addonTime AS addon_time_required,
-                pcf.consent_id,
-                pcf.question AS consent_question,
-                pcf.is_required AS consent_is_required,
-                bp.preference_id,
-                bp.preferenceValue,
-                bp.preferencePrice,
-                bp.is_required AS preference_is_required,
-                bp.preferenceGroup
-            FROM services s
-            JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
-            LEFT JOIN service_type st ON st.service_id = s.service_id
-            LEFT JOIN packages p ON p.service_type_id = st.service_type_id
-            LEFT JOIN package_items pi ON pi.package_id = p.package_id
-            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
-            LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
-            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
-            ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
-        `);
+                SELECT
+                    sc.service_categories_id AS service_category_id,
+                    sc.serviceCategory AS service_category_name,
+                    s.service_id,
+                    s.serviceName AS service_name,
+                    s.serviceFilter,
+                    p.package_id,
+                    p.packageName,
+                    p.packageMedia,
+                    st.service_type_id,
+                    pi.item_id AS sub_package_id,
+                    pi.itemName AS item_name,
+                    pi.description AS sub_description,
+                    pi.price AS sub_price,
+                    pi.timeRequired AS sub_time_required,
+                    pi.itemMedia AS item_media,
+                    pa.addon_id,
+                    pa.addonName AS addon_name,
+                    pa.addonDescription AS addon_description,
+                    pa.addonPrice AS addon_price,
+                    pa.addonTime AS addon_time_required,
+                    pcf.consent_id,
+                    pcf.question AS consent_question,
+                    pcf.is_required AS consent_is_required,
+                    bp.preference_id,
+                    bp.preferenceValue,
+                    bp.preferencePrice,
+                    bp.is_required AS preference_is_required,
+                    bp.preferenceGroup
+                FROM services s
+                JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+                LEFT JOIN service_type st ON st.service_id = s.service_id
+                LEFT JOIN packages p ON p.service_type_id = st.service_type_id
+                LEFT JOIN package_items pi ON pi.package_id = p.package_id
+                LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+                LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
+                LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+                WHERE p.package_id IS NOT NULL
+                AND p.packageName IS NOT NULL AND p.packageName <> ''
+                AND p.packageMedia IS NOT NULL AND p.packageMedia <> ''
+                ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
+`);
 
         const servicesMap = new Map();
 

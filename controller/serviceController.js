@@ -442,9 +442,6 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
 const getService = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getServices);
