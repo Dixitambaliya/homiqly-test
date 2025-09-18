@@ -581,13 +581,17 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found for this service type" });
         }
 
-        // ✅ Filter out empty packages if you want OR return them but mark them as "empty"
-        const formatted = packages.map(pkg => ({
-            package_id: pkg.package_id,
-            packageName: pkg.packageName || null,
-            packageMedia: pkg.packageMedia || null,
-            // hasMainInfo: !!(pkg.packageName && pkg.packageMedia)
-        }));
+        const formatted = packages.map(pkg => {
+            if (!pkg.packageName && !pkg.packageMedia) {
+                // 🚨 Only return package_id if both are null
+                return { package_id: pkg.package_id };
+            }
+            return {
+                package_id: pkg.package_id,
+                packageName: pkg.packageName,
+                packageMedia: pkg.packageMedia,
+            };
+        });
 
         res.status(200).json({
             message: "Packages fetched successfully",
@@ -598,6 +602,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
@@ -619,7 +624,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 pa.addonName AS addon_name,
                 pa.addonDescription AS addon_description,
                 pa.addonPrice AS addon_price,
-                pa.addonTime AS addon_time_required,
                 pa.addonMedia AS addon_media,
                 bp.preference_id,
                 bp.preferenceValue,
@@ -662,7 +666,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         item_name: row.item_name,
                         description: row.sub_description,
                         price: row.sub_price,
-                        time_required: row.sub_time_required,
+                        addon_time: row.sub_time_required,
                         item_media: row.item_media,
                         addons: [],
                         preferences: {},
@@ -679,7 +683,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         addon_name: row.addon_name,
                         description: row.addon_description,
                         price: row.addon_price,
-                        time_required: row.addon_time_required,
                         addon_media: row.addon_media
                     });
                 }
