@@ -626,7 +626,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             LEFT JOIN package_items pi ON pi.package_id = p.package_id
             LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
             LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
-            LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
             WHERE p.package_id = ?
             ORDER BY pi.item_id, bp.preferenceGroup`,
             [package_id]
@@ -656,7 +656,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
                         addons: [],
-                        // preferences as preferences0, preferences1 ...
+                        preferences: {} // <-- new format
                     });
                 }
 
@@ -674,12 +674,12 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Preferences grouped as preferences0, preferences1, ...
+                // Preferences grouped by preferenceGroup directly
                 if (row.preference_id != null) {
-                    const groupKey = `preferences${row.preferenceGroup || 0}`;
-                    if (!sp[groupKey]) sp[groupKey] = [];
-                    if (!sp[groupKey].some(p => p.preference_id === row.preference_id)) {
-                        sp[groupKey].push({
+                    const groupName = row.preferenceGroup || "Default";
+                    if (!sp.preferences[groupName]) sp.preferences[groupName] = [];
+                    if (!sp.preferences[groupName].some(p => p.preference_id === row.preference_id)) {
+                        sp.preferences[groupName].push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
                             preference_price: row.preferencePrice,
@@ -707,6 +707,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 module.exports = {
