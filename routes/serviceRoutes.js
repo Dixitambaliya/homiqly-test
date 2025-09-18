@@ -18,7 +18,8 @@ const { addService,
     addServiceFilter,
     getServiceFilters,
     updateServiceFilter,
-    deleteServiceFilter
+    deleteServiceFilter,
+    getAdminServicesWithfilter
 } = require("../controller/serviceController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -36,6 +37,9 @@ router.delete("/deleteservicefilter/:service_filter_id", authenticationToken, de
 
 router.post("/addservicetype", multiUpload, handleUploads, authenticationToken, addServiceType)
 router.get("/getservicetype/:service_id", authenticationToken, getServiceTypeById)
+
+router.get("/getcategorywithservices", authenticationToken, getAdminServicesWithfilter)
+
 router.post("/addcategory", authenticationToken, addCategory)
 router.get("/getcity", getcity)
 router.post("/addcity", authenticationToken, addServiceCity)

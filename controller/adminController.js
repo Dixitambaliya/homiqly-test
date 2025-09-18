@@ -1008,8 +1008,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 

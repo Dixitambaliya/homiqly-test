@@ -392,6 +392,58 @@ const getAdminService = asyncHandler(async (req, res) => {
     }
 });
 
+const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                sc.service_categories_id AS serviceCategoryId,
+                sc.serviceCategory AS categoryName,
+                s.service_id AS serviceId,
+                s.serviceName
+            FROM services s
+            JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM service_type st
+                JOIN packages p ON p.service_type_id = st.service_type_id
+                WHERE st.service_id = s.service_id
+                  AND (p.packageName IS NULL OR p.packageName = '' 
+                       OR p.packageMedia IS NULL OR p.packageMedia = '')
+            )
+        `);
+
+        const grouped = rows.reduce((acc, row) => {
+            const category = row.categoryName;
+
+            if (!acc[category]) {
+                acc[category] = {
+                    categoryName: category,
+                    serviceCategoryId: row.serviceCategoryId,
+                    services: []
+                };
+            }
+
+            if (row.serviceId && !acc[category].services.some(s => s.serviceId === row.serviceId)) {
+                acc[category].services.push({
+                    serviceId: row.serviceId,
+                    categoryName: category,
+                    serviceCategoryId: row.serviceCategoryId,
+                    serviceName: row.serviceName
+                });
+            }
+
+            return acc;
+        }, {});
+
+        res.status(200).json({ services: Object.values(grouped) });
+    } catch (err) {
+        console.error("Error fetching services:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+
+
 
 const getService = asyncHandler(async (req, res) => {
     try {
@@ -697,5 +749,6 @@ module.exports = {
     addServiceFilter,
     getServiceFilters,
     updateServiceFilter,
-    deleteServiceFilter
+    deleteServiceFilter,
+    getAdminServicesWithfilter
 }
