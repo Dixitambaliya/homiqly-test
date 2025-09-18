@@ -333,7 +333,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
         IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
         IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
-        st.serviceTypeName,
         pay.amount AS payment_amount, 
         pay.currency AS payment_currency
       FROM service_booking sb

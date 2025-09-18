@@ -864,19 +864,19 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     submittedItemIds.push(sub_package_id);
 
                     // --- Preferences (like create, with group rename) ---
+                    // --- Preferences (like create, with group rename) ---
                     if (sub.preferences && typeof sub.preferences === "object") {
                         for (const [groupName, prefsArray] of Object.entries(sub.preferences)) {
                             if (!Array.isArray(prefsArray)) continue;
                             const submittedPrefIds = [];
 
                             for (const pref of prefsArray) {
-
                                 if (pref.preference_id) {
                                     // Update existing preference
                                     await connection.query(
                                         `UPDATE booking_preferences
-                                         SET preferenceValue = ?, preferencePrice = ?, is_required = ?, preferenceGroup = ?
-                                         WHERE preference_id = ? AND package_item_id = ?`,
+                     SET preferenceValue = ?, preferencePrice = ?, is_required = ?, preferenceGroup = ?
+                     WHERE preference_id = ? AND package_item_id = ?`,
                                         [
                                             pref.preference_value,
                                             pref.preference_price ?? 0,
@@ -891,8 +891,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                     // Insert new preference
                                     const [newPref] = await connection.query(
                                         `INSERT INTO booking_preferences
-                                         (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
-                                         VALUES (?, ?, ?, ?, ?)`,
+                     (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
+                     VALUES (?, ?, ?, ?, ?)`,
                                         [
                                             sub_package_id,
                                             groupName,
@@ -910,7 +910,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                 const placeholders = submittedPrefIds.map(() => '?').join(',');
                                 await connection.query(
                                     `DELETE FROM booking_preferences
-                                     WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (${placeholders})`,
+                 WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (${placeholders})`,
                                     [sub_package_id, groupName, ...submittedPrefIds]
                                 );
                             } else {
@@ -920,6 +920,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                 );
                             }
                         }
+                    } else {
+                        // ❌ No preferences object provided → clear all preferences for this sub-package
+                        await connection.query(
+                            `DELETE FROM booking_preferences WHERE package_item_id = ?`,
+                            [sub_package_id]
+                        );
                     }
 
                     // --- Addons ---
