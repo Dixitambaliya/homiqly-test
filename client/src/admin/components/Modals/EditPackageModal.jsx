@@ -259,14 +259,12 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
   // rename a preference group (change object key) - preserves order
   const renamePreferenceGroup = (subIndex, oldKey, newTitle) => {
-    if (!newTitle || !newTitle.trim()) return;
-    const trimmed = newTitle.trim();
+    const trimmed = (newTitle ?? "").trim();
 
     setSubPackages((prev) => {
       const cp = [...prev];
       const prefs = { ...(cp[subIndex].preferences || {}) };
       if (!prefs.hasOwnProperty(oldKey)) return cp;
-      if (trimmed === oldKey) return cp;
 
       // Build a new object preserving original key order, but swap the key when we hit oldKey
       const newPrefs = {};
