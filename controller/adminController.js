@@ -459,9 +459,9 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                             const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || null;
 
                             await connection.query(
-                                `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonMedia)
+                                `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonTime)
                                  VALUES (?, ?, ?, ?, ?)`,
-                                [itemId, addon.addon_name, addon.description || "", addon.time_required || 0, addonMedia]
+                                [itemId, addon.addon_name, addon.description || "", addon.price || 0, addon.time_required || 0]
                             );
                         }
                     }
@@ -515,7 +515,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 pa.addonName AS addon_name,
                 pa.addonDescription AS addon_description,
                 pa.addonPrice AS addon_price,
-                pa.addonMedia AS addon_media,
+                pa.addonTime AS addon_time_required,
                 pcf.consent_id,
                 pcf.question AS consent_question,
                 pcf.is_required AS consent_is_required,
@@ -601,7 +601,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             addon_name: row.addon_name,
                             description: row.addon_description,
                             price: row.addon_price,
-                            addon_media: row.addon_media
+                            time_required: row.addon_time_required
                         });
                     }
 
