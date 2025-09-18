@@ -460,7 +460,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
                             await connection.query(
                                 `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonMedia)
-                                 VALUES (?, ?, ?, ?, ?, ?)`,
+                                 VALUES (?, ?, ?, ?, ?)`,
                                 [itemId, addon.addon_name, addon.description || "", addon.time_required || 0, addonMedia]
                             );
                         }
