@@ -804,7 +804,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             // Verify package exists
             const [existingPackage] = await connection.query(
-                `SELECT package_id, packageMedia FROM packages WHERE package_id = ?`,
+                `SELECT package_id, packageMedia, packageName FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (!existingPackage.length) continue;
@@ -818,212 +818,174 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             );
 
             // Handle sub-packages
-            if (Array.isArray(pkg.sub_packages)) {
-                const submittedItemIds = [];
+            if (!Array.isArray(pkg.sub_packages)) continue;
+            const submittedItemIds = [];
 
-                for (let j = 0; j < pkg.sub_packages.length; j++) {
-                    const sub = pkg.sub_packages[j];
-                    const sub_id = sub.sub_package_id;
-                    let sub_package_id;
+            for (let j = 0; j < pkg.sub_packages.length; j++) {
+                const sub = pkg.sub_packages[j];
+                const sub_id = sub.sub_package_id;
+                let sub_package_id;
 
-                    // --- Insert / Update sub-package ---
-                    if (sub_id) {
-                        const [oldItem] = await connection.query(
-                            `SELECT * FROM package_items WHERE item_id = ?`,
-                            [sub_id]
-                        );
-                        if (!oldItem.length) continue;
-                        const old = oldItem[0];
-                        const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
+                // --- Insert / Update sub-package ---
+                if (sub_id) {
+                    const [oldItem] = await connection.query(
+                        `SELECT * FROM package_items WHERE item_id = ?`,
+                        [sub_id]
+                    );
+                    if (!oldItem.length) continue;
+                    const old = oldItem[0];
+                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
 
-                        await connection.query(
-                            `UPDATE package_items
-                             SET itemName = ?, description = ?, price = ?, timeRequired = ?, itemMedia = ?
-                             WHERE item_id = ? AND package_id = ?`,
-                            [
-                                sub.item_name ?? old.itemName,
-                                sub.description ?? old.description,
-                                sub.price ?? old.price,
-                                sub.time_required ?? old.timeRequired,
-                                itemMedia,
-                                sub_id,
-                                package_id
-                            ]
-                        );
-                        sub_package_id = sub_id;
-                    } else {
-                        const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
-                        const [newItem] = await connection.query(
-                            `INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
-                             VALUES (?, ?, ?, ?, ?, ?)`,
-                            [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
-                        );
-                        sub_package_id = newItem.insertId;
-                    }
+                    await connection.query(
+                        `UPDATE package_items
+                         SET itemName = ?, description = ?, price = ?, timeRequired = ?, itemMedia = ?
+                         WHERE item_id = ? AND package_id = ?`,
+                        [
+                            sub.item_name ?? old.itemName,
+                            sub.description ?? old.description,
+                            sub.price ?? old.price,
+                            sub.time_required ?? old.timeRequired,
+                            itemMedia,
+                            sub_id,
+                            package_id
+                        ]
+                    );
+                    sub_package_id = sub_id;
+                } else {
+                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+                    const [newItem] = await connection.query(
+                        `INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
+                         VALUES (?, ?, ?, ?, ?, ?)`,
+                        [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
+                    );
+                    sub_package_id = newItem.insertId;
+                }
 
-                    submittedItemIds.push(sub_package_id);
+                submittedItemIds.push(sub_package_id);
 
-                    // --- Preferences (like create, with group rename) ---
-                    // --- Preferences (like create, with group rename) ---
-                    if (sub.preferences && typeof sub.preferences === "object") {
-                        for (const [groupName, prefsArray] of Object.entries(sub.preferences)) {
-                            if (!Array.isArray(prefsArray)) continue;
-                            const submittedPrefIds = [];
+                // --- Preferences: Delete all old, insert only submitted ---
+                await connection.query(
+                    `DELETE FROM booking_preferences WHERE package_item_id = ?`,
+                    [sub_package_id]
+                );
 
-                            for (const pref of prefsArray) {
-                                if (pref.preference_id) {
-                                    // Update existing preference
-                                    await connection.query(
-                                        `UPDATE booking_preferences
-                     SET preferenceValue = ?, preferencePrice = ?, is_required = ?, preferenceGroup = ?
-                     WHERE preference_id = ? AND package_item_id = ?`,
-                                        [
-                                            pref.preference_value,
-                                            pref.preference_price ?? 0,
-                                            pref.is_required ?? 0,
-                                            groupName,
-                                            pref.preference_id,
-                                            sub_package_id
-                                        ]
-                                    );
-                                    submittedPrefIds.push(pref.preference_id);
-                                } else {
-                                    // Insert new preference
-                                    const [newPref] = await connection.query(
-                                        `INSERT INTO booking_preferences
-                     (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
-                     VALUES (?, ?, ?, ?, ?)`,
-                                        [
-                                            sub_package_id,
-                                            groupName,
-                                            pref.preference_value,
-                                            pref.preference_price ?? 0,
-                                            pref.is_required ?? 0
-                                        ]
-                                    );
-                                    submittedPrefIds.push(newPref.insertId);
-                                }
-                            }
+                if (sub.preferences && typeof sub.preferences === "object") {
+                    for (const [groupName, prefsArray] of Object.entries(sub.preferences)) {
+                        if (!Array.isArray(prefsArray)) continue;
 
-                            // Delete removed preferences from old group
-                            if (submittedPrefIds.length) {
-                                const placeholders = submittedPrefIds.map(() => '?').join(',');
-                                await connection.query(
-                                    `DELETE FROM booking_preferences
-                 WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (${placeholders})`,
-                                    [sub_package_id, groupName, ...submittedPrefIds]
-                                );
-                            } else {
-                                await connection.query(
-                                    `DELETE FROM booking_preferences WHERE package_item_id = ? AND preferenceGroup = ?`,
-                                    [sub_package_id, groupName]
-                                );
-                            }
+                        for (const pref of prefsArray) {
+                            await connection.query(
+                                `INSERT INTO booking_preferences
+                                 (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
+                                 VALUES (?, ?, ?, ?, ?)`,
+                                [
+                                    sub_package_id,
+                                    groupName,
+                                    pref.preference_value,
+                                    pref.preference_price ?? 0,
+                                    pref.is_required ?? 0
+                                ]
+                            );
                         }
-                    } else {
-                        // ❌ No preferences object provided → clear all preferences for this sub-package
-                        await connection.query(
-                            `DELETE FROM booking_preferences WHERE package_item_id = ?`,
-                            [sub_package_id]
-                        );
-                    }
-
-                    // --- Addons ---
-                    if (Array.isArray(sub.addons)) {
-                        const submittedAddonIds = [];
-                        for (let k = 0; k < sub.addons.length; k++) {
-                            const addon = sub.addons[k];
-                            if (addon.addon_id) {
-                                const [oldAddon] = await connection.query(
-                                    `SELECT * FROM package_addons WHERE addon_id = ?`,
-                                    [addon.addon_id]
-                                );
-                                if (!oldAddon.length) continue;
-
-                                await connection.query(
-                                    `UPDATE package_addons
-                                     SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
-                                     WHERE addon_id = ? AND package_item_id = ?`,
-                                    [
-                                        addon.addon_name ?? oldAddon[0].addonName,
-                                        addon.description ?? oldAddon[0].addonDescription,
-                                        addon.price ?? oldAddon[0].addonPrice,
-                                        addon.time_required ?? oldAddon[0].addonTime,
-                                        addon.addon_id,
-                                        sub_package_id
-                                    ]
-                                );
-                                submittedAddonIds.push(addon.addon_id);
-                            } else {
-                                const [newAddon] = await connection.query(
-                                    `INSERT INTO package_addons
-                                     (package_item_id, addonName, addonDescription, addonPrice, addonTime)
-                                     VALUES (?, ?, ?, ?, ?)`,
-                                    [
-                                        sub_package_id,
-                                        addon.addon_name,
-                                        addon.description,
-                                        addon.price,
-                                        addon.time_required,
-                                    ]
-                                );
-                                submittedAddonIds.push(newAddon.insertId);
-                            }
-                        }
-
-                        await connection.query(
-                            `DELETE FROM package_addons WHERE package_item_id = ? AND addon_id NOT IN (?)`,
-                            [sub_package_id, submittedAddonIds.length ? submittedAddonIds : [0]]
-                        );
-                    }
-
-                    // --- Consent Forms per sub-package ---
-                    if (Array.isArray(sub.consentForm)) {
-                        const submittedConsentIds = [];
-                        for (const form of sub.consentForm) {
-                            if (form.consent_id) {
-                                await connection.query(
-                                    `UPDATE package_consent_forms
-                                     SET question = ?, is_required = ?
-                                     WHERE consent_id = ? AND package_item_id = ?`,
-                                    [
-                                        form.question,
-                                        form.is_required ?? 0,
-                                        form.consent_id,
-                                        sub_package_id
-                                    ]
-                                );
-                                submittedConsentIds.push(form.consent_id);
-                            } else {
-                                const [newForm] = await connection.query(
-                                    `INSERT INTO package_consent_forms (package_item_id, question, is_required)
-                                     VALUES (?, ?, ?)`,
-                                    [sub_package_id, form.question, form.is_required ?? 0]
-                                );
-                                submittedConsentIds.push(newForm.insertId);
-                            }
-                        }
-
-                        await connection.query(
-                            `DELETE FROM package_consent_forms
-                             WHERE package_item_id = ? AND consent_id NOT IN (?)`,
-                            [sub_package_id, submittedConsentIds.length ? submittedConsentIds : [0]]
-                        );
                     }
                 }
 
-                // Delete removed sub-packages
-                await connection.query(
-                    `DELETE FROM package_items WHERE package_id = ? AND item_id NOT IN (?)`,
-                    [package_id, submittedItemIds.length ? submittedItemIds : [0]]
-                );
+                // --- Addons ---
+                if (Array.isArray(sub.addons)) {
+                    const submittedAddonIds = [];
+                    for (let k = 0; k < sub.addons.length; k++) {
+                        const addon = sub.addons[k];
+                        if (addon.addon_id) {
+                            const [oldAddon] = await connection.query(
+                                `SELECT * FROM package_addons WHERE addon_id = ?`,
+                                [addon.addon_id]
+                            );
+                            if (!oldAddon.length) continue;
+
+                            await connection.query(
+                                `UPDATE package_addons
+                                 SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
+                                 WHERE addon_id = ? AND package_item_id = ?`,
+                                [
+                                    addon.addon_name ?? oldAddon[0].addonName,
+                                    addon.description ?? oldAddon[0].addonDescription,
+                                    addon.price ?? oldAddon[0].addonPrice,
+                                    addon.time_required ?? oldAddon[0].addonTime,
+                                    addon.addon_id,
+                                    sub_package_id
+                                ]
+                            );
+                            submittedAddonIds.push(addon.addon_id);
+                        } else {
+                            const [newAddon] = await connection.query(
+                                `INSERT INTO package_addons
+                                 (package_item_id, addonName, addonDescription, addonPrice, addonTime)
+                                 VALUES (?, ?, ?, ?, ?)`,
+                                [
+                                    sub_package_id,
+                                    addon.addon_name,
+                                    addon.description,
+                                    addon.price,
+                                    addon.time_required,
+                                ]
+                            );
+                            submittedAddonIds.push(newAddon.insertId);
+                        }
+                    }
+
+                    await connection.query(
+                        `DELETE FROM package_addons WHERE package_item_id = ? AND addon_id NOT IN (?)`,
+                        [sub_package_id, submittedAddonIds.length ? submittedAddonIds : [0]]
+                    );
+                }
+
+                // --- Consent Forms ---
+                if (Array.isArray(sub.consentForm)) {
+                    const submittedConsentIds = [];
+                    for (const form of sub.consentForm) {
+                        if (form.consent_id) {
+                            await connection.query(
+                                `UPDATE package_consent_forms
+                                 SET question = ?, is_required = ?
+                                 WHERE consent_id = ? AND package_item_id = ?`,
+                                [
+                                    form.question,
+                                    form.is_required ?? 0,
+                                    form.consent_id,
+                                    sub_package_id
+                                ]
+                            );
+                            submittedConsentIds.push(form.consent_id);
+                        } else {
+                            const [newForm] = await connection.query(
+                                `INSERT INTO package_consent_forms (package_item_id, question, is_required)
+                                 VALUES (?, ?, ?)`,
+                                [sub_package_id, form.question, form.is_required ?? 0]
+                            );
+                            submittedConsentIds.push(newForm.insertId);
+                        }
+                    }
+
+                    await connection.query(
+                        `DELETE FROM package_consent_forms
+                         WHERE package_item_id = ? AND consent_id NOT IN (?)`,
+                        [sub_package_id, submittedConsentIds.length ? submittedConsentIds : [0]]
+                    );
+                }
             }
+
+            // Delete removed sub-packages
+            await connection.query(
+                `DELETE FROM package_items WHERE package_id = ? AND item_id NOT IN (?)`,
+                [package_id, submittedItemIds.length ? submittedItemIds : [0]]
+            );
         }
 
         await connection.commit();
         connection.release();
+
         res.status(200).json({
-            message: "✅ Packages updated successfully with sub-packages, preference groups (renameable), addons, and consent forms"
+            message: "✅ Packages updated successfully with sub-packages, preferences, addons, and consent forms"
         });
 
     } catch (err) {
@@ -1033,6 +995,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
