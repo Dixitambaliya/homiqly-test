@@ -5,6 +5,7 @@ import {
   FormInput,
   FormSelect,
   FormTextarea,
+  FormCheckbox,
 } from "../../../shared/components/Form";
 import {
   FiPlus,
@@ -74,6 +75,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
 
   const [subPackageImagePreviews, setSubPackageImagePreviews] = useState({});
   const [imagePreview, setImagePreview] = useState(null);
+  const [showPackageDetails, setShowPackageDetails] = useState(false);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -569,6 +571,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setFilteredServices([]);
     setSubPackageImagePreviews({});
     setImagePreview(null);
+    setShowPackageDetails(false);
   };
 
   const handleSubmit = async (e) => {
@@ -713,22 +716,35 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
               </div>
 
               <div className="mt-6">
-                <FormInput
-                  label="packageName Type Name"
-                  name="packageName"
-                  value={formData.packageName}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Bridal Makeup Package"
+                <FormCheckbox
+                  label="You want to add Package?"
+                  name="togglePackageFields"
+                  checked={showPackageDetails}
+                  onChange={(e) => setShowPackageDetails(e.target.checked)}
                 />
               </div>
-              <div className="mt-6">
-                <CustomFileInput
-                  label="PackageMedia"
-                  onChange={handleFileChange}
-                  preview={imagePreview}
-                  onRemove={removeMainImage}
-                />
-              </div>
+
+              {showPackageDetails && (
+                <>
+                  <div className="mt-6">
+                    <FormInput
+                      label="packageName Type Name"
+                      name="packageName"
+                      value={formData.packageName}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Bridal Makeup Package"
+                    />
+                  </div>
+                  <div className="mt-6">
+                    <CustomFileInput
+                      label="PackageMedia"
+                      onChange={handleFileChange}
+                      preview={imagePreview}
+                      onRemove={removeMainImage}
+                    />
+                  </div>
+                </>
+              )}
             </CollapsibleSectionCard>
 
             <div className="space-y-8 mt-6">
