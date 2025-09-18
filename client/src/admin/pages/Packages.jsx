@@ -16,7 +16,7 @@ const fmtPrice = (n) =>
     ? `$${Number(n)}`
     : "—";
 
-/* Presentational subcomponents from OLD UI */
+/* Presentational subcomponents */
 
 function PreferencesChips({ preferences }) {
   if (!preferences || Object.keys(preferences).length === 0) {
@@ -24,14 +24,14 @@ function PreferencesChips({ preferences }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {Object.entries(preferences).map(([groupKey, prefs]) => (
         <div
           key={groupKey}
           className="border rounded-lg p-3 bg-white shadow-sm"
         >
           <div className="text-sm font-semibold text-gray-700 mb-2">
-            Preference Group {groupKey}
+            {groupKey}
           </div>
           <ul className="space-y-1">
             {Array.isArray(prefs) && prefs.length > 0 ? (
@@ -42,18 +42,15 @@ function PreferencesChips({ preferences }) {
                     key={`${groupKey}-${idx}`}
                     className="flex items-center justify-between text-sm text-gray-800"
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      {p.preference_value}
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                      <span className="truncate">{p.preference_value}</span>
                     </span>
 
-                    <div className="flex items-center gap-3">
-                      {/* price */}
+                    <div className="flex items-center gap-3 ml-4">
                       <span className="text-gray-500">
                         {fmtPrice(p.preference_price)}
                       </span>
-
-                      {/* required/optional badge */}
                       <span
                         className={
                           "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
@@ -82,25 +79,48 @@ function AddonsChips({ addons }) {
   if (!Array.isArray(addons) || addons.length === 0) {
     return <div className="text-xs text-gray-400 italic">No add-ons</div>;
   }
+
   return (
-    <div className="flex flex-wrap gap-2 items-center">
-      {addons.slice(0, 3).map((a) => (
-        <div
-          key={a.addon_id}
-          className="px-3 py-1 bg-yellow-50 border rounded-full text-xs"
-          title={`${a.addon_name} — ${fmtPrice(a.price)}`}
+    <ul className="space-y-2">
+      {addons.map((a) => (
+        <li
+          key={a.addon_id ?? `${a.addon_name}-${a.price}`}
+          className="flex items-start justify-between gap-3 p-3 bg-white border rounded-lg shadow-sm"
         >
-          {a.addon_name} • {fmtPrice(a.price)} • {a.description}
-        </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-900 truncate">
+                  {a.addon_name}
+                </div>
+                {a.description && (
+                  <div className="text-xs text-gray-500 mt-1 truncate">
+                    {a.description}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-shrink-0 ml-2 justify-end">
+            <span className="inline-flex justify-end px-2 py-0.5 rounded-md text-xs font-semibold border bg-white">
+              {fmtPrice(a.price)}
+            </span>
+            {a.time_required && (
+              <div className="text-xs text-gray-500 mt-1 truncate">
+                {fmtTime(a.time_required)}
+              </div>
+            )}
+          </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
 function SubPackageItem({ sub }) {
-  // build a normalized preferences object in the form { "0": [...], "1": [...] }
+  // If API already returns `preferences` as an object, use it directly
   const buildPreferencesObject = (subObj) => {
-    // If API already returns `preferences` as an object, use it directly
     if (
       subObj &&
       typeof subObj.preferences === "object" &&
@@ -109,14 +129,14 @@ function SubPackageItem({ sub }) {
       return subObj.preferences;
     }
 
-    // Otherwise collect keys like preferences0, preferences1, etc.
+    // otherwise collect preference keys like preferences0, preferences1
     const prefKeys = Object.keys(subObj || {}).filter((k) =>
       /^preferences\d+$/.test(k)
     );
     if (prefKeys.length === 0) return {};
 
     return prefKeys.reduce((acc, k) => {
-      const idx = k.replace(/^preferences/, ""); // "preferences1" -> "1"
+      const idx = k.replace(/^preferences/, "");
       acc[idx] = subObj[k] || [];
       return acc;
     }, {});
@@ -126,19 +146,22 @@ function SubPackageItem({ sub }) {
 
   return (
     <li className="bg-white rounded-lg border p-4 shadow-sm">
-      <div className="grid grid-cols-12 gap-4 items-start">
-        <div className="col-span-2">
-          <img
-            src={
-              safeSrc(sub.item_media) ||
-              "https://via.placeholder.com/80?text=Item"
-            }
-            alt={sub.item_name || "Item"}
-            className="w-full h-full object-cover rounded-md border"
-          />
+      <div className="flex flex-row gap-4 ">
+        <div className="">
+          <div className="w-full h-24 rounded-md overflow-hidden border bg-gray-100">
+            <img
+              src={
+                safeSrc(sub.item_media) ||
+                "https://via.placeholder.com/160?text=Item"
+              }
+              alt={sub.item_name || "Item"}
+              className="w-full h-full object-cover"
+            />
+          </div>
         </div>
-        <div className="col-span-7">
-          <div className="flex justify-between items-start">
+
+        <div className="">
+          <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
               <p className="text-base font-medium text-gray-900 truncate">
                 {sub.item_name}
@@ -147,34 +170,71 @@ function SubPackageItem({ sub }) {
                 Time: {fmtTime(sub.time_required)}
               </p>
             </div>
+
             <div className="ml-4 text-right">
               <p className="text-sm font-semibold text-sky-700">
                 {fmtPrice(sub.price)}
               </p>
             </div>
           </div>
+
           {sub.description && (
             <p className="text-sm text-gray-600 mt-3 whitespace-pre-line">
               {sub.description}
             </p>
           )}
-          <div className="mt-3 space-y-2">
-            <div>
-              <div className="text-xs font-semibold text-gray-700 mb-1">
-                Preferences
-              </div>
-              <PreferencesChips preferences={preferencesObj} />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-gray-700 mb-1">
-                Add-ons
-              </div>
-              <AddonsChips addons={sub.addons} />
-            </div>
-          </div>
         </div>
-        <div className="col-span-3 text-right">
-          {/* Placeholder for per-item actions */}
+      </div>
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-1">
+          <div className="text-xs font-semibold text-gray-700 mb-2">
+            Preferences
+          </div>
+          <PreferencesChips preferences={preferencesObj} />
+        </div>
+
+        <div className="md:col-span-1">
+          <div className="text-xs font-semibold text-gray-700 mb-2">
+            Add-ons
+          </div>
+          <AddonsChips addons={sub.addons} />
+        </div>
+
+        <div className="md:col-span-2">
+          <div className="text-xs font-semibold text-gray-700 mb-2">
+            Consent
+          </div>
+          {Array.isArray(sub.consentForm) && sub.consentForm.length > 0 ? (
+            <div className="space-y-2">
+              {sub.consentForm.map((c, i) => {
+                const isReq = Number(c.is_required) === 1;
+                return (
+                  <div
+                    key={c.consent_id ?? i}
+                    className="flex items-center justify-between gap-3 p-2 bg-gray-50 rounded-md border border-gray-100"
+                  >
+                    <div className="text-sm text-gray-700 truncate">
+                      {c.question}
+                    </div>
+                    <div>
+                      <span
+                        className={
+                          "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
+                          (isReq
+                            ? "bg-red-100 text-red-800 border border-red-200"
+                            : "bg-gray-100 text-gray-700 border border-gray-200")
+                        }
+                      >
+                        {isReq ? "Required" : "Optional"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-xs text-gray-400 italic">No consent items</div>
+          )}
         </div>
       </div>
     </li>
@@ -182,11 +242,10 @@ function SubPackageItem({ sub }) {
 }
 
 function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
-  // helper for package thumbnail
   const pkgThumb = safeSrc(pkg.packageMedia) || null;
 
   return (
-    <div className="rounded-lg border bg-gray-50 overflow-hidden">
+    <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-4 min-w-0">
           <button
@@ -207,9 +266,8 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
             )}
           </button>
 
-          {/* Thumbnail + title */}
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-white">
+            <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
               <img
                 src={pkgThumb || "https://via.placeholder.com/56?text=Pkg"}
                 alt={
@@ -223,13 +281,11 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
 
             <div className="min-w-0">
               <div className="text-sm font-medium text-gray-900 truncate">
-                {/* Prefer packageName inside package object */}
                 {pkg.packageName ||
                   pkg.service_type_name ||
                   `Package #${pkg.package_id}`}
               </div>
               <div className="text-xs text-gray-500 truncate">
-                {/* extra context: show service type name if different from packageName */}
                 {pkg.service_type_name &&
                 pkg.service_type_name !== pkg.packageName
                   ? pkg.service_type_name
@@ -259,57 +315,25 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
       <div
         className={`px-4 transition-all duration-300 ease-in-out ${
           expanded
-            ? "pb-6 pt-4 max-h-[900px] opacity-100"
+            ? "pb-6 pt-4 max-h-[1100px] opacity-100"
             : "pt-0 pb-0 max-h-0 opacity-0"
         }`}
         aria-hidden={!expanded}
       >
-        <div className="space-y-6 max-h-[420px] overflow-auto pr-2">
-          {/* Sub-packages */}
+        <div className="space-y-6 max-h-[560px] overflow-auto pr-2 min-h-0">
           {Array.isArray(pkg.sub_packages) && pkg.sub_packages.length > 0 ? (
             <ul className="space-y-4">
               {pkg.sub_packages.map((sub) => (
-                <SubPackageItem key={sub.sub_package_id} sub={sub} />
+                <SubPackageItem
+                  key={
+                    sub.sub_package_id ?? `${pkg.package_id}-${sub.item_name}`
+                  }
+                  sub={sub}
+                />
               ))}
             </ul>
           ) : (
             <div className="text-sm text-gray-500 italic">No items listed.</div>
-          )}
-
-          {/* Consent Form */}
-          {Array.isArray(pkg.consentForm) && pkg.consentForm.length > 0 && (
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-              <h6 className="text-sm font-semibold text-gray-700 mb-3">
-                Consent Form
-              </h6>
-
-              <div className="space-y-2">
-                {pkg.consentForm.map((c, i) => {
-                  const isReq = Number(c.is_required) === 1;
-                  return (
-                    <div
-                      key={c.consent_id ?? i}
-                      className="flex items-start justify-between gap-4 p-3 bg-gray-50 rounded-md border border-gray-100"
-                      role="group"
-                      aria-label={`Consent question ${i + 1}`}
-                    >
-                      <p className="text-sm text-gray-700">{c.question}</p>
-
-                      <span
-                        className={
-                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium " +
-                          (isReq
-                            ? "bg-red-100 text-red-800 border border-red-200"
-                            : "bg-gray-100 text-gray-700 border border-gray-200")
-                        }
-                      >
-                        {isReq ? "Required" : "Optional"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           )}
         </div>
       </div>
@@ -317,7 +341,7 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
   );
 }
 
-/* Main component (your CURRENT UI CODE) */
+/* Main component */
 
 export default function Packages() {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -375,27 +399,33 @@ export default function Packages() {
     setShowEditModal(true);
   }
 
-  const filteredServices = allServices.filter((service) => {
-    const matchesCategory =
-      category === "" || service.service_category_name === category;
-    const sname = (service.service_name || "").toLowerCase();
-    const matchesServiceName =
-      search === "" || sname.includes(search.toLowerCase());
-    let matchesItemName = false;
-    if (Array.isArray(service.packages)) {
-      matchesItemName = service.packages.some(
-        (pkg) =>
-          Array.isArray(pkg.sub_packages) &&
-          pkg.sub_packages.some((sub) =>
-            (sub.item_name || "").toLowerCase().includes(search.toLowerCase())
-          )
+  // only include services that actually have packages (hide empty)
+  const filteredServices = allServices
+    .filter(
+      (service) =>
+        Array.isArray(service.packages) && service.packages.length > 0
+    )
+    .filter((service) => {
+      const matchesCategory =
+        category === "" || service.service_category_name === category;
+      const sname = (service.service_name || "").toLowerCase();
+      const matchesServiceName =
+        search === "" || sname.includes(search.toLowerCase());
+      let matchesItemName = false;
+      if (Array.isArray(service.packages)) {
+        matchesItemName = service.packages.some(
+          (pkg) =>
+            Array.isArray(pkg.sub_packages) &&
+            pkg.sub_packages.some((sub) =>
+              (sub.item_name || "").toLowerCase().includes(search.toLowerCase())
+            )
+        );
+      }
+      return (
+        matchesCategory &&
+        (matchesServiceName || matchesItemName || search === "")
       );
-    }
-    return (
-      matchesCategory &&
-      (matchesServiceName || matchesItemName || search === "")
-    );
-  });
+    });
 
   const displayPackages = filteredServices.reduce((acc, itm) => {
     const k = itm.service_category_name || "Other";
@@ -431,6 +461,7 @@ export default function Packages() {
           </Button>
         </div>
       </div>
+
       <div className="flex flex-col sm:flex-row gap-4 items-center mb-8">
         <FormInput
           className="w-full sm:w-2/3"
@@ -451,6 +482,7 @@ export default function Packages() {
           />
         </div>
       </div>
+
       <div className="space-y-10">
         {Object.entries(displayPackages).map(([catName, services]) => (
           <section key={catName}>
@@ -460,6 +492,7 @@ export default function Packages() {
                 {services.length} service{services.length !== 1 ? "s" : ""}
               </span>
             </div>
+
             <div className="grid gap-6">
               {services.map((service) => (
                 <div
@@ -487,6 +520,7 @@ export default function Packages() {
                             </div>
                           </div>
                         </div>
+
                         <div className="mt-6 space-y-4">
                           {Array.isArray(service.packages) &&
                           service.packages.length > 0 ? (
@@ -515,6 +549,7 @@ export default function Packages() {
           </section>
         ))}
       </div>
+
       <AddServiceTypeModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
