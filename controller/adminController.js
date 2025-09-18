@@ -459,9 +459,9 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                             const addonMedia = req.uploadedFiles?.[`addonMedia_${i}_${j}_${k}`]?.[0]?.url || null;
 
                             await connection.query(
-                                `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
+                                `INSERT INTO package_addons (package_item_id, addonName, addonDescription, addonPrice, addonMedia)
                                  VALUES (?, ?, ?, ?, ?, ?)`,
-                                [itemId, addon.addon_name, addon.description || "", addon.price || 0, addon.time_required || 0, addonMedia]
+                                [itemId, addon.addon_name, addon.description || "", addon.time_required || 0, addonMedia]
                             );
                         }
                     }
