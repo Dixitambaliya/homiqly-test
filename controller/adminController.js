@@ -515,7 +515,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 pa.addonName AS addon_name,
                 pa.addonDescription AS addon_description,
                 pa.addonPrice AS addon_price,
-                pa.addonTime AS addon_time_required,
                 pa.addonMedia AS addon_media,
                 pcf.consent_id,
                 pcf.question AS consent_question,
@@ -602,7 +601,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             addon_name: row.addon_name,
                             description: row.addon_description,
                             price: row.addon_price,
-                            time_required: row.addon_time_required,
                             addon_media: row.addon_media
                         });
                     }
