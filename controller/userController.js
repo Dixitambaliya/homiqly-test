@@ -429,139 +429,139 @@ const deleteBooking = asyncHandler(async (req, res) => {
     }
 });
 
-const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
-    const { service_type_id } = req.params;
+// const getVendorPackagesByServiceTypeId = asyncHandler(async (req, res) => {
+//     const { service_type_id } = req.params;
 
-    if (!service_type_id) {
-        return res.status(400).json({ message: "Service Type ID is required" });
-    }
+//     if (!service_type_id) {
+//         return res.status(400).json({ message: "Service Type ID is required" });
+//     }
 
-    try {
-        const [rows] = await db.query(`
-            SELECT
-                p.package_id,
-                p.service_type_id,
+//     try {
+//         const [rows] = await db.query(`
+//             SELECT
+//                 p.package_id,
+//                 p.service_type_id,
 
-                -- Ratings
-                IFNULL((SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.package_id = p.package_id), 0) AS averageRating,
-                IFNULL((SELECT COUNT(r.rating_id) FROM ratings r WHERE r.package_id = p.package_id), 0) AS totalReviews,
+//                 -- Ratings
+//                 IFNULL((SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.package_id = p.package_id), 0) AS averageRating,
+//                 IFNULL((SELECT COUNT(r.rating_id) FROM ratings r WHERE r.package_id = p.package_id), 0) AS totalReviews,
 
-                -- Sub-packages & preferences
-                pi.item_id AS sub_package_id,
-                pi.itemName AS item_name,
-                pi.description AS sub_description,
-                pi.price AS sub_price,
-                pi.timeRequired AS sub_time_required,
-                pi.itemMedia AS item_media,
+//                 -- Sub-packages & preferences
+//                 pi.item_id AS sub_package_id,
+//                 pi.itemName AS item_name,
+//                 pi.description AS sub_description,
+//                 pi.price AS sub_price,
+//                 pi.timeRequired AS sub_time_required,
+//                 pi.itemMedia AS item_media,
 
-                bp.preference_id,
-                bp.preferenceValue,
-                bp.preferencePrice,
-                bp.preferenceGroup,
+//                 bp.preference_id,
+//                 bp.preferenceValue,
+//                 bp.preferencePrice,
+//                 bp.preferenceGroup,
 
-                -- Addons
-                pa.addon_id,
-                pa.addonName AS addon_name,
-                pa.addonDescription AS addon_description,
-                pa.addonPrice AS addon_price,
-                pa.addonTime AS addon_time_required,
-                pa.addonMedia AS addon_media,
+//                 -- Addons
+//                 pa.addon_id,
+//                 pa.addonName AS addon_name,
+//                 pa.addonDescription AS addon_description,
+//                 pa.addonPrice AS addon_price,
+//                 pa.addonTime AS addon_time_required,
+//                 pa.addonMedia AS addon_media,
 
-                -- Consent Forms
-                pcf.consent_id,
-                pcf.question AS consent_question,
-                pcf.is_required
+//                 -- Consent Forms
+//                 pcf.consent_id,
+//                 pcf.question AS consent_question,
+//                 pcf.is_required
 
-            FROM packages p
-            LEFT JOIN package_items pi ON pi.package_id = p.package_id
-            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
-            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
-            LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
-            WHERE p.service_type_id = ?
-            ORDER BY p.package_id, pi.item_id, bp.preferenceGroup
-        `, [service_type_id]);
+//             FROM packages p
+//             LEFT JOIN package_items pi ON pi.package_id = p.package_id
+//             LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+//             LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+//             LEFT JOIN package_consent_forms pcf ON pcf.package_id = p.package_id
+//             WHERE p.service_type_id = ?
+//             ORDER BY p.package_id, pi.item_id, bp.preferenceGroup
+//         `, [service_type_id]);
 
-        const packagesMap = new Map();
+//         const packagesMap = new Map();
 
-        for (const row of rows) {
-            if (!packagesMap.has(row.package_id)) {
-                packagesMap.set(row.package_id, {
-                    package_id: row.package_id,
-                    service_type_id: row.service_type_id,
-                    averageRating: row.averageRating,
-                    totalReviews: row.totalReviews,
-                    sub_packages: new Map(),
-                    consentForm: []
-                });
-            }
-            const pkg = packagesMap.get(row.package_id);
+//         for (const row of rows) {
+//             if (!packagesMap.has(row.package_id)) {
+//                 packagesMap.set(row.package_id, {
+//                     package_id: row.package_id,
+//                     service_type_id: row.service_type_id,
+//                     averageRating: row.averageRating,
+//                     totalReviews: row.totalReviews,
+//                     sub_packages: new Map(),
+//                     consentForm: []
+//                 });
+//             }
+//             const pkg = packagesMap.get(row.package_id);
 
-            // Sub-packages
-            if (row.sub_package_id) {
-                if (!pkg.sub_packages.has(row.sub_package_id)) {
-                    pkg.sub_packages.set(row.sub_package_id, {
-                        sub_package_id: row.sub_package_id,
-                        item_name: row.item_name,
-                        description: row.sub_description,
-                        price: row.sub_price,
-                        time_required: row.sub_time_required,
-                        item_media: row.item_media,
-                        addons: []
-                    });
-                }
-                const sp = pkg.sub_packages.get(row.sub_package_id);
+//             // Sub-packages
+//             if (row.sub_package_id) {
+//                 if (!pkg.sub_packages.has(row.sub_package_id)) {
+//                     pkg.sub_packages.set(row.sub_package_id, {
+//                         sub_package_id: row.sub_package_id,
+//                         item_name: row.item_name,
+//                         description: row.sub_description,
+//                         price: row.sub_price,
+//                         time_required: row.sub_time_required,
+//                         item_media: row.item_media,
+//                         addons: []
+//                     });
+//                 }
+//                 const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                // Preferences grouped as preferences0, preferences1, ...
-                if (row.preference_id != null) {
-                    const prefKey = `preferences${row.preferenceGroup || 0}`;
-                    if (!sp[prefKey]) sp[prefKey] = [];
-                    if (!sp[prefKey].some(p => p.preference_id === row.preference_id)) {
-                        sp[prefKey].push({
-                            preference_id: row.preference_id,
-                            preference_value: row.preferenceValue,
-                            preference_price: row.preferencePrice
-                        });
-                    }
-                }
+//                 // Preferences grouped as preferences0, preferences1, ...
+//                 if (row.preference_id != null) {
+//                     const prefKey = `preferences${row.preferenceGroup || 0}`;
+//                     if (!sp[prefKey]) sp[prefKey] = [];
+//                     if (!sp[prefKey].some(p => p.preference_id === row.preference_id)) {
+//                         sp[prefKey].push({
+//                             preference_id: row.preference_id,
+//                             preference_value: row.preferenceValue,
+//                             preference_price: row.preferencePrice
+//                         });
+//                     }
+//                 }
 
-                // Addons
-                if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
-                    sp.addons.push({
-                        addon_id: row.addon_id,
-                        addon_name: row.addon_name,
-                        description: row.addon_description,
-                        price: row.addon_price,
-                        time_required: row.addon_time_required,
-                        addon_media: row.addon_media
-                    });
-                }
-            }
+//                 // Addons
+//                 if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+//                     sp.addons.push({
+//                         addon_id: row.addon_id,
+//                         addon_name: row.addon_name,
+//                         description: row.addon_description,
+//                         price: row.addon_price,
+//                         time_required: row.addon_time_required,
+//                         addon_media: row.addon_media
+//                     });
+//                 }
+//             }
 
-            // Consent forms
-            if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
-                pkg.consentForm.push({
-                    consent_id: row.consent_id,
-                    question: row.consent_question,
-                    is_required: row.is_required
-                });
-            }
-        }
+//             // Consent forms
+//             if (row.consent_id && !pkg.consentForm.some(c => c.consent_id === row.consent_id)) {
+//                 pkg.consentForm.push({
+//                     consent_id: row.consent_id,
+//                     question: row.consent_question,
+//                     is_required: row.is_required
+//                 });
+//             }
+//         }
 
-        const data = Array.from(packagesMap.values()).map(p => ({
-            ...p,
-            sub_packages: Array.from(p.sub_packages.values())
-        }));
+//         const data = Array.from(packagesMap.values()).map(p => ({
+//             ...p,
+//             sub_packages: Array.from(p.sub_packages.values())
+//         }));
 
-        res.status(200).json({
-            message: "Packages fetched successfully by service type ID",
-            packages: data
-        });
+//         res.status(200).json({
+//             message: "Packages fetched successfully by service type ID",
+//             packages: data
+//         });
 
-    } catch (err) {
-        console.error("Error fetching vendor packages:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
-    }
-});
+//     } catch (err) {
+//         console.error("Error fetching vendor packages:", err);
+//         res.status(500).json({ error: "Database error", details: err.message });
+//     }
+// });
 
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
@@ -723,7 +723,7 @@ module.exports = {
     getPackagesByServiceTypeId,
     getPackagesDetails,
     deleteBooking,
-    getVendorPackagesByServiceTypeId,
+    // getVendorPackagesByServiceTypeId,
     getPackagesByServiceType,
     getPackageDetailsById
 }
