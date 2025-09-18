@@ -402,7 +402,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             if (pkg.packageName && packageImage) {
                 // Create package normally if both name and image exist
                 const [pkgInsert] = await connection.query(
-                    `INSERT INTO packages (service_type_id, packageName, packageMedia) 
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia)
                      VALUES (?, ?, ?)`,
                     [serviceTypeId, pkg.packageName, packageImage]
                 );
@@ -410,7 +410,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             } else {
                 // Missing name or image → create a default package
                 const [pkgInsert] = await connection.query(
-                    `INSERT INTO packages (service_type_id, packageName, packageMedia) 
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia)
                      VALUES (?, ?, ?)`,
                     [serviceTypeId, null, null]
                 );
@@ -436,7 +436,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                             if (Array.isArray(prefs)) {
                                 for (const pref of prefs) {
                                     await connection.query(
-                                        `INSERT INTO booking_preferences 
+                                        `INSERT INTO booking_preferences
                                          (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
                                          VALUES (?, ?, ?, ?, ?)`,
                                         [
@@ -531,8 +531,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                 LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
                 LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
                 WHERE p.package_id IS NOT NULL
-                AND p.packageName IS NOT NULL AND p.packageName <> ''
-                AND p.packageMedia IS NOT NULL AND p.packageMedia <> ''
                 ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
 `);
 
@@ -660,7 +658,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         // ✅ Fetch vendor details
         const [vendorDetails] = await connection.query(
             `
-            SELECT v.vendor_id, v.vendorType, 
+            SELECT v.vendor_id, v.vendorType,
                    COALESCE(i.name, c.companyName) AS vendorName,
                    COALESCE(i.email, c.companyEmail) AS vendorEmail
             FROM vendors v
@@ -712,7 +710,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                     const subName = subRow.length > 0 ? subRow[0].itemName : "Unknown";
 
                     await connection.query(
-                        `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id) 
+                        `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
                  VALUES (?, ?, ?, ?)`,
                         [vendor_packages_id, vendor_id, package_id, subpackage_id]
                     );
@@ -752,7 +750,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                         ${newlyAssigned.map(p => `
                             <li>
                                 <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
-                                <strong>Sub-Packages:</strong> 
+                                <strong>Sub-Packages:</strong>
                                 ${p.selected_subpackages.length > 0
                     ? p.selected_subpackages.map(sp => `${sp.name} (ID: ${sp.id})`).join(", ")
                     : "None"}
@@ -1176,7 +1174,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
         const [packages] = await db.query(`
-      SELECT 
+      SELECT
         package_id,
         packageName
       FROM packages
@@ -1196,7 +1194,7 @@ const getAllPackages = asyncHandler(async (req, res) => {
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
         const [applications] = await db.query(`
-            SELECT 
+            SELECT
                 vpa.application_id,
                 vpa.vendor_id,
                 vpa.package_id,
@@ -1254,7 +1252,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
         const [updateResult] = await connection.query(
             `
             UPDATE vendor_package_applications
-            SET status = ?, 
+            SET status = ?,
                 approved_at = CASE WHEN ? = 1 THEN NOW() ELSE NULL END
             WHERE application_id = ?
             `,
@@ -1447,8 +1445,8 @@ const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
     try {
         // Ensure package exists
         const [[pkg]] = await connection.query(
-            `SELECT vendor_packages_id, vendor_id 
-             FROM vendor_packages 
+            `SELECT vendor_packages_id, vendor_id
+             FROM vendor_packages
              WHERE vendor_packages_id = ?`,
             [vendor_packages_id]
         );
@@ -1544,8 +1542,8 @@ const editEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
     try {
         // Step 1: Fetch existing employee record
         const [existingRows] = await db.query(
-            `SELECT first_name, last_name, phone, email, profile_image 
-             FROM company_employees 
+            `SELECT first_name, last_name, phone, email, profile_image
+             FROM company_employees
              WHERE employee_id = ?`,
             [employee_id]
         );
