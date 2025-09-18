@@ -38,6 +38,7 @@ const makeEmptySubPackage = () => ({
       {
         preference_value: "",
         preference_price: "",
+        is_required: "0",
       },
     ],
   },
@@ -223,7 +224,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     });
   };
 
-  // Handle input changes inside preference groups
   const handlePreferenceChange = (
     pkgIndex,
     subIndex,
@@ -264,7 +264,11 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                   ...sub.preferencesGroups,
                   [groupKey]: [
                     ...sub.preferencesGroups[groupKey],
-                    { preference_value: "", preference_price: "" },
+                    {
+                      preference_value: "",
+                      preference_price: "",
+                      is_required: "0",
+                    },
                   ],
                 },
               }
@@ -292,7 +296,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
               ...sub.preferencesGroups,
               [groupKey]: filtered.length
                 ? filtered
-                : [{ preference_value: "", preference_price: "" }],
+                : [
+                    {
+                      preference_value: "",
+                      preference_price: "",
+                      is_required: "0",
+                    },
+                  ],
             },
           };
         });
@@ -327,7 +337,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             ...sub,
             preferencesGroups: {
               ...sub.preferencesGroups,
-              [newKey]: [{ preference_value: "", preference_price: "" }],
+              [newKey]: [
+                {
+                  preference_value: "",
+                  preference_price: "",
+                  is_required: "0",
+                },
+              ],
             },
           };
         });
@@ -350,7 +366,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
           // Ensure at least one empty group remains
           if (Object.keys(newGroups).length === 0) {
             newGroups.preferences0 = [
-              { preference_value: "", preference_price: "" },
+              { preference_value: "", preference_price: "", is_required: "0" },
             ];
           }
 
@@ -361,7 +377,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       return { ...prev, packages };
     });
   };
-
   // Add-ons handlers (index-based)
   const handleAddonChange = (pkgIndex, subIndex, addonIndex, field, value) => {
     setFormData((prev) => {
@@ -621,6 +636,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
               acc[groupKey] = (prefs || []).map((pref) => ({
                 preference_value: pref.preference_value || "",
                 preference_price: pref.preference_price || "",
+                is_required: pref.is_required || "0",
               }));
               return acc;
             },
@@ -958,6 +974,25 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                                           e.target.value
                                         )
                                       }
+                                    />
+                                    <FormSelect
+                                      label="Required?"
+                                      value={pref.is_required}
+                                      onChange={(e) =>
+                                        handlePreferenceChange(
+                                          pkgIndex,
+                                          subIndex,
+                                          groupKey,
+                                          prefIndex,
+                                          "is_required",
+                                          e.target.value
+                                        )
+                                      }
+                                      options={[
+                                        { label: "Optional", value: "0" },
+                                        { label: "Required", value: "1" },
+                                      ]}
+                                      placeholder="Select option"
                                     />
                                   </div>
                                 </ItemCard>
