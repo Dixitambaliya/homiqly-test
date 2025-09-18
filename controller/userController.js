@@ -624,7 +624,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 pa.addonName AS addon_name,
                 pa.addonDescription AS addon_description,
                 pa.addonPrice AS addon_price,
-                pa.addonMedia AS addon_media,
                 bp.preference_id,
                 bp.preferenceValue,
                 bp.preferencePrice,
@@ -667,7 +666,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         description: row.sub_description,
                         price: row.sub_price,
                         addon_time: row.sub_time_required,
-                        item_media: row.item_media,
                         addons: [],
                         preferences: {},
                         consentForm: [] // initialize here
