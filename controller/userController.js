@@ -99,7 +99,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                 };
             }
 
-            // find or add service
             let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
 
             if (!service && row.serviceId) {
@@ -117,7 +116,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             }
         });
 
-        // 🔹 Remove categories without any services
+        // ✅ At this point, only services with at least one valid package exist
         const result = Object.values(grouped).filter(category => category.services.length > 0);
 
         res.status(200).json({ services: result });
@@ -126,6 +125,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
