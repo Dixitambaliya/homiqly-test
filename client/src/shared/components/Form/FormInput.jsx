@@ -56,9 +56,7 @@ const FormInput = ({
         </div>
 
         {(showError || error) && (
-          <p className="text-sm text-red-500 mt-1 font-medium">
-            {error || `${label || "This field"} is required`}
-          </p>
+          <p className="text-sm text-red-500 mt-1 font-medium">{error}</p>
         )}
       </div>
     </div>

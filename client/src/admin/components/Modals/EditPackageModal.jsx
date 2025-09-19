@@ -230,7 +230,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   };
 
   // Preferences operations (preferences object keyed by title)
-  const addPreferenceGroupToSub = (subIndex, title = null) => {
+  const addPreferenceGroupToSub = (subIndex, title = "Default") => {
     setSubPackages((prev) => {
       const cp = [...prev];
       const current = cp[subIndex] || {};
@@ -271,7 +271,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       Object.keys(prefs).forEach((k) => {
         if (k === oldKey) {
           // avoid collision: if trimmed already exists and is different, append numeric suffix
-          let targetKey = trimmed;
+          let targetKey = trimmed || oldKey;
           if (prefs.hasOwnProperty(targetKey) && targetKey !== oldKey) {
             let count = 1;
             while (prefs.hasOwnProperty(`${targetKey} ${count}`)) count++;
@@ -426,8 +426,117 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     });
   };
 
+  // -------------------------
+  // SIMPLE MANUAL VALIDATION
+  // -------------------------
+  // returns true if valid, otherwise shows toast.error and returns false
+  const simpleValidate = () => {
+    // Top-level: require package name
+    // if (!packageName || !String(packageName).trim()) {
+    //   toast.error("Please enter Package Name.");
+    //   return false;
+    // }
+
+    // Must have at least one sub-package
+    if (!Array.isArray(subPackages) || subPackages.length === 0) {
+      toast.error("At least one sub-package is required.");
+      return false;
+    }
+
+    // Loop over sub-packages
+    for (let s = 0; s < subPackages.length; s++) {
+      const sub = subPackages[s] || {};
+
+      // item_name required
+      if (!sub.item_name || !String(sub.item_name).trim()) {
+        toast.error(`Sub-package ${s + 1}: Item Name is required.`);
+        return false;
+      }
+
+      // price required and numeric
+      if (sub.price === "" || sub.price === null || sub.price === undefined) {
+        toast.error(`Sub-package ${s + 1}: Price is required.`);
+        return false;
+      }
+      if (isNaN(Number(sub.price))) {
+        toast.error(`Sub-package ${s + 1}: Price must be a number.`);
+        return false;
+      }
+
+      // Preferences: each preference item should have a value; price numeric if present
+      const prefsObj = sub.preferences || {};
+      const groupKeys = Object.keys(prefsObj);
+      for (let g = 0; g < groupKeys.length; g++) {
+        const key = groupKeys[g];
+        const items = prefsObj[key] || [];
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i] || {};
+          if (!String(it.preference_value || "").trim()) {
+            toast.error(
+              `Sub-package ${s + 1}, Preference group "${key}", item ${
+                i + 1
+              }: Value is required.`
+            );
+            return false;
+          }
+          if (
+            it.preference_price !== "" &&
+            it.preference_price !== null &&
+            it.preference_price !== undefined &&
+            isNaN(Number(it.preference_price))
+          ) {
+            toast.error(
+              `Sub-package ${s + 1}, Preference group "${key}", item ${
+                i + 1
+              }: Price must be a number.`
+            );
+            return false;
+          }
+        }
+      }
+
+      // Add-ons: price numeric if present
+      const addons = sub.addons || [];
+      for (let a = 0; a < addons.length; a++) {
+        const ad = addons[a] || {};
+        if (
+          ad.price !== "" &&
+          ad.price !== null &&
+          ad.price !== undefined &&
+          isNaN(Number(ad.price))
+        ) {
+          toast.error(
+            `Sub-package ${s + 1}, Add-on ${a + 1}: Price must be a number.`
+          );
+          return false;
+        }
+      }
+
+      // Consent: if required then question must be present
+      const consent = sub.consentForm || [];
+      for (let c = 0; c < consent.length; c++) {
+        const ci = consent[c] || {};
+        if (Number(ci.is_required) === 1 && !String(ci.question || "").trim()) {
+          toast.error(
+            `Sub-package ${s + 1}, Consent ${
+              c + 1
+            }: Question is required when marked required.`
+          );
+          return false;
+        }
+      }
+    }
+
+    // All checks passed
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Run validation
+    if (!simpleValidate()) return;
+
     setLoading(true);
 
     try {
@@ -509,12 +618,13 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         className="space-y-8 max-h-[80vh] overflow-y-auto pr-4"
       >
         {/* Package Details Section (collapsible) */}
-        <CollapsibleSectionCard title="Package Details" defaultOpen={true}>
+        <CollapsibleSectionCard title="Package Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <FormInput
               label="Package Name"
               value={packageName}
               onChange={(e) => setPackageName(e.target.value)}
+              required
             />
 
             <div className="space-y-2">
@@ -769,6 +879,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                                   value={pref.preference_value}
                                   onChange={(e) =>
                                     updatePreference(
+
                                       sIndex,
                                       groupKey,
                                       pIndex,

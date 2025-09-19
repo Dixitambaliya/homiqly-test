@@ -14,6 +14,7 @@ import {
   FormTextarea,
 } from "../../shared/components/Form";
 import { ServiceFilterModal } from "../components/Modals/ServiceFilterModal";
+import { CustomFileInput } from "../../shared/components/CustomFileInput";
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -760,32 +761,20 @@ const Services = () => {
                   />
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="serviceImage"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Service Image*
-                  </label>
-                  <input
-                    type="file"
-                    id="serviceImage"
-                    name="serviceImage"
-                    onChange={handleServiceImageChange}
-                    accept="image/*"
-                    required
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-                  />
-                  {imagePreview && (
-                    <div className="mt-2">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="h-32 object-cover rounded-md"
-                      />
-                    </div>
-                  )}
-                </div>
+                <CustomFileInput
+                  label="Service Image"
+                  required={false} // set true if you want to make this required
+                  onChange={handleServiceImageChange}
+                  preview={imagePreview}
+                  onRemove={() => {
+                    // clear preview and any file state you use
+                    // if you keep a file state like `serviceFile`, clear it too
+                    if (typeof setImagePreview === "function")
+                      setImagePreview(null);
+                    if (typeof setServiceFile === "function")
+                      setServiceFile(null);
+                  }}
+                />
               </div>
 
               <div className="mt-6 flex justify-end space-x-3">
@@ -904,29 +893,20 @@ const Services = () => {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="serviceImage"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Service Image
-                  </label>
-                  <input
-                    type="file"
-                    id="serviceImage"
-                    name="serviceImage"
+                  <CustomFileInput
+                    label="Service Image"
+                    required={false} // set true if you want to make this required
                     onChange={handleServiceImageChange}
-                    accept="image/*"
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                    preview={imagePreview}
+                    onRemove={() => {
+                      // clear preview and any file state you use
+                      // if you keep a file state like `serviceFile`, clear it too
+                      if (typeof setImagePreview === "function")
+                        setImagePreview(null);
+                      if (typeof setServiceFile === "function")
+                        setServiceFile(null);
+                    }}
                   />
-                  {imagePreview && (
-                    <div className="mt-2">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="h-32 object-cover rounded-md"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
 

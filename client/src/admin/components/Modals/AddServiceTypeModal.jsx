@@ -505,11 +505,122 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     setShowPackageDetails(false);
   };
 
+  // -------------------------
+  // SIMPLE MANUAL VALIDATION
+  // -------------------------
+  // returns true if valid, otherwise shows toast.error and returns false
+  const simpleValidate = () => {
+    // 1) Top-level checks
+    if (!formData.serviceCategoryId) {
+      toast.error("Please select a category.");
+      return false;
+    }
+    if (!formData.serviceId) {
+      toast.error("Please select a service.");
+      return false;
+    }
+
+    // if user chose to show package details, require packageName
+    if (showPackageDetails && !formData.packageName?.trim()) {
+      toast.error("Please enter a package name.");
+      return false;
+    }
+
+    // 2) Packages -> sub-packages checks
+    for (let p = 0; p < (formData.packages || []).length; p++) {
+      const pkg = formData.packages[p] || {};
+      const subs = pkg.sub_packages || [];
+      for (let s = 0; s < subs.length; s++) {
+        const sub = subs[s] || {};
+
+        // item_name required
+        if (!sub.item_name || !String(sub.item_name).trim()) {
+          toast.error(`Sub-package ${s + 1}: Item Name is required.`);
+          return false;
+        }
+
+        if (
+          !sub.item_images ||
+          sub.item_images === null ||
+          sub.item_images === undefined
+        ) {
+          toast.error(`subpackage Image is required`);
+          return false;
+        }
+
+        // price required and numeric
+        if (sub.price === "" || sub.price === null || sub.price === undefined) {
+          toast.error(`Sub-package ${s + 1}: Price is required.`);
+          return false;
+        }
+        if (isNaN(Number(sub.price))) {
+          toast.error(`Sub-package ${s + 1}: Price must be a number.`);
+          return false;
+        }
+
+        // Preferences: each preference item should have a value
+        const prefs = sub.preferences || [];
+        for (let g = 0; g < prefs.length; g++) {
+          const group = prefs[g] || {};
+          const items = group.items || [];
+          if (items.length === 0) {
+            // allow empty group but warn
+            // you can change this to require at least one item
+            continue;
+          }
+          for (let i = 0; i < items.length; i++) {
+            const it = items[i] || {};
+            if (!String(it.preference_value || "").trim()) {
+              toast.error(
+                `Sub-package ${s + 1}, Preference group ${g + 1}, item ${
+                  i + 1
+                }: Value is required.`
+              );
+              return false;
+            }
+            if (
+              it.preference_price !== "" &&
+              it.preference_price !== null &&
+              isNaN(Number(it.preference_price))
+            ) {
+              toast.error(
+                `Sub-package ${s + 1}, Preference group ${g + 1}, item ${
+                  i + 1
+                }: Price must be a number.`
+              );
+              return false;
+            }
+          }
+        }
+
+        // Consent: if marked required (is_required === "1"), question must be present
+        const consent = sub.consentForm || [];
+        for (let c = 0; c < consent.length; c++) {
+          const ci = consent[c] || {};
+          if (
+            String(ci.is_required) === "1" &&
+            !String(ci.question || "").trim()
+          ) {
+            toast.error(
+              `Sub-package ${s + 1}, Consent ${
+                c + 1
+              }: Question is required when marked required.`
+            );
+            return false;
+          }
+        }
+      }
+    }
+
+    // passed all checks
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.serviceCategoryId)
-      return toast.error("Please select a category");
-    if (!formData.serviceId) return toast.error("Please select a service");
+
+    // Run the simple validator first
+    if (!simpleValidate()) return;
 
     setLoading(true);
     try {
@@ -624,7 +735,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                     label: cat.categoryName || "",
                     value: String(cat.serviceCategoryId),
                   }))}
-                  required
                 />
                 <FormSelect
                   label="Service"
@@ -655,7 +765,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       label: service?.serviceName || "",
                       value: String(service?.serviceId),
                     }))}
-                  required
                 />
               </div>
 
@@ -678,7 +787,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       value={formData.packageName}
                       onChange={handleInputChange}
                       placeholder="e.g., Bridal Makeup Package"
-                      required
                     />
                   </div>
                   <div className="mt-6">
@@ -724,7 +832,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                               e.target.value
                             )
                           }
-                          required
                         />
                         <FormInput
                           label="Price"
@@ -755,7 +862,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                         <div className="md:col-span-2">
                           <FormTextarea
                             rows={4}
-                            label="Description (Optional)"
+                            label="Description"
                             value={sub.description}
                             onChange={(e) =>
                               handleSubPackageChange(
@@ -933,8 +1040,8 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                                           )
                                         }
                                         options={[
-                                          { value: "0", label: "Optional (0)" },
-                                          { value: "1", label: "Required (1)" },
+                                          { value: "0", label: "Optional" },
+                                          { value: "1", label: "Required" },
                                         ]}
                                       />
                                     </div>
