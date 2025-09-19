@@ -384,43 +384,19 @@ const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
+        // Fetch all bookings for the user
         const [userBookings] = await db.query(bookingGetQueries.userGetBooking, [user_id]);
 
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            // Fetch Packages
-            const [bookingPackages] = await db.query(
-                bookingGetQueries.getUserBookedpackages,
-                [bookingId]
-            );
+            // Fetch packages, package items, addons, preferences
+            const [bookingPackages] = await db.query(bookingGetQueries.getUserBookedpackages, [bookingId]);
+            const [packageItems] = await db.query(bookingGetQueries.getUserPackageItems, [bookingId]);
+            const [bookingAddons] = await db.query(bookingGetQueries.getUserBookedAddons, [bookingId]);
+            const [bookingPreferences] = await db.query(bookingGetQueries.getUserBookedPrefrences, [bookingId]);
 
-            // Fetch Package Items
-            const [packageItems] = await db.query(
-                bookingGetQueries.getUserPackageItems,
-                [bookingId]
-            );
-
-            // Fetch Addons
-            const [bookingAddons] = await db.query(
-                bookingGetQueries.getUserBookedAddons,
-                [bookingId]
-            );
-
-            // Group items & addons under packages
-            const groupedPackages = bookingPackages.map(pkg => {
-                const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
-                return { ...pkg, items, addons };
-            });
-
-            // Fetch Preferences
-            const [bookingPreferences] = await db.query(
-                bookingGetQueries.getUserBookedPrefrences,
-                [bookingId]
-            );
-
-            // Fetch Consents linked to this booking
+            // Fetch consents linked to this booking
             const [bookingConsents] = await db.query(
                 `SELECT 
                     c.consent_id, 
@@ -433,13 +409,11 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 [bookingId]
             );
 
-            // Group consents by package_id or 'no_package' for general consents
+            // Group consents by package_id, or 'no_package' for general consents
             const consentsGroupedByPackage = {};
             bookingConsents.forEach(consent => {
                 const pkgId = consent.package_id || 'no_package';
-                if (!consentsGroupedByPackage[pkgId]) {
-                    consentsGroupedByPackage[pkgId] = [];
-                }
+                if (!consentsGroupedByPackage[pkgId]) consentsGroupedByPackage[pkgId] = [];
                 consentsGroupedByPackage[pkgId].push({
                     consent_id: consent.consent_id,
                     consentText: consent.question,
@@ -447,21 +421,40 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 });
             });
 
-            // Attach consents to each package
-            for (const pkg of groupedPackages) {
-                pkg.consents = consentsGroupedByPackage[pkg.package_id] || [];
+            // Group packages with their items & addons
+            const groupedPackages = bookingPackages.map(pkg => {
+                const items = packageItems.filter(item => item.package_id === pkg.package_id);
+                const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
+                const consents = consentsGroupedByPackage[pkg.package_id] || [];
+
+                return {
+                    ...pkg,
+                    ...(items.length && { items }),
+                    ...(addons.length && { addons }),
+                    ...(consents.length && { consents })
+                };
+            });
+
+            // Attach booking-level preferences & consents to the last package
+            if (groupedPackages.length > 0) {
+                const lastPackage = groupedPackages[groupedPackages.length - 1];
+
+                if (bookingPreferences.length > 0) {
+                    lastPackage.preferences = bookingPreferences;
+                }
+
+                const rootConsents = consentsGroupedByPackage['no_package'] || [];
+                if (rootConsents.length > 0) {
+                    lastPackage.consents = lastPackage.consents
+                        ? [...lastPackage.consents, ...rootConsents]
+                        : rootConsents;
+                }
             }
 
-            // Attach consents without package to booking root
-            booking.consents = consentsGroupedByPackage['no_package'] || [];
-
-            // Attach to booking object
+            // Attach grouped packages to booking
             booking.packages = groupedPackages;
-            booking.package_items = packageItems;
-            booking.addons = bookingAddons;
-            booking.preferences = bookingPreferences;
 
-            // Clean nulls
+            // Clean nulls from booking object
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });

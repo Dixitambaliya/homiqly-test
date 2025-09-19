@@ -35,40 +35,48 @@ const bookingGetQueries = {
 `,
 
     userGetBooking: `
-        SELECT
-                sb.booking_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.notes,
-                sb.bookingMedia,
-                sb.payment_intent_id,
-                sb.payment_status,
+       SELECT
+    sb.booking_id,
+    sb.bookingDate,
+    sb.bookingTime,
+    sb.bookingStatus,
+    sb.notes,
+    sb.bookingMedia,
+    sb.payment_intent_id,
+    sb.payment_status,
 
-                sc.serviceCategory,
-                s.serviceName,
+    sc.serviceCategory,
+    s.serviceName,
 
-                v.vendorType,
+    v.vendorType,
+    COALESCE(idet.id, cdet.id) AS vendor_id,
+    COALESCE(idet.name, cdet.companyName) AS vendor_name,
+    COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
+    COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
-                COALESCE(idet.id, cdet.id) AS vendor_id,
-                COALESCE(idet.name, cdet.companyName) AS vendor_name,
-                COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
-                COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
+    p.amount AS payment_amount,
+    p.currency AS payment_currency
 
-                p.amount AS payment_amount,
-                p.currency AS payment_currency
+FROM service_booking sb
+LEFT JOIN services s 
+    ON sb.service_id = s.service_id
+LEFT JOIN service_categories sc 
+    ON s.service_categories_id = sc.service_categories_id
+LEFT JOIN service_booking_types sbt 
+    ON sb.booking_id = sbt.booking_id
+LEFT JOIN service_type st 
+    ON sbt.service_type_id = st.service_type_id
+LEFT JOIN vendors v 
+    ON sb.vendor_id = v.vendor_id
+LEFT JOIN individual_details idet 
+    ON v.vendor_id = idet.vendor_id
+LEFT JOIN company_details cdet 
+    ON v.vendor_id = cdet.vendor_id
+LEFT JOIN payments p 
+    ON p.payment_intent_id = sb.payment_intent_id
+WHERE sb.user_id = ?
+ORDER BY sb.bookingDate DESC, sb.bookingTime DESC;
 
-            FROM service_booking sb
-            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
-            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-            WHERE sb.user_id = ?
-            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
 `,
 
     getUserBookedAddons: `
@@ -142,7 +150,7 @@ WHERE sba.booking_id = ?
                 SELECT
 sp.preference_id,
     bp.preferenceValue
-                FROM service_preferences sp
+                FROM service_booking_preferences sp
                 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
                 WHERE sp.booking_id = ?
 `,
@@ -157,29 +165,50 @@ sp.preference_id,
 
     getBookingDetail: `
 SELECT
-sb.booking_id,
+    sb.booking_id,
     sb.bookingDate,
+    sb.bookingTime,
+    sb.bookingStatus,
+    sb.notes,
+    sb.bookingMedia,
+    sb.payment_intent_id,
+    sb.payment_status,
+
     sc.serviceCategory AS serviceCategoryName,
-        s.serviceName AS serviceName,
-            COALESCE(st.serviceTypeName, 'Not specified') AS serviceTypeName,
-                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+    s.serviceName AS serviceName,
+    COALESCE(st.serviceTypeName, 'Not specified') AS serviceTypeName,
 
-                    p.package_name AS packageName,
-                        pi.item_name AS subPackageName,
-                            a.title AS addonName
+    CONCAT(u.firstName, ' ', u.lastName) AS userName,
 
-        FROM service_booking sb
-            JOIN service_categories sc ON sc.service_categories_id = sb.service_categories_id
-            JOIN services s ON s.service_id = sb.service_id
-            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
-            JOIN users u ON u.user_id = sb.user_id
+    p.packageName AS packageName,
+    pi.itemName AS subPackageName,
+    a.title AS addonName,
 
-            LEFT JOIN packages p ON p.package_id = sb.package_id
-            LEFT JOIN package_items pi ON pi.item_id = sb.sub_package_id
-            LEFT JOIN addons a ON a.addon_id = sb.addon_id
+    pay.amount AS payment_amount,
+    pay.currency AS payment_currency
 
-            WHERE sb.booking_id = ?
+FROM service_booking sb
+    -- 🔗 Join service types attached to this booking
+    LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
+    LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+
+    -- 🔗 Get service + category via service_type
+    LEFT JOIN services s ON st.service_id = s.service_id
+    LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+
+    -- 🔗 User info
+    LEFT JOIN users u ON u.user_id = sb.user_id
+
+    -- 🔗 Packages + items + addons
+    LEFT JOIN packages p ON p.package_id = sbt.package_id
+    LEFT JOIN package_items pi ON pi.item_id = sbt.sub_package_id
+    LEFT JOIN addons a ON a.addon_id = sbt.addon_id
+
+    -- 🔗 Payment info
+    LEFT JOIN payments pay ON pay.payment_intent_id = sb.payment_intent_id
+
+WHERE sb.booking_id = ?;
+
 `,
 
     checkVendorAvailability: `
@@ -200,7 +229,7 @@ sb.booking_id,
     getUserBookedpackages: `
         SELECT
             p.package_id,
-            p.packageName
+            p.packageName,
             p.packageMedia
                 FROM service_booking_packages sbp
                 JOIN packages p ON sbp.package_id = p.package_id
@@ -226,7 +255,7 @@ sb.booking_id,
                     sp.preference_id,
                     bp.preferenceValue,
                     bp.preferencePrice
-                FROM service_preferences sp
+                FROM service_booking_preferences sp
                 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
                 WHERE sp.booking_id = ?
 `

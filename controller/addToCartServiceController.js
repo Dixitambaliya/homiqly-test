@@ -6,23 +6,17 @@ const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     const {
-        service_categories_id,
-        serviceId,
-        service_type_id,
         packages,
-        notes = null,
-        bookingDate = null,
-        bookingTime = null,
         preferences = [],
-        consents = [] // ✅ moved here, outside packages
+        consents = []
     } = req.body;
 
-    const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
-
+    console.log(packages);
+    
     // ✅ Validate required fields
-    if (!service_categories_id || !serviceId || !service_type_id || !packages) {
+    if (!packages) {
         return res.status(400).json({
-            message: "Missing required fields: service_categories_id, serviceId, service_type_id, packages"
+            message: "At least one package is required to add to cart"
         });
     }
 
@@ -61,26 +55,17 @@ const addToCartService = asyncHandler(async (req, res) => {
         // ✅ Step 1: Insert into service_cart
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
-                user_id, service_id, service_type_id,
-                service_categories_id, bookingDate, bookingTime,
-                bookingStatus, notes, bookingMedia
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                user_id, bookingStatus
+            ) VALUES (?, ?)`,
             [
                 user_id,
-                serviceId,
-                service_type_id,
-                service_categories_id,
-                bookingDate && bookingDate.trim() !== "" ? bookingDate : null,
-                bookingTime && bookingTime.trim() !== "" ? bookingTime : null,
-                0,
-                notes,
-                bookingMedia
+                0
             ]
         );
 
         const cart_id = insertCart.insertId;
 
-        // ✅ Step 2: Insert packages
+        // ✅ Step 2: Insert packages + their items/addons/preferences/consents
         for (const pkg of parsedPackages) {
             const {
                 package_id = null,
@@ -94,7 +79,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 [cart_id, package_id]
             );
 
-            // ✅ Insert sub-packages
+            // Insert sub-packages
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
@@ -107,7 +92,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Insert addons
+            // Insert addons
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
@@ -117,30 +102,29 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, package_id, addon_id, price]
                 );
             }
-        }
 
-        // ✅ Step 3: Insert preferences (global to cart)
-        for (const pref of parsedPreferences) {
-            const preference_id = typeof pref === "object" ? pref.preference_id : pref;
-            if (!preference_id) continue;
+            // ✅ Attach global preferences to each package
+            for (const pref of parsedPreferences) {
+                const preference_id = typeof pref === "object" ? pref.preference_id : pref;
+                if (!preference_id) continue;
 
-            await connection.query(
-                "INSERT INTO cart_preferences (cart_id, preference_id) VALUES (?, ?)",
-                [cart_id, preference_id]
-            );
-        }
+                await connection.query(
+                    "INSERT INTO cart_preferences (cart_id, package_id, preference_id) VALUES (?, ?, ?)",
+                    [cart_id, package_id, preference_id]
+                );
+            }
 
-        // ✅ Step 4: Insert consents (global to cart)
-        for (const consent of parsedConsents) {
-            const { consent_id, answer = null } = consent;
-            if (!consent_id) continue;
+            // ✅ Attach global consents to each package
+            for (const consent of parsedConsents) {
+                const { consent_id, answer = null } = consent;
+                if (!consent_id) continue;
 
-            await connection.query(
-                `INSERT INTO cart_consents (cart_id, consent_id, answer)
-                 VALUES (?, ?, ?)`,
-                [cart_id, consent_id, answer]
-            );
-
+                await connection.query(
+                    `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+                     VALUES (?, ?, ?, ?)`,
+                    [cart_id, package_id, consent_id, answer]
+                );
+            }
         }
 
         await connection.commit();
@@ -176,7 +160,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         // Fetch all packages linked to the cart
         const [cartPackages] = await db.query(
             `SELECT
-                cp.package_id,
+                cp.package_id
              FROM cart_packages cp
              LEFT JOIN packages p ON cp.package_id = p.package_id
              WHERE cp.cart_id = ?`,
@@ -284,126 +268,100 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
-const checkoutCartService = asyncHandler(async (req, res) => {
-    const user_id = req.user.user_id;
-    const { cart_id } = req.params; // ✅ pass cart_id in URL
+const updateCartDetails = asyncHandler(async (req, res) => {
+    const { cart_id } = req.params;
 
-    if (!cart_id) {
-        return res.status(400).json({ message: "cart_id is required" });
-    }
+    // fields you want to allow updating
+    const {
+        vendor_id = null,
+        bookingDate = null,
+        bookingTime = null,
+        notes = null
+    } = req.body;
 
-    const connection = await db.getConnection();
-    let booking_id;
+    const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
 
     try {
-        await connection.beginTransaction();
+        // ✅ Build dynamic SET clause
+        const fields = [];
+        const values = [];
 
-        // ✅ 1. Get cart data
-        const [cartRows] = await connection.query(
-            `SELECT * FROM service_cart WHERE cart_id=? AND user_id=?`,
-            [cart_id, user_id]
-        );
-        if (!cartRows.length) {
-            throw new Error("Cart not found or not owned by user");
+        if (vendor_id !== null) {
+            fields.push("vendor_id = ?");
+            values.push(vendor_id);
         }
-        const cart = cartRows[0];
-
-        // ✅ 2. Create booking
-        const [insertBooking] = await connection.query(
-            `INSERT INTO service_bookings (
-                service_categories_id, serviceId, user_id, bookingDate, bookingTime,
-                vendor_id, notes, bookingMedia, bookingStatus
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [
-                cart.service_categories_id,
-                cart.service_id,
-                user_id,
-                cart.bookingDate,
-                cart.bookingTime,
-                cart.vendor_id || 0,
-                cart.notes || null,
-                cart.bookingMedia || null
-            ]
-        );
-        booking_id = insertBooking.insertId;
-
-        // ✅ 3. Link service type
-        await connection.query(
-            `INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)`,
-            [booking_id, cart.service_type_id]
-        );
-
-        // ✅ 4. Copy cart packages → booking packages
-        const [cartPackages] = await connection.query(
-            `SELECT * FROM cart_packages WHERE cart_id=?`,
-            [cart_id]
-        );
-
-        for (const pkg of cartPackages) {
-            await connection.query(
-                `INSERT INTO service_booking_packages (booking_id, package_id) VALUES (?, ?)`,
-                [booking_id, pkg.package_id]
-            );
-
-            // sub-packages
-            const [cartItems] = await connection.query(
-                `SELECT * FROM cart_package_items WHERE cart_id=? AND package_id=?`,
-                [cart_id, pkg.package_id]
-            );
-            for (const item of cartItems) {
-                await connection.query(
-                    `INSERT INTO service_booking_items (booking_id, sub_package_id, price, quantity) 
-                     VALUES (?, ?, ?, ?)`,
-                    [booking_id, item.sub_package_id, item.price, item.quantity || 1]
-                );
-            }
-
-            // addons
-            const [cartAddons] = await connection.query(
-                `SELECT * FROM cart_addons WHERE cart_id=? AND package_id=?`,
-                [cart_id, pkg.package_id]
-            );
-            for (const addon of cartAddons) {
-                await connection.query(
-                    `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price) 
-                     VALUES (?, ?, ?, ?)`,
-                    [booking_id, pkg.package_id, addon.addon_id, addon.price]
-                );
-            }
+        if (bookingDate !== null) {
+            fields.push("bookingDate = ?");
+            values.push(bookingDate);
+        }
+        if (bookingTime !== null) {
+            fields.push("bookingTime = ?");
+            values.push(bookingTime);
+        }
+        if (notes !== null) {
+            fields.push("notes = ?");
+            values.push(notes);
+        }
+        if (bookingMedia !== null) {
+            fields.push("bookingMedia = ?");
+            values.push(bookingMedia);
         }
 
-        // ✅ 5. Copy preferences
-        const [cartPrefs] = await connection.query(
-            `SELECT * FROM cart_preferences WHERE cart_id=?`,
-            [cart_id]
-        );
-        for (const pref of cartPrefs) {
-            await connection.query(
-                `INSERT INTO service_booking_preferences (booking_id, preference_id) VALUES (?, ?)`,
-                [booking_id, pref.preference_id]
-            );
+        if (fields.length === 0) {
+            return res.status(400).json({ message: "No valid fields provided for update" });
         }
 
-        // ✅ 6. Clear cart (optional)
-        await connection.query(`DELETE FROM service_cart WHERE cart_id=?`, [cart_id]);
+        const query = `UPDATE service_cart SET ${fields.join(", ")} WHERE cart_id = ?`;
+        values.push(cart_id);
 
-        await connection.commit();
+        const [result] = await db.query(query, values);
 
-        // ✅ return booking_id for payment flow
-        res.status(200).json({
-            message: "Cart checked out successfully, booking created.",
-            booking_id,
-            payment_status: "pending"
-        });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Cart not found" });
+        }
+
+        res.status(200).json({ message: "Cart updated successfully" });
 
     } catch (err) {
-        await connection.rollback();
-        console.error("Checkout cart error:", err);
-        res.status(500).json({ message: "Failed to checkout cart", error: err.message });
-    } finally {
-        connection.release();
+        console.error("Cart update error:", err);
+        res.status(500).json({ message: "Failed to update cart", error: err.message });
     }
 });
+
+const getCartDetails = asyncHandler(async (req, res) => {
+    const { cart_id } = req.params;
+
+    try {
+        const [rows] = await db.query(
+            `SELECT 
+                cart_id,
+                user_id,
+                vendor_id,
+                bookingDate,
+                bookingTime,
+                notes,
+                bookingMedia,
+                bookingStatus,
+                created_at
+             FROM service_cart
+             WHERE cart_id = ?`,
+            [cart_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Cart not found" });
+        }
+
+        res.status(200).json({
+            message: "Cart fetched successfully",
+            cart: rows[0]
+        });
+    } catch (err) {
+        console.error("Get cart error:", err);
+        res.status(500).json({ message: "Failed to fetch cart", error: err.message });
+    }
+});
+
 
 const deleteCartItem = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -450,4 +408,4 @@ const deleteCartItem = asyncHandler(async (req, res) => {
 
 
 
-module.exports = { addToCartService, getUserCart, checkoutCartService, deleteCartItem };
+module.exports = { addToCartService, getUserCart, deleteCartItem, updateCartDetails, getCartDetails };

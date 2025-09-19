@@ -190,9 +190,7 @@ const getBookedPackagesForRating = asyncHandler(async (req, res) => {
             SELECT
                 sbp.package_id,
                 p.packageName,
-                p.totalPrice,
                 sbp.booking_id,
-                p.totalTime,
                 s.serviceName
             FROM service_booking_packages sbp
             JOIN service_booking sb ON sb.booking_id = sbp.booking_id
