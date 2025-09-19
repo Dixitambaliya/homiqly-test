@@ -6,14 +6,17 @@ const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     const {
+        service_id, // ✅ NEW: service_id from frontend
         packages,
         preferences = [],
         consents = []
     } = req.body;
 
-    console.log(packages);
-    
-    // ✅ Validate required fields
+    if (!service_id) {
+        return res.status(400).json({ message: "service_id is required" });
+    }
+
+    // Validate packages
     if (!packages) {
         return res.status(400).json({
             message: "At least one package is required to add to cart"
@@ -24,7 +27,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     let parsedPreferences = [];
     let parsedConsents = [];
 
-    // Parse & validate packages
     try {
         parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
         if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
@@ -34,14 +36,12 @@ const addToCartService = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
     }
 
-    // Parse preferences
     try {
         parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
     } catch (e) {
         return res.status(400).json({ message: "Invalid preferences JSON", error: e.message });
     }
 
-    // Parse consents
     try {
         parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
     } catch (e) {
@@ -52,34 +52,30 @@ const addToCartService = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        // ✅ Step 1: Insert into service_cart
+        // ✅ Step 1: Insert into service_cart with service_id
         const [insertCart] = await connection.query(
             `INSERT INTO service_cart (
-                user_id, bookingStatus
-            ) VALUES (?, ?)`,
+                user_id, service_id, bookingStatus
+            ) VALUES (?, ?, ?)`,
             [
                 user_id,
+                service_id, // store service_id
                 0
             ]
         );
 
         const cart_id = insertCart.insertId;
 
-        // ✅ Step 2: Insert packages + their items/addons/preferences/consents
+        // Step 2: Insert packages + items + addons + preferences + consents
         for (const pkg of parsedPackages) {
-            const {
-                package_id = null,
-                sub_packages = [],
-                addons = []
-            } = pkg;
+            const { package_id = null, sub_packages = [], addons = [] } = pkg;
 
-            // Insert into cart_packages
             await connection.query(
                 "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
                 [cart_id, package_id]
             );
 
-            // Insert sub-packages
+            // sub-packages
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
@@ -92,7 +88,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Insert addons
+            // addons
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
@@ -103,7 +99,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Attach global preferences to each package
+            // preferences
             for (const pref of parsedPreferences) {
                 const preference_id = typeof pref === "object" ? pref.preference_id : pref;
                 if (!preference_id) continue;
@@ -114,7 +110,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Attach global consents to each package
+            // consents
             for (const consent of parsedConsents) {
                 const { consent_id, answer = null } = consent;
                 if (!consent_id) continue;
@@ -142,6 +138,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
