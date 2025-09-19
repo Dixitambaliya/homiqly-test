@@ -665,8 +665,8 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         sub_package_id: row.sub_package_id,
                         item_name: row.item_name,
                         description: row.sub_description,
+                        item_media: row.item_media,
                         price: row.sub_price,
-                        addon_time: row.sub_time_required,
                         addons: [],
                         preferences: {},
                         consentForm: [] // initialize here
@@ -680,6 +680,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                     sp.addons.push({
                         addon_id: row.addon_id,
                         addon_name: row.addon_name,
+                        addon_time: row.sub_time_required,
                         description: row.addon_description,
                         price: row.addon_price,
                         time_required: row.time_required
