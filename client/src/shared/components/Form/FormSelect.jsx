@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const FormSelect = ({
   label,
@@ -21,6 +22,11 @@ const FormSelect = ({
 
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
 
   // Normalize options: ensure { label, value }
   const normOptions = options.map((opt) =>
@@ -36,11 +42,27 @@ const FormSelect = ({
     if (!open) setHighlightIndex(-1);
   }, [open, options.length]);
 
-  // Close on outside click
+  // Measure dropdown position when open
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [open]);
+
+  // Close on outside click (including portal)
   useEffect(() => {
     const onDocClick = (e) => {
-      if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target)) setOpen(false);
+      if (
+        !containerRef.current?.contains(e.target) &&
+        !listRef.current?.contains(e.target)
+      ) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
@@ -75,7 +97,6 @@ const FormSelect = ({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, highlightIndex, normOptions]);
 
   const triggerChange = (newValue) => {
@@ -167,51 +188,56 @@ const FormSelect = ({
         <p className="text-sm text-red-500 mt-1 font-medium">{error}</p>
       )}
 
-      {/* dropdown list - absolutely positioned, no layout reflow */}
-      <div
-        ref={listRef}
-        className={`absolute z-50 left-0 right-0 mt-2 rounded-lg ring-1 ring-black ring-opacity-5 bg-white shadow-lg overflow-hidden transform transition-all origin-top ${
-          open
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-95 pointer-events-none -translate-y-1"
-        }`}
-        role="listbox"
-        tabIndex={-1}
-        aria-hidden={!open}
-      >
-        <ul className="max-h-56 overflow-auto focus:outline-none">
-          {normOptions.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-gray-500">No options</li>
-          ) : (
-            normOptions.map((opt, idx) => {
-              const active = String(opt.value) === String(value);
-              const highlighted = idx === highlightIndex;
-              return (
-                <li
-                  key={String(opt.value) + "-" + idx}
-                  role="option"
-                  aria-selected={active}
-                  className={`cursor-pointer select-none px-4 py-2 text-sm flex items-center gap-3 ${
-                    active
-                      ? "bg-sky-50 text-sky-700 font-medium"
-                      : "text-gray-800"
-                  } ${highlighted ? "bg-gray-100" : ""} hover:bg-gray-100`}
-                  onMouseEnter={() => setHighlightIndex(idx)}
-                  onMouseLeave={() => setHighlightIndex(-1)}
-                  onClick={() => triggerChange(opt.value)}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {active && (
-                    <span className="ml-auto text-xs text-sky-700 font-semibold">
-                      Selected
-                    </span>
-                  )}
-                </li>
-              );
-            })
-          )}
-        </ul>
-      </div>
+      {/* dropdown rendered via portal */}
+      {open &&
+        createPortal(
+          <div
+            ref={listRef}
+            className="absolute z-50 rounded-lg ring-1 ring-black ring-opacity-5 bg-white shadow-lg overflow-auto max-h-56"
+            style={{
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              position: "absolute",
+            }}
+            role="listbox"
+            tabIndex={-1}
+          >
+            <ul className="max-h-56 overflow-auto focus:outline-none">
+              {normOptions.length === 0 ? (
+                <li className="px-4 py-3 text-sm text-gray-500">No options</li>
+              ) : (
+                normOptions.map((opt, idx) => {
+                  const active = String(opt.value) === String(value);
+                  const highlighted = idx === highlightIndex;
+                  return (
+                    <li
+                      key={String(opt.value) + "-" + idx}
+                      role="option"
+                      aria-selected={active}
+                      className={`cursor-pointer select-none px-4 py-2 text-sm flex items-center gap-3 ${
+                        active
+                          ? "bg-sky-50 text-sky-700 font-medium"
+                          : "text-gray-800"
+                      } ${highlighted ? "bg-gray-100" : ""} hover:bg-gray-100`}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                      onMouseLeave={() => setHighlightIndex(-1)}
+                      onClick={() => triggerChange(opt.value)}
+                    >
+                      <span className="truncate">{opt.label}</span>
+                      {active && (
+                        <span className="ml-auto text-xs text-sky-700 font-semibold">
+                          Selected
+                        </span>
+                      )}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

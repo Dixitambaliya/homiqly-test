@@ -1,7 +1,7 @@
 import { FiTrash2 } from "react-icons/fi";
 import { IconButton } from "../Button";
 
-export const ItemCard = ({ title, children, onRemove, showRemove = true }) => (
+const ItemCard = ({ title, children, onRemove, showRemove = true }) => (
   <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
     <div className="flex justify-between items-center mb-4">
       <h4 className="font-medium text-gray-900">{title}</h4>
@@ -17,3 +17,4 @@ export const ItemCard = ({ title, children, onRemove, showRemove = true }) => (
     {children}
   </div>
 );
+export default ItemCard;

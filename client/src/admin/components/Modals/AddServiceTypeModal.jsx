@@ -7,17 +7,11 @@ import {
   FormTextarea,
   FormCheckbox,
 } from "../../../shared/components/Form";
-import {
-  FiPlus,
-  FiTrash2,
-  FiPackage,
-  FiSettings,
-  FiFolder,
-} from "react-icons/fi";
+import { FiPlus, FiTrash2 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import { CustomFileInput } from "../../../shared/components/CustomFileInput";
-import { ItemCard } from "../../../shared/components/Card/ItemCard";
+import ItemCard from "../../../shared/components/Card/ItemCard";
 import { CollapsibleSectionCard } from "../../../shared/components/Card/CollapsibleSectionCard";
 
 const makeEmptyPreferenceItem = () => ({
@@ -76,6 +70,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
   const [subPackageImagePreviews, setSubPackageImagePreviews] = useState({});
   const [imagePreview, setImagePreview] = useState(null);
   const [showPackageDetails, setShowPackageDetails] = useState(false);
+  const [isPackageLocked, setIsPackageLocked] = useState(false);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -126,6 +121,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     );
     setFilteredServices(selectedCategory?.services || []);
   };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -408,53 +404,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     });
   };
 
-  // ConsentForm handlers (package-level kept for backwards-compat but unused in UI)
-  const handleConsentFormChange = (pkgIndex, consentIndex, field, value) => {
-    setFormData((prev) => {
-      const packages = prev.packages.map((pkg, pIdx) => {
-        if (pIdx !== pkgIndex) return pkg;
-        const consentForm = pkg.consentForm.map((c, cIdx) =>
-          cIdx === consentIndex ? { ...c, [field]: value } : c
-        );
-        return { ...pkg, consentForm };
-      });
-      return { ...prev, packages };
-    });
-  };
-
-  const addConsentForm = (pkgIndex) => {
-    setFormData((prev) => {
-      const packages = prev.packages.map((pkg, pIdx) =>
-        pIdx !== pkgIndex
-          ? pkg
-          : {
-              ...pkg,
-              consentForm: [
-                ...pkg.consentForm,
-                { question: "", is_required: "0" },
-              ],
-            }
-      );
-      return { ...prev, packages };
-    });
-  };
-
-  const removeConsentForm = (pkgIndex, consentIndex) => {
-    setFormData((prev) => {
-      const packages = prev.packages.map((pkg, pIdx) => {
-        if (pIdx !== pkgIndex) return pkg;
-        const filtered = pkg.consentForm.filter((_, i) => i !== consentIndex);
-        return {
-          ...pkg,
-          consentForm: filtered.length
-            ? filtered
-            : [{ question: "", is_required: "0" }],
-        };
-      });
-      return { ...prev, packages };
-    });
-  };
-
   // --- New: Consent handlers scoped to a specific sub-package ---
   const handleSubConsentChange = (
     pkgIndex,
@@ -520,24 +469,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       return { ...prev, packages };
     });
   };
-  // --- end new sub-package consent handlers ---
-
-  // Simple validation: ensure each sub-package has an item_name
-  const validateBeforeSubmit = () => {
-    for (let pi = 0; pi < formData.packages.length; pi++) {
-      const pkg = formData.packages[pi];
-      for (let si = 0; si < pkg.sub_packages.length; si++) {
-        const sub = pkg.sub_packages[si];
-        if (!sub.item_name || !sub.item_name.trim()) {
-          toast.error(
-            `Item name required for package ${pi + 1}, sub-package ${si + 1}`
-          );
-          return false;
-        }
-      }
-    }
-    return true;
-  };
 
   const handleFileChange = (fileOrEvent) => {
     const file = fileOrEvent?.target?.files
@@ -579,8 +510,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     if (!formData.serviceCategoryId)
       return toast.error("Please select a category");
     if (!formData.serviceId) return toast.error("Please select a service");
-
-    if (!validateBeforeSubmit()) return;
 
     setLoading(true);
     try {
@@ -634,9 +563,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
             price: sub.price || "",
             time_required: sub.time_required || "",
             addons: cleanedAddons,
-            // include preferences object keyed by title
             preferences: prefsObj,
-            // include consent inside sub-package
             consentForm: cleanedConsent,
           };
         });
@@ -680,7 +607,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       className="!max-w-5xl"
     >
       <div className="flex flex-col h-[80vh]">
-        <div className="flex-1 min-h-0 overflow-y-auto p-6 pb-8">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-8">
           <form onSubmit={handleSubmit}>
             <CollapsibleSectionCard
               defaultOpen={true}
@@ -702,8 +629,25 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                 <FormSelect
                   label="Service"
                   name="serviceId"
+                  className=""
                   value={formData.serviceId || ""}
-                  onChange={handleInputChange}
+                  onChange={(e) => {
+                    handleInputChange(e); // keep your old behavior
+
+                    const selectedService = filteredServices.find(
+                      (s) => String(s.serviceId) === e.target.value
+                    );
+
+                    if (selectedService) {
+                      if (selectedService.hasValidPackage) {
+                        setShowPackageDetails(true); // force ON
+                        setIsPackageLocked(true); // lock checkbox
+                      } else {
+                        setShowPackageDetails(false); // reset OFF
+                        setIsPackageLocked(false); // unlock checkbox
+                      }
+                    }
+                  }}
                   placeholder="Select a service"
                   options={filteredServices
                     .filter((s) => s?.serviceId)
@@ -720,6 +664,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                   label="You want to add Package?"
                   name="togglePackageFields"
                   checked={showPackageDetails}
+                  disabled={isPackageLocked}
                   onChange={(e) => setShowPackageDetails(e.target.checked)}
                 />
               </div>
@@ -733,6 +678,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       value={formData.packageName}
                       onChange={handleInputChange}
                       placeholder="e.g., Bridal Makeup Package"
+                      required
                     />
                   </div>
                   <div className="mt-6">
@@ -840,138 +786,187 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                         />
                       </div>
 
-                      {/* Preferences: groups with title and items */}
-                      {(sub.preferences || []).map((group, groupIndex) => (
-                        <CollapsibleSectionCard
-                          key={groupIndex}
-                          title={
-                            <div className="flex items-center justify-between ">
-                              <span>Preference Group</span>
+                      <CollapsibleSectionCard
+                        title="Preferences (grouped)"
+                        defaultOpen={false}
+                        className="mt-6"
+                      >
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <div />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  addPreferenceGroup(pkgIndex, subIndex)
+                                }
+                              >
+                                + Add Group
+                              </Button>
+
+                              {/* Add a preference to the first group if exists, otherwise create a group */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const firstGroup = (sub.preferences || [])[0];
+                                  if (!firstGroup)
+                                    addPreferenceGroup(pkgIndex, subIndex);
+                                  else addPreferenceItem(pkgIndex, subIndex, 0);
+                                }}
+                              >
+                                + Add Preference
+                              </Button>
                             </div>
-                          }
-                          className="mb-4"
-                        >
-                          <div className="flex justify-end">
-                            <IconButton
-                              icon={<FiTrash2 />}
-                              variant="lightDanger"
-                              size="sm"
-                              onClick={() =>
-                                removePreferenceGroup(
-                                  pkgIndex,
-                                  subIndex,
-                                  groupIndex
-                                )
-                              }
-                              aria-label={`Delete preference group ${groupIndex}`}
-                            />
-                          </div>
-                          <div className="mb-4">
-                            <FormInput
-                              label="Group Title"
-                              value={group.title}
-                              onChange={(e) =>
-                                handlePrefGroupTitleChange(
-                                  pkgIndex,
-                                  subIndex,
-                                  groupIndex,
-                                  e.target.value
-                                )
-                              }
-                              placeholder="e.g., Styles, Tools"
-                            />
                           </div>
 
-                          {group.items.map((pref, prefIndex) => (
-                            <ItemCard
-                              key={prefIndex}
-                              title={`Preference ${prefIndex + 1}`}
-                              showRemove={group.items.length > 1}
-                              onRemove={() =>
-                                removePreferenceItem(
-                                  pkgIndex,
-                                  subIndex,
-                                  groupIndex,
-                                  prefIndex
-                                )
-                              }
+                          {(sub.preferences || []).length === 0 && (
+                            <p className="text-sm text-gray-500 italic">
+                              No preference groups
+                            </p>
+                          )}
+
+                          {(sub.preferences || []).map((group, groupIndex) => (
+                            <div
+                              key={`${subIndex}-group-${groupIndex}`}
+                              className="mb-4 p-4 border rounded-lg bg-white shadow-sm"
                             >
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormInput
-                                  label="Preference Name"
-                                  placeholder="e.g., Scissor Type"
-                                  value={pref.preference_value}
-                                  onChange={(e) =>
-                                    handlePreferenceChange(
-                                      pkgIndex,
-                                      subIndex,
-                                      groupIndex,
-                                      prefIndex,
-                                      "preference_value",
-                                      e.target.value
-                                    )
-                                  }
-                                  required
-                                />
-                                <FormInput
-                                  label="Additional Price (Optional)"
-                                  placeholder="0"
-                                  type="number"
-                                  value={pref.preference_price}
-                                  onChange={(e) =>
-                                    handlePreferenceChange(
-                                      pkgIndex,
-                                      subIndex,
-                                      groupIndex,
-                                      prefIndex,
-                                      "preference_price",
-                                      e.target.value
-                                    )
-                                  }
-                                />
-                                <FormSelect
-                                  label="Required?"
-                                  value={String(pref.is_required)}
-                                  onChange={(e) =>
-                                    handlePreferenceChange(
-                                      pkgIndex,
-                                      subIndex,
-                                      groupIndex,
-                                      prefIndex,
-                                      "is_required",
-                                      e.target.value
-                                    )
-                                  }
-                                  options={[
-                                    { label: "Optional", value: "0" },
-                                    { label: "Required", value: "1" },
-                                  ]}
-                                  placeholder="Select option"
-                                />
-                              </div>
-                            </ItemCard>
-                          ))}
+                              <div className="flex justify-between mb-2 items-center gap-4">
+                                <div className="flex-1">
+                                  <FormInput
+                                    label="Group Title"
+                                    value={group.title}
+                                    onChange={(e) =>
+                                      handlePrefGroupTitleChange(
+                                        pkgIndex,
+                                        subIndex,
+                                        groupIndex,
+                                        e.target.value
+                                      )
+                                    }
+                                  />
+                                </div>
 
-                          <Button
-                            variant="outline"
-                            icon={<FiPlus />}
-                            className="w-full border-dashed mt-2"
-                            onClick={() =>
-                              addPreferenceItem(pkgIndex, subIndex, groupIndex)
-                            }
-                            type="button"
-                          >
-                            Add Preference
-                          </Button>
-                        </CollapsibleSectionCard>
-                      ))}
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="xs"
+                                    variant="outline"
+                                    onClick={() =>
+                                      addPreferenceItem(
+                                        pkgIndex,
+                                        subIndex,
+                                        groupIndex
+                                      )
+                                    }
+                                  >
+                                    + Add Item
+                                  </Button>
+                                  <Button
+                                    size="xs"
+                                    variant="error"
+                                    onClick={() =>
+                                      removePreferenceGroup(
+                                        pkgIndex,
+                                        subIndex,
+                                        groupIndex
+                                      )
+                                    }
+                                  >
+                                    Remove Group
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {(group.items || []).length === 0 && (
+                                <p className="text-xs text-gray-400 italic mb-2">
+                                  No items in this group
+                                </p>
+                              )}
+
+                              {(group.items || []).map((pref, prefIndex) => (
+                                <div key={prefIndex} className="mb-2">
+                                  <div className="grid md:grid-cols-3 gap-3 my-2 items-end">
+                                    <FormInput
+                                      label={`Value ${prefIndex + 1}`}
+                                      value={pref.preference_value}
+                                      onChange={(e) =>
+                                        handlePreferenceChange(
+                                          pkgIndex,
+                                          subIndex,
+                                          groupIndex,
+                                          prefIndex,
+                                          "preference_value",
+                                          e.target.value
+                                        )
+                                      }
+                                      className="flex-1 min-w-[120px]"
+                                    />
+                                    <FormInput
+                                      label="Price"
+                                      type="number"
+                                      value={pref.preference_price ?? ""}
+                                      onChange={(e) =>
+                                        handlePreferenceChange(
+                                          pkgIndex,
+                                          subIndex,
+                                          groupIndex,
+                                          prefIndex,
+                                          "preference_price",
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-28"
+                                    />
+                                    <div>
+                                      <FormSelect
+                                        label="Required?"
+                                        name={`pref_is_required_${pkgIndex}_${subIndex}_${groupIndex}_${prefIndex}`}
+                                        value={String(pref.is_required ?? 0)}
+                                        onChange={(e) =>
+                                          handlePreferenceChange(
+                                            pkgIndex,
+                                            subIndex,
+                                            groupIndex,
+                                            prefIndex,
+                                            "is_required",
+                                            e.target.value
+                                          )
+                                        }
+                                        options={[
+                                          { value: "0", label: "Optional (0)" },
+                                          { value: "1", label: "Required (1)" },
+                                        ]}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <Button
+                                      size="xs"
+                                      variant="outline"
+                                      onClick={() =>
+                                        removePreferenceItem(
+                                          pkgIndex,
+                                          subIndex,
+                                          groupIndex,
+                                          prefIndex
+                                        )
+                                      }
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleSectionCard>
 
                       <Button
                         variant="outline"
                         icon={<FiPlus />}
                         className="w-full border-dashed mt-4"
                         onClick={() => addPreferenceGroup(pkgIndex, subIndex)}
-                        type="button"
                       >
                         Add New Preference Group
                       </Button>
@@ -1049,7 +1044,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           icon={<FiPlus />}
                           className="w-full border-dashed mt-2"
                           onClick={() => addAddon(pkgIndex, subIndex)}
-                          type="button"
                         >
                           Add Add-on
                         </Button>
@@ -1108,7 +1102,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           ))}
 
                           <Button
-                            type="button"
                             variant="outline"
                             onClick={() =>
                               addSubConsentForm(pkgIndex, subIndex)
@@ -1129,7 +1122,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       icon={<FiPlus />}
                       className="w-full border-dashed"
                       onClick={() => addSubPackage(pkgIndex)}
-                      type="button"
                     >
                       Add Sub-Package
                     </Button>
@@ -1145,7 +1137,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
           <div className="flex gap-3">
             <Button
-              type="button"
               variant="outline"
               onClick={() => {
                 resetForm();

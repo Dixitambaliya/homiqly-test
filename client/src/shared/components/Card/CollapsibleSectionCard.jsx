@@ -1,13 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 
-/**
- * CollapsibleSectionCard
- * - Smooth open/close using max-height transition
- * - Uses ResizeObserver to recalc height when inner content changes (fixes clipping)
- * - Falls back to MutationObserver + window resize if ResizeObserver isn't supported
- *
- * Usage: <CollapsibleSectionCard title="..." defaultOpen={false}>...children...</CollapsibleSectionCard>
- */
 export const CollapsibleSectionCard = ({
   title,
   children,
@@ -33,7 +25,6 @@ export const CollapsibleSectionCard = ({
       }
     };
 
-    // initial update (important when defaultOpen is true)
     updateHeight();
 
     if (typeof ResizeObserver !== "undefined") {

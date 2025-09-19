@@ -237,7 +237,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       const prefs = { ...(current.preferences || {}) };
 
       // choose a unique title if not provided
-      let base = title && title.trim() ? title.trim() : "New Group";
+      let base = title;
       let candidate = base;
       let i = 1;
       while (prefs.hasOwnProperty(candidate)) {
@@ -259,7 +259,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
   // rename a preference group (change object key) - preserves order
   const renamePreferenceGroup = (subIndex, oldKey, newTitle) => {
-    const trimmed = (newTitle ?? "").trim();
+    const trimmed = newTitle ?? "";
 
     setSubPackages((prev) => {
       const cp = [...prev];
