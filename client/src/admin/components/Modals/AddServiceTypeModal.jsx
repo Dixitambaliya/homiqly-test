@@ -1118,7 +1118,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                                 }
                               />
                               <FormInput
-                                label="Description (Optional)"
+                                label="Description "
                                 value={addon.description}
                                 onChange={(e) =>
                                   handleAddonChange(
@@ -1131,7 +1131,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                                 }
                               />
                               <FormInput
-                                label="Time Required (Optional)"
+                                label="Time Required "
                                 value={addon.time_required}
                                 onChange={(e) =>
                                   handleAddonChange(
