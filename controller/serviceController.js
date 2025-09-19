@@ -399,9 +399,22 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
                 sc.service_categories_id AS serviceCategoryId,
                 sc.serviceCategory AS categoryName,
                 s.service_id AS serviceId,
-                s.serviceName
+                s.serviceName,
+                -- ✅ Add hasValidPackage column
+                CASE 
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM service_type st
+                        JOIN packages p ON p.service_type_id = st.service_type_id
+                        WHERE st.service_id = s.service_id
+                          AND p.packageName IS NOT NULL AND p.packageName <> ''
+                          AND p.packageMedia IS NOT NULL AND p.packageMedia <> ''
+                    ) 
+                    THEN 1 ELSE 0
+                END AS hasValidPackage
             FROM services s
             JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+            -- ✅ Still only include services with valid packages
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM service_type st
@@ -428,7 +441,8 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
                     serviceId: row.serviceId,
                     categoryName: category,
                     serviceCategoryId: row.serviceCategoryId,
-                    serviceName: row.serviceName
+                    serviceName: row.serviceName,
+                    hasValidPackage: row.hasValidPackage === 1 // boolean
                 });
             }
 
@@ -441,6 +455,7 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getService = asyncHandler(async (req, res) => {
     try {
