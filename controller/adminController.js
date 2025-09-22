@@ -684,7 +684,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         );
         if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
 
-        // ✅ Fetch vendor details
+        // ✅ Fetch vendor details for email
         const [vendorDetails] = await connection.query(
             `
             SELECT v.vendor_id, v.vendorType,
@@ -699,10 +699,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         );
         const vendorData = vendorDetails[0];
 
-        // ✅ Remove existing assignments first
-        await connection.query(`DELETE FROM vendor_package_items WHERE vendor_id = ?`, [vendor_id]);
-        await connection.query(`DELETE FROM vendor_packages WHERE vendor_id = ?`, [vendor_id]);
-
         const newlyAssigned = [];
 
         for (const pkg of selectedPackages) {
@@ -714,41 +710,53 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                 [package_id]
             );
             if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
-
             const packageName = pkgRow[0].packageName;
 
-            // ✅ Insert into vendor_packages
-            const [insertResult] = await connection.query(
-                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+            // ✅ Check if package is already assigned
+            const [existingPackage] = await connection.query(
+                `SELECT vendor_packages_id FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
                 [vendor_id, package_id]
             );
-            const vendor_packages_id = insertResult.insertId;
 
-            // ✅ Collect sub-package details
+            let vendor_packages_id;
+            if (existingPackage.length > 0) {
+                vendor_packages_id = existingPackage[0].vendor_packages_id;
+            } else {
+                // Insert new package assignment
+                const [insertResult] = await connection.query(
+                    `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
+                    [vendor_id, package_id]
+                );
+                vendor_packages_id = insertResult.insertId;
+            }
+
+            // ✅ Insert sub-packages if not already assigned
             const selectedSubPackages = [];
-            if (Array.isArray(sub_packages) && sub_packages.length > 0) {
-                for (const sub of sub_packages) {
-                    const subpackage_id = sub.sub_package_id;
+            for (const sub of sub_packages) {
+                const subpackage_id = sub.sub_package_id;
 
-                    // Get sub-package name
-                    const [subRow] = await connection.query(
-                        `SELECT itemName FROM package_items WHERE item_id = ?`,
-                        [subpackage_id]
-                    );
+                const [subExisting] = await connection.query(
+                    `SELECT vendor_package_item_id  FROM vendor_package_items WHERE vendor_packages_id = ? AND package_item_id = ?`,
+                    [vendor_packages_id, subpackage_id]
+                );
 
-                    const subName = subRow.length > 0 ? subRow[0].itemName : "Unknown";
-
+                if (subExisting.length === 0) {
                     await connection.query(
                         `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
-                 VALUES (?, ?, ?, ?)`,
+                         VALUES (?, ?, ?, ?)`,
                         [vendor_packages_id, vendor_id, package_id, subpackage_id]
                     );
-
-                    selectedSubPackages.push({
-                        id: subpackage_id,
-                        name: subName
-                    });
                 }
+
+                // Add for email
+                const [subRow] = await connection.query(
+                    `SELECT itemName FROM package_items WHERE item_id = ?`,
+                    [subpackage_id]
+                );
+                selectedSubPackages.push({
+                    id: subpackage_id,
+                    name: subRow.length > 0 ? subRow[0].itemName : "Unknown"
+                });
             }
 
             newlyAssigned.push({
@@ -773,25 +781,25 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             });
 
             const emailHtml = `
-                    <p>Dear ${vendorData.vendorName},</p>
-                    <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
-                    <ul>
-                        ${newlyAssigned.map(p => `
-                            <li>
-                                <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
-                                <strong>Sub-Packages:</strong>
-                                ${p.selected_subpackages.length > 0
+                <p>Dear ${vendorData.vendorName},</p>
+                <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
+                <ul>
+                    ${newlyAssigned.map(p => `
+                        <li>
+                            <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
+                            <strong>Sub-Packages:</strong>
+                            ${p.selected_subpackages.length > 0
                     ? p.selected_subpackages.map(sp => `${sp.name} (ID: ${sp.id})`).join(", ")
                     : "None"}
-                            </li>
-                        `).join("")}
-                    </ul>
-                    <p>You can now manage and offer these packages from your dashboard.</p>`
-
+                        </li>
+                    `).join("")}
+                </ul>
+                <p>You can now manage and offer these packages from your dashboard.</p>
+            `;
 
             await transporter.sendMail({
                 from: `"Admin Team" <${process.env.EMAIL_USER}>`,
-                to: vendorData.vendorEmail, // ✅ send to vendor
+                to: vendorData.vendorEmail,
                 subject: "New Packages Assigned to You",
                 html: emailHtml
             });
@@ -812,6 +820,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
+
 
 
 const editPackageByAdmin = asyncHandler(async (req, res) => {
