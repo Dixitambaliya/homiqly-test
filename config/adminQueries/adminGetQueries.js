@@ -23,21 +23,23 @@ SELECT
     c.companyAddress AS company_companyAddress,
     c.contactPerson AS company_contactPerson,
 
-    -- Vendor settings
     vs.manual_assignment_enabled AS status,
 
-    -- ✅ Vendor Services (derived from hierarchy service_categories → services → service_types → packages)
+    -- Packages with Service info
     COALESCE(
         (
             SELECT CONCAT(
                 '[',
                 GROUP_CONCAT(
                     DISTINCT JSON_OBJECT(
-                        'category_id', sc.service_categories_id,
-                        'categoryName', sc.serviceCategory,
+                        'vendor_packages_id', vp.vendor_packages_id,
+                        'package_id', p.package_id,
+                        'serviceLocation', vp.serviceLocation,
                         'service_id', s.service_id,
                         'serviceName', TRIM(s.serviceName),
-                        'serviceImage', s.serviceImage
+                        'serviceImage', s.serviceImage,
+                        'category_id', sc.service_categories_id,
+                        'categoryName', sc.serviceCategory
                     )
                 ),
                 ']'
@@ -50,30 +52,9 @@ SELECT
             WHERE vp.vendor_id = v.vendor_id
         ),
         '[]'
-    ) AS services,
-
-    -- ✅ Vendor Packages
-    COALESCE(
-        (
-            SELECT CONCAT(
-                '[',
-                GROUP_CONCAT(
-                    JSON_OBJECT(
-                        'vendor_packages_id', vp.vendor_packages_id,
-                        'package_id', p.package_id,
-                        'serviceLocation', vp.serviceLocation
-                    )
-                ),
-                ']'
-            )
-            FROM vendor_packages vp
-            INNER JOIN packages p ON p.package_id = vp.package_id
-            WHERE vp.vendor_id = v.vendor_id
-        ),
-        '[]'
     ) AS packages,
 
-    -- ✅ Vendor Package Items
+    -- Package Items
     COALESCE(
         (
             SELECT CONCAT(
@@ -81,6 +62,7 @@ SELECT
                 GROUP_CONCAT(
                     JSON_OBJECT(
                         'vendor_package_item_id', vpi.vendor_package_item_id,
+                        'vendor_packages_id', vpi.vendor_packages_id,
                         'package_id', pi.package_id,
                         'package_item_id', pi.item_id,
                         'itemName', pi.itemName,
@@ -102,7 +84,8 @@ FROM vendors v
 LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
 LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
 LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
-GROUP BY v.vendor_id
+GROUP BY v.vendor_id;
+
 `,
 
     getAllServiceTypes: `

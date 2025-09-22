@@ -22,26 +22,38 @@ const getVendor = asyncHandler(async (req, res) => {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
 
         const processedVendors = vendors.map(vendor => {
-            // Parse JSON safely
-            let parsedServices = [];
-            let parsedPackages = [];
-            let parsedPackageItems = [];
+            // Parse packages and package items
+            let packages = [];
+            let packageItems = [];
+            try { packages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { }
+            try { packageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { }
 
-            try { parsedServices = vendor.services ? JSON.parse(vendor.services) : []; } catch { parsedServices = []; }
-            try { parsedPackages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { parsedPackages = []; }
-            try { parsedPackageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { parsedPackageItems = []; }
-
-            // Cleanup fields based on vendorType
+            // Cleanup based on vendor type
             if (vendor.vendorType === "individual") {
                 for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
-            } else if (vendor.vendorType === "company") {
+            } else {
                 for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
             }
 
-            // Nest package items inside their respective package
-            const packagesWithItems = parsedPackages.map(pkg => {
-                const items = parsedPackageItems
-                    .filter(item => item.package_id === pkg.package_id) // match by package_id
+            // Group packages under their service
+            const serviceMap = {};
+            packages.forEach(pkg => {
+                const serviceId = pkg.service_id;
+                if (!serviceId) return;
+
+                if (!serviceMap[serviceId]) {
+                    serviceMap[serviceId] = {
+                        service_id: serviceId,
+                        serviceName: pkg.serviceName,
+                        serviceImage: pkg.serviceImage,
+                        category_id: pkg.category_id,
+                        categoryName: pkg.categoryName,
+                        packages: []
+                    };
+                }
+
+                const items = packageItems
+                    .filter(item => item.package_id === pkg.package_id)
                     .map(item => ({
                         vendor_package_item_id: item.vendor_package_item_id,
                         package_item_id: item.package_item_id,
@@ -49,16 +61,23 @@ const getVendor = asyncHandler(async (req, res) => {
                         description: item.description,
                         itemMedia: item.itemMedia
                     }));
-                return { ...pkg, items };
+
+                serviceMap[serviceId].packages.push({
+                    vendor_packages_id: pkg.vendor_packages_id,
+                    package_id: pkg.package_id,
+                    serviceLocation: pkg.serviceLocation,
+                    items
+                });
             });
 
-            // Exclude the original package_items string from the final object
-            const { package_items, ...vendorWithoutPackageItems } = vendor;
+            const servicesWithPackages = Object.values(serviceMap);
+
+            // Return vendor object without the original string fields
+            const { packages: _p, package_items: _pi, ...vendorWithoutStrings } = vendor;
 
             return {
-                ...vendorWithoutPackageItems,
-                services: parsedServices,
-                packages: packagesWithItems
+                ...vendorWithoutStrings,
+                services: servicesWithPackages
             };
         });
 
@@ -66,12 +85,13 @@ const getVendor = asyncHandler(async (req, res) => {
             message: "Vendor details fetched successfully",
             data: processedVendors
         });
-
     } catch (err) {
         console.error("Error fetching vendor details:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 
 const getAllServiceType = asyncHandler(async (req, res) => {
