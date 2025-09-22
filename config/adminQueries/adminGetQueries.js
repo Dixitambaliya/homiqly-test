@@ -81,6 +81,7 @@ SELECT
                 GROUP_CONCAT(
                     JSON_OBJECT(
                         'vendor_package_item_id', vpi.vendor_package_item_id,
+                        'package_id', pi.package_id,
                         'package_item_id', pi.item_id,
                         'itemName', pi.itemName,
                         'description', pi.description,

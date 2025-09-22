@@ -41,7 +41,7 @@ const getVendor = asyncHandler(async (req, res) => {
             // Nest package items inside their respective package
             const packagesWithItems = parsedPackages.map(pkg => {
                 const items = parsedPackageItems
-                    .filter(item => item.package_items === pkg.package_items) // match by package_id
+                    .filter(item => item.package_id === pkg.package_id) // match by package_id
                     .map(item => ({
                         vendor_package_item_id: item.vendor_package_item_id,
                         package_item_id: item.package_item_id,
@@ -72,6 +72,7 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
