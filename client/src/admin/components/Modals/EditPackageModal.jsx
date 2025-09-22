@@ -257,9 +257,10 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     });
   };
 
-  // rename a preference group (change object key) - preserves order
   const renamePreferenceGroup = (subIndex, oldKey, newTitle) => {
-    const trimmed = newTitle ?? "";
+    // allow newTitle to be any string (including empty while typing)
+    const targetRaw = newTitle ?? "";
+    const targetTrimmed = targetRaw; // keep exact input: don't auto-fallback to oldKey
 
     setSubPackages((prev) => {
       const cp = [...prev];
@@ -268,15 +269,19 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
       // Build a new object preserving original key order, but swap the key when we hit oldKey
       const newPrefs = {};
+      const otherKeys = Object.keys(prefs).filter((k) => k !== oldKey);
+
+      // Determine a collision-safe target key (but exclude oldKey when checking collisions)
+      let targetKey = targetTrimmed;
+      // But if some other key (not the oldKey) already uses that name, append numeric suffix.
+      if (otherKeys.includes(targetKey) && targetKey !== oldKey) {
+        let count = 1;
+        while (otherKeys.includes(`${targetKey} ${count}`)) count++;
+        targetKey = `${targetKey} ${count}`;
+      }
+
       Object.keys(prefs).forEach((k) => {
         if (k === oldKey) {
-          // avoid collision: if trimmed already exists and is different, append numeric suffix
-          let targetKey = trimmed || oldKey;
-          if (prefs.hasOwnProperty(targetKey) && targetKey !== oldKey) {
-            let count = 1;
-            while (prefs.hasOwnProperty(`${targetKey} ${count}`)) count++;
-            targetKey = `${targetKey} ${count}`;
-          }
           newPrefs[targetKey] = prefs[oldKey];
         } else {
           newPrefs[k] = prefs[k];
@@ -879,7 +884,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                                   value={pref.preference_value}
                                   onChange={(e) =>
                                     updatePreference(
-
                                       sIndex,
                                       groupKey,
                                       pIndex,

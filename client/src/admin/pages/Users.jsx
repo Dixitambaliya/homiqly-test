@@ -203,7 +203,6 @@ const Users = () => {
                   <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center mr-4">
                     <span className="text-gray-500 text-xl">
                       {selectedUser.firstName?.charAt(0)}
-                      {selectedUser.lastName?.charAt(0)}
                     </span>
                   </div>
                 )}
@@ -211,42 +210,63 @@ const Users = () => {
                   <h4 className="text-xl font-medium text-gray-900">
                     {selectedUser.firstName} {selectedUser.lastName}
                   </h4>
-                  <p className="text-gray-600">User ID: {selectedUser.user_id}</p>
+                  <p className="text-gray-600">
+                    User ID: {selectedUser.user_id}
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Email</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Email
+                  </h4>
                   <p className="text-gray-900">{selectedUser.email}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Phone</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Phone
+                  </h4>
                   <p className="text-gray-900">
                     {selectedUser.phone || "Not provided"}
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Address</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Address
+                  </h4>
                   <p className="text-gray-900">
                     {selectedUser.address || "Not provided"}
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">State</h4>
-                  <p className="text-gray-900">{selectedUser.state || "Not provided"}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Postal Code</h4>
-                  <p className="text-gray-900">{selectedUser.postalcode || "Not provided"}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Joined On</h4>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    State
+                  </h4>
                   <p className="text-gray-900">
-                    {new Date(selectedUser.created_at).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
+                    {selectedUser.state || "Not provided"}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Postal Code
+                  </h4>
+                  <p className="text-gray-900">
+                    {selectedUser.postalcode || "Not provided"}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Joined On
+                  </h4>
+                  <p className="text-gray-900">
+                    {new Date(selectedUser.created_at).toLocaleDateString(
+                      "en-US",
+                      {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }
+                    )}
                   </p>
                 </div>
               </div>
@@ -281,7 +301,10 @@ const Users = () => {
             <form onSubmit={handleSubmit} className="p-4">
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="firstName"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     First Name
                   </label>
                   <FormInput
@@ -293,7 +316,10 @@ const Users = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="lastName"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Last Name
                   </label>
                   <FormInput
@@ -305,7 +331,10 @@ const Users = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Email
                   </label>
                   <FormInput
@@ -317,7 +346,10 @@ const Users = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Phone
                   </label>
                   <FormInput
@@ -329,7 +361,10 @@ const Users = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="is_approved" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="is_approved"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Status
                   </label>
                   <FormSelect
@@ -345,7 +380,11 @@ const Users = () => {
                 </div>
               </div>
               <div className="mt-6 flex justify-end space-x-3">
-                <Button type="button" variant="ghost" onClick={() => setShowEditModal(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowEditModal(false)}
+                >
                   Cancel
                 </Button>
                 <Button type="submit" isLoading={submitting}>
