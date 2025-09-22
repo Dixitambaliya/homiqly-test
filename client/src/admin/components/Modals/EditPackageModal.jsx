@@ -25,30 +25,106 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   const [previews, setPreviews] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // helper: normalize incoming preferences into object shape keyed by title or preferences keys
+  /**
+   * normalizePreferencesFromServer
+   * - Accepts various incoming shapes and returns normalized:
+   *   { "<Group Title>": { is_required: 0|1, items: [ { preference_id, preference_value, preference_price }, ... ] }, ... }
+   */
   const normalizePreferencesFromServer = (s) => {
     if (!s) return {};
 
-    // If server already returns `preferences` as object keyed by title => use it
-    if (
-      s.preferences &&
-      typeof s.preferences === "object" &&
-      !Array.isArray(s.preferences)
-    ) {
-      return s.preferences;
+    // Case 1: server already returns preferences as object keyed by title
+    // but the value might be either:
+    //  - an array of items (old shape) OR
+    //  - an object { is_required, items } (new shape)
+    if (s.preferences && typeof s.preferences === "object") {
+      const prefs = s.preferences;
+      // If keys map to group objects (new shape), copy them
+      const isNewShape = Object.values(prefs).some(
+        (v) =>
+          v &&
+          typeof v === "object" &&
+          !Array.isArray(v) &&
+          ("items" in v || "is_required" in v)
+      );
+      if (isNewShape) {
+        // Normalize each group ensuring items array and numeric is_required
+        return Object.entries(prefs).reduce((acc, [k, v]) => {
+          const groupObj = v || {};
+          const items = Array.isArray(groupObj.items)
+            ? groupObj.items
+            : Array.isArray(v)
+            ? v // fallback if the server still put array directly here
+            : [];
+          acc[k] = {
+            is_required: Number(groupObj.is_required ?? 0) || 0,
+            items: (items || []).map((p) => ({
+              preference_id: p.preference_id ?? null,
+              preference_value: p.preference_value ?? p.value ?? "",
+              preference_price:
+                p.preference_price ??
+                p.price ??
+                safeNumber(p.preferencePrice) ??
+                0,
+            })),
+          };
+          return acc;
+        }, {});
+      }
+
+      // Otherwise assume old shape: keys -> arrays of items
+      return Object.entries(prefs).reduce((acc, [k, arr]) => {
+        acc[k] = {
+          is_required: 0,
+          items: (arr || []).map((p) => ({
+            preference_id: p.preference_id ?? null,
+            preference_value: p.preference_value ?? p.value ?? "",
+            preference_price:
+              p.preference_price ??
+              p.price ??
+              safeNumber(p.preferencePrice) ??
+              0,
+          })),
+        };
+        return acc;
+      }, {});
     }
 
-    // If server returns an array under preferences => put under default title
+    // Case 2: server returns preferences as an array => place under Default group
     if (Array.isArray(s.preferences)) {
-      return { Default: s.preferences };
+      return {
+        Default: {
+          is_required: 0,
+          items: (s.preferences || []).map((p) => ({
+            preference_id: p.preference_id ?? null,
+            preference_value: p.preference_value ?? p.value ?? "",
+            preference_price:
+              p.preference_price ??
+              p.price ??
+              safeNumber(p.preferencePrice) ??
+              0,
+          })),
+        },
+      };
     }
 
-    // If server returns keys like preferences0, preferences1 -> map them to numeric keys
+    // Case 3: older flattened keys like preferences0, preferences1 => map them to Group N
     const keys = Object.keys(s).filter((k) => /^preferences\d+$/.test(k));
     if (keys.length) {
       return keys.reduce((acc, k, i) => {
         const arr = s[k] || [];
-        acc[`Group ${i + 1}`] = arr;
+        acc[`Group ${i + 1}`] = {
+          is_required: 0,
+          items: (arr || []).map((p) => ({
+            preference_id: p.preference_id ?? null,
+            preference_value: p.preference_value ?? p.value ?? "",
+            preference_price:
+              p.preference_price ??
+              p.price ??
+              safeNumber(p.preferencePrice) ??
+              0,
+          })),
+        };
         return acc;
       }, {});
     }
@@ -83,29 +159,11 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
     const subs = Array.isArray(packageData.sub_packages)
       ? packageData.sub_packages.map((s) => {
+          // normalize preferences into group-level shape
           const prefsObj = normalizePreferencesFromServer(s);
 
-          // normalize each pref item
-          const normalizedPrefsObj = Object.entries(prefsObj || {}).reduce(
-            (acc, [k, arr]) => {
-              acc[k] = (arr || []).map((p) => ({
-                preference_id: p.preference_id ?? null,
-                preference_value: p.preference_value ?? p.value ?? "",
-                preference_price:
-                  p.preference_price ??
-                  p.price ??
-                  safeNumber(p.preferencePrice) ??
-                  0,
-                is_required:
-                  p.is_required ??
-                  p.isRequired ??
-                  p.preference_is_required ??
-                  0,
-              }));
-              return acc;
-            },
-            {}
-          );
+          // normalizedPrefsObj is already in the right shape
+          const normalizedPrefsObj = prefsObj;
 
           return {
             sub_package_id: s.sub_package_id ?? null,
@@ -114,14 +172,14 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
             price: s.price ?? "",
             time_required: s.time_required ?? "",
             item_media: s.item_media ?? "",
-            preferences: normalizedPrefsObj, // object keyed by title
+            preferences: normalizedPrefsObj, // object keyed by title, group object {is_required, items}
             addons: Array.isArray(s.addons)
               ? s.addons.map((a) => ({
                   addon_id: a.addon_id ?? null,
                   addon_name: a.addon_name ?? "",
                   description: a.description ?? "",
                   price: a.price ?? 0,
-                  time_required: a.time_required ?? "", // new field
+                  time_required: a.time_required ?? "",
                   addon_media: a.addon_media ?? null,
                 }))
               : [],
@@ -229,7 +287,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     removePreview(index);
   };
 
-  // Preferences operations (preferences object keyed by title)
+  // Preferences operations (preferences object keyed by title; each value is { is_required, items })
   const addPreferenceGroupToSub = (subIndex, title = "Default") => {
     setSubPackages((prev) => {
       const cp = [...prev];
@@ -244,14 +302,16 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         candidate = `${base} ${i++}`;
       }
 
-      prefs[candidate] = [
-        {
-          preference_id: null,
-          preference_value: "",
-          preference_price: 0,
-          is_required: 0,
-        },
-      ];
+      prefs[candidate] = {
+        is_required: 0,
+        items: [
+          {
+            preference_id: null,
+            preference_value: "",
+            preference_price: 0,
+          },
+        ],
+      };
       cp[subIndex] = { ...current, preferences: prefs };
       return cp;
     });
@@ -260,7 +320,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   const renamePreferenceGroup = (subIndex, oldKey, newTitle) => {
     // allow newTitle to be any string (including empty while typing)
     const targetRaw = newTitle ?? "";
-    const targetTrimmed = targetRaw; // keep exact input: don't auto-fallback to oldKey
+    const targetTrimmed = targetRaw; // don't auto-trim/normalize here; keep user input
 
     setSubPackages((prev) => {
       const cp = [...prev];
@@ -273,11 +333,15 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
       // Determine a collision-safe target key (but exclude oldKey when checking collisions)
       let targetKey = targetTrimmed;
-      // But if some other key (not the oldKey) already uses that name, append numeric suffix.
-      if (otherKeys.includes(targetKey) && targetKey !== oldKey) {
-        let count = 1;
-        while (otherKeys.includes(`${targetKey} ${count}`)) count++;
-        targetKey = `${targetKey} ${count}`;
+      if (!targetKey) {
+        // if user cleared the title, fallback to oldKey temporarily (so UI doesn't lose data)
+        targetKey = oldKey;
+      } else {
+        if (otherKeys.includes(targetKey) && targetKey !== oldKey) {
+          let count = 1;
+          while (otherKeys.includes(`${targetKey} ${count}`)) count++;
+          targetKey = `${targetKey} ${count}`;
+        }
       }
 
       Object.keys(prefs).forEach((k) => {
@@ -307,16 +371,13 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     setSubPackages((prev) => {
       const cp = [...prev];
       const prefs = { ...(cp[subIndex].preferences || {}) };
-      prefs[groupKey] = prefs[groupKey] || [];
-      prefs[groupKey] = [
-        ...prefs[groupKey],
-        {
-          preference_id: null,
-          preference_value: "",
-          preference_price: 0,
-          is_required: 0,
-        },
-      ];
+      prefs[groupKey] = prefs[groupKey] || { is_required: 0, items: [] };
+      prefs[groupKey].items = prefs[groupKey].items || [];
+      prefs[groupKey].items.push({
+        preference_id: null,
+        preference_value: "",
+        preference_price: 0,
+      });
       cp[subIndex] = { ...cp[subIndex], preferences: prefs };
       return cp;
     });
@@ -326,16 +387,14 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     setSubPackages((prev) => {
       const cp = [...prev];
       const prefs = { ...(cp[subIndex].preferences || {}) };
-      prefs[groupKey] = prefs[groupKey] || [];
-      const cur = prefs[groupKey][prefIndex] || {};
+      prefs[groupKey] = prefs[groupKey] || { is_required: 0, items: [] };
+      prefs[groupKey].items = prefs[groupKey].items || [];
+      const cur = prefs[groupKey].items[prefIndex] || {};
       let newVal = value;
       if (field === "preference_price") {
         newVal = value === "" ? "" : Number(value);
       }
-      if (field === "is_required") {
-        newVal = Number(value) || 0;
-      }
-      prefs[groupKey][prefIndex] = { ...cur, [field]: newVal };
+      prefs[groupKey].items[prefIndex] = { ...cur, [field]: newVal };
       cp[subIndex] = { ...cp[subIndex], preferences: prefs };
       return cp;
     });
@@ -345,12 +404,26 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     setSubPackages((prev) => {
       const cp = [...prev];
       const prefs = { ...(cp[subIndex].preferences || {}) };
-      prefs[groupKey] = (prefs[groupKey] || []).filter(
+      prefs[groupKey] = prefs[groupKey] || { is_required: 0, items: [] };
+      prefs[groupKey].items = (prefs[groupKey].items || []).filter(
         (_, i) => i !== prefIndex
       );
-      if (!prefs[groupKey] || prefs[groupKey].length === 0) {
+      if (!prefs[groupKey].items || prefs[groupKey].items.length === 0) {
+        // keep behavior similar to previous: delete empty group
         delete prefs[groupKey];
       }
+      cp[subIndex] = { ...cp[subIndex], preferences: prefs };
+      return cp;
+    });
+  };
+
+  // Set group-level is_required
+  const setPreferenceGroupIsRequired = (subIndex, groupKey, value) => {
+    setSubPackages((prev) => {
+      const cp = [...prev];
+      const prefs = { ...(cp[subIndex].preferences || {}) };
+      prefs[groupKey] = prefs[groupKey] || { is_required: 0, items: [] };
+      prefs[groupKey].is_required = Number(value) || 0;
       cp[subIndex] = { ...cp[subIndex], preferences: prefs };
       return cp;
     });
@@ -436,12 +509,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   // -------------------------
   // returns true if valid, otherwise shows toast.error and returns false
   const simpleValidate = () => {
-    // Top-level: require package name
-    // if (!packageName || !String(packageName).trim()) {
-    //   toast.error("Please enter Package Name.");
-    //   return false;
-    // }
-
     // Must have at least one sub-package
     if (!Array.isArray(subPackages) || subPackages.length === 0) {
       toast.error("At least one sub-package is required.");
@@ -468,12 +535,23 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         return false;
       }
 
-      // Preferences: each preference item should have a value; price numeric if present
+      // Preferences: each group's items must have value and numeric price; if group required ensure at least one item present
       const prefsObj = sub.preferences || {};
       const groupKeys = Object.keys(prefsObj);
       for (let g = 0; g < groupKeys.length; g++) {
         const key = groupKeys[g];
-        const items = prefsObj[key] || [];
+        const group = prefsObj[key] || { is_required: 0, items: [] };
+        const items = group.items || [];
+
+        if (Number(group.is_required) === 1 && items.length === 0) {
+          toast.error(
+            `Sub-package ${
+              s + 1
+            }, Preference group "${key}": At least one item is required.`
+          );
+          return false;
+        }
+
         for (let i = 0; i < items.length; i++) {
           const it = items[i] || {};
           if (!String(it.preference_value || "").trim()) {
@@ -554,7 +632,7 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
           packageName: packageName,
           packageMedia: packageMediaExisting ?? null,
           sub_packages: subPackages.map((s, sIndex) => {
-            // preferences: keep object keyed by title (as server expects)
+            // preferences: keep object keyed by title (group-level is_required + items)
             const prefsObj = s.preferences || {};
 
             // cleaned addons include time_required
@@ -573,14 +651,33 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
               is_required: Number(c.is_required) || 0,
             }));
 
+            // Ensure prefsObj groups are properly shaped on the payload (numbers for is_required)
+            const cleanedPrefsObj = Object.entries(prefsObj || {}).reduce(
+              (acc, [groupTitle, group]) => {
+                acc[groupTitle] = {
+                  is_required: Number(group?.is_required) || 0,
+                  items: (group?.items || []).map((it) => ({
+                    preference_id: it.preference_id ?? null,
+                    preference_value: it.preference_value ?? "",
+                    preference_price:
+                      it.preference_price !== "" && it.preference_price != null
+                        ? String(it.preference_price)
+                        : "0",
+                  })),
+                };
+                return acc;
+              },
+              {}
+            );
+
             return {
               sub_package_id: s.sub_package_id ?? null,
               item_name: s.item_name,
               description: s.description,
               price: Number(s.price) || 0,
               time_required: s.time_required ?? "",
-              // include preferences object keyed by title
-              preferences: prefsObj,
+              // include preferences object keyed by title (group objects)
+              preferences: cleanedPrefsObj,
               addons: cleanedAddons,
               consentForm: cleanedConsent,
             };
@@ -826,100 +923,39 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                     )}
 
                     {Object.entries(sub.preferences || {}).map(
-                      ([groupKey, prefs], groupIdx) => (
-                        <div
-                          key={`${sIndex}-group-${groupIdx}`}
-                          className="mb-4 p-4 border rounded-lg bg-white shadow-sm"
-                        >
-                          <div className="flex justify-between mb-2 items-center gap-4">
-                            <div className="flex-1">
-                              <FormInput
-                                label="Group Title"
-                                value={groupKey}
-                                onChange={(e) =>
-                                  renamePreferenceGroup(
-                                    sIndex,
-                                    groupKey,
-                                    e.target.value
-                                  )
-                                }
-                              />
-                            </div>
-
-                            <div className="flex gap-2">
-                              <Button
-                                type="button"
-                                size="xs"
-                                variant="outline"
-                                onClick={() =>
-                                  addPreferenceItemToGroup(sIndex, groupKey)
-                                }
-                              >
-                                + Add Item
-                              </Button>
-                              <Button
-                                type="button"
-                                size="xs"
-                                variant="error"
-                                onClick={() =>
-                                  removePreferenceGroupFromSub(sIndex, groupKey)
-                                }
-                              >
-                                Remove Group
-                              </Button>
-                            </div>
-                          </div>
-
-                          {(prefs || []).length === 0 && (
-                            <p className="text-xs text-gray-400 italic mb-2">
-                              No items in this group
-                            </p>
-                          )}
-
-                          {(prefs || []).map((pref, pIndex) => (
-                            <div key={pIndex} className="mb-2">
-                              <div className="grid md:grid-cols-3 gap-3 my-2 items-end">
+                      ([groupKey, group], groupIdx) => {
+                        const prefs = group?.items || [];
+                        const groupIsRequired = Number(group?.is_required ?? 0);
+                        return (
+                          <div
+                            key={`${sIndex}-group-${groupIdx}`}
+                            className="mb-4 p-4 border rounded-lg bg-white shadow-sm"
+                          >
+                            <div className="flex justify-between mb-2 items-center gap-4">
+                              <div className="flex-1">
                                 <FormInput
-                                  label={`Value ${pIndex + 1}`}
-                                  value={pref.preference_value}
+                                  label="Group Title"
+                                  value={groupKey}
                                   onChange={(e) =>
-                                    updatePreference(
+                                    renamePreferenceGroup(
                                       sIndex,
                                       groupKey,
-                                      pIndex,
-                                      "preference_value",
                                       e.target.value
                                     )
                                   }
-                                  className="flex-1 min-w-[120px]"
                                 />
-                                <FormInput
-                                  label="Price"
-                                  type="number"
-                                  value={pref.preference_price ?? ""}
-                                  onChange={(e) =>
-                                    updatePreference(
-                                      sIndex,
-                                      groupKey,
-                                      pIndex,
-                                      "preference_price",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="w-28"
-                                />
-                                <div>
+                              </div>
+
+                              <div className="flex gap-2 items-end">
+                                <div className="w-36">
                                   <FormSelect
                                     label="Required?"
-                                    name={`pref_is_required_${sIndex}_${groupKey}_${pIndex}`}
-                                    value={String(pref.is_required ?? 0)}
+                                    value={String(groupIsRequired ?? "0")}
                                     onChange={(e) =>
-                                      updatePreference(
+                                      setPreferenceGroupIsRequired(
                                         sIndex,
                                         groupKey,
-                                        pIndex,
-                                        "is_required",
-                                        Number(e.target.value)
+                                        e.target.value
                                       )
                                     }
                                     options={[
@@ -928,28 +964,99 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                                     ]}
                                   />
                                 </div>
-                              </div>
-                              <div className="flex justify-end">
-                                <Button
-                                  className=""
-                                  type="button"
-                                  size="xs"
-                                  variant="outline"
-                                  onClick={() =>
-                                    removePreferenceFromGroup(
-                                      sIndex,
-                                      groupKey,
-                                      pIndex
-                                    )
-                                  }
-                                >
-                                  Remove
-                                </Button>
+
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="outline"
+                                    onClick={() =>
+                                      addPreferenceItemToGroup(sIndex, groupKey)
+                                    }
+                                  >
+                                    + Add Item
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="error"
+                                    onClick={() =>
+                                      removePreferenceGroupFromSub(
+                                        sIndex,
+                                        groupKey
+                                      )
+                                    }
+                                  >
+                                    Remove Group
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )
+
+                            {prefs.length === 0 && (
+                              <p className="text-xs text-gray-400 italic mb-2">
+                                No items in this group
+                              </p>
+                            )}
+
+                            {prefs.map((pref, pIndex) => (
+                              <div key={pIndex} className="mb-2">
+                                <div className="grid md:grid-cols-2 gap-3 my-2 items-end">
+                                  <FormInput
+                                    label={`Value ${pIndex + 1}`}
+                                    value={pref.preference_value}
+                                    onChange={(e) =>
+                                      updatePreference(
+                                        sIndex,
+                                        groupKey,
+                                        pIndex,
+                                        "preference_value",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="flex-1 min-w-[120px]"
+                                  />
+                                  <FormInput
+                                    label="Price"
+                                    type="number"
+                                    value={pref.preference_price ?? ""}
+                                    onChange={(e) =>
+                                      updatePreference(
+                                        sIndex,
+                                        groupKey,
+                                        pIndex,
+                                        "preference_price",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-28"
+                                  />
+                                  <div>
+                                    {/* item-level required removed — group-level controls requirement */}
+                                  </div>
+                                </div>
+                                <div className="flex justify-end">
+                                  <Button
+                                    className=""
+                                    type="button"
+                                    size="xs"
+                                    variant="outline"
+                                    onClick={() =>
+                                      removePreferenceFromGroup(
+                                        sIndex,
+                                        groupKey,
+                                        pIndex
+                                      )
+                                    }
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
                     )}
                   </div>
                 </CollapsibleSectionCard>

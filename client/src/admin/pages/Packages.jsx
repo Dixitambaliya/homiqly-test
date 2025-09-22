@@ -25,52 +25,61 @@ function PreferencesChips({ preferences }) {
 
   return (
     <div className="space-y-3">
-      {Object.entries(preferences).map(([groupKey, prefs]) => (
-        <div
-          key={groupKey}
-          className="border rounded-lg p-3 bg-white shadow-sm"
-        >
-          <div className="text-sm font-semibold text-gray-700 mb-2">
-            {groupKey}
-          </div>
-          <ul className="space-y-1">
-            {Array.isArray(prefs) && prefs.length > 0 ? (
-              prefs.map((p, idx) => {
-                const isReq = Number(p.is_required) === 1; // handle 0/1
-                return (
+      {Object.entries(preferences).map(([groupKey, group]) => {
+        // assume group is { is_required: 0|1, items: [ { preference_value, preference_price, ... } ] }
+        const isRequired = Number(group?.is_required) === 1;
+        const items = Array.isArray(group?.items) ? group.items : [];
+
+        return (
+          <div
+            key={groupKey}
+            className="border rounded-lg p-3 bg-white shadow-sm"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold text-gray-700">
+                {groupKey}
+              </div>
+
+              <span
+                className={
+                  "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
+                  (isRequired
+                    ? "bg-red-100 text-red-800 border border-red-200"
+                    : "bg-gray-100 text-gray-700 border border-gray-200")
+                }
+              >
+                {isRequired ? "Required" : "Optional"}
+              </span>
+            </div>
+
+            <ul className="space-y-1">
+              {items.length ? (
+                items.map((p, idx) => (
                   <li
-                    key={`${groupKey}-${idx}`}
+                    key={`${groupKey}-${p?.preference_id ?? idx}`}
                     className="flex items-center justify-between text-sm text-gray-800"
                   >
                     <span className="flex items-center gap-2 min-w-0">
                       <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                      <span className="truncate">{p.preference_value}</span>
+                      <span className="truncate">{p?.preference_value}</span>
                     </span>
 
                     <div className="flex items-center gap-3 ml-4">
                       <span className="text-gray-500">
-                        {fmtPrice(p.preference_price)}
-                      </span>
-                      <span
-                        className={
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
-                          (isReq
-                            ? "bg-red-100 text-red-800 border border-red-200"
-                            : "bg-gray-100 text-gray-700 border border-gray-200")
-                        }
-                      >
-                        {isReq ? "Required" : "Optional"}
+                        {typeof fmtPrice === "function"
+                          ? fmtPrice(p?.preference_price)
+                          : p?.preference_price}
                       </span>
                     </div>
                   </li>
-                );
-              })
-            ) : (
-              <li className="text-xs text-gray-400 italic">No options</li>
-            )}
-          </ul>
-        </div>
-      ))}
+                ))
+              ) : (
+                <li className="text-xs text-gray-400 italic">No options</li>
+              )}
+            </ul>
+          </div>
+        );
+      })}
     </div>
   );
 }
