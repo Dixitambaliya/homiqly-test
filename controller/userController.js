@@ -83,49 +83,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
-const getServiceByCategory = asyncHandler(async (req, res) => {
-    try {
-        const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
-
-        const grouped = {};
-
-        rows.forEach(row => {
-            const category = row.categoryName;
-
-            if (!grouped[category]) {
-                grouped[category] = {
-                    categoryName: category,
-                    services: []
-                };
-            }
-
-            let service = grouped[category].services.find(s => s.serviceId === row.serviceId);
-
-            if (!service && row.serviceId) {
-                service = {
-                    serviceId: row.serviceId,
-                    serviceCategoryId: row.serviceCategoryId,
-                    service_type_id: row.service_type_id,
-                    title: row.serviceName,
-                    description: row.serviceDescription,
-                    serviceImage: row.serviceImage,
-                    serviceFilter: row.serviceFilter,
-                    slug: row.slug
-                };
-                grouped[category].services.push(service);
-            }
-        });
-
-        // ✅ At this point, only services with at least one valid package exist
-        const result = Object.values(grouped).filter(category => category.services.length > 0);
-
-        res.status(200).json({ services: result });
-    } catch (err) {
-        console.error("Error fetching services:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
-});
-
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -727,7 +684,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
 
 module.exports = {
     getServiceCategories,
-    getServiceByCategory,
     getServiceNames,
     getService,
     getServicestypes,

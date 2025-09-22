@@ -3,7 +3,6 @@ const router = express.Router()
 
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { getServiceCategories,
-    getServiceByCategory,
     getServiceNames,
     getServicestypes,
     getServiceTypesByServiceId,
@@ -22,7 +21,6 @@ const { upload, handleUploads } = require("../middleware/upload");
 const multiUpload = upload.any();
 
 router.get("/service", getServiceCategories)
-router.get("/servicesbycategories", getServiceByCategory)
 router.get("/services/:service_id/servicetype", getServiceNames)
 router.get("/services/:service_id/allservicetypes", getServiceTypesByServiceId)
 router.get("/getallpackges", getServicestypes)
