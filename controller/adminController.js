@@ -353,6 +353,7 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -430,11 +431,13 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                     );
                     const itemId = subPkgInsert.insertId;
 
-                    // ✅ Insert preferences
+                    // ✅ Insert preferences (with group-level is_required)
                     if (subPkg.preferences && typeof subPkg.preferences === "object") {
-                        for (const [groupName, prefs] of Object.entries(subPkg.preferences)) {
-                            if (Array.isArray(prefs)) {
-                                for (const pref of prefs) {
+                        for (const [groupName, groupData] of Object.entries(subPkg.preferences)) {
+                            const isRequired = groupData.is_required != null ? groupData.is_required : 0;
+
+                            if (Array.isArray(groupData.items)) {
+                                for (const pref of groupData.items) {
                                     await connection.query(
                                         `INSERT INTO booking_preferences
                                          (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
@@ -443,8 +446,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                                             itemId,
                                             pref.preference_value,
                                             pref.preference_price || 0,
-                                            groupName, // use main array key as group
-                                            pref.is_required != null ? pref.is_required : 0
+                                            groupName,
+                                            isRequired
                                         ]
                                     );
                                 }
@@ -490,49 +493,50 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-                SELECT
-                    sc.service_categories_id AS service_category_id,
-                    sc.serviceCategory AS service_category_name,
-                    s.service_id,
-                    s.serviceName AS service_name,
-                    s.serviceFilter,
-                    p.package_id,
-                    p.packageName,
-                    p.packageMedia,
-                    st.service_type_id,
-                    pi.item_id AS sub_package_id,
-                    pi.itemName AS item_name,
-                    pi.description AS sub_description,
-                    pi.price AS sub_price,
-                    pi.timeRequired AS sub_time_required,
-                    pi.itemMedia AS item_media,
-                    pa.addon_id,
-                    pa.addonName AS addon_name,
-                    pa.addonDescription AS addon_description,
-                    pa.addonPrice AS addon_price,
-                    pa.addonTime AS addon_time_required,
-                    pcf.consent_id,
-                    pcf.question AS consent_question,
-                    pcf.is_required AS consent_is_required,
-                    bp.preference_id,
-                    bp.preferenceValue,
-                    bp.preferencePrice,
-                    bp.is_required AS preference_is_required,
-                    bp.preferenceGroup
-                FROM services s
-                JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
-                LEFT JOIN service_type st ON st.service_id = s.service_id
-                LEFT JOIN packages p ON p.service_type_id = st.service_type_id
-                LEFT JOIN package_items pi ON pi.package_id = p.package_id
-                LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
-                LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
-                LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
-                WHERE p.package_id IS NOT NULL
-                ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
-`);
+            SELECT
+                sc.service_categories_id AS service_category_id,
+                sc.serviceCategory AS service_category_name,
+                s.service_id,
+                s.serviceName AS service_name,
+                s.serviceFilter,
+                p.package_id,
+                p.packageName,
+                p.packageMedia,
+                st.service_type_id,
+                pi.item_id AS sub_package_id,
+                pi.itemName AS item_name,
+                pi.description AS sub_description,
+                pi.price AS sub_price,
+                pi.timeRequired AS sub_time_required,
+                pi.itemMedia AS item_media,
+                pa.addon_id,
+                pa.addonName AS addon_name,
+                pa.addonDescription AS addon_description,
+                pa.addonPrice AS addon_price,
+                pa.addonTime AS addon_time_required,
+                pcf.consent_id,
+                pcf.question AS consent_question,
+                pcf.is_required AS consent_is_required,
+                bp.preference_id,
+                bp.preferenceValue,
+                bp.preferencePrice,
+                bp.is_required AS preference_is_required,
+                bp.preferenceGroup
+            FROM services s
+            JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+            LEFT JOIN service_type st ON st.service_id = s.service_id
+            LEFT JOIN packages p ON p.service_type_id = st.service_type_id
+            LEFT JOIN package_items pi ON pi.package_id = p.package_id
+            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
+            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+            WHERE p.package_id IS NOT NULL
+            ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
+        `);
 
         const servicesMap = new Map();
 
@@ -572,8 +576,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                             time_required: row.sub_time_required,
                             item_media: row.item_media,
                             addons: [],
-                            preferences: {},   // group by preferenceGroup
-                            consentForm: []   // consent linked to this sub_package
+                            preferences: {},   // grouped by preferenceGroup with group-level is_required
+                            consentForm: []
                         });
                     }
                     const sp = pkg.sub_packages.get(row.sub_package_id);
@@ -581,14 +585,21 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                     // Preferences grouped by preferenceGroup
                     if (row.preference_id != null) {
                         const groupKey = row.preferenceGroup;
-                        if (!sp.preferences[groupKey]) sp.preferences[groupKey] = [];
 
-                        if (!sp.preferences[groupKey].some(p => p.preference_id === row.preference_id)) {
-                            sp.preferences[groupKey].push({
+                        // Initialize group if not exists
+                        if (!sp.preferences[groupKey]) {
+                            sp.preferences[groupKey] = {
+                                is_required: row.preference_is_required, // group-level
+                                items: []
+                            };
+                        }
+
+                        // Add preference under group
+                        if (!sp.preferences[groupKey].items.some(p => p.preference_id === row.preference_id)) {
+                            sp.preferences[groupKey].items.push({
                                 preference_id: row.preference_id,
                                 preference_value: row.preferenceValue,
-                                preference_price: row.preferencePrice,
-                                is_required: row.preference_is_required
+                                preference_price: row.preferencePrice
                             });
                         }
                     }
@@ -604,12 +615,12 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
                         });
                     }
 
-                    // Consent forms per sub-package
+                    // Consent forms
                     if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
                         sp.consentForm.push({
                             consent_id: row.consent_id,
                             question: row.consent_question,
-                            is_required: row.consent_is_required,
+                            is_required: row.consent_is_required
                         });
                     }
                 }
@@ -636,6 +647,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -861,32 +873,35 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                 submittedItemIds.push(sub_package_id);
 
-                // --- Preferences: Delete all old, insert only submitted ---
+                // --- Preferences: Delete old ones, insert submitted grouped preferences ---
                 await connection.query(
                     `DELETE FROM booking_preferences WHERE package_item_id = ?`,
                     [sub_package_id]
                 );
 
                 if (sub.preferences && typeof sub.preferences === "object") {
-                    for (const [groupName, prefsArray] of Object.entries(sub.preferences)) {
-                        if (!Array.isArray(prefsArray)) continue;
+                    for (const [groupName, groupData] of Object.entries(sub.preferences)) {
+                        if (!groupData || !Array.isArray(groupData.items)) continue;
 
-                        for (const pref of prefsArray) {
+                        const groupRequired = groupData.is_required ?? 0;
+
+                        for (const pref of groupData.items) {
                             await connection.query(
                                 `INSERT INTO booking_preferences
-                                 (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
-                                 VALUES (?, ?, ?, ?, ?)`,
+                                (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
+                                VALUES (?, ?, ?, ?, ?)`,
                                 [
                                     sub_package_id,
                                     groupName,
                                     pref.preference_value,
                                     pref.preference_price ?? 0,
-                                    pref.is_required ?? 0
+                                    groupRequired   // ✅ apply group-level is_required
                                 ]
                             );
                         }
                     }
                 }
+
 
                 // --- Addons ---
                 if (Array.isArray(sub.addons)) {

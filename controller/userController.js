@@ -652,8 +652,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
             packageMedia: rows[0].packageMedia || null,
-            sub_packages: [],
-            // hasMainInfo: !!(rows[0].packageName && rows[0].packageMedia)
+            sub_packages: []
         };
 
         const subPackageMap = new Map();
@@ -667,9 +666,10 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         description: row.sub_description,
                         item_media: row.item_media,
                         price: row.sub_price,
+                        time_required: row.sub_time_required,
                         addons: [],
-                        preferences: {},
-                        consentForm: [] // initialize here
+                        preferences: {},   // group-level
+                        consentForm: []
                     });
                 }
 
@@ -680,36 +680,40 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                     sp.addons.push({
                         addon_id: row.addon_id,
                         addon_name: row.addon_name,
-                        addon_time: row.sub_time_required,
                         description: row.addon_description,
                         price: row.addon_price,
                         time_required: row.time_required
                     });
                 }
 
-                // Preferences grouped directly
+                // Preferences grouped by groupName with group-level is_required
                 if (row.preference_id != null) {
                     const groupName = row.preferenceGroup || "Default";
-                    if (!sp.preferences[groupName]) sp.preferences[groupName] = [];
-                    if (!sp.preferences[groupName].some(p => p.preference_id === row.preference_id)) {
-                        sp.preferences[groupName].push({
+
+                    if (!sp.preferences[groupName]) {
+                        // Initialize group with is_required taken from first row
+                        sp.preferences[groupName] = {
+                            is_required: row.preference_is_required,
+                            items: []
+                        };
+                    }
+
+                    if (!sp.preferences[groupName].items.some(p => p.preference_id === row.preference_id)) {
+                        sp.preferences[groupName].items.push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
-                            preference_price: row.preferencePrice,
-                            is_required: row.preference_is_required
+                            preference_price: row.preferencePrice
                         });
                     }
                 }
 
-                // Consent forms per sub-package
-                if (row.consent_id) {
-                    if (!sp.consentForm.some(c => c.consent_id === row.consent_id)) {
-                        sp.consentForm.push({
-                            consent_id: row.consent_id,
-                            question: row.consent_question,
-                            is_required: row.consent_is_required
-                        });
-                    }
+                // Consent forms
+                if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
+                    sp.consentForm.push({
+                        consent_id: row.consent_id,
+                        question: row.consent_question,
+                        is_required: row.consent_is_required
+                    });
                 }
             }
         }
@@ -722,6 +726,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
