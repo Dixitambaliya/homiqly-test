@@ -26,89 +26,85 @@ SELECT
     -- Vendor settings
     vs.manual_assignment_enabled AS status,
 
-    -- Services JSON (still aggregated)
+    -- ✅ Vendor Services (derived from hierarchy service_categories → services → service_types → packages)
     COALESCE(
-        CONCAT(
-            '[',
-            GROUP_CONCAT(
-                DISTINCT CASE
-                    WHEN v.vendorType = 'individual' THEN JSON_OBJECT(
+        (
+            SELECT CONCAT(
+                '[',
+                GROUP_CONCAT(
+                    DISTINCT JSON_OBJECT(
                         'category_id', sc.service_categories_id,
                         'categoryName', sc.serviceCategory,
                         'service_id', s.service_id,
                         'serviceName', TRIM(s.serviceName),
-                        'serviceLocation', iser.serviceLocation,
-                        'serviceDescription', iser.serviceDescription
+                        'serviceImage', s.serviceImage
                     )
-                    WHEN v.vendorType = 'company' THEN JSON_OBJECT(
-                        'category_id', sc.service_categories_id,
-                        'categoryName', sc.serviceCategory,
-                        'service_id', s.service_id,
-                        'serviceName', TRIM(s.serviceName),
-                        'serviceLocation', cser.serviceLocation,
-                        'serviceDescription', cser.serviceDescription
-                    )
-                END
-                ORDER BY COALESCE(iser.service_id, cser.service_id)
-            ),
-            ']'
+                ),
+                ']'
+            )
+            FROM vendor_packages vp
+            INNER JOIN packages p ON p.package_id = vp.package_id
+            INNER JOIN service_type st ON st.service_type_id = p.service_type_id
+            INNER JOIN services s ON s.service_id = st.service_id
+            INNER JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+            WHERE vp.vendor_id = v.vendor_id
         ),
         '[]'
     ) AS services,
 
-    -- ✅ Packages (subquery, no GROUP_CONCAT in main select)
-    (
-        SELECT CONCAT(
-            '[',
-            GROUP_CONCAT(
-                JSON_OBJECT(
-                    'application_id', vpa.application_id,
-                    'package_id', p.package_id,
-                    'status', vpa.status,
-                    'applied_at', vpa.applied_at,
-                    'approved_at', vpa.approved_at
-                )
-            ),
-            ']'
-        )
-        FROM vendor_package_applications vpa
-        INNER JOIN packages p ON p.package_id = vpa.package_id
-        WHERE vpa.vendor_id = v.vendor_id
+    -- ✅ Vendor Packages
+    COALESCE(
+        (
+            SELECT CONCAT(
+                '[',
+                GROUP_CONCAT(
+                    JSON_OBJECT(
+                        'vendor_packages_id', vp.vendor_packages_id,
+                        'package_id', p.package_id,
+                        'packageName', p.packageName,
+                        'packageMedia', p.packageMedia,
+                        'serviceLocation', vp.serviceLocation
+                    )
+                ),
+                ']'
+            )
+            FROM vendor_packages vp
+            INNER JOIN packages p ON p.package_id = vp.package_id
+            WHERE vp.vendor_id = v.vendor_id
+        ),
+        '[]'
     ) AS packages,
 
-    -- ✅ Package Items for those packages (nested subquery)
-    (
-        SELECT CONCAT(
-            '[',
-            GROUP_CONCAT(
-                JSON_OBJECT(
-                    'application_id', vpi.application_id,
-                    'package_item_id', pi.item_id,
-                    'itemName', pi.itemName,
-                    'timeRequired', pi.timeRequired
-                )
-            ),
-            ']'
-        )
-        FROM vendor_package_item_application vpi
-        INNER JOIN package_items pi ON pi.item_id = vpi.package_item_id
-        INNER JOIN vendor_package_applications vpa2 ON vpa2.application_id = vpi.application_id
-        WHERE vpa2.vendor_id = v.vendor_id
+    -- ✅ Vendor Package Items
+    COALESCE(
+        (
+            SELECT CONCAT(
+                '[',
+                GROUP_CONCAT(
+                    JSON_OBJECT(
+                        'vendor_package_item_id', vpi.vendor_package_item_id,
+                        'package_item_id', pi.item_id,
+                        'itemName', pi.itemName,
+                        'description', pi.description,
+                        'itemMedia', pi.itemMedia
+                    )
+                ),
+                ']'
+            )
+            FROM vendor_package_items vpi
+            INNER JOIN package_items pi ON pi.item_id = vpi.package_item_id
+            INNER JOIN vendor_packages vp2 ON vp2.vendor_packages_id = vpi.vendor_packages_id
+            WHERE vp2.vendor_id = v.vendor_id
+        ),
+        '[]'
     ) AS package_items
 
 FROM vendors v
-
 LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
 LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-LEFT JOIN individual_services iser ON v.vendor_id = iser.vendor_id
-LEFT JOIN company_services cser ON v.vendor_id = cser.vendor_id
-LEFT JOIN services s ON s.service_id = COALESCE(iser.service_id, cser.service_id)
-LEFT JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
 LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
-
 GROUP BY v.vendor_id
 `,
-
 
     getAllServiceTypes: `
     SELECT

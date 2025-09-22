@@ -22,27 +22,43 @@ const getVendor = asyncHandler(async (req, res) => {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
 
         const processedVendors = vendors.map(vendor => {
-            // Parse JSON fields safely
-            const parsedServices = vendor.services ? JSON.parse(vendor.services) : [];
-            const parsedPackages = vendor.packages ? JSON.parse(vendor.packages) : [];
-            const parsedPackageItems = vendor.package_items ? JSON.parse(vendor.package_items) : [];
+            // Parse JSON safely
+            let parsedServices = [];
+            let parsedPackages = [];
+            let parsedPackageItems = [];
 
-            // Remove fields not needed based on vendorType
+            try { parsedServices = vendor.services ? JSON.parse(vendor.services) : []; } catch { parsedServices = []; }
+            try { parsedPackages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { parsedPackages = []; }
+            try { parsedPackageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { parsedPackageItems = []; }
+
+            // Cleanup fields based on vendorType
             if (vendor.vendorType === "individual") {
-                for (let key in vendor) {
-                    if (key.startsWith("company_")) delete vendor[key];
-                }
+                for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
             } else if (vendor.vendorType === "company") {
-                for (let key in vendor) {
-                    if (key.startsWith("individual_")) delete vendor[key];
-                }
+                for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
             }
 
+            // Nest package items inside their respective package
+            const packagesWithItems = parsedPackages.map(pkg => {
+                const items = parsedPackageItems
+                    .filter(item => item.package_items === pkg.package_items) // match by package_id
+                    .map(item => ({
+                        vendor_package_item_id: item.vendor_package_item_id,
+                        package_item_id: item.package_item_id,
+                        itemName: item.itemName,
+                        description: item.description,
+                        itemMedia: item.itemMedia
+                    }));
+                return { ...pkg, items };
+            });
+
+            // Exclude the original package_items string from the final object
+            const { package_items, ...vendorWithoutPackageItems } = vendor;
+
             return {
-                ...vendor,
+                ...vendorWithoutPackageItems,
                 services: parsedServices,
-                packages: parsedPackages,
-                package_items: parsedPackageItems
+                packages: packagesWithItems
             };
         });
 
@@ -56,6 +72,11 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
+
+
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
