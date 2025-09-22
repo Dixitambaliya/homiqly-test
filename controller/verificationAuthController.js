@@ -90,11 +90,11 @@ const approveVendor = asyncHandler(async (req, res) => {
                         VALUES (?, ?, ?, ?)
                     `, [vendorPackageId, sub.package_item_id, vendor_id, app.package_id]);
                 }
+                // Clear application tables
+                await conn.query(`DELETE FROM vendor_package_item_application WHERE application_id = ?`, [app.application_id]);
+                await conn.query(`DELETE FROM vendor_package_applications WHERE application_id = ?`, [app.application_id]);
             }
 
-            // Clear application tables
-            await conn.query(`DELETE FROM vendor_package_item_application WHERE vendor_id = ?`, [vendor_id]);
-            await conn.query(`DELETE FROM vendor_package_applications WHERE vendor_id = ?`, [vendor_id]);
 
             // ✅ Initialize vendor_settings
             await conn.query(`
@@ -140,8 +140,6 @@ const approveVendor = asyncHandler(async (req, res) => {
         conn.release();
     }
 });
-
-
 
 const approveServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;

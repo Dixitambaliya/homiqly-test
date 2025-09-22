@@ -1477,12 +1477,6 @@ const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
             [vendor_packages_id]
         );
 
-        // Delete related addons if your schema has them (optional safeguard)
-        // await connection.query(
-        //     `DELETE FROM vendor_package_addons WHERE vendor_packages_id = ?`,
-        //     [vendor_packages_id]
-        // );
-
         // Delete the vendor package
         await connection.query(
             `DELETE FROM vendor_packages WHERE vendor_packages_id = ?`,
