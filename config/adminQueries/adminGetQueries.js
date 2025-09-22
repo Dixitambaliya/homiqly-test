@@ -61,8 +61,6 @@ SELECT
                     JSON_OBJECT(
                         'vendor_packages_id', vp.vendor_packages_id,
                         'package_id', p.package_id,
-                        'packageName', p.packageName,
-                        'packageMedia', p.packageMedia,
                         'serviceLocation', vp.serviceLocation
                     )
                 ),

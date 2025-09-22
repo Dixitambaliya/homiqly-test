@@ -73,11 +73,6 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
-
-
 const getAllServiceType = asyncHandler(async (req, res) => {
 
     try {
