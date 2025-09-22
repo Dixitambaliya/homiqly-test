@@ -4,8 +4,10 @@ import { Button, IconButton } from "../../../shared/components/Button";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import api from "../../../lib/axiosConfig";
 import { Trash2 } from "lucide-react";
+import { toast } from "react-toastify";
 
 const VendorDetailsModal = ({
+  refresh,
   isOpen,
   onClose,
   vendor,
@@ -94,11 +96,23 @@ const VendorDetailsModal = ({
     }
   };
 
-  const handleDeleteService = async () => {
+  const handleDeleteService = async (vendor_packages_id) => {
+    const ok = window.confirm("Are you sure you want to delete");
+    if (!ok) return;
     try {
-      const response = await api.delete(`/api/admin/removepackage`);
+      const response = await api.delete(
+        `/api/admin/removepackage/${vendor_packages_id}`
+      );
+      console.log(response.data);
+      toast.success(
+        response.data?.message || "Vendor package removed successfully by admin"
+      );
     } catch (err) {
+      toast.error("Failed to delete service");
       console.error("Failed to delete service", err);
+    } finally {
+      refresh();
+      onClose();
     }
   };
 
@@ -279,43 +293,173 @@ const VendorDetailsModal = ({
           )}
         </div>
 
-        {/* Services Section */}
-        {vendor.services && vendor.services.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">
-              Services Offered
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {vendor.services.map((service, index) => (
-                <div
-                  key={index}
-                  className="flex justify-between p-3 rounded-lg border"
-                >
-                  <div>
-                    <div className="font-medium text-gray-900 text-sm">
-                      {service.serviceName}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      Category: {service.categoryName}
-                    </div>
-                    {service.serviceLocation && (
-                      <div className="text-xs text-gray-600 mt-1">
-                        Location: {service.serviceLocation}
+        {/* Services + Packages Section */}
+        <div>
+          {(vendor.services?.length > 0 || vendor.packages?.length > 0) && (
+            <div>
+              {/* Services */}
+              {vendor.services?.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    Services Offered
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {vendor.services.map((service, index) => (
+                      <div
+                        key={`service-${service.service_id ?? index}`}
+                        className="flex justify-between p-3 rounded-lg "
+                      >
+                        <div className="flex items-center gap-3">
+                          {service.serviceImage ? (
+                            <img
+                              src={service.serviceImage}
+                              alt={service.serviceName || "service"}
+                              className="w-12 h-12 rounded object-cover border"
+                            />
+                          ) : null}
+                          <div>
+                            <div className="font-medium text-gray-900 text-sm">
+                              {service.serviceName}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Category: {service.categoryName}
+                            </div>
+                            {service.serviceLocation && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                Location: {service.serviceLocation}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div>
-                    <IconButton
-                      variant="lightDanger"
-                      icon={<Trash2 className="w-4 h-4" />}
-                      // onClick={() => }
-                    />
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Packages */}
+              {vendor.packages?.length > 0 && (
+                <div>
+                  <div className="space-y-4">
+                    {vendor.packages.map((pkg, pkgIndex) => {
+                      // support different package item naming (items or sub_packages)
+                      const packageItems = pkg.items ?? pkg.sub_packages ?? [];
+                      return (
+                        <div
+                          key={`package-${
+                            pkg.package_id ?? pkg.vendor_packages_id ?? pkgIndex
+                          }`}
+                          className="rounded-lg  bg-white"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <div className="text-sm font-semibold text-gray-800">
+                                {pkg.packageName ||
+                                  `Package ${pkg.package_id ?? pkgIndex}`}
+                              </div>
+
+                              <div className="flex items-start">
+                                <IconButton
+                                  variant="lightDanger"
+                                  icon={<Trash2 className="w-4 h-4" />}
+                                  onClick={() =>
+                                    handleDeleteService(pkg.vendor_packages_id)
+                                  }
+                                />
+                              </div>
+
+                              {pkg.serviceLocation && (
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Location: {pkg.serviceLocation}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Package items grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {packageItems.length === 0 && (
+                              <div className="text-xs text-gray-500 italic">
+                                No items in this package.
+                              </div>
+                            )}
+
+                            {packageItems.map((item, itemIndex) => {
+                              // Support naming variations in item fields
+                              const img =
+                                item.itemMedia ??
+                                item.item_media ??
+                                item.image ??
+                                item.package_item_image ??
+                                null;
+                              const title =
+                                item.itemName ??
+                                item.item_name ??
+                                item.name ??
+                                "Untitled";
+                              const desc =
+                                item.description ??
+                                item.desc ??
+                                item.details ??
+                                "";
+
+                              return (
+                                <div
+                                  key={`pkg-${pkgIndex}-item-${
+                                    item.vendor_package_item_id ??
+                                    item.package_item_id ??
+                                    itemIndex
+                                  }`}
+                                  className="flex items-start gap-3 p-3 rounded "
+                                >
+                                  {img ? (
+                                    <div className="w-20 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                      <img
+                                        src={img}
+                                        alt={title}
+                                        className="object-cover w-full h-full"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-20 h-16 bg-gray-50 rounded flex items-center justify-center text-xs text-gray-400">
+                                      No image
+                                    </div>
+                                  )}
+
+                                  <div className="flex-1">
+                                    <div className="font-medium text-gray-900 text-sm">
+                                      {title}
+                                    </div>
+
+                                    {desc && (
+                                      <div className="text-xs text-gray-600 mt-1">
+                                        {desc}
+                                      </div>
+                                    )}
+
+                                    {/* optional meta rows */}
+                                    <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3">
+                                      {item.price != null && (
+                                        <div>Price: {String(item.price)}</div>
+                                      )}
+                                      {item.time_required && (
+                                        <div>Time: {item.time_required}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Approve / Reject buttons (kept as requested) */}
         <div className="flex justify-end space-x-3 mt-4 pt-4 border-t">
@@ -331,7 +475,11 @@ const VendorDetailsModal = ({
             variant="lightError"
             onClick={handleReject}
             icon={<span>✕</span>}
-            disabled={saving || vendor.is_authenticated == 0 || vendor.is_authenticated == 2}
+            disabled={
+              saving ||
+              vendor.is_authenticated == 0 ||
+              vendor.is_authenticated == 2
+            }
           >
             {saving ? "Rejecting..." : "Reject"}
           </Button>

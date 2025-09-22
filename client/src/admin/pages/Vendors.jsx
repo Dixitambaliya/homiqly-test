@@ -27,6 +27,7 @@ const Vendors = () => {
     try {
       setLoading(true);
       const response = await axios.get("/api/admin/getvendors");
+      console.log("fetch vendor", response.data.data);
       setVendors(response.data.data || []);
       setLoading(false);
     } catch (error) {
@@ -146,6 +147,7 @@ const Vendors = () => {
       </div>
 
       <VendorsTable
+        refresh={fetchVendors}
         vendors={filteredVendors}
         isLoading={loading}
         onViewVendor={viewVendorDetails}
@@ -154,6 +156,7 @@ const Vendors = () => {
       />
 
       <VendorDetailsModal
+        refresh={fetchVendors}
         isOpen={showDetailsModal}
         onClose={() => setShowDetailsModal(false)}
         vendor={selectedVendor}

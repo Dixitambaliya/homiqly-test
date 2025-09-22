@@ -13,6 +13,7 @@ const VendorsTable = ({
   onViewVendor,
   onApproveVendor,
   onRejectVendor,
+  refresh,
 }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -138,6 +139,7 @@ const VendorsTable = ({
         onRowClick={onViewVendor}
       />
       <ApplyServiceModal
+        refresh={refresh}
         isOpen={isAssignModalOpen}
         onClose={() => setIsAssignModalOpen(false)}
         vendor={selectedVendor}

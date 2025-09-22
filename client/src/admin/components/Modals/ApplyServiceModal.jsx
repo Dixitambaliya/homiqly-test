@@ -6,9 +6,9 @@ import Select from "react-select";
 import { toast } from "react-toastify";
 import LoadingSlider from "../../../shared/components/LoadingSpinner";
 
-const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
+const ApplyServiceModal = ({ isOpen, onClose, vendor, refresh }) => {
   const [groupedPackages, setGroupedPackages] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
@@ -83,7 +83,6 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       sub_packages: p.sub_packages || [],
     }));
 
-
     const payload = {
       vendor_id: vendor?.vendor_id,
       selectedPackages: builtPackages,
@@ -99,6 +98,7 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       console.error("Submission error:", err);
       toast.error("Failed to assign service. Please try again.");
     } finally {
+      refresh();
       setSubmitting(false);
     }
   };
@@ -135,8 +135,6 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       package_id: pkg.package_id,
     }))
   );
-
- 
 
   const customSelectStyles = {
     control: (base, state) => ({
