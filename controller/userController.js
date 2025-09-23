@@ -694,12 +694,12 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         // Initialize group with is_required taken from first row
                         sp.preferences[groupName] = {
                             is_required: row.preference_is_required,
-                            items: []
+                            selections: []
                         };
                     }
 
-                    if (!sp.preferences[groupName].items.some(p => p.preference_id === row.preference_id)) {
-                        sp.preferences[groupName].items.push({
+                    if (!sp.preferences[groupName].selections.some(p => p.preference_id === row.preference_id)) {
+                        sp.preferences[groupName].selections.push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
                             preference_price: row.preferencePrice
