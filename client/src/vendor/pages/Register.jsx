@@ -13,7 +13,6 @@ import {
   FiCheck,
 } from "react-icons/fi";
 import axios from "axios";
-// ❌ Remove custom Button import because we’ll use local buttons for consistency
 // import Button from "../../shared/components/Button/Button";
 
 const Register = () => {
@@ -38,26 +37,42 @@ const Register = () => {
   const [googleBusinessLink, setGoogleBusinessLink] = useState("");
   const [resume, setResume] = useState(null);
 
-  // Services data
+  // Services data (new API shape)
   const [serviceCategories, setServiceCategories] = useState([]);
+  /**
+   * selectedServices structure (per package)
+   * [
+   *   {
+   *     package_id: 103,
+   *     serviceLocation: "rajkot",
+   *     sub_packages: [{ item_id: 167 }, { item_id: 168 }]
+   *   },
+   *   ...
+   * ]
+   */
   const [selectedServices, setSelectedServices] = useState([]);
-  console.log(selectedServices);
+  // useful debug
+  // console.log("selectedServices", selectedServices);
 
-  // Load service categories
+  // Load service categories when entering step 2 or 3
   useEffect(() => {
     if (step === 2 || step === 3) {
       loadServices();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // --- New API loader (vendor services with packages) ---
   const loadServices = async () => {
     try {
       setServiceLoading(true);
-      const response = await axios.get("/api/user/servicesbycategories");
+      const response = await axios.get("/api/vendor/serviceswithpackages");
+      // expected: { services: [ { serviceCategoryId, categoryName, services: [ { serviceId, title, packages: [ { package_id, packageName, sub_packages:[{item_id,itemName}] } ] } ] } ] }
       setServiceCategories(response.data.services || []);
-      setServiceLoading(false);
     } catch (error) {
+      console.error(error);
       toast.error("Failed to load services");
+    } finally {
       setServiceLoading(false);
     }
   };
@@ -96,33 +111,71 @@ const Register = () => {
   };
 
   const validateStep2 = () => {
-    if (selectedServices.length === 0) {
-      toast.error("Please select at least one service");
+    // Make sure at least one sub-package is selected
+    if (!selectedServices || selectedServices.length === 0) {
+      toast.error("Please select at least one item from packages");
       return false;
+    }
+
+    // Ensure each selected package has at least one sub_package and a location
+    for (const pkg of selectedServices) {
+      if (!pkg.sub_packages || pkg.sub_packages.length === 0) {
+        toast.error(
+          "Each selected package must have at least one sub-package selected"
+        );
+        return false;
+      }
+      if (!pkg.serviceLocation || pkg.serviceLocation.trim() === "") {
+        toast.error(
+          "Please provide service location for each selected package"
+        );
+        return false;
+      }
     }
     return true;
   };
 
-  const toggleService = (serviceId, categoryId) => {
-    const exists = selectedServices.some((s) => s.serviceId === serviceId);
-    if (exists) {
-      setSelectedServices(
-        selectedServices.filter((s) => s.serviceId !== serviceId)
-      );
-    } else {
-      setSelectedServices([
-        ...selectedServices,
-        { serviceId, serviceCategoryId: categoryId, serviceLocation: "" },
-      ]);
-    }
+  // If package entry doesn't exist, create it.
+  const toggleSubPackage = (packageId, itemId) => {
+    setSelectedServices((prev) => {
+      const next = JSON.parse(JSON.stringify(prev || []));
+      const pkgIndex = next.findIndex((p) => p.package_id === packageId);
+
+      if (pkgIndex === -1) {
+        // add new package with the selected sub_package and empty location
+        return [
+          ...next,
+          {
+            package_id: packageId,
+            serviceLocation: "",
+            sub_packages: [{ item_id: itemId }],
+          },
+        ];
+      } else {
+        const pkg = next[pkgIndex];
+        const subIndex = pkg.sub_packages.findIndex(
+          (s) => s.item_id === itemId
+        );
+        if (subIndex === -1) {
+          // add sub-package
+          pkg.sub_packages.push({ item_id: itemId });
+        } else {
+          pkg.sub_packages.splice(subIndex, 1);
+          // if no more sub_packages, remove the package entirely
+          if (pkg.sub_packages.length === 0) {
+            next.splice(pkgIndex, 1);
+          }
+        }
+        return next;
+      }
+    });
   };
 
-  const updateServiceLocation = (serviceId, location) => {
-    setSelectedServices(
-      selectedServices.map((service) =>
-        service.serviceId === serviceId
-          ? { ...service, serviceLocation: location }
-          : service
+  // Update serviceLocation for a package
+  const updatePackageLocation = (packageId, location) => {
+    setSelectedServices((prev) =>
+      (prev || []).map((p) =>
+        p.package_id === packageId ? { ...p, serviceLocation: location } : p
       )
     );
   };
@@ -150,7 +203,7 @@ const Register = () => {
       formData.append("googleBusinessProfileLink", googleBusinessLink);
     }
 
-    formData.append("services", JSON.stringify(selectedServices));
+    formData.append("packages", JSON.stringify(selectedServices));
 
     setLoading(true);
     try {
@@ -164,6 +217,7 @@ const Register = () => {
         toast.error(result.error || "Registration failed");
       }
     } catch (error) {
+      console.error(error);
       toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
@@ -185,7 +239,7 @@ const Register = () => {
 
       <div className="flex flex-col justify-center items-center px-4">
         <div className="w-full max-w-3xl  rounded-2xl p-8 bg-white">
-          {/* Stepper */}
+          {/* Stepper (unchanged) */}
           <div className="flex justify-between mb-8">
             {["Basic Info", "Services", "Confirm"].map((label, index) => {
               const stepNum = index + 1;
@@ -214,7 +268,7 @@ const Register = () => {
             })}
           </div>
 
-          {/* Step 1 */}
+          {/* Step 1 (unchanged) */}
           {step === 1 && (
             <div>
               <h2 className="text-lg font-semibold text-gray-800 mb-6">
@@ -362,11 +416,11 @@ const Register = () => {
             </div>
           )}
 
-          {/* Step 2 */}
+          {/* --- Step 2: SHOW CATEGORY -> SERVICE -> PACKAGE -> SUB_PACKAGES + per-package serviceLocation --- */}
           {step === 2 && (
             <div>
               <h2 className="text-lg font-semibold text-gray-800 mb-6">
-                Select Services
+                Select Packages & Sub-Packages
               </h2>
               {serviceLoading ? (
                 <div className="flex justify-center py-8">
@@ -379,58 +433,85 @@ const Register = () => {
                       key={category.serviceCategoryId}
                       className="bg-gray-50 p-4 rounded-lg"
                     >
-                      <h3 className="font-medium text-gray-800 mb-3">
+                      <h3 className="font-semibold text-gray-800 mb-2">
                         {category.categoryName}
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {category.services.map((service) => {
-                          const isSelected = selectedServices.some(
-                            (s) => s.serviceId === service.serviceId
-                          );
-                          return (
-                            <div
-                              key={service.serviceId}
-                              className="flex flex-col"
-                            >
-                              <label className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={
-                                    () =>
-                                      toggleService(
-                                        service.serviceId,
-                                        service.serviceCategoryId
-                                      ) // ✅ Use service.serviceCategoryId
-                                  }
-                                  className="h-4 w-4 text-primary border-gray-300 rounded"
-                                />
-                                <span className="ml-2 text-sm">
-                                  {service.title}
-                                </span>
-                              </label>
-                              {isSelected && (
-                                <input
-                                  type="text"
-                                  placeholder="Service Location"
-                                  value={
-                                    selectedServices.find(
-                                      (s) => s.serviceId === service.serviceId
-                                    )?.serviceLocation || ""
-                                  }
-                                  onChange={(e) =>
-                                    updateServiceLocation(
-                                      service.serviceId,
-                                      e.target.value
-                                    )
-                                  }
-                                  className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:ring-primary focus:border-primary"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+
+                      {category.services.map((service) => (
+                        <div key={service.serviceId} className="ml-4 mb-4">
+                          <h4 className="font-medium text-gray-700">
+                            {service.title}
+                          </h4>
+
+                          {Array.isArray(service.packages) &&
+                            service.packages.map((pkg) => {
+                              // is any sub-package selected for this package?
+                              const pkgSelected = selectedServices.find(
+                                (p) => p.package_id === pkg.package_id
+                              );
+                              return (
+                                <div
+                                  key={pkg.package_id}
+                                  className="ml-6 mt-2 border-l pl-4 border-gray-300"
+                                >
+                                  <p className="font-medium text-gray-600">
+                                    {pkg.packageName}
+                                  </p>
+
+                                  {/* sub-packages checkboxes */}
+                                  {Array.isArray(pkg.sub_packages) &&
+                                    pkg.sub_packages.map((sub) => {
+                                      const isChecked = !!(
+                                        pkgSelected &&
+                                        pkgSelected.sub_packages.some(
+                                          (s) => s.item_id === sub.item_id
+                                        )
+                                      );
+                                      return (
+                                        <label
+                                          key={sub.item_id}
+                                          className="flex items-center mt-1"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() =>
+                                              toggleSubPackage(
+                                                pkg.package_id,
+                                                sub.item_id
+                                              )
+                                            }
+                                            className="h-4 w-4 text-primary border-gray-300 rounded"
+                                          />
+                                          <span className="ml-2 text-sm">
+                                            {sub.itemName}
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+
+                                  {/* serviceLocation input - visible when package has any selection, or always (here we show if selected; it's clearer) */}
+                                  {pkgSelected ? (
+                                    <div className="mt-2">
+                                      <input
+                                        type="text"
+                                        value={pkgSelected.serviceLocation}
+                                        onChange={(e) =>
+                                          updatePackageLocation(
+                                            pkg.package_id,
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="Service Location (e.g., rajkot)"
+                                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:ring-primary focus:border-primary"
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -447,7 +528,7 @@ const Register = () => {
             </div>
           )}
 
-          {/* Step 3 */}
+          {/* Step 3: Confirmation (updated to display packages with their serviceLocation + selected sub-packages) */}
           {step === 3 && (
             <div>
               <h2 className="text-lg font-semibold text-gray-800 mb-6">
@@ -491,62 +572,41 @@ const Register = () => {
                     </li>
                   </ul>
                 )}
-                <h3 className="font-medium text-gray-800">Selected Services</h3>
+
+                <h3 className="font-medium text-gray-800">Selected Packages</h3>
                 <div className="space-y-2">
-                  {selectedServices.map((service) => {
-                    const category = serviceCategories.find(
-                      (c) => c.serviceCategoryId === service.serviceCategoryId
-                    );
-                    const serviceItem = category?.services.find(
-                      (s) => s.serviceId === service.serviceId
-                    );
+                  {selectedServices.map((pkg) => {
+                    // find full details for display
+                    const pkgDetails = serviceCategories
+                      .flatMap((c) => c.services || [])
+                      .flatMap((s) => s.packages || [])
+                      .find((p) => p.package_id === pkg.package_id);
 
                     return (
-                      <div key={service.serviceId} className="flex items-start">
+                      <div key={pkg.package_id} className="flex items-start">
                         <FiCheck className="text-green-500 mt-1 mr-2" />
                         <div>
-                          {/* Service title */}
                           <p className="font-medium text-sm">
-                            {serviceItem?.title ||
-                              `Service ID: ${service.serviceId}`}
+                            {pkgDetails?.packageName ||
+                              `Package ID: ${pkg.package_id}`}
                           </p>
-
-                          {/* Category + Location */}
-                          <p className="text-xs text-gray-500">
-                            <b>Category:</b>{" "}
-                            {category?.categoryName ||
-                              service.serviceCategoryId}
-                            {" • "}
+                          <p className="text-xs text-gray-500 mb-1">
                             <b>Location:</b>{" "}
-                            {service.serviceLocation
-                              ? service.serviceLocation
-                              : "Not provided"}
+                            {pkg.serviceLocation || "Not provided"}
                           </p>
-
-                          {/* Extra debug info so you see full values */}
-                          <p className="text-xs text-gray-400">
-                            <b>Service ID:</b> {service.serviceId},{" "}
-                            <b>Category ID:</b> {service.serviceCategoryId}
-                          </p>
-
-                          {/* Description */}
-                          {serviceItem?.description && (
-                            <p className="text-xs text-gray-400 mt-1">
-                              {serviceItem.description}
-                            </p>
-                          )}
-
-                          {/* Service types */}
-                          {serviceItem?.serviceTypes?.length > 0 && (
-                            <ul className="mt-1 ml-4 list-disc text-xs text-gray-500">
-                              {serviceItem.serviceTypes.map((type) => (
-                                <li key={type.service_type_id}>
-                                  {type.serviceTypeName}
-                                  {type.subType ? ` – ${type.subType}` : ""}
+                          <ul className="ml-4 list-disc text-xs text-gray-500">
+                            {pkg.sub_packages.map((sub) => {
+                              const subDetails = pkgDetails?.sub_packages?.find(
+                                (s) => s.item_id === sub.item_id
+                              );
+                              return (
+                                <li key={sub.item_id}>
+                                  {subDetails?.itemName ||
+                                    `Item ID: ${sub.item_id}`}
                                 </li>
-                              ))}
-                            </ul>
-                          )}
+                              );
+                            })}
+                          </ul>
                         </div>
                       </div>
                     );
