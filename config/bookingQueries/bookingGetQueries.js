@@ -112,21 +112,20 @@ WHERE sba.booking_id = ?
         sba.package_id,
         sba.addon_id,
         a.addonName,
-        a.addonMedia,
         sba.quantity
      FROM service_booking_addons sba
-     JOIN package_addons a ON sba.addon_id = a.addon_id
+     LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
      WHERE sba.booking_id = ?
         `,
 
 
     getBookedPackages: `
             SELECT
-                p.package_id,
+                sbp.package_id,
                 p.packageName,
                 p.packageMedia
                 FROM service_booking_packages sbp
-                JOIN packages p ON sbp.package_id = p.package_id
+                LEFT JOIN packages p ON sbp.package_id = p.package_id
                 WHERE sbp.booking_id = ?
 `,
 
@@ -145,12 +144,21 @@ WHERE sba.booking_id = ?
 
     getBoookedPrefrences: `
                 SELECT
-sp.preference_id,
-    bp.preferenceValue
+                sp.preference_id,
+                bp.preferenceValue
                 FROM service_booking_preferences sp
-                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-                WHERE sp.booking_id = ?
+                    LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                    WHERE sp.booking_id = ?
 `,
+    getBoookedConsents:
+        `SELECT 
+        c.consent_id,
+        c.question,
+        sbc.answer,
+        sbc.package_id
+        FROM service_booking_consents sbc
+                    LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+                    WHERE sbc.booking_id = ? `,
 
     getVendorByServiceTypeId: `
     SELECT vendor_id FROM vendor_packages

@@ -239,9 +239,6 @@ const bookService = asyncHandler(async (req, res) => {
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
-    console.log(vendor_id);
-
-
     try {
         // Get vendor type
         const [[vendorRow]] = await db.query(
@@ -250,14 +247,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         );
         const vendorType = vendorRow?.vendorType || null;
 
-        // Get latest platform fee for vendorType
+        // Get latest platform fee
         const [platformSettings] = await db.query(
             bookingGetQueries.getPlateFormFee,
             [vendorType]
         );
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-
-        // Precompute net factor (1 - fee%)
         const netFactor = 1 - platformFee / 100;
 
         // Fetch vendor bookings
@@ -267,66 +262,21 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         );
 
         for (const booking of bookings) {
-            booking.payment_amount = booking.payment_amount
-                ? Number(booking.payment_amount)
-                : 0;
+            booking.payment_amount = booking.payment_amount ? Number(booking.payment_amount) : 0;
             const bookingId = booking.booking_id;
 
-            // Fetch Packages
-            const [bookingPackages] = await db.query(
-                bookingGetQueries.getBookedPackages,
-                [netFactor, bookingId]
-            );
+            // Packages
+            const [bookingPackages] = await db.query(bookingGetQueries.getBookedPackages, [bookingId]);
+            const [packageItems] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
+            const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
+            const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
+            const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
 
-            // Fetch Package Items
-            const [packageItems] = await db.query(
-                bookingGetQueries.getBookedSubPackages,
-                [netFactor, bookingId]
-            );
-
-            // Fetch Addons
-            const [bookingAddons] = await db.query(
-                bookingGetQueries.getBookedAddons,
-                [netFactor, bookingId]
-            );
-
-            // Group items & addons under packages
-            const groupedPackages = bookingPackages.map((pkg) => {
-                const items = packageItems.filter(
-                    (item) => item.package_id === pkg.package_id
-                );
-                const addons = bookingAddons.filter(
-                    (addon) => addon.package_id === pkg.package_id
-                );
-                return { ...pkg, items, addons };
-            });
-
-            // Fetch Preferences
-            const [bookingPreferences] = await db.query(
-                bookingGetQueries.getBoookedPrefrences,
-                [bookingId]
-            );
-
-            // Fetch Consents linked to this booking (using booking_service_consents or equivalent table)
-            const [bookingConsents] = await db.query(
-                `SELECT 
-                 c.consent_id, 
-                 c.question, 
-                 sbc.answer, 
-                 sbc.package_id
-                    FROM service_booking_consents sbc
-                    LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
-                    WHERE sbc.booking_id = ?`,
-                [bookingId]
-            );
-
-            // Group consents by package_id or just attach flatly if no package grouping needed
+            // Group consents by package_id
             const consentsGroupedByPackage = {};
             bookingConsents.forEach(consent => {
                 const pkgId = consent.package_id || 'no_package';
-                if (!consentsGroupedByPackage[pkgId]) {
-                    consentsGroupedByPackage[pkgId] = [];
-                }
+                if (!consentsGroupedByPackage[pkgId]) consentsGroupedByPackage[pkgId] = [];
                 consentsGroupedByPackage[pkgId].push({
                     consent_id: consent.consent_id,
                     consentText: consent.question,
@@ -334,20 +284,34 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 });
             });
 
-            // Attach consents to each package
-            for (const pkg of groupedPackages) {
-                pkg.consents = consentsGroupedByPackage[pkg.package_id] || [];
-            }
+            // Merge everything into packages
+            booking.packages = bookingPackages.map(pkg => {
+                const items = packageItems
+                    .filter(item => item.package_id === pkg.package_id)
+                    .map(({ package_id, ...rest }) => rest); // remove package_id
+                const addons = bookingAddons
+                    .filter(addon => addon.package_id === pkg.package_id)
+                    .map(({ package_id, ...rest }) => rest);
+                const preferences = bookingPreferences
+                    .map(({ package_id, ...rest }) => rest);
+                const consents = consentsGroupedByPackage[pkg.package_id] || [];
 
-            // Attach everything to booking
-            booking.packages = groupedPackages;
-            booking.package_items = packageItems;
-            booking.addons = bookingAddons;
-            booking.preferences = bookingPreferences;
-            // Attach consents that are not linked to any package (if any)
-            booking.consents = consentsGroupedByPackage['no_package'] || [];
+                return {
+                    ...pkg,
+                    items,
+                    addons,
+                    preferences,
+                    consents
+                };
+            });
 
-            // Combine employee info if present
+            // Remove old top-level arrays
+            delete booking.package_items;
+            delete booking.addons;
+            delete booking.preferences;
+            delete booking.consents;
+
+            // Employee info
             if (booking.assignedEmployeeId) {
                 booking.assignedEmployee = {
                     employee_id: booking.assignedEmployeeId,
@@ -356,16 +320,14 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     phone: booking.employeePhone,
                 };
             }
-
-            // Clean up sensitive or redundant fields
             delete booking.assignedEmployeeId;
             delete booking.employeeFirstName;
             delete booking.employeeLastName;
             delete booking.employeeEmail;
             delete booking.employeePhone;
 
-            // Remove null or empty keys
-            Object.keys(booking).forEach((key) => {
+            // Remove null/empty fields
+            Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
         }
