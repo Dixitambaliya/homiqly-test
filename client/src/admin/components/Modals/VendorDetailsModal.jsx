@@ -295,70 +295,65 @@ const VendorDetailsModal = ({
 
         {/* Services + Packages Section */}
         <div>
-          {(vendor.services?.length > 0 || vendor.packages?.length > 0) && (
+          {vendor.services?.length > 0 && (
             <div>
-              {/* Services */}
-              {vendor.services?.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">
-                    Services Offered
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {vendor.services.map((service, index) => (
-                      <div
-                        key={`service-${service.service_id ?? index}`}
-                        className="flex justify-between p-3 rounded-lg "
-                      >
-                        <div className="flex items-center gap-3">
-                          {service.serviceImage ? (
-                            <img
-                              src={service.serviceImage}
-                              alt={service.serviceName || "service"}
-                              className="w-12 h-12 rounded object-cover border"
-                            />
-                          ) : null}
-                          <div>
-                            <div className="font-medium text-gray-900 text-sm">
-                              {service.serviceName}
-                            </div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              Category: {service.categoryName}
-                            </div>
-                            {service.serviceLocation && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                Location: {service.serviceLocation}
-                              </div>
-                            )}
-                          </div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                Services Offered
+              </h4>
+
+              <div className="space-y-6">
+                {vendor.services.map((service, sIndex) => (
+                  <div
+                    key={`service-${service.service_id ?? sIndex}`}
+                    className="rounded-lg border p-4 bg-white"
+                  >
+                    {/* Service header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      {service.serviceImage ? (
+                        <img
+                          src={service.serviceImage}
+                          alt={service.serviceName || "service"}
+                          className="w-12 h-12 rounded object-cover border"
+                        />
+                      ) : null}
+
+                      <div>
+                        <div className="font-medium text-gray-900 text-sm">
+                          {service.serviceName}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          Category: {service.categoryName}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
 
-              {/* Packages */}
-              {vendor.packages?.length > 0 && (
-                <div>
-                  <div className="space-y-4">
-                    {vendor.packages.map((pkg, pkgIndex) => {
-                      // support different package item naming (items or sub_packages)
-                      const packageItems = pkg.items ?? pkg.sub_packages ?? [];
-                      return (
-                        <div
-                          key={`package-${
-                            pkg.package_id ?? pkg.vendor_packages_id ?? pkgIndex
-                          }`}
-                          className="rounded-lg  bg-white"
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <div className="text-sm font-semibold text-gray-800">
-                                {pkg.packageName ||
-                                  `Package ${pkg.package_id ?? pkgIndex}`}
-                              </div>
+                    {/* Packages under service */}
+                    {service.packages?.length > 0 ? (
+                      <div className="space-y-4">
+                        {service.packages.map((pkg, pkgIndex) => {
+                          const packageItems = pkg.items ?? [];
+                          return (
+                            <div
+                              key={`service-${sIndex}-pkg-${
+                                pkg.package_id ??
+                                pkg.vendor_packages_id ??
+                                pkgIndex
+                              }`}
+                              className="rounded-lg border p-3 bg-gray-50"
+                            >
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-800">
+                                    {pkg.packageName ||
+                                      `Package ${pkg.package_id ?? pkgIndex}`}
+                                  </div>
+                                  {pkg.serviceLocation && (
+                                    <div className="text-xs text-gray-600 mt-1">
+                                      Location: {pkg.serviceLocation}
+                                    </div>
+                                  )}
+                                </div>
 
-                              <div className="flex items-start">
                                 <IconButton
                                   variant="lightDanger"
                                   icon={<Trash2 className="w-4 h-4" />}
@@ -368,95 +363,95 @@ const VendorDetailsModal = ({
                                 />
                               </div>
 
-                              {pkg.serviceLocation && (
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Location: {pkg.serviceLocation}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Package items grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {packageItems.length === 0 && (
-                              <div className="text-xs text-gray-500 italic">
-                                No items in this package.
-                              </div>
-                            )}
-
-                            {packageItems.map((item, itemIndex) => {
-                              // Support naming variations in item fields
-                              const img =
-                                item.itemMedia ??
-                                item.item_media ??
-                                item.image ??
-                                item.package_item_image ??
-                                null;
-                              const title =
-                                item.itemName ??
-                                item.item_name ??
-                                item.name ??
-                                "Untitled";
-                              const desc =
-                                item.description ??
-                                item.desc ??
-                                item.details ??
-                                "";
-
-                              return (
-                                <div
-                                  key={`pkg-${pkgIndex}-item-${
-                                    item.vendor_package_item_id ??
-                                    item.package_item_id ??
-                                    itemIndex
-                                  }`}
-                                  className="flex items-start gap-3 p-3 rounded "
-                                >
-                                  {img ? (
-                                    <div className="w-20 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                                      <img
-                                        src={img}
-                                        alt={title}
-                                        className="object-cover w-full h-full"
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="w-20 h-16 bg-gray-50 rounded flex items-center justify-center text-xs text-gray-400">
-                                      No image
-                                    </div>
-                                  )}
-
-                                  <div className="flex-1">
-                                    <div className="font-medium text-gray-900 text-sm">
-                                      {title}
-                                    </div>
-
-                                    {desc && (
-                                      <div className="text-xs text-gray-600 mt-1">
-                                        {desc}
-                                      </div>
-                                    )}
-
-                                    {/* optional meta rows */}
-                                    <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3">
-                                      {item.price != null && (
-                                        <div>Price: {String(item.price)}</div>
-                                      )}
-                                      {item.time_required && (
-                                        <div>Time: {item.time_required}</div>
-                                      )}
-                                    </div>
+                              {/* Package items */}
+                              <div className="grid grid-cols-1 2 gap-3">
+                                {packageItems.length === 0 && (
+                                  <div className="text-xs text-gray-500 italic">
+                                    No items in this package.
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                )}
+
+                                {packageItems.map((item, itemIndex) => {
+                                  const img =
+                                    item.itemMedia ??
+                                    item.item_media ??
+                                    item.image ??
+                                    item.package_item_image ??
+                                    null;
+                                  const title =
+                                    item.itemName ??
+                                    item.item_name ??
+                                    item.name ??
+                                    "Untitled";
+                                  const desc =
+                                    item.description ??
+                                    item.desc ??
+                                    item.details ??
+                                    "";
+
+                                  return (
+                                    <div
+                                      key={`pkg-${pkgIndex}-item-${
+                                        item.vendor_package_item_id ??
+                                        item.package_item_id ??
+                                        itemIndex
+                                      }`}
+                                      className="flex items-start gap-3 p-3 rounded bg-white"
+                                    >
+                                      {img ? (
+                                        <div className="w-20 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                          <img
+                                            src={img}
+                                            alt={title}
+                                            className="object-cover w-full h-full"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <div className="w-20 h-16 bg-gray-50 rounded flex items-center justify-center text-xs text-gray-400">
+                                          No image
+                                        </div>
+                                      )}
+
+                                      <div className="">
+                                        <div className="font-medium text-gray-900 text-sm">
+                                          {title}
+                                        </div>
+
+                                        {desc && (
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            {desc}
+                                          </div>
+                                        )}
+
+                                        <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3">
+                                          {item.price != null && (
+                                            <div>
+                                              Price: {String(item.price)}
+                                            </div>
+                                          )}
+                                          {item.time_required && (
+                                            <div>
+                                              Time: {item.time_required}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500 italic">
+                        No packages for this service.
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
         </div>
