@@ -124,7 +124,6 @@ WHERE sba.booking_id = ?
             SELECT
                 p.package_id,
                 p.packageName,
-                p.totalTime,
                 p.packageMedia
                 FROM service_booking_packages sbp
                 JOIN packages p ON sbp.package_id = p.package_id

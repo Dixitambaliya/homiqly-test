@@ -150,8 +150,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -270,8 +268,6 @@ const getUserCart = asyncHandler(async (req, res) => {
 });
 
 
-
-
 const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { package_id } = req.params; // 🔑 package_id from URL param
@@ -290,7 +286,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         );
 
         if (cartRows.length === 0) {
-            return res.status(404).json({ message: "No cart found for this package" });
+            return res.status(204).json({ message: "No cart found for this package" });
         }
 
         let cart_id = cartRows[0].cart_id;
