@@ -51,29 +51,42 @@ const addToCartService = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        let createdCarts = [];
+        let createdOrUpdatedCarts = [];
 
-        // ✅ Create one service_cart row per package
         for (const pkg of parsedPackages) {
             const { package_id = null, sub_packages = [], addons = [] } = pkg;
 
-            // Step 1: Insert service_cart row (with package_id)
-            const [insertCart] = await connection.query(
-                `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
-                 VALUES (?, ?, ?, ?)`,
-                [user_id, service_id, package_id, 0]
+            // ✅ Step 0: Check if cart already exists for this user + service_id + package_id
+            const [existingCart] = await connection.query(
+                `SELECT cart_id FROM service_cart 
+                 WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0
+                 LIMIT 1`,
+                [user_id, service_id, package_id]
             );
 
-            const cart_id = insertCart.insertId;
-            createdCarts.push(cart_id);
+            let cart_id;
+            if (existingCart.length > 0) {
+                // ✅ Use existing cart_id
+                cart_id = existingCart[0].cart_id;
+            } else {
+                // 🆕 Insert new cart row
+                const [insertCart] = await connection.query(
+                    `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
+                     VALUES (?, ?, ?, ?)`,
+                    [user_id, service_id, package_id, 0]
+                );
+                cart_id = insertCart.insertId;
 
-            // Step 2: Insert into cart_packages
-            await connection.query(
-                "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
-                [cart_id, package_id]
-            );
+                // also insert into cart_packages
+                await connection.query(
+                    "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
+                    [cart_id, package_id]
+                );
+            }
 
-            // Step 3: Sub-packages
+            createdOrUpdatedCarts.push(cart_id);
+
+            // Step 3: Insert Sub-packages (append only)
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
@@ -86,7 +99,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Step 4: Addons
+            // Step 4: Addons (append only)
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
@@ -97,7 +110,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Step 5: Preferences
+            // Step 5: Preferences (append only)
             for (const pref of parsedPreferences) {
                 const preference_id = typeof pref === "object" ? pref.preference_id : pref;
                 if (!preference_id) continue;
@@ -108,7 +121,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Step 6: Consents
+            // Step 6: Consents (append only)
             for (const consent of parsedConsents) {
                 const { consent_id, answer = null } = consent;
                 if (!consent_id) continue;
@@ -125,29 +138,48 @@ const addToCartService = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: "Service(s) added to cart successfully",
-            cart_ids: createdCarts
+            message: "Service(s) added/updated in cart successfully",
+            cart_ids: createdOrUpdatedCarts
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Cart insert error:", err);
+        console.error("Cart insert/update error:", err);
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
 
+
+
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+
     try {
         // ✅ Fetch all carts for the user (latest first)
         const [cartRows] = await db.query(
-            `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC`,
+            `SELECT 
+                sc.cart_id,
+                sc.service_id,
+                sc.package_id,
+                sc.user_id,
+                sc.vendor_id,
+                sc.bookingStatus,
+                sc.notes,
+                sc.bookingMedia,
+                sc.created_at,
+                sc.bookingDate,
+                sc.bookingTime,
+                p.packageName
+             FROM service_cart sc
+             LEFT JOIN packages p ON sc.package_id = p.package_id
+             WHERE sc.user_id = ?
+             ORDER BY sc.created_at DESC`,
             [user_id]
         );
 
         if (cartRows.length === 0) {
-            return res.status(200).json({ message: "Cart is empty", cart: [] });
+            return res.status(200).json({ message: "Cart is empty", carts: [] });
         }
 
         let allCarts = [];
@@ -155,26 +187,15 @@ const getUserCart = asyncHandler(async (req, res) => {
         for (const cart of cartRows) {
             const cart_id = cart.cart_id;
 
-            // ✅ Fetch packages for this cart
-            const [cartPackages] = await db.query(
-                `SELECT
-                    cp.package_id,
-                    p.packageName
-                 FROM cart_packages cp
-                 LEFT JOIN packages p ON cp.package_id = p.package_id
-                 WHERE cp.cart_id = ?`,
-                [cart_id]
-            );
-
             // ✅ Sub-packages
             const [cartPackageItems] = await db.query(
                 `SELECT
-                    cpi.sub_package_id AS item_id,
+                    cpi.cart_package_items_id,
                     pi.itemName,
                     cpi.price,
                     cpi.quantity,
                     pi.timeRequired,
-                    cpi.package_id
+                    cpi.created_at
                  FROM cart_package_items cpi
                  LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
                  WHERE cpi.cart_id = ?`,
@@ -184,10 +205,10 @@ const getUserCart = asyncHandler(async (req, res) => {
             // ✅ Addons
             const [cartAddons] = await db.query(
                 `SELECT
-                    ca.addon_id,
+                    ca.cart_addon_id,
                     a.addonName,
                     ca.price,
-                    ca.package_id 
+                    ca.created_at
                  FROM cart_addons ca
                  LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
                  WHERE ca.cart_id = ?`,
@@ -197,9 +218,9 @@ const getUserCart = asyncHandler(async (req, res) => {
             // ✅ Preferences
             const [cartPreferences] = await db.query(
                 `SELECT
-                    cp.package_id,
-                    cp.preference_id,
-                    bp.preferenceValue
+                    cp.cart_preference_id,
+                    bp.preferenceValue,
+                    cp.created_at
                  FROM cart_preferences cp
                  LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
                  WHERE cp.cart_id = ?`,
@@ -209,52 +230,32 @@ const getUserCart = asyncHandler(async (req, res) => {
             // ✅ Consents
             const [cartConsents] = await db.query(
                 `SELECT
-                    cc.package_id,
-                    cc.consent_id,
+                    cc.cart_consent_id,
                     c.question,
-                    cc.answer
+                    cc.answer,
+                    cc.created_at
                  FROM cart_consents cc
                  LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
                  WHERE cc.cart_id = ?`,
                 [cart_id]
             );
 
-            // ✅ Group under each package
-            const groupedPackages = cartPackages.map(pkg => {
-                const sub_packages = cartPackageItems
-                    .filter(item => item.package_id === pkg.package_id);
-                const addons = cartAddons
-                    .filter(addon => addon.package_id === pkg.package_id);
-                const preferences = cartPreferences
-                    .filter(pref => pref.package_id === pkg.package_id)
-                    .map(pref => ({
-                        preference_id: pref.preference_id,
-                        preferenceValue: pref.preferenceValue
-                    }));
-                const consents = cartConsents
-                    .filter(con => con.package_id === pkg.package_id)
-                    .map(con => ({
-                        consent_id: con.consent_id,
-                        consentText: con.question,
-                        answer: con.answer
-                    }));
-
-                return {
-                    ...pkg,
-                    sub_packages,
-                    addons,
-                    preferences,
-                    consents
-                };
-            });
-
             allCarts.push({
                 ...cart,
-                packages: groupedPackages
+                sub_packages: cartPackageItems,
+                addons: cartAddons,
+                preferences: cartPreferences.map(pref => ({
+                    cart_preference_id: pref.cart_preference_id,
+                    preferenceValue: pref.preferenceValue
+                })),
+                consents: cartConsents.map(con => ({
+                    consent_id: con.consent_id,
+                    consentText: con.question,
+                    answer: con.answer
+                }))
             });
         }
 
-        // ✅ Return all carts (not just one)
         res.status(200).json({
             message: "Cart retrieved successfully",
             carts: allCarts
@@ -265,6 +266,9 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
+
 
 const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -291,32 +295,51 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
         // ✅ Fetch sub-packages
         const [subPackages] = await db.query(
-            `SELECT cpi.cart_package_items_id, cpi.sub_package_id, cpi.price, cpi.quantity
+            `SELECT 
+            cpi.cart_package_items_id, 
+            pt.itemName,
+            pt.description,
+            cpi.price, 
+            cpi.quantity
              FROM cart_package_items cpi
+             LEFT JOIN package_items pt ON cpi.sub_package_id = pt.item_id
              WHERE cpi.cart_id = ? AND cpi.package_id = ?`,
             [cart_id, package_id]
         );
 
         // ✅ Fetch addons
         const [addons] = await db.query(
-            `SELECT ca.cart_addon_id, ca.addon_id, ca.price
+            `SELECT 
+            ca.cart_addon_id, 
+            pa.addonName,
+            pa.addonDescription,
+            ca.price
              FROM cart_addons ca
+             LEFT JOIN package_addons pa ON ca.addon_id = pa.addon_id
              WHERE ca.cart_id = ? AND ca.package_id = ?`,
             [cart_id, package_id]
         );
 
         // ✅ Fetch preferences
         const [preferences] = await db.query(
-            `SELECT cp.cart_preference_id, cp.preference_id
+            `SELECT 
+             cp.cart_preference_id, 
+             bp.preferenceValue
              FROM cart_preferences cp
+             LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id 
              WHERE cp.cart_id = ? AND cp.package_id = ?`,
             [cart_id, package_id]
         );
 
         // ✅ Fetch consents
         const [consents] = await db.query(
-            `SELECT cc.cart_consent_id, cc.consent_id, cc.answer
+            `SELECT 
+            cc.cart_consent_id, 
+
+            pcf.question, 
+            cc.answer
              FROM cart_consents cc
+             LEFT JOIN package_consent_forms pcf ON pcf.consent_id = cc.consent_id
              WHERE cc.cart_id = ? AND cc.package_id = ?`,
             [cart_id, package_id]
         );
@@ -338,7 +361,6 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
-
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
@@ -433,7 +455,6 @@ const getCartDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
-
 
 const deleteCartItem = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
