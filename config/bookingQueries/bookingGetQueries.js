@@ -2,9 +2,8 @@ const bookingGetQueries = {
 
     getVendorBookings: ` 
       SELECT
-          sb.*,
+    sb.*,
     s.serviceName,
-    sc.serviceCategory,
     sb.payment_status AS payment_status,
     (p.amount * (1 - ? / 100)) AS payment_amount,
     p.currency AS payment_currency,
@@ -24,7 +23,6 @@ const bookingGetQueries = {
 
       FROM service_booking sb
       LEFT JOIN services s ON sb.service_id = s.service_id
-      LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
       LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
       LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
       LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id

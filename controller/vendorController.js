@@ -17,7 +17,6 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
                     s.serviceDescription AS serviceDescription,
                     s.serviceFilter AS serviceFilter,
                     st.service_type_id AS serviceTypeId,
-                    st.serviceTypeName AS serviceTypeName,
                     p.package_id,
                     p.packageName AS packageName
                 FROM service_categories sc

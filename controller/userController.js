@@ -126,7 +126,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
 
@@ -602,8 +601,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;

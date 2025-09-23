@@ -91,9 +91,6 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
 const getAllServiceType = asyncHandler(async (req, res) => {
 
     try {
@@ -390,7 +387,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -529,7 +525,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
 
 const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     try {
@@ -685,7 +680,6 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     }
 });
 
-
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -840,8 +834,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-
 
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1054,7 +1046,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
