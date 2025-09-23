@@ -312,11 +312,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // ✅ Create booking (payment pending)
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-          (user_id, bookingDate, bookingTime,
+          (user_id, service_id, bookingDate, bookingTime,
            vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
+          cart.service_id,
           cart.bookingDate,
           cart.bookingTime,
           cart.vendor_id,
@@ -349,8 +350,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         [booking_id, cart_id]
       );
       await connection.query(
-        `INSERT INTO service_booking_consents (booking_id, consent_id, answer)
-         SELECT ?, consent_id, answer FROM cart_consents WHERE cart_id = ?`,
+        `INSERT INTO service_booking_consents (booking_id, package_id, consent_id, answer)
+         SELECT ?, consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
       await connection.query(
@@ -417,7 +418,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       await connection.rollback();
       try {
         await stripe.paymentIntents.cancel(paymentIntentId, {
-          cancellation_reason: "processing_error"
+          cancellation_reason: "abandoned"
         });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ?`,
