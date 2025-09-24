@@ -96,7 +96,6 @@ const vendorGetQueries = {
   getVendorFullPayment: `
     SELECT
         sb.booking_id,
-        sb.service_categories_id,
         sb.service_id,
         sb.vendor_id,
         sb.assigned_employee_id,

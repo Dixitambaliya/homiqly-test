@@ -707,7 +707,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getEmployeeProfile = asyncHandler(async (req, res) => {
     const employee_id = req.user.employee_id;
 

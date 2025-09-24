@@ -267,7 +267,6 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { package_id } = req.params; // 🔑 package_id from URL param

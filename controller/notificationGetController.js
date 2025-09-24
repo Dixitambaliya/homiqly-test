@@ -60,7 +60,6 @@ const getUserNotifications = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getVendorNotifications = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
     if (!vendor_id) {
