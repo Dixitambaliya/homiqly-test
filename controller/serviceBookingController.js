@@ -927,46 +927,54 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         const vendorBreakMinutes = 60; // vendor break after booking
 
         const sql = `
-            SELECT
-                v.vendor_id,
-                v.vendorType,
-                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
-                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-                IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS profileImage,
+                SELECT
+            v.vendor_id,
+            v.vendorType,
+            IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+            IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+            IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+            IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS profileImage,
 
-                GROUP_CONCAT(DISTINCT p.packageName ORDER BY p.packageName ASC) AS packageNames,
-                IFNULL(AVG(r.rating), 0) AS avgRating,
-                COUNT(r.rating_id) AS totalReviews
-            FROM vendors v
-            LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
-            LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
-            INNER JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
-            INNER JOIN packages p ON p.package_id = vp.package_id
-            LEFT JOIN vendor_package_items vpi ON vpi.vendor_packages_id = vp.vendor_packages_id
-            LEFT JOIN package_items pi ON pi.item_id = vpi.package_item_id
-            LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-            LEFT JOIN service_booking sb_rating ON sb_rating.vendor_id = v.vendor_id
-            LEFT JOIN ratings r ON r.booking_id = sb_rating.booking_id AND r.package_id = vp.package_id
-            WHERE vst.manual_assignment_enabled = 1
-            AND (? IS NULL OR vp.package_id = ?)
-            AND (? IS NULL OR vpi.package_item_id = ?)
-            AND NOT EXISTS (
-                SELECT 1
-                FROM service_booking sb
-                WHERE sb.vendor_id = v.vendor_id
-                  AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
-                  AND sb.bookingDate = ?
-                  AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s') BETWEEN 
-                        COALESCE(sb.start_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'))
-                    AND DATE_ADD(
-                        COALESCE(sb.end_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')),
-                        INTERVAL ? MINUTE
-                    )
-            )
-            GROUP BY v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
-            ORDER BY vendorName ASC
-        `;
+            IFNULL(AVG(r.rating), 0) AS avgRating,
+            COUNT(r.rating_id) AS totalReviews,
+
+            -- New fields
+            GROUP_CONCAT(DISTINCT s.serviceName ORDER BY s.serviceName ASC) AS serviceNames,
+            GROUP_CONCAT(DISTINCT s.serviceImage ORDER BY s.serviceName ASC) AS serviceImages
+
+        FROM vendors v
+        LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
+        LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
+        INNER JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
+        INNER JOIN packages p ON p.package_id = vp.package_id
+        LEFT JOIN vendor_package_items vpi ON vpi.vendor_packages_id = vp.vendor_packages_id
+        LEFT JOIN package_items pi ON pi.item_id = vpi.package_item_id
+        LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
+        LEFT JOIN service_booking sb_rating ON sb_rating.vendor_id = v.vendor_id
+        LEFT JOIN ratings r ON r.booking_id = sb_rating.booking_id AND r.package_id = vp.package_id
+
+        -- NEW JOINS FOR SERVICE
+        INNER JOIN service_type st ON st.service_type_id = p.service_type_id
+        INNER JOIN services s ON s.service_id = st.service_id
+
+        WHERE vst.manual_assignment_enabled = 1
+        AND (? IS NULL OR vp.package_id = ?)
+        AND (? IS NULL OR vpi.package_item_id = ?)
+        AND NOT EXISTS (
+            SELECT 1
+            FROM service_booking sb
+            WHERE sb.vendor_id = v.vendor_id
+            AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
+            AND sb.bookingDate = ?
+            AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s') BETWEEN 
+                    COALESCE(sb.start_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'))
+                AND DATE_ADD(
+                    COALESCE(sb.end_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')),
+                    INTERVAL ? MINUTE
+                )
+        )
+        GROUP BY v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
+        ORDER BY vendorName ASC`;
 
         const params = [
             package_id, package_id,
