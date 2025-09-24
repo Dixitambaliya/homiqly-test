@@ -209,10 +209,10 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-// Get all bookings for admin calendar
+
 const getBookings = asyncHandler(async (req, res) => {
     try {
-        const [allBookings] = await db.query(`
+        const [rows] = await db.query(`
             SELECT
                 sb.booking_id,
                 sb.bookingDate,
@@ -227,155 +227,211 @@ const getBookings = asyncHandler(async (req, res) => {
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
                 u.email AS user_email,
 
-                sc.serviceCategory,
                 s.serviceName,
+                sc.serviceCategory,
 
                 v.vendor_id,
                 v.vendorType,
-
                 IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
                 IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
                 p.amount AS payment_amount,
-                p.currency AS payment_currency
+                p.currency AS payment_currency,
+
+                pkg.package_id,
+                pi.item_id,
+                pi.itemName,
+                pi.itemMedia,
+                pi.timeRequired,
+                sbsp.quantity AS item_quantity,
+                (sbsp.price * sbsp.quantity) AS item_price,
+
+                sba.addon_id,
+                pa.addonName,
+                pa.addonTime,
+                sba.quantity AS addon_quantity,
+                (sba.price * sba.quantity) AS addon_price,
+
+                sp.preference_id,
+                bp.preferenceValue,
+
+                sbc.consent_id,
+                pcf.question,
+                sbc.answer
+
 
             FROM service_booking sb
             LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN service_categories sc ON sb.service_categories_id = sc.service_categories_id
             LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
-            LEFT JOIN service_type st ON sbt.service_type_id = st.service_type_id
+            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
             LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
 
+            LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
+            LEFT JOIN packages pkg ON sbp.package_id = pkg.package_id
+
+            LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id 
+            LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+
+            LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id 
+            LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
+
+            LEFT JOIN service_booking_preferences sp ON sb.booking_id = sp.booking_id
+            LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+
+            LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
+            LEFT JOIN package_consent_forms pcf ON sbc.consent_id = pcf.consent_id
+
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
         `);
 
-        const enrichedBookings = await Promise.all(
-            allBookings.map(async (booking) => {
-                const bookingId = booking.booking_id;
+        // ===== Group rows by booking_id =====
+        const bookingsMap = new Map();
 
-                // ===== Fetch Packages =====
-                const [bookingPackages] = await db.query(`
-                    SELECT
-                        p.package_id
-                    FROM service_booking_packages sbp
-                    JOIN packages p ON sbp.package_id = p.package_id
-                    WHERE sbp.booking_id = ?
-                `, [bookingId]);
+        rows.forEach(row => {
+            let booking = bookingsMap.get(row.booking_id);
+            if (!booking) {
+                booking = {
+                    booking_id: row.booking_id,
+                    bookingDate: row.bookingDate,
+                    bookingTime: row.bookingTime,
+                    bookingStatus: row.bookingStatus,
+                    notes: row.notes,
+                    bookingMedia: row.bookingMedia,
+                    payment_intent_id: row.payment_intent_id,
+                    payment_status: row.payment_status,
 
-                // ===== Fetch Items =====
-                const [packageItems] = await db.query(`
-                    SELECT
-                        sbsp.sub_package_id AS item_id,
-                        pi.itemName,
-                        sbsp.quantity,
-                        (sbsp.price * sbsp.quantity) AS price,
-                        pi.itemMedia,
-                        pi.timeRequired,
-                        pi.package_id
-                    FROM service_booking_sub_packages sbsp
-                    LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                    WHERE sbsp.booking_id = ?
-                `, [bookingId]);
+                    user_id: row.user_id,
+                    userName: row.userName,
+                    user_email: row.user_email,
 
-                // ===== Fetch Addons =====
-                const [bookingAddons] = await db.query(`
-                    SELECT
-                        sba.addon_id,
-                        pa.addonName,
-                        pa.addonTime,
-                        sba.quantity,
-                        (sba.price * sba.quantity) AS price,
-                        sba.package_id
-                    FROM service_booking_addons sba
-                    LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
-                    WHERE sba.booking_id = ?
-                `, [bookingId]);
+                    serviceName: row.serviceName,
+                    serviceCategory: row.serviceCategory,
 
-                // Group items & addons under packages
-                const groupedPackages = bookingPackages.map(pkg => {
-                    const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                    // const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
-                    return { ...pkg, items };
-                });
+                    vendor_id: row.vendor_id,
+                    vendorType: row.vendorType,
+                    vendorName: row.vendorName,
+                    vendorPhone: row.vendorPhone,
+                    vendorEmail: row.vendorEmail,
+                    vendorContactPerson: row.vendorContactPerson,
 
-                // ===== Fetch Preferences =====
-                const [bookingPreferences] = await db.query(`
-                    SELECT
-                        sp.preference_id,
-                        bp.preferenceValue
-                    FROM service_preferences sp
-                    JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-                    WHERE sp.booking_id = ?
-                `, [bookingId]);
+                    payment_amount: row.payment_amount,
+                    payment_currency: row.payment_currency,
 
-                booking.packages = groupedPackages;
-                booking.package_items = packageItems;
-                booking.addons = bookingAddons;
-                booking.preferences = bookingPreferences;
+                    packages: []
+                };
+                bookingsMap.set(row.booking_id, booking);
+            }
 
-                // ===== Stripe Metadata Enrichment =====
-                if (booking.payment_intent_id) {
-                    try {
-                        const paymentIntent = await stripe.paymentIntents.retrieve(booking.payment_intent_id);
-
-                        const charges = await stripe.charges.list({
-                            payment_intent: booking.payment_intent_id,
-                            limit: 1,
-                        });
-                        const charge = charges.data?.[0];
-
-                        const stripeMetadata = {
-                            cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
-                            last4: charge?.payment_method_details?.card?.last4 || "****",
-                            receiptEmail: charge?.receipt_email || charge?.billing_details?.email || booking.user_email || "N/A",
-                            chargeId: charge?.id || "N/A",
-                            paidAt: charge?.created
-                                ? new Date(charge.created * 1000).toLocaleString("en-US", {
-                                    timeZone: "Asia/Kolkata",
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })
-                                : "N/A",
-                            receiptUrl: charge?.receipt_url || null,
-                            paymentIntentId: charge?.payment_intent || "N/A",
-                        };
-
-                        booking.stripeMetadata = stripeMetadata;
-                    } catch (err) {
-                        console.error(`❌ Stripe fetch failed for booking ${booking.booking_id}:`, err.message);
-                        booking.stripeMetadata = {
-                            cardBrand: "N/A",
-                            last4: "****",
-                            receiptEmail: booking.user_email || "N/A",
-                            chargeId: "N/A",
-                            paidAt: "N/A",
-                            receiptUrl: null,
-                            paymentIntentId: booking.payment_intent_id,
-                        };
-                    }
+            // ===== Packages =====
+            if (row.package_id) {
+                let pkg = booking.packages.find(p => p.package_id === row.package_id);
+                if (!pkg) {
+                    pkg = {
+                        package_id: row.package_id,
+                        items: [],
+                        addons: [],
+                        preferences:[],
+                        censents:[]
+                    };
+                    booking.packages.push(pkg);
                 }
 
-                // Remove null values
-                Object.keys(booking).forEach(key => {
-                    if (booking[key] === null) delete booking[key];
-                });
+                if (row.item_id && !pkg.items.find(i => i.item_id === row.item_id)) {
+                    pkg.items.push({
+                        item_id: row.item_id,
+                        itemName: row.itemName,
+                        itemMedia: row.itemMedia,
+                        timeRequired: row.timeRequired,
+                        quantity: row.item_quantity,
+                        price: row.item_price
+                    });
+                }
 
-                return booking;
-            })
-        );
+                if (row.addon_id && !pkg.addons.find(a => a.addon_id === row.addon_id)) {
+                    pkg.addons.push({
+                        addon_id: row.addon_id,
+                        addonName: row.addonName,
+                        addonTime: row.addonTime,
+                        quantity: row.addon_quantity,
+                        price: row.addon_price
+                    });
+                }
+                // ===== Preferences =====
+                if (row.preference_id && !pkg.preferences.find(p => p.preference_id === row.preference_id)) {
+                    pkg.preferences.push({
+                        preference_id: row.preference_id,
+                        preferenceValue: row.preferenceValue
+                    });
+                }
+                // ===== concent form =====
+                if (row.consent_id && !pkg.censents.find(p => p.consent_id === row.consent_id)) {
+                    pkg.censents.push({
+                        consent_id: row.consent_id,
+                        question: row.question,
+                        answer: row.answer,
+                    });
+                }
+            }
+
+        });
+
+        const enrichedBookings = Array.from(bookingsMap.values());
+
+        // ===== Stripe Metadata =====
+        const stripeData = [];
+        for (const booking of enrichedBookings) {
+            if (booking.payment_intent_id) {
+                try {
+                    const charges = await stripe.charges.list({
+                        payment_intent: booking.payment_intent_id,
+                        limit: 1,
+                    });
+                    const charge = charges.data?.[0];
+
+                    stripeData.push({
+                        booking_id: booking.booking_id,
+                        cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+                        last4: charge?.payment_method_details?.card?.last4 || "****",
+                        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || booking.user_email || "N/A",
+                        chargeId: charge?.id || "N/A",
+                        paidAt: charge?.created
+                            ? new Date(charge.created * 1000).toLocaleString("en-US", {
+                                timeZone: "Asia/Kolkata",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            })
+                            : "N/A",
+                        receiptUrl: charge?.receipt_url || null,
+                        paymentIntentId: charge?.payment_intent || "N/A",
+                    });
+                } catch (err) {
+                    console.error(`❌ Stripe fetch failed for booking ${booking.booking_id}:`, err.message);
+                    stripeData.push({
+                        booking_id: booking.booking_id,
+                        cardBrand: "N/A",
+                        last4: "****",
+                        receiptEmail: booking.user_email || "N/A",
+                        chargeId: "N/A",
+                        paidAt: "N/A",
+                        receiptUrl: null,
+                        paymentIntentId: booking.payment_intent_id,
+                    });
+                }
+            }
+        }
 
         res.status(200).json({
             message: "All bookings fetched successfully",
-            bookings: enrichedBookings
+            bookings: enrichedBookings,
+            stripeData
         });
 
     } catch (error) {
@@ -386,6 +442,8 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
