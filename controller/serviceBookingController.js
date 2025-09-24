@@ -917,59 +917,61 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
 
 const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
-        const { date, time, package_id = null, package_item_id = null } = req.query;
+        const { date, time, package_id = null, sub_package_id = null } = req.query;
 
         if (!date || !time) {
-            return res
-                .status(400)
-                .json({ message: "date (YYYY-MM-DD) and time are required" });
+            return res.status(400).json({ message: "date (YYYY-MM-DD) and time are required" });
         }
 
-        // Which booking statuses block a slot
-        const blocking = [1, 3];
+        const blocking = [1, 3]; // statuses that block the vendor
+        const vendorBreakMinutes = 60; // vendor break after booking (can be made dynamic)
 
         const sql = `
-            SELECT DISTINCT
+            SELECT
                 v.vendor_id,
                 v.vendorType,
-                CONCAT(
-                  LEFT(
-                    IF(v.vendorType = 'company', cdet.companyName, idet.name),
-                    4
-                  ), '...'
-                ) AS vendorName,
+                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+                GROUP_CONCAT(DISTINCT p.packageName ORDER BY p.packageName ASC) AS packageNames,
+                IFNULL(AVG(r.rating), 0) AS avgRating,
+                COUNT(r.rating_id) AS totalReviews
             FROM vendors v
             LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
-            LEFT JOIN company_details    cdet ON cdet.vendor_id = v.vendor_id
+            LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
             INNER JOIN vendor_packages vp ON vp.vendor_id = v.vendor_id
             INNER JOIN packages p ON p.package_id = vp.package_id
             LEFT JOIN vendor_package_items vpi ON vpi.vendor_packages_id = vp.vendor_packages_id
             LEFT JOIN package_items pi ON pi.item_id = vpi.package_item_id
             LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-            WHERE (vst.manual_assignment_enabled = 1)
+            LEFT JOIN vendor_service_ratings r ON r.vendor_id = v.vendor_id
+            WHERE vst.manual_assignment_enabled = 1
             AND (? IS NULL OR vp.package_id = ?)
             AND (? IS NULL OR vpi.package_item_id = ?)
             AND NOT EXISTS (
                 SELECT 1
                 FROM service_booking sb
                 WHERE sb.vendor_id = v.vendor_id
-                  AND sb.bookingDate = ?
                   AND sb.bookingStatus IN (${blocking.map(() => "?").join(",")})
-                  AND sb.bookingTime = ?
+                  AND sb.bookingDate = ?
+                  AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s') BETWEEN 
+                        COALESCE(sb.start_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'))
+                    AND DATE_ADD(
+                        COALESCE(sb.end_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')),
+                        INTERVAL ? MINUTE
+                    )
             )
-            GROUP BY 
-                v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
+            GROUP BY v.vendor_id, v.vendorType, vendorName, vendorEmail, vendorPhone
             ORDER BY vendorName ASC
         `;
 
         const params = [
-            package_id, package_id,                  // package filter
-            package_item_id, package_item_id,        // package item filter
-            date,                                   // booking date
-            ...blocking,                            // blocked booking statuses
-            time                                    // booking time
+            package_id, package_id,
+            sub_package_id, sub_package_id,
+            ...blocking,
+            date,
+            date, time,
+            vendorBreakMinutes
         ];
 
         const [vendors] = await db.query(sql, params);
@@ -989,6 +991,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 module.exports = {
