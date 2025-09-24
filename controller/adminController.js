@@ -382,56 +382,55 @@ const getBookings = asyncHandler(async (req, res) => {
 
         const enrichedBookings = Array.from(bookingsMap.values());
 
-        // ===== Stripe Metadata =====
-        const stripeData = [];
-        for (const booking of enrichedBookings) {
-            if (booking.payment_intent_id) {
-                try {
-                    const charges = await stripe.charges.list({
-                        payment_intent: booking.payment_intent_id,
-                        limit: 1,
-                    });
-                    const charge = charges.data?.[0];
+        // // ===== Stripe Metadata =====
+        // const stripeData = [];
+        // for (const booking of enrichedBookings) {
+        //     if (booking.payment_intent_id) {
+        //         try {
+        //             const charges = await stripe.charges.list({
+        //                 payment_intent: booking.payment_intent_id,
+        //                 limit: 1,
+        //             });
+        //             const charge = charges.data?.[0];
 
-                    stripeData.push({
-                        booking_id: booking.booking_id,
-                        cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
-                        last4: charge?.payment_method_details?.card?.last4 || "****",
-                        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || booking.user_email || "N/A",
-                        chargeId: charge?.id || "N/A",
-                        paidAt: charge?.created
-                            ? new Date(charge.created * 1000).toLocaleString("en-US", {
-                                timeZone: "Asia/Kolkata",
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                            })
-                            : "N/A",
-                        receiptUrl: charge?.receipt_url || null,
-                        paymentIntentId: charge?.payment_intent || "N/A",
-                    });
-                } catch (err) {
-                    console.error(`❌ Stripe fetch failed for booking ${booking.booking_id}:`, err.message);
-                    stripeData.push({
-                        booking_id: booking.booking_id,
-                        cardBrand: "N/A",
-                        last4: "****",
-                        receiptEmail: booking.user_email || "N/A",
-                        chargeId: "N/A",
-                        paidAt: "N/A",
-                        receiptUrl: null,
-                        paymentIntentId: booking.payment_intent_id,
-                    });
-                }
-            }
-        }
+        //             stripeData.push({
+        //                 booking_id: booking.booking_id,
+        //                 cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
+        //                 last4: charge?.payment_method_details?.card?.last4 || "****",
+        //                 receiptEmail: charge?.receipt_email || charge?.billing_details?.email || booking.user_email || "N/A",
+        //                 chargeId: charge?.id || "N/A",
+        //                 paidAt: charge?.created
+        //                     ? new Date(charge.created * 1000).toLocaleString("en-US", {
+        //                         timeZone: "Asia/Kolkata",
+        //                         year: "numeric",
+        //                         month: "long",
+        //                         day: "numeric",
+        //                         hour: "2-digit",
+        //                         minute: "2-digit",
+        //                     })
+        //                     : "N/A",
+        //                 receiptUrl: charge?.receipt_url || null,
+        //                 paymentIntentId: charge?.payment_intent || "N/A",
+        //             });
+        //         } catch (err) {
+        //             console.error(`❌ Stripe fetch failed for booking ${booking.booking_id}:`, err.message);
+        //             stripeData.push({
+        //                 booking_id: booking.booking_id,
+        //                 cardBrand: "N/A",
+        //                 last4: "****",
+        //                 receiptEmail: booking.user_email || "N/A",
+        //                 chargeId: "N/A",
+        //                 paidAt: "N/A",
+        //                 receiptUrl: null,
+        //                 paymentIntentId: booking.payment_intent_id,
+        //             });
+        //         }
+        //     }
+        // }
 
         res.status(200).json({
             message: "All bookings fetched successfully",
-            bookings: enrichedBookings,
-            stripeData
+            bookings: enrichedBookings
         });
 
     } catch (error) {
