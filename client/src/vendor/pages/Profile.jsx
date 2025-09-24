@@ -12,13 +12,14 @@ import {
 } from "react-icons/fi";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { Card } from "../../shared/components/Card";
-import { Button } from "../../shared/components/Button";
+import { Button, IconButton } from "../../shared/components/Button";
 import {
   FormInput,
   FormTextarea,
   FormFileInput,
 } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { Trash2 } from "lucide-react";
 
 const Profile = () => {
   const { currentUser } = useVendorAuth();
@@ -92,6 +93,30 @@ const Profile = () => {
     }
   };
 
+  const deleteVendorService = async (vendorId) => {
+    if (!vendorId) return;
+
+    const confirm = window.confirm(
+      "Are you sure you want to delete this service? This action cannot be undone."
+    );
+    if (!confirm) return;
+    try {
+      setLoading(true);
+      const response = await api.delete(`api/vendor/removepackage/${vendorId}`);
+      if (response.status === 200) {
+        toast.success(response.data.message || "Service deleted successfully");
+        fetchVendorService(); // Refresh the list
+      } else {
+        toast.error(response.data.message || "Failed to delete service");
+      }
+    } catch (error) {
+      console.error("Error deleting vendor service:", error);
+      toast.error("Failed to delete service");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -144,21 +169,6 @@ const Profile = () => {
 
   const toggleEdit = () => {
     setEditing(!editing);
-  };
-
-  const handleCertificateChange = (index, field, value) => {
-    const updated = [...certificates];
-    updated[index][field] = value;
-    setCertificates(updated);
-  };
-
-  const addCertificate = () => {
-    setCertificates([...certificates, { name: "", file: null }]);
-  };
-
-  const removeCertificate = (index) => {
-    const updated = certificates.filter((_, i) => i !== index);
-    setCertificates(updated);
   };
 
   if (loading) {
@@ -366,71 +376,104 @@ const Profile = () => {
 
       {/* Services */}
       <Card title="Services Offered">
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {services.map((service, idx) => (
-            <div key={idx} className="border rounded-lg p-4 bg-white">
-              <h3 className="text-lg font-semibold text-primary mb-1">
-                {service.service_type_name}
-              </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                {service.service_category_name} / {service.service_name}
-              </p>
-
-              {service.packages?.map((pkg, pIdx) => (
-                <div
-                  key={pIdx}
-                  className="bg-gray-50 border rounded-md p-4 mb-4"
-                >
-                  <div className="flex gap-4">
-                    <img
-                      src={pkg.package_media}
-                      alt={pkg.title}
-                      className="w-24 h-20 object-cover rounded"
-                    />
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
-                        {pkg.title}
-                      </h4>
-                      <p className="text-sm text-gray-600">{pkg.description}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        $ {pkg.price} • {pkg.time_required}
-                      </p>
-                    </div>
-                  </div>
-                  {pkg.sub_packages?.length > 0 && (
-                    <div className="mt-3">
-                      <h5 className="text-sm font-medium text-gray-700">
-                        Sub-Packages
-                      </h5>
-                      <div className="space-y-2 mt-1">
-                        {pkg.sub_packages.map((sub, sIdx) => (
-                          <div
-                            key={sIdx}
-                            className="flex items-start gap-4 bg-white border p-2 rounded"
-                          >
-                            <img
-                              src={sub.item_media}
-                              alt={sub.title}
-                              className="w-14 h-14 object-cover rounded"
-                            />
-                            <div>
-                              <p className="font-medium text-sm text-gray-800">
-                                {sub.title}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {sub.description}
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                $ {sub.price} • {sub.time_required}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+            <div
+              key={idx}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200 p-6 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  {service.package_name && (
+                    <h3 className="text-lg leading-tight font-semibold text-gray-900">
+                      {service.package_name}
+                    </h3>
+                  )}
+                  {/* optional small subtitle */}
+                  {service.package_id != null && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Package ID • {service.package_id}
+                    </p>
                   )}
                 </div>
-              ))}
+
+                {/* small badge for vendor id (if exists) */}
+                <div className="flex items-center gap-2">
+                  {service.vendor_packages_id != null && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-700 border border-gray-100">
+                      #{service.vendor_packages_id}
+                    </span>
+                  )}
+                  <IconButton
+                    onClick={() =>
+                      deleteVendorService(service.vendor_packages_id)
+                    }
+                    variant="lightDanger"
+                    icon={<Trash2 className="w-5 h-5" />}
+                  />
+                </div>
+              </div>
+
+              {/* Media */}
+              {service.package_media && (
+                <div className="mb-5 rounded-lg overflow-hidden border border-gray-50">
+                  <img
+                    src={service.package_media}
+                    alt={service.package_name || "package media"}
+                    className="w-full h-52 object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Sub-packages */}
+              {Array.isArray(service.sub_packages) &&
+                service.sub_packages.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-800 mb-3">
+                      Sub-Packages
+                    </h4>
+
+                    <div className="space-y-3">
+                      {service.sub_packages.map((sub, sIdx) => (
+                        <div
+                          key={sIdx}
+                          className="bg-white rounded-xl border border-gray-100 p-4 flex flex-col sm:flex-row gap-4 items-start shadow-sm"
+                        >
+                          <div className="flex-1">
+                            {sub.sub_package_name && (
+                              <p className="text-sm font-medium text-gray-900">
+                                {sub.sub_package_name}
+                              </p>
+                            )}
+                            {sub.sub_package_description && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {sub.sub_package_description}
+                              </p>
+                            )}
+                            {sub.sub_package_id != null && (
+                              <p className="text-xs text-gray-400 mt-2">
+                                ID: {sub.sub_package_id}
+                              </p>
+                            )}
+                          </div>
+
+                          {sub.sub_package_media && (
+                            <div className="w-full sm:w-36 flex-shrink-0 rounded-lg overflow-hidden border border-gray-50">
+                              <img
+                                src={sub.sub_package_media}
+                                alt={
+                                  sub.sub_package_name || "sub package media"
+                                }
+                                className="w-full h-24 object-cover"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
           ))}
         </div>

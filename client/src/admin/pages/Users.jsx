@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiRefreshCw, FiX, FiEdit } from "react-icons/fi";
+import { FiRefreshCw, FiX, FiEdit, FiSearch } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import UsersTable from "../components/Tables/UsersTable"; // Adjust path as needed
 import FormInput from "../../shared/components/Form/FormInput"; // Adjust path as needed
 import { Button, IconButton } from "../../shared/components/Button";
 import FormSelect from "../../shared/components/Form/FormSelect";
+
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +24,9 @@ const Users = () => {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Search term for filtering users
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -35,6 +39,7 @@ const Users = () => {
     } catch (error) {
       console.error("Error fetching users:", error);
       setError("Failed to load users");
+      toast.error("Failed to load users");
     } finally {
       setLoading(false);
     }
@@ -52,7 +57,7 @@ const Users = () => {
       lastName: user.lastName || "",
       email: user.email || "",
       phone: user.phone || "",
-      is_approved: user.is_approved || 1,
+      is_approved: user.is_approved ?? 1,
     });
     setShowEditModal(true);
   };
@@ -64,6 +69,7 @@ const Users = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!selectedUser) return;
     try {
       setSubmitting(true);
       const response = await axios.put(
@@ -89,25 +95,89 @@ const Users = () => {
     }
   };
 
+  const handleDelete = async (userId) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+
+    try {
+      await axios.delete(`/api/admin/deleteusers/${userId}`);
+      toast.success("User deleted successfully");
+      setUsers(users.filter((user) => user.user_id !== userId));
+    } catch (error) {
+      console.error("Error deleting user", error);
+      toast.error("Failed to delete user");
+    }
+  };
+
+  // Search input change handler
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // Filtered users derived from searchTerm
+  const filteredUsers = useMemo(() => {
+    const term = (searchTerm || "").trim().toLowerCase();
+    if (!term) return users;
+    return users.filter((u) => {
+      const first = (u.firstName || "").toLowerCase();
+      const last = (u.lastName || "").toLowerCase();
+      const email = (u.email || "").toLowerCase();
+      // match anywhere in first, last, or email
+      return (
+        first.includes(term) ||
+        last.includes(term) ||
+        email.includes(term) ||
+        // also allow matching combined "first last"
+        `${first} ${last}`.includes(term)
+      );
+    });
+  }, [users, searchTerm]);
+
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">User Management</h2>
-        <button
-          onClick={fetchUsers}
-          className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
-        >
-          <FiRefreshCw className="mr-2" />
-          Refresh
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <h2 className="text-2xl font-bold text-gray-800">User Management</h2>
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Search box */}
+          <div className="w-full sm:w-80">
+            <FormInput
+              value={searchTerm}
+              onChange={handleSearchChange}
+              placeholder="Search by first name, last name or email..."
+              icon={<FiSearch />}
+            />
+          </div>
+
+          {/* Refresh */}
+          <button
+            onClick={fetchUsers}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+          >
+            <FiRefreshCw className="mr-2" />
+            Refresh
+          </button>
+        </div>
       </div>
 
-      <UsersTable
-        users={users}
-        isLoading={loading}
-        onViewUser={viewUserDetails}
-        onEditUser={editUser}
-      />
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <LoadingSpinner />
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 p-4 rounded-md">
+          <p className="text-red-500">{error}</p>
+        </div>
+      ) : (
+        <UsersTable
+          users={filteredUsers}
+          isLoading={loading}
+          onViewUser={viewUserDetails}
+          onEditUser={editUser}
+          onDelete={handleDelete}
+        />
+      )}
 
       {/* User Details Modal */}
       {showDetailsModal && selectedUser && (
@@ -119,7 +189,7 @@ const Users = () => {
                 icon={<FiX />}
                 variant="lightDanger"
                 onClick={() => setShowDetailsModal(false)}
-              ></IconButton>
+              />
             </div>
             <div className="p-4">
               <div className="flex items-center mb-6">
@@ -133,7 +203,6 @@ const Users = () => {
                   <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center mr-4">
                     <span className="text-gray-500 text-xl">
                       {selectedUser.firstName?.charAt(0)}
-                      {selectedUser.lastName?.charAt(0)}
                     </span>
                   </div>
                 )}
@@ -227,7 +296,7 @@ const Users = () => {
                 onClick={() => setShowEditModal(false)}
                 icon={<FiX />}
                 variant="lightDanger"
-              ></IconButton>
+              />
             </div>
             <form onSubmit={handleSubmit} className="p-4">
               <div className="space-y-4">
@@ -307,10 +376,7 @@ const Users = () => {
                       { value: 1, label: "Approved" },
                       { value: 0, label: "Suspended" },
                     ]}
-                  >
-                    <option value={1}>Approved</option>
-                    <option value={0}>Suspended</option>
-                  </FormSelect>
+                  />
                 </div>
               </div>
               <div className="mt-6 flex justify-end space-x-3">

@@ -4,14 +4,16 @@ import { Button } from "../../../shared/components/Button";
 import api from "../../../lib/axiosConfig";
 import Select from "react-select";
 import { toast } from "react-toastify";
+import LoadingSlider from "../../../shared/components/LoadingSpinner";
 
-const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
+const ApplyServiceModal = ({ isOpen, onClose, vendor, refresh }) => {
   const [groupedPackages, setGroupedPackages] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
-  const [selectedPackages, setSelectedPackages] = useState([]);
+
+  // Removed selectedPackages state (user requested no package selector).
   const [selectedSubPackages, setSelectedSubPackages] = useState([]);
   const [selectedPreferences, setSelectedPreferences] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +26,7 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
           ? response.data
           : response.data?.result || [];
 
-        console.log("Raw API response:", rawData); // 👈 check what you get
+        console.log("Raw API response:", rawData); // inspect data shape
 
         const grouped = rawData.reduce((acc, item) => {
           const category = item.service_category_name;
@@ -48,7 +50,6 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
   const resetSelections = () => {
     setSelectedCategory(null);
     setSelectedService(null);
-    setSelectedPackages([]);
     setSelectedSubPackages([]);
     setSelectedPreferences([]);
   };
@@ -59,46 +60,28 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
   };
 
   const handleSubmit = async () => {
-    // Build payload with validation logic
-    const builtPackages = selectedPackages.map((pkg) => {
-      const pkgId = pkg.value;
+    const groupedByPackage = selectedSubPackages.reduce((acc, sub) => {
+      const pkgId = sub.package_id;
+      if (!acc[pkgId]) acc[pkgId] = { package_id: pkgId, sub_packages: [] };
+      acc[pkgId].sub_packages.push({ sub_package_id: sub.value });
+      return acc;
+    }, {});
 
-      const subPackages = selectedSubPackages
-        .filter((sub) => {
-          const pkgDetail = allPackages.find((p) => p.package_id === pkgId);
-          return pkgDetail?.sub_packages?.some(
-            (sp) => sp.sub_package_id === sub.value
-          );
-        })
-        .map((sub) => ({ sub_package_id: sub.value }));
-
-      const preferences = selectedPreferences
-        .filter((pref) => {
-          const pkgDetail = allPackages.find((p) => p.package_id === pkgId);
-          return pkgDetail?.preferences?.some(
-            (p) => p.preference_id === pref.value
-          );
-        })
-        .map((pref) => ({ preference_id: pref.value }));
-
-      return {
-        package_id: pkgId,
-        sub_packages: subPackages,
-        preferences: preferences,
-      };
+    selectedPreferences.forEach((pref) => {
+      const pkgId = pref.package_id;
+      if (groupedByPackage[pkgId]) {
+        if (!groupedByPackage[pkgId].preferences)
+          groupedByPackage[pkgId].preferences = [];
+        groupedByPackage[pkgId].preferences.push({
+          preference_id: pref.value,
+        });
+      }
     });
 
-    // ✅ Validate: each package must have at least one sub_package and preference
-    const isValid = builtPackages.every(
-      (p) => p.sub_packages.length > 0 && p.preferences.length > 0
-    );
-
-    if (!isValid) {
-      toast.error(
-        "Each package must have at least one sub-package and one preference."
-      );
-      return;
-    }
+    const builtPackages = Object.values(groupedByPackage).map((p) => ({
+      package_id: p.package_id,
+      sub_packages: p.sub_packages || [],
+    }));
 
     const payload = {
       vendor_id: vendor?.vendor_id,
@@ -115,10 +98,12 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       console.error("Submission error:", err);
       toast.error("Failed to assign service. Please try again.");
     } finally {
+      refresh();
       setSubmitting(false);
     }
   };
 
+  // Category and service options (unchanged)
   const categoryOptions = Object.keys(groupedPackages).map((cat) => ({
     label: cat,
     value: cat,
@@ -137,33 +122,19 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
       (item) => String(item.service_id) === String(selectedService?.value)
     ) || null;
 
+  // allPackages: packages belonging to the selected service (array)
   const allPackages = selectedServiceObj?.packages || [];
+  console.log(allPackages);
 
-  const packageOptions = allPackages.map((pkg) => ({
-    label: pkg.title,
-    value: pkg.package_id,
-    sub_packages: pkg.sub_packages || [],
-  }));
-
-  const allSelectedSubPackages = selectedPackages.flatMap((pkg) => {
-    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
-    return (
-      pkgDetail?.sub_packages?.map((sub) => ({
-        label: sub.item_name,
-        value: sub.sub_package_id,
-      })) || []
-    );
-  });
-
-  const allSelectedPreferences = selectedPackages.flatMap((pkg) => {
-    const pkgDetail = allPackages.find((p) => p.package_id === pkg.value);
-    return (
-      pkgDetail?.preferences?.map((pref) => ({
-        label: pref.preference_value,
-        value: pref.preference_id,
-      })) || []
-    );
-  });
+  // NEW: build sub-package options across ALL packages of the selected service.
+  // Each option includes package_id so we can infer package on submit.
+  const subPackageOptions = allPackages.flatMap((pkg) =>
+    (pkg.sub_packages || []).map((sub) => ({
+      label: sub.item_name,
+      value: sub.sub_package_id,
+      package_id: pkg.package_id,
+    }))
+  );
 
   const customSelectStyles = {
     control: (base, state) => ({
@@ -199,6 +170,14 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
     }),
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoadingSlider />
+      </div>
+    );
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -225,8 +204,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             onChange={(value) => {
               setSelectedCategory(value);
               setSelectedService(null);
-              setSelectedPackages([]);
               setSelectedSubPackages([]);
+              setSelectedPreferences([]);
             }}
             styles={customSelectStyles}
             placeholder="Select category"
@@ -247,8 +226,8 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
               value={selectedService}
               onChange={(value) => {
                 setSelectedService(value);
-                setSelectedPackages([]);
                 setSelectedSubPackages([]);
+                setSelectedPreferences([]);
               }}
               styles={customSelectStyles}
               placeholder="Select service"
@@ -261,37 +240,14 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
           </div>
         )}
 
-        {/* Packages (Multi-select) */}
+        {/* Sub-Packages (now selectable directly, across all packages of selected service) */}
         {selectedService && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Packages</label>
-            <Select
-              options={packageOptions}
-              value={selectedPackages}
-              onChange={(value) => {
-                setSelectedPackages(value || []);
-                setSelectedSubPackages([]);
-              }}
-              styles={customSelectStyles}
-              placeholder="Select packages"
-              isMulti
-              isClearable
-              menuPortalTarget={
-                typeof window !== "undefined" ? document.body : null
-              }
-              menuPosition="fixed"
-            />
-          </div>
-        )}
-
-        {/* Sub-Packages (Multi-select) */}
-        {selectedPackages.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
               Sub-Packages
             </label>
             <Select
-              options={allSelectedSubPackages}
+              options={subPackageOptions}
               value={selectedSubPackages}
               onChange={(value) => setSelectedSubPackages(value || [])}
               styles={customSelectStyles}
@@ -303,27 +259,10 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
               }
               menuPosition="fixed"
             />
-          </div>
-        )}
-
-        {allSelectedPreferences.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Preferences
-            </label>
-            <Select
-              options={allSelectedPreferences}
-              value={selectedPreferences}
-              onChange={(value) => setSelectedPreferences(value || [])}
-              styles={customSelectStyles}
-              placeholder="Select preferences"
-              isMulti
-              isClearable
-              menuPortalTarget={
-                typeof window !== "undefined" ? document.body : null
-              }
-              menuPosition="fixed"
-            />
+            <p className="text-xs text-gray-500 mt-1">
+              Select one or more sub-packages. The system will infer package(s)
+              automatically.
+            </p>
           </div>
         )}
       </div>
@@ -339,9 +278,7 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor }) => {
             submitting ||
             !selectedCategory ||
             !selectedService ||
-            selectedPackages.length === 0 ||
-            selectedSubPackages.length === 0 ||
-            selectedPreferences.length === 0
+            selectedSubPackages.length === 0
           }
         >
           {submitting ? "Submitting..." : "Assign Service"}

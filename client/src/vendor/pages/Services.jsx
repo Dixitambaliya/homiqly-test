@@ -119,17 +119,28 @@ const Services = () => {
                     key={service.service_type_id}
                     className="rounded-2xl shadow-md bg-white overflow-hidden transition-all hover:shadow-lg border border-gray-100"
                   >
-                    <img
-                      src={service.service_type_media}
-                      alt={service.service_type_name}
-                      className="w-full h-48 object-cover"
-                    />
+                    {service.service_type_media && (
+                      <img
+                        src={service.service_type_media}
+                        alt={service.service_type_name}
+                        className="w-full h-48 object-cover"
+                      />
+                    )}
                     <div className="p-5">
-                      <h4 className="text-xl font-semibold text-gray-800">
+                      <h3 className="text-xl font-semibold text-gray-800">
                         {service.service_type_name}
+                      </h3>
+                      <h4>
+                        Service:
+                        <span className="font-semibold text-gray-800">
+                          {service.service_name}
+                        </span>
                       </h4>
-                      <p className="text-sm text-gray-500 mb-3">
-                        Service: {service.service_name}
+                      <p>
+                        service filter :{" "}
+                        <span className="font-semibold text-gray-800">
+                          {service.service_filter}
+                        </span>
                       </p>
 
                       {service.packages.map((pkg) => (
@@ -137,26 +148,6 @@ const Services = () => {
                           key={pkg.package_id}
                           className="mt-6 bg-gray-50 border border-gray-200 p-4 rounded-xl"
                         >
-                          <img
-                            src={pkg.package_media}
-                            alt={pkg.title}
-                            className="w-full h-36 object-cover rounded-md mb-3"
-                          />
-                          <div className="flex justify-between items-center mb-1">
-                            <h5 className="text-md font-bold text-gray-800">
-                              {pkg.title}
-                            </h5>
-                            <p className="text-sm font-medium text-blue-700">
-                              ${pkg.price}
-                            </p>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-1">
-                            {pkg.description}
-                          </p>
-                          <p className="text-xs text-gray-500 mb-3">
-                            Time: {pkg.time_required}
-                          </p>
-
                           {/* Sub-Packages */}
                           {pkg.sub_packages?.length > 0 && (
                             <div className="mb-3">
@@ -189,7 +180,7 @@ const Services = () => {
                           )}
 
                           {/* Preferences */}
-                          {pkg.preferences?.length > 0 && (
+                          {/* {pkg.preferences?.length > 0 && (
                             <div className="mb-3">
                               <p className="text-sm font-semibold text-gray-700">
                                 Preferences:
@@ -224,13 +215,13 @@ const Services = () => {
                                       {pref.description}
                                     </p>
                                     <span className="text-sm font-medium text-blue-600">
-                                      ₹{pref.price}
+                                      ${pref.price}
                                     </span>
                                   </div>
                                 ))}
                               </div>
                             </div>
-                          )}
+                          )} */}
 
                           <div className="flex justify-end">
                             <Button

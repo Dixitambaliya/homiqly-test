@@ -3,7 +3,7 @@ import React from "react";
 const IconButton = ({
   icon,
   onClick,
-  variant = "primary",
+  variant = "lightPrimary",
   size = "md",
   disabled = false,
   isLoading = false,

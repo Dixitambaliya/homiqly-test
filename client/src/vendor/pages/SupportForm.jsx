@@ -15,25 +15,25 @@ const SupportForm = () => {
   const [tickets, setTickets] = useState([]); // ✅ store tickets
 
   // ✅ Fetch vendor tickets
-  useEffect(() => {
-    const fetchVendor = async () => {
-      try {
-        const res = await api.get("/api/vendor");
-        if (res.data?.tickets) {
-          setTickets(res.data.tickets);
-          if (res.data.tickets.length > 0) {
-            const vendor = res.data.tickets[0];
-            setForm((prev) => ({
-              ...prev,
-              name: vendor.vendor_name || "",
-            }));
-          }
+  const fetchVendor = async () => {
+    try {
+      const res = await api.get("/api/vendor");
+      if (res.data?.tickets) {
+        setTickets(res.data.tickets);
+        if (res.data.tickets.length > 0) {
+          const vendor = res.data.tickets[0];
+          setForm((prev) => ({
+            ...prev,
+            name: vendor.vendor_name || "",
+          }));
         }
-      } catch (err) {
-        console.error("Failed to fetch vendor:", err);
-        toast.error("Failed to load vendor details.");
       }
-    };
+    } catch (err) {
+      console.error("Failed to fetch vendor:", err);
+      toast.error("Failed to load vendor details.");
+    }
+  };
+  useEffect(() => {
     fetchVendor();
   }, []);
 
@@ -48,6 +48,7 @@ const SupportForm = () => {
       await api.post("/api/contact", form);
       toast.success("Ticket sent successfully!");
       setForm({ name: "", subject: "", message: "" });
+      fetchVendor();
     } catch (error) {
       toast.error("Failed to send ticket. Please try again.");
     } finally {
@@ -56,7 +57,7 @@ const SupportForm = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8">
       {/* Support Form */}
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto space-y-4">
         <FormInput
@@ -98,11 +99,12 @@ const SupportForm = () => {
               <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
                 Vendor Name
               </th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
-                Email
-              </th>
+
               <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
                 Subject
+              </th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                Message
               </th>
               <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
                 Status
@@ -115,11 +117,14 @@ const SupportForm = () => {
           <tbody>
             {tickets.length > 0 ? (
               tickets.map((ticket) => (
-                <tr key={ticket.ticket_id} className="border-b hover:bg-gray-50">
+                <tr
+                  key={ticket.ticket_id}
+                  className="border-b hover:bg-gray-50"
+                >
                   <td className="px-4 py-2 text-sm">{ticket.ticket_id}</td>
                   <td className="px-4 py-2 text-sm">{ticket.vendor_name}</td>
-                  <td className="px-4 py-2 text-sm">{ticket.vendor_email}</td>
                   <td className="px-4 py-2 text-sm">{ticket.subject}</td>
+                  <td className="px-4 py-2 text-sm">{ticket.message}</td>
                   <td className="px-4 py-2 text-sm">
                     <span
                       className={`px-2 py-1 rounded-full text-xs ${

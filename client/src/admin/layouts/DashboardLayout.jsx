@@ -64,16 +64,16 @@ const DashboardLayout = () => {
       name: "Bookings",
       icon: <FiCalendar className="w-5 h-5" />,
     },
-    {
-      path: "/admin/supply-kits",
-      name: "Supply Kits",
-      icon: <FiBox className="w-5 h-5" />,
-    },
-    {
-      path: "/admin/contractors",
-      name: "Contractors",
-      icon: <FiTool className="w-5 h-5" />,
-    },
+    // {
+    //   path: "/admin/supply-kits",
+    //   name: "Supply Kits",
+    //   icon: <FiBox className="w-5 h-5" />,
+    // },
+    // {
+    //   path: "/admin/contractors",
+    //   name: "Contractors",
+    //   icon: <FiTool className="w-5 h-5" />,
+    // },
     {
       path: "/admin/employees",
       name: "Employees",

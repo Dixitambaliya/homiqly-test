@@ -146,7 +146,7 @@ const AccountDetails = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="max-w-7xl mx-auto p-6">
       <Card className="shadow-lg p-4">
         <h2 className="text-xl font-bold mb-4">Bank Account Details</h2>
         {loading ? (

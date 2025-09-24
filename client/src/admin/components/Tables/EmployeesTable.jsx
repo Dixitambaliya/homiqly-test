@@ -1,9 +1,16 @@
 import React from "react";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
-import { FiEye } from "react-icons/fi";
+import { FiDelete, FiEye } from "react-icons/fi";
+import { Trash2 } from "lucide-react";
+import { MdDelete } from "react-icons/md";
 
-const EmployeesTable = ({ employees, isLoading, onViewEmployee }) => {
+const EmployeesTable = ({
+  employees,
+  isLoading,
+  onViewEmployee,
+  onDeleteEmployee,
+}) => {
   const columns = [
     {
       title: "ID",
@@ -13,26 +20,35 @@ const EmployeesTable = ({ employees, isLoading, onViewEmployee }) => {
       ),
     },
     {
-      title: "Name",
+      title: "Employee Name",
       render: (row) => (
         <div className="flex items-center">
           {row.profile_image ? (
             <img
               src={row.profile_image}
-              alt={`${row.employee_name} `}
+              alt={`${row.first_name} `}
               className="h-8 w-8 rounded-full mr-3 object-cover"
             />
           ) : (
             <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
               <span className="text-gray-500 text-sm">
-                {row.employee_name?.charAt(0) || ""}
+                {row.first_name?.charAt(0) || ""}
               </span>
             </div>
           )}
           <div className="text-sm font-medium text-gray-900">
-            {row.employee_name}
+            {row.first_name}
+            {" "}
+            {row.last_name}
           </div>
         </div>
+      ),
+    },
+    {
+      title: "Company",
+      key: "companyName",
+      render: (row) => (
+        <div className="text-sm text-gray-900">{row.companyName}</div>
       ),
     },
     {
@@ -62,13 +78,22 @@ const EmployeesTable = ({ employees, isLoading, onViewEmployee }) => {
       title: "Actions",
       align: "right",
       render: (row) => (
-        <IconButton
-          icon={<FiEye />}
-          variant="ghost"
-          size="sm"
-          onClick={() => onViewEmployee(row)}
-          tooltip="View details"
-        />
+        <div className="space-x-2">
+          <IconButton
+            icon={<FiEye />}
+            variant="ghost"
+            size="sm"
+            onClick={() => onViewEmployee(row)}
+            tooltip="View details"
+          />
+          <IconButton
+            icon={<MdDelete />}
+            variant="lightDanger"
+            size="sm"
+            onClick={() => onDeleteEmployee(row)}
+            tooltip="delete employee"
+          />
+        </div>
       ),
     },
   ];
