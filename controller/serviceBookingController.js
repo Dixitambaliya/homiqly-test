@@ -933,6 +933,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+                IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS profileImage,
+
                 GROUP_CONCAT(DISTINCT p.packageName ORDER BY p.packageName ASC) AS packageNames,
                 IFNULL(AVG(r.rating), 0) AS avgRating,
                 COUNT(r.rating_id) AS totalReviews
