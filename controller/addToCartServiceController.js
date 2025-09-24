@@ -53,10 +53,42 @@ const addToCartService = asyncHandler(async (req, res) => {
     try {
         let createdOrUpdatedCarts = [];
 
+        // 🔎 Step 0: Get all existing packages in this cart
+        const [existingPackages] = await connection.query(
+            `SELECT package_id, cart_id 
+             FROM service_cart 
+             WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
+            [user_id, service_id]
+        );
+
+        const existingPackageIds = existingPackages.map(row => row.package_id);
+        const newPackageIds = parsedPackages.map(pkg => pkg.package_id);
+
+        // 🧹 Step 1: Remove packages that are no longer in request
+        const packagesToRemove = existingPackageIds.filter(id => !newPackageIds.includes(id));
+
+        for (const packageId of packagesToRemove) {
+            const cart = existingPackages.find(row => row.package_id === packageId);
+            if (!cart) continue;
+
+            const cart_id = cart.cart_id;
+
+            // delete children first
+            await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
+            await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
+            await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
+            await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
+            await connection.query("DELETE FROM cart_packages WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
+
+            // finally delete cart row
+            await connection.query("DELETE FROM service_cart WHERE cart_id = ?", [cart_id]);
+        }
+
+        // 🆕 Step 2: Process incoming packages
         for (const pkg of parsedPackages) {
             const { package_id = null, sub_packages = [], addons = [] } = pkg;
 
-            // ✅ Step 0: Check if cart already exists for this user + service_id + package_id
+            // check if this cart already exists
             const [existingCart] = await connection.query(
                 `SELECT cart_id FROM service_cart 
                  WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0
@@ -66,10 +98,16 @@ const addToCartService = asyncHandler(async (req, res) => {
 
             let cart_id;
             if (existingCart.length > 0) {
-                // ✅ Use existing cart_id
                 cart_id = existingCart[0].cart_id;
+
+                // 🧹 clean old children before inserting new
+                await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
+                await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
+                await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
+                await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
+
             } else {
-                // 🆕 Insert new cart row
+                // insert new cart row
                 const [insertCart] = await connection.query(
                     `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
                      VALUES (?, ?, ?, ?)`,
@@ -86,7 +124,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
             createdOrUpdatedCarts.push(cart_id);
 
-            // Step 3: Insert Sub-packages (append only)
+            // insert sub-packages
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
@@ -99,7 +137,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Step 4: Addons (append only)
+            // insert addons
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
@@ -110,7 +148,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Step 5: Preferences (append only)
+            // insert preferences
             for (const pref of parsedPreferences) {
                 const preference_id = typeof pref === "object" ? pref.preference_id : pref;
                 if (!preference_id) continue;
@@ -121,7 +159,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Step 6: Consents (append only)
+            // insert consents
             for (const consent of parsedConsents) {
                 const { consent_id, answer = null } = consent;
                 if (!consent_id) continue;
@@ -138,7 +176,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: "Service(s) added/updated in cart successfully",
+            message: "Cart updated successfully",
             cart_ids: createdOrUpdatedCarts
         });
 
@@ -149,6 +187,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
