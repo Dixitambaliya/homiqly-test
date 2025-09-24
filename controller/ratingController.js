@@ -300,8 +300,7 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
         // 1. Get package details with average rating and total review count
         const [packageRows] = await db.query(
             `SELECT 
-                p.packageName, 
-                p.description, 
+                p.packageName,
                 p.packageMedia, 
                 AVG(r.rating) AS average_rating,
                 COUNT(r.rating_id) AS total_reviews
@@ -339,7 +338,6 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
             message: "Package reviews fetched successfully",
             review: {
                 packageName: packageData.packageName,
-                description: packageData.description,
                 packageMedia: packageData.packageMedia,
                 average_rating: parseFloat(packageData.average_rating || 0).toFixed(2),
                 total_reviews: packageData.total_reviews || 0,
