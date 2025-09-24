@@ -34,12 +34,9 @@ router.post("/addservicefilter", multiUpload, handleUploads, addServiceFilter);
 router.get("/getservicefilter", authenticationToken, getServiceFilters);
 router.put("/updateservicefilter/:service_filter_id", authenticationToken, updateServiceFilter);
 router.delete("/deleteservicefilter/:service_filter_id", authenticationToken, deleteServiceFilter);
-
 router.post("/addservicetype", multiUpload, handleUploads, authenticationToken, addServiceType)
 router.get("/getservicetype/:service_id", authenticationToken, getServiceTypeById)
-
 router.get("/getcategorywithservices", authenticationToken, getAdminServicesWithfilter)
-
 router.post("/addcategory", authenticationToken, addCategory)
 router.get("/getcity", getcity)
 router.post("/addcity", authenticationToken, addServiceCity)
