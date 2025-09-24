@@ -123,7 +123,6 @@ const vendorGetQueries = {
         -- Package Info
         pkg.package_id,
         pkg.packageName,
-        pkg.totalTime,
 
         -- Payment Info (apply platform fee)
         CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS totalPrice,
