@@ -1,15 +1,14 @@
 const analyticsGetQueries = {
     getDashboardStats: `
-        SELECT 
-            (SELECT COUNT(*) FROM users WHERE is_approved = 1) as total_users,
-            (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) as total_vendors,
-            (SELECT COUNT(*) FROM contractors WHERE is_active = 1) as total_contractors,
-            (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1) as completed_bookings,
-            (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 0) as pending_bookings,
-            (SELECT SUM(totalPrice) FROM packages p 
-             JOIN service_booking_packages sbp ON p.package_id = sbp.package_id
-             JOIN service_booking sb ON sbp.booking_id = sb.booking_id
-             WHERE sb.bookingStatus = 1) as total_revenue
+SELECT 
+    (SELECT COUNT(*) FROM users) AS total_users,
+    (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) AS total_vendors,
+    (SELECT COUNT(*) FROM contractors WHERE is_active = 1) AS total_contractors,
+    (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1 AND completed_flag = 1 ) AS completed_bookings,
+    (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1 AND completed_flag = 0)  AS pending_bookings,
+    (SELECT IFNULL(SUM(amount), 0) 
+     FROM payments 
+     WHERE status = 'completed') AS total_revenue
     `,
 
     getBookingTrends: `
@@ -28,9 +27,7 @@ const analyticsGetQueries = {
     getServiceCategoryStats: `
         SELECT 
             sc.serviceCategory,
-            COUNT(sb.booking_id) as booking_count,
-            AVG(p.totalPrice) as avg_price,
-            SUM(p.totalPrice) as total_revenue
+            COUNT(sb.booking_id) as booking_count
         FROM service_categories sc
         LEFT JOIN services s ON sc.service_categories_id = s.service_categories_id
         LEFT JOIN service_booking sb ON s.service_id = sb.service_id
@@ -50,8 +47,7 @@ const analyticsGetQueries = {
                END as vendor_name,
             v.vendorType,
             COUNT(sb.booking_id) as total_bookings,
-            AVG(CASE WHEN sb.bookingStatus = 1 THEN 5 ELSE 0 END) as avg_rating,
-            SUM(p.totalPrice) as total_earnings
+            AVG(CASE WHEN sb.bookingStatus = 1 THEN 5 ELSE 0 END) as avg_rating
         FROM vendors v
         LEFT JOIN individual_details ind ON v.vendor_id = ind.vendor_id
         LEFT JOIN company_details comp ON v.vendor_id = comp.vendor_id
@@ -68,10 +64,7 @@ const analyticsGetQueries = {
         SELECT 
             YEAR(sb.bookingDate) as year,
             MONTH(sb.bookingDate) as month,
-            COUNT(sb.booking_id) as booking_count,
-            SUM(p.totalPrice) as gross_revenue,
-            SUM(p.totalPrice * 0.15) as commission_revenue,
-            SUM(vsk.total_amount) as supply_kit_revenue
+            COUNT(sb.booking_id) as booking_count
         FROM service_booking sb
         LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
         LEFT JOIN packages p ON sbp.package_id = p.package_id

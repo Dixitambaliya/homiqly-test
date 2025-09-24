@@ -29,7 +29,6 @@ const registerVendor = async (req, res) => {
     await conn.beginTransaction();
 
     try {
-
         const {
             vendorType,
             name,
@@ -42,7 +41,7 @@ const registerVendor = async (req, res) => {
             companyEmail,
             contactPerson,
             companyPhone,
-            services,
+            packages = [],
             confirmation,
         } = req.body;
 
@@ -54,10 +53,8 @@ const registerVendor = async (req, res) => {
         }
 
         let hashedPassword = null;
-
         if (vendorType.toLowerCase() === "individual") {
             if (!password) {
-                console.warn("❌ Missing password for individual vendor");
                 return res
                     .status(400)
                     .json({ error: "Password is required for individual vendors." });
@@ -72,7 +69,7 @@ const registerVendor = async (req, res) => {
         ]);
         const vendor_id = vendorRes.insertId;
 
-        // Upload documents
+        // Vendor details
         if (vendorType.toLowerCase() === "company") {
             await conn.query(vendorAuthQueries.insertCompanyDetails, [
                 vendor_id,
@@ -83,16 +80,8 @@ const registerVendor = async (req, res) => {
                 companyPhone,
                 companyAddress,
             ]);
-        } else if (vendorType.toLowerCase() === "individual") {
+        } else {
             const resume = req.uploadedFiles?.resume?.[0]?.url || null;
-
-            if (!resume && req.files && req.files.some(f => f.fieldname === 'resume')) {
-                console.warn("❌ Resume upload failed");
-                return res
-                    .status(400)
-                    .json({ error: "Resume upload failed. Please try again." });
-            }
-
             await conn.query(vendorAuthQueries.insertIndividualDetails, [
                 vendor_id,
                 name,
@@ -101,112 +90,91 @@ const registerVendor = async (req, res) => {
                 resume,
             ]);
         }
-        const parsedServices = JSON.parse(services);
 
-        const processedCategories = new Set();
+        // ✅ Process vendor-selected packages (with serviceLocation moved here)
+        const parsedPackages = packages ? JSON.parse(packages) : [];
 
-        for (const service of parsedServices) {
-            const { serviceCategoryId, serviceId, serviceLocation } = service;
+        for (const pkg of parsedPackages) {
+            const { package_id, serviceLocation, sub_packages = [] } = pkg;
 
-            if (serviceCategoryId == null || serviceId == null) {
-                console.warn("❌ Missing serviceCategoryId or serviceId");
-                return res
-                    .status(400)
-                    .json({ error: `Missing serviceCategoryId or serviceId in service` });
-            }
-
-            if (!processedCategories.has(serviceCategoryId)) {
-                const [categoryExists] = await db.query(
-                    vendorAuthQueries.checkCategoryExits,
-                    [serviceCategoryId]
-                );
-
-                if (categoryExists.length === 0) {
-                    return res
-                        .status(400)
-                        .json({
-                            error: `Service category ID ${serviceCategoryId} does not exist.`,
-                        });
-                }
-
-                if (vendorType.toLowerCase() === "individual") {
-                    await conn.query(vendorAuthQueries.insertIndividualServiceCategory, [
-                        vendor_id,
-                        serviceCategoryId,
-                    ]);
-                } else {
-                    await conn.query(vendorAuthQueries.insertCompanyServiceCategory, [
-                        vendor_id,
-                        serviceCategoryId,
-                    ]);
-                }
-
-                processedCategories.add(serviceCategoryId);
-            }
-
-            const [serviceExists] = await db.query(
-                vendorAuthQueries.checkserviceExits,
-                [serviceId, serviceCategoryId]
+            // 1. Check if package exists
+            const [packageExists] = await db.query(
+                "SELECT package_id FROM packages WHERE package_id = ?",
+                [package_id]
             );
-
-            if (serviceExists.length === 0) {
-                return res
-                    .status(400)
-                    .json({
-                        error: `Service ID ${serviceId} under category ${serviceCategoryId} does not exist.`,
-                    });
+            if (packageExists.length === 0) {
+                return res.status(400).json({ error: `Package ID ${package_id} does not exist.` });
             }
 
-            if (vendorType.toLowerCase() === "individual") {
-                await conn.query(vendorAuthQueries.insertIndividualService, [
-                    vendor_id,
-                    serviceId,
-                    serviceLocation,
-                ]);
-            } else {
-                await conn.query(vendorAuthQueries.insertCompanyService, [
-                    vendor_id,
-                    serviceId,
-                    serviceLocation,
-                ]);
+            // 2. Insert vendor package application (now also storing serviceLocation)
+            const [vpRes] = await conn.query(
+                `INSERT INTO vendor_package_applications 
+                (vendor_id, package_id, serviceLocation, status) 
+                VALUES (?, ?, ?, 0)`,
+                [vendor_id, package_id, serviceLocation]
+            );
+            const application_id = vpRes.insertId;
+
+            // 3. Handle sub-packages
+            if (Array.isArray(sub_packages) && sub_packages.length > 0) {
+                for (const sub of sub_packages) {
+                    const { item_id } = sub;
+
+                    const [subExists] = await db.query(
+                        `SELECT item_id FROM package_items 
+                         WHERE item_id = ? AND package_id = ?`,
+                        [item_id, package_id]
+                    );
+                    if (subExists.length === 0) {
+                        return res.status(400).json({
+                            error: `Sub-package ID ${item_id} does not exist for package ${package_id}.`
+                        });
+                    }
+
+                    await conn.query(
+                        `INSERT INTO vendor_package_item_application
+                         (application_id, package_item_id) 
+                         VALUES (?, ?)`,
+                        [application_id, item_id]
+                    );
+                }
             }
         }
 
         await conn.commit();
-        // Send notification to vendor (custom function)
+
+        // Notifications
         try {
             await sendVendorRegistrationNotification(
                 vendorType,
                 vendorType === 'individual' ? name : companyName
             );
         } catch (err) {
-            console.error("⚠️ Failed to send vendor registration notification:", err.message);
+            console.error("⚠️ Vendor notification failed:", err.message);
         }
 
-        // Send notification email to admins
         try {
             const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
             if (adminEmails.length > 0) {
                 const emailAddresses = adminEmails.map(row => row.email);
-
                 await transport.sendMail({
                     from: process.env.EMAIL_USER || "noreply@homiqly.com",
                     to: emailAddresses,
                     subject: "New Vendor Registration",
                     html: `
-              <h2>New Vendor Registration</h2>
-              <p>A new vendor has registered and is pending approval:</p>
-              <ul>
-                <li><strong>Vendor Type:</strong> ${vendorType}</li>
-                <li><strong>Name:</strong> ${vendorType === 'individual' ? name : companyName}</li>
-                <li><strong>Email:</strong> ${vendorType === 'individual' ? email : companyEmail}</li>
-              </ul>
-              <p>Please review and approve in the admin panel.</p>
-            `
+                      <h2>New Vendor Registration</h2>
+                      <p>A new vendor has registered and is pending approval:</p>
+                      <ul>
+                        <li><strong>Vendor Type:</strong> ${vendorType}</li>
+                        <li><strong>Name:</strong> ${vendorType === 'individual' ? name : companyName}</li>
+                        <li><strong>Email:</strong> ${vendorType === 'individual' ? email : companyEmail}</li>
+                      </ul>
+                      <p>Please review and approve in the admin panel.</p>
+                    `
                 });
             }
         } catch (emailError) {
-            console.error("⚠️ Failed to send admin notification:", emailError.message);
+            console.error("⚠️ Admin notification failed:", emailError.message);
         }
 
         return res.status(201).json({
@@ -225,6 +193,7 @@ const registerVendor = async (req, res) => {
         conn.release();
     }
 };
+
 
 const loginVendor = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
@@ -259,6 +228,8 @@ const loginVendor = asyncHandler(async (req, res) => {
             }
         }
 
+        console.log(vendorDetails);
+        
         if (!vendorDetails) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
@@ -267,6 +238,9 @@ const loginVendor = asyncHandler(async (req, res) => {
             "SELECT password, is_authenticated, role FROM vendors WHERE vendor_id = ?",
             [vendorDetails.vendor_id]
         );
+
+        console.log(vendorAuthResult);
+        
 
         if (vendorAuthResult.length === 0) {
             return res.status(401).json({ error: "Invalid credentials" });

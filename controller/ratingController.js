@@ -132,6 +132,8 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { booking_id, package_id, rating, review } = req.body;
 
+    console.log(user_id);
+
     if (!booking_id || !package_id || !rating) {
         return res.status(400).json({ message: "Booking ID, Package ID, and rating are required" });
     }
@@ -190,10 +192,7 @@ const getBookedPackagesForRating = asyncHandler(async (req, res) => {
             SELECT
                 sbp.package_id,
                 p.packageName,
-                p.totalPrice,
                 sbp.booking_id,
-                p.totalTime,
-                st.serviceTypeName,
                 s.serviceName
             FROM service_booking_packages sbp
             JOIN service_booking sb ON sb.booking_id = sbp.booking_id
@@ -301,8 +300,7 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
         // 1. Get package details with average rating and total review count
         const [packageRows] = await db.query(
             `SELECT 
-                p.packageName, 
-                p.description, 
+                p.packageName,
                 p.packageMedia, 
                 AVG(r.rating) AS average_rating,
                 COUNT(r.rating_id) AS total_reviews
@@ -340,7 +338,6 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
             message: "Package reviews fetched successfully",
             review: {
                 packageName: packageData.packageName,
-                description: packageData.description,
                 packageMedia: packageData.packageMedia,
                 average_rating: parseFloat(packageData.average_rating || 0).toFixed(2),
                 total_reviews: packageData.total_reviews || 0,

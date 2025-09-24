@@ -6,97 +6,100 @@ const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     const {
-        service_categories_id,
-        serviceId,
-        service_type_id,
+        service_id,
         packages,
-        notes = null,
         preferences = [],
-        bookingDate = null,
-        bookingTime = null,
-        vendor_id = null
+        consents = []
     } = req.body;
 
-    const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
+    if (!service_id) {
+        return res.status(400).json({ message: "service_id is required" });
+    }
 
-    // ✅ Validate required fields
-    if (!service_categories_id || !serviceId || !service_type_id || !packages) {
+    if (!packages) {
         return res.status(400).json({
-            message: "Missing required fields: service_categories_id, serviceId, service_type_id, packages"
+            message: "At least one package is required to add to cart"
         });
     }
 
     let parsedPackages = [];
     let parsedPreferences = [];
+    let parsedConsents = [];
 
-    // Parse packages
     try {
-        parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
-        if (!Array.isArray(parsedPackages)) {
-            return res.status(400).json({ message: "'packages' must be an array." });
+        parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
+            return res.status(400).json({ message: "'packages' must be a non-empty array." });
         }
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
     }
 
-    // Parse preferences
     try {
-        parsedPreferences = typeof preferences === 'string' ? JSON.parse(preferences) : preferences;
-        if (parsedPreferences && !Array.isArray(parsedPreferences)) {
-            return res.status(400).json({ message: "'preferences' must be an array." });
-        }
+        parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
     } catch (e) {
-        return res.status(400).json({ message: "'preferences' must be a valid JSON array.", error: e.message });
+        return res.status(400).json({ message: "Invalid preferences JSON", error: e.message });
+    }
+
+    try {
+        parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
+    } catch (e) {
+        return res.status(400).json({ message: "Invalid consents JSON", error: e.message });
     }
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        // ✅ Step 1: Insert into service_cart
-        const [insertCart] = await connection.query(
-            `INSERT INTO service_cart (
-                user_id, vendor_id, service_id, service_type_id,
-                service_categories_id, bookingDate, bookingTime,
-                bookingStatus, notes, bookingMedia
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                user_id,
-                vendor_id,
-                serviceId,
-                service_type_id,
-                service_categories_id,
-                bookingDate,
-                bookingTime,
-                0,
-                notes,
-                bookingMedia
-            ]
-        );
+        let createdOrUpdatedCarts = [];
 
-        const cart_id = insertCart.insertId;
-
-        // ✅ Step 2: Insert cart_packages and cart_package_items
         for (const pkg of parsedPackages) {
             const { package_id = null, sub_packages = [], addons = [] } = pkg;
 
-            const [insertPkg] = await connection.query(
-                "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
-                [cart_id, package_id]
+            // ✅ Step 0: Check if cart already exists for this user + service_id + package_id
+            const [existingCart] = await connection.query(
+                `SELECT cart_id FROM service_cart 
+                 WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0
+                 LIMIT 1`,
+                [user_id, service_id, package_id]
             );
 
+            let cart_id;
+            if (existingCart.length > 0) {
+                // ✅ Use existing cart_id
+                cart_id = existingCart[0].cart_id;
+            } else {
+                // 🆕 Insert new cart row
+                const [insertCart] = await connection.query(
+                    `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
+                     VALUES (?, ?, ?, ?)`,
+                    [user_id, service_id, package_id, 0]
+                );
+                cart_id = insertCart.insertId;
+
+                // also insert into cart_packages
+                await connection.query(
+                    "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
+                    [cart_id, package_id]
+                );
+            }
+
+            createdOrUpdatedCarts.push(cart_id);
+
+            // Step 3: Insert Sub-packages (append only)
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
 
                 await connection.query(
                     `INSERT INTO cart_package_items
-                        (cart_id, sub_package_id, price, package_id, item_id, quantity)
+                     (cart_id, sub_package_id, price, package_id, item_id, quantity)
                      VALUES (?, ?, ?, ?, ?, ?)`,
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
 
+            // Step 4: Addons (append only)
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
@@ -106,31 +109,43 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, package_id, addon_id, price]
                 );
             }
-        }
 
-        // ✅ Step 3: Insert preferences
-        for (const pref of parsedPreferences || []) {
-            const preference_id = typeof pref === 'object' ? pref.preference_id : pref;
-            if (!preference_id) continue;
+            // Step 5: Preferences (append only)
+            for (const pref of parsedPreferences) {
+                const preference_id = typeof pref === "object" ? pref.preference_id : pref;
+                if (!preference_id) continue;
 
-            await connection.query(
-                "INSERT INTO cart_preferences (cart_id, preference_id) VALUES (?, ?)",
-                [cart_id, preference_id]
-            );
+                await connection.query(
+                    "INSERT INTO cart_preferences (cart_id, package_id, preference_id) VALUES (?, ?, ?)",
+                    [cart_id, package_id, preference_id]
+                );
+            }
+
+            // Step 6: Consents (append only)
+            for (const consent of parsedConsents) {
+                const { consent_id, answer = null } = consent;
+                if (!consent_id) continue;
+
+                await connection.query(
+                    `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+                     VALUES (?, ?, ?, ?)`,
+                    [cart_id, package_id, consent_id, answer]
+                );
+            }
         }
 
         await connection.commit();
         connection.release();
 
         res.status(200).json({
-            message: "Service added to cart successfully",
-            cart_id
+            message: "Service(s) added/updated in cart successfully",
+            cart_ids: createdOrUpdatedCarts
         });
 
     } catch (err) {
         await connection.rollback();
         connection.release();
-        console.error("Cart insert error:", err);
+        console.error("Cart insert/update error:", err);
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
@@ -139,229 +154,302 @@ const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // Fetch the latest cart for the user
+        // ✅ Fetch all carts for the user (latest first)
         const [cartRows] = await db.query(
-            `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
+            `SELECT 
+                sc.cart_id,
+                sc.service_id,
+                s.serviceImage,
+                sc.package_id,
+                sc.user_id,
+                sc.vendor_id,
+                sc.bookingStatus,
+                sc.notes,
+                sc.bookingMedia,
+                sc.created_at,
+                sc.bookingDate,
+                sc.bookingTime,
+                p.packageName
+             FROM service_cart sc
+             LEFT JOIN packages p ON sc.package_id = p.package_id
+             LEFT JOIN services s ON sc.service_id = s.service_id
+             WHERE sc.user_id = ?
+             ORDER BY sc.created_at DESC`,
             [user_id]
         );
 
         if (cartRows.length === 0) {
-            return res.status(200).json({ message: "Cart is empty", cart: null });
+            return res.status(200).json({ message: "Cart is empty", carts: [] });
         }
 
-        const cart = cartRows[0];
-        const cart_id = cart.cart_id;
+        let allCarts = [];
 
-        // Fetch all packages linked to the cart
-        const [cartPackages] = await db.query(
-            `SELECT
-                cp.package_id,
-                p.packageName,
-                p.totalPrice,
-                p.totalTime,
-                p.packageMedia
-             FROM cart_packages cp
-             LEFT JOIN packages p ON cp.package_id = p.package_id
-             WHERE cp.cart_id = ?`,
-            [cart_id]
-        );
+        for (const cart of cartRows) {
+            const cart_id = cart.cart_id;
 
-        // Fetch all sub-packages linked to the cart
-        const [cartPackageItems] = await db.query(
-            `SELECT
-                cpi.sub_package_id AS item_id,
-                pi.itemName,
-                cpi.price,
-                cpi.quantity,
-                pi.timeRequired,
-                cpi.package_id
-             FROM cart_package_items cpi
-             LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
-             WHERE cpi.cart_id = ?`,
-            [cart_id]
-        );
+            // ✅ Sub-packages
+            const [cartPackageItems] = await db.query(
+                `SELECT
+                    cpi.cart_package_items_id,
+                    pi.itemName,
+                    cpi.price,
+                    cpi.quantity,
+                    pi.timeRequired,
+                    cpi.created_at
+                 FROM cart_package_items cpi
+                 LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+                 WHERE cpi.cart_id = ?`,
+                [cart_id]
+            );
 
-        // Fetch all addons linked to the cart
-        const [cartAddons] = await db.query(
-            `SELECT
-                ca.addon_id,
-                a.addonName,
-                ca.price,
-                ca.package_id 
-             FROM cart_addons ca
-             LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
-             WHERE ca.cart_id = ?`,
-            [cart_id]
-        );
+            // ✅ Addons
+            const [cartAddons] = await db.query(
+                `SELECT
+                    ca.cart_addon_id,
+                    a.addonName,
+                    ca.price,
+                    ca.created_at
+                 FROM cart_addons ca
+                 LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
+                 WHERE ca.cart_id = ?`,
+                [cart_id]
+            );
 
-        // Group sub-packages and addons under each package
-        const groupedPackages = cartPackages.map(pkg => {
-            const sub_packages = cartPackageItems
-                .filter(item => item.package_id === pkg.package_id)
-                .map(item => ({
-                    ...item
-                }));
+            // ✅ Preferences
+            const [cartPreferences] = await db.query(
+                `SELECT
+                    cp.cart_preference_id,
+                    bp.preferenceValue,
+                    cp.created_at
+                 FROM cart_preferences cp
+                 LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+                 WHERE cp.cart_id = ?`,
+                [cart_id]
+            );
 
-            const addons = cartAddons
-                .filter(addon => addon.package_id === pkg.package_id)
-                .map(addon => ({
-                    ...addon
-                }));
+            // ✅ Consents
+            const [cartConsents] = await db.query(
+                `SELECT
+                    cc.cart_consent_id,
+                    c.question,
+                    cc.answer,
+                    cc.created_at
+                 FROM cart_consents cc
+                 LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+                 WHERE cc.cart_id = ?`,
+                [cart_id]
+            );
 
-            return {
-                ...pkg,
-                sub_packages,
-                addons
-            };
-        });
+            allCarts.push({
+                ...cart,
+                sub_packages: cartPackageItems,
+                addons: cartAddons,
+                preferences: cartPreferences.map(pref => ({
+                    cart_preference_id: pref.cart_preference_id,
+                    preferenceValue: pref.preferenceValue
+                })),
+                consents: cartConsents.map(con => ({
+                    consent_id: con.consent_id,
+                    consentText: con.question,
+                    answer: con.answer
+                }))
+            });
+        }
 
-        // Fetch preferences linked to the cart
-        const [cartPreferences] = await db.query(
-            `SELECT
-                cp.preference_id,
-                bp.preferenceValue
-             FROM cart_preferences cp
-             LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-             WHERE cp.cart_id = ?`,
-            [cart_id]
-        );
-
-        // Return response
         res.status(200).json({
             message: "Cart retrieved successfully",
-            cart: {
-                ...cart,
-                packages: groupedPackages,
-                preferences: cartPreferences.map(pref => ({
-                    preference_id: pref.preference_id,
-                    preferenceValue: pref.preferenceValue
-                }))
-            }
+            carts: allCarts
         });
+
     } catch (error) {
         console.error("Error retrieving cart:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
 
-const checkoutCartService = asyncHandler(async (req, res) => {
+const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { cart_id } = req.params; // ✅ pass cart_id in URL
+    const { package_id } = req.params; // 🔑 package_id from URL param
 
-    if (!cart_id) {
-        return res.status(400).json({ message: "cart_id is required" });
+    if (!package_id) {
+        return res.status(400).json({ message: "package_id is required" });
     }
 
-    const connection = await db.getConnection();
-    let booking_id;
-
     try {
-        await connection.beginTransaction();
-
-        // ✅ 1. Get cart data
-        const [cartRows] = await connection.query(
-            `SELECT * FROM service_cart WHERE cart_id=? AND user_id=?`,
-            [cart_id, user_id]
-        );
-        if (!cartRows.length) {
-            throw new Error("Cart not found or not owned by user");
-        }
-        const cart = cartRows[0];
-
-        // ✅ 2. Create booking
-        const [insertBooking] = await connection.query(
-            `INSERT INTO service_bookings (
-                service_categories_id, serviceId, user_id, bookingDate, bookingTime,
-                vendor_id, notes, bookingMedia, bookingStatus
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [
-                cart.service_categories_id,
-                cart.service_id,
-                user_id,
-                cart.bookingDate,
-                cart.bookingTime,
-                cart.vendor_id || 0,
-                cart.notes || null,
-                cart.bookingMedia || null
-            ]
-        );
-        booking_id = insertBooking.insertId;
-
-        // ✅ 3. Link service type
-        await connection.query(
-            `INSERT INTO service_booking_types (booking_id, service_type_id) VALUES (?, ?)`,
-            [booking_id, cart.service_type_id]
+        // ✅ Fetch cart row(s) for the user and package
+        const [cartRows] = await db.query(
+            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.package_id, sc.bookingStatus
+             FROM service_cart sc
+             WHERE sc.user_id = ? AND sc.package_id = ?`,
+            [user_id, package_id]
         );
 
-        // ✅ 4. Copy cart packages → booking packages
-        const [cartPackages] = await connection.query(
-            `SELECT * FROM cart_packages WHERE cart_id=?`,
-            [cart_id]
-        );
-
-        for (const pkg of cartPackages) {
-            await connection.query(
-                `INSERT INTO service_booking_packages (booking_id, package_id) VALUES (?, ?)`,
-                [booking_id, pkg.package_id]
-            );
-
-            // sub-packages
-            const [cartItems] = await connection.query(
-                `SELECT * FROM cart_package_items WHERE cart_id=? AND package_id=?`,
-                [cart_id, pkg.package_id]
-            );
-            for (const item of cartItems) {
-                await connection.query(
-                    `INSERT INTO service_booking_items (booking_id, sub_package_id, price, quantity) 
-                     VALUES (?, ?, ?, ?)`,
-                    [booking_id, item.sub_package_id, item.price, item.quantity || 1]
-                );
-            }
-
-            // addons
-            const [cartAddons] = await connection.query(
-                `SELECT * FROM cart_addons WHERE cart_id=? AND package_id=?`,
-                [cart_id, pkg.package_id]
-            );
-            for (const addon of cartAddons) {
-                await connection.query(
-                    `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price) 
-                     VALUES (?, ?, ?, ?)`,
-                    [booking_id, pkg.package_id, addon.addon_id, addon.price]
-                );
-            }
+        if (cartRows.length === 0) {
+            return res.status(204).json({ message: "No cart found for this package" });
         }
 
-        // ✅ 5. Copy preferences
-        const [cartPrefs] = await connection.query(
-            `SELECT * FROM cart_preferences WHERE cart_id=?`,
-            [cart_id]
+        let cart_id = cartRows[0].cart_id;
+
+        // ✅ Fetch sub-packages
+        const [subPackages] = await db.query(
+            `SELECT 
+            cpi.cart_package_items_id, 
+            pt.itemName,
+            pt.description,
+            cpi.price, 
+            cpi.quantity
+             FROM cart_package_items cpi
+             LEFT JOIN package_items pt ON cpi.sub_package_id = pt.item_id
+             WHERE cpi.cart_id = ? AND cpi.package_id = ?`,
+            [cart_id, package_id]
         );
-        for (const pref of cartPrefs) {
-            await connection.query(
-                `INSERT INTO service_booking_preferences (booking_id, preference_id) VALUES (?, ?)`,
-                [booking_id, pref.preference_id]
-            );
-        }
 
-        // ✅ 6. Clear cart (optional)
-        await connection.query(`DELETE FROM service_cart WHERE cart_id=?`, [cart_id]);
+        // ✅ Fetch addons
+        const [addons] = await db.query(
+            `SELECT 
+            ca.cart_addon_id, 
+            pa.addonName,
+            pa.addonDescription,
+            ca.price
+             FROM cart_addons ca
+             LEFT JOIN package_addons pa ON ca.addon_id = pa.addon_id
+             WHERE ca.cart_id = ? AND ca.package_id = ?`,
+            [cart_id, package_id]
+        );
 
-        await connection.commit();
+        // ✅ Fetch preferences
+        const [preferences] = await db.query(
+            `SELECT 
+             cp.cart_preference_id, 
+             bp.preferenceValue
+             FROM cart_preferences cp
+             LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id 
+             WHERE cp.cart_id = ? AND cp.package_id = ?`,
+            [cart_id, package_id]
+        );
 
-        // ✅ return booking_id for payment flow
+        // ✅ Fetch consents
+        const [consents] = await db.query(
+            `SELECT 
+            cc.cart_consent_id, 
+
+            pcf.question, 
+            cc.answer
+             FROM cart_consents cc
+             LEFT JOIN package_consent_forms pcf ON pcf.consent_id = cc.consent_id
+             WHERE cc.cart_id = ? AND cc.package_id = ?`,
+            [cart_id, package_id]
+        );
+
+        // ✅ Build response
         res.status(200).json({
-            message: "Cart checked out successfully, booking created.",
-            booking_id,
-            payment_status: "pending"
+            message: "Cart fetched successfully",
+            cart: {
+                ...cartRows[0],
+                sub_packages: subPackages,
+                addons,
+                preferences,
+                consents
+            }
         });
 
     } catch (err) {
-        await connection.rollback();
-        console.error("Checkout cart error:", err);
-        res.status(500).json({ message: "Failed to checkout cart", error: err.message });
-    } finally {
-        connection.release();
+        console.error("Get cart error:", err);
+        res.status(500).json({ message: "Failed to fetch cart", error: err.message });
+    }
+});
+
+const updateCartDetails = asyncHandler(async (req, res) => {
+    const { cart_id } = req.params;
+
+    // fields you want to allow updating
+    const {
+        vendor_id = null,
+        bookingDate = null,
+        bookingTime = null,
+        notes = null
+    } = req.body;
+
+    const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
+
+    try {
+        // ✅ Build dynamic SET clause
+        const fields = [];
+        const values = [];
+
+        if (vendor_id !== null) {
+            fields.push("vendor_id = ?");
+            values.push(vendor_id);
+        }
+        if (bookingDate !== null) {
+            fields.push("bookingDate = ?");
+            values.push(bookingDate);
+        }
+        if (bookingTime !== null) {
+            fields.push("bookingTime = ?");
+            values.push(bookingTime);
+        }
+        if (notes !== null) {
+            fields.push("notes = ?");
+            values.push(notes);
+        }
+        if (bookingMedia !== null) {
+            fields.push("bookingMedia = ?");
+            values.push(bookingMedia);
+        }
+
+        if (fields.length === 0) {
+            return res.status(400).json({ message: "No valid fields provided for update" });
+        }
+
+        const query = `UPDATE service_cart SET ${fields.join(", ")} WHERE cart_id = ?`;
+        values.push(cart_id);
+
+        const [result] = await db.query(query, values);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Cart not found" });
+        }
+
+        res.status(200).json({ message: "Cart updated successfully" });
+
+    } catch (err) {
+        console.error("Cart update error:", err);
+        res.status(500).json({ message: "Failed to update cart", error: err.message });
+    }
+});
+
+const getCartDetails = asyncHandler(async (req, res) => {
+    const { cart_id } = req.params;
+
+    try {
+        const [rows] = await db.query(
+            `SELECT 
+                cart_id,
+                user_id,
+                vendor_id,
+                bookingDate,
+                bookingTime,
+                notes,
+                bookingMedia,
+                bookingStatus,
+                created_at
+             FROM service_cart
+             WHERE cart_id = ?`,
+            [cart_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(204).json({ message: "Cart not found" });
+        }
+
+        res.status(200).json({
+            message: "Cart fetched successfully",
+            cart: rows[0]
+        });
+    } catch (err) {
+        console.error("Get cart error:", err);
+        res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
 
@@ -410,5 +498,4 @@ const deleteCartItem = asyncHandler(async (req, res) => {
 
 
 
-module.exports = { addToCartService, getUserCart, checkoutCartService, deleteCartItem };
-    
+module.exports = { addToCartService, getUserCart, deleteCartItem, updateCartDetails, getCartDetails, getCartByPackageId };

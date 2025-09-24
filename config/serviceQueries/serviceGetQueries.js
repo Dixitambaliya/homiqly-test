@@ -1,20 +1,22 @@
 const serviceGetQueries = {
 
     getAllServicesWithCategory: `
-        SELECT
-        service_categories.serviceCategory AS categoryName,
-        service_categories.service_categories_id AS serviceCategoryId,
-        services.service_id AS serviceId,
-        services.serviceName,
-        services.serviceDescription,
-        services.serviceImage,
-        services.slug
-                FROM service_categories
-                LEFT JOIN services services ON service_categories.service_categories_id = services.service_categories_id`,
-
+SELECT
+    sc.service_categories_id AS serviceCategoryId,
+    sc.serviceCategory AS categoryName,
+    s.service_id AS serviceId,
+    s.serviceName,
+    s.serviceDescription,
+    s.serviceImage,
+    s.serviceFilter AS serviceFilter,
+    s.slug
+FROM service_categories sc
+LEFT JOIN services s
+    ON s.service_categories_id = sc.service_categories_id
+`,
 
     getServiceCategories: `
-    SELECT 
+    SELECT
     sc.service_categories_id,
     sc.serviceCategory,
     ssct.subcategory_id,

@@ -15,8 +15,11 @@ const { addService,
     deleteServiceCity,
     getAdminService,
     getServiceTypeById,
-    addSubCategory,
-    getSubCategories
+    addServiceFilter,
+    getServiceFilters,
+    updateServiceFilter,
+    deleteServiceFilter,
+    getAdminServicesWithfilter
 } = require("../controller/serviceController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -26,13 +29,18 @@ const { authenticationToken } = require("../middleware/authMiddleware")
 
 router.post("/addservice", multiUpload, handleUploads, authenticationToken, addService)
 router.put("/editService", multiUpload, handleUploads, editService);
-router.post("/addsubcategory", multiUpload, handleUploads, addSubCategory);
-router.get("/getsubcategory", authenticationToken, getSubCategories);
+
+router.post("/addservicefilter", multiUpload, handleUploads, addServiceFilter);
+router.get("/getservicefilter", authenticationToken, getServiceFilters);
+router.put("/updateservicefilter/:service_filter_id", authenticationToken, updateServiceFilter);
+router.delete("/deleteservicefilter/:service_filter_id", authenticationToken, deleteServiceFilter);
+
 router.post("/addservicetype", multiUpload, handleUploads, authenticationToken, addServiceType)
 router.get("/getservicetype/:service_id", authenticationToken, getServiceTypeById)
 
-router.post("/addcategory", authenticationToken, addCategory)
+router.get("/getcategorywithservices", authenticationToken, getAdminServicesWithfilter)
 
+router.post("/addcategory", authenticationToken, addCategory)
 router.get("/getcity", getcity)
 router.post("/addcity", authenticationToken, addServiceCity)
 router.get("/getservicecategories", getServiceCategories)

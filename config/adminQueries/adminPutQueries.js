@@ -19,7 +19,7 @@ SELECT * FROM package_addons WHERE addon_id = ?;
 `,
 
   insertAddon: `
-  INSERT INTO package_addons(package_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
+  INSERT INTO package_addons(package_item_id, addonName, addonDescription, addonPrice, addonTime, addonMedia)
   VALUES(?, ?, ?, ?, ?, ?);
 `,
 
@@ -30,19 +30,48 @@ SELECT * FROM package_addons WHERE addon_id = ?;
   addonPrice = ?,
   addonTime = ?,
   addonMedia = ?
-    WHERE addon_id = ? AND package_id = ?
+    WHERE addon_id = ? AND package_item_id = ?
       `,
 
-  updatePackagePreference: `UPDATE booking_preferences 
-    SET preferenceValue = ?, preferencePrice = ? 
-    WHERE preference_id = ? AND package_id = ?;
+  updatePackagePreference: `
+UPDATE booking_preferences
+SET preferenceValue = ?, preferencePrice = ?, preferenceGroup = ?
+WHERE preference_id = ? AND package_item_id = ?
+
 `,
 
-  getPreferenceById: `SELECT * FROM booking_preferences WHERE preference_id = ?;
+  getPreferenceById: `
+     SELECT * FROM booking_preferences 
+    WHERE preference_id = ? 
+    LIMIT 1 
 `,
-  deleteRemovedPreferences: `DELETE FROM booking_preferences 
-    WHERE package_id = ? AND preference_id NOT IN (?);
+  deleteRemovedPreferences: `
+  DELETE FROM booking_preferences 
+    WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (?)
 `,
+
+  getConsentFormById: `
+  SELECT * FROM package_consent_forms WHERE consent_id = ? `
+  ,
+
+  updateConsentForm: `
+  UPDATE 
+  package_consent_forms 
+  SET question = ?, is_required = ? 
+  WHERE consent_id = ? AND package_id = ?`
+  ,
+
+  insertConsentForm: `
+  INSERT INTO package_consent_forms 
+    (package_id, question, is_required) 
+    VALUES (?, ?, ?)`
+  ,
+
+  deleteRemovedConsentForms: `
+  DELETE 
+  FROM package_consent_forms 
+      WHERE package_id = ? AND consent_id NOT IN (?)`
+  ,
 
   updateUserById: `
     UPDATE users
@@ -82,10 +111,15 @@ VALUES(?, ?, ?, ?, ?, ?)
     DELETE FROM booking_preferences WHERE package_id = ?
   `,
 
+  deleteRemovedAddons: `
+    DELETE FROM package_addons
+    WHERE package_item_id = ? AND addon_id NOT IN (?)
+  `,
+
   // Insert new preference
   insertPackagePreference: `
-    INSERT INTO booking_preferences(package_id, preferenceValue , preferencePrice)
-VALUES(?, ? , ?)
+    INSERT INTO booking_preferences (package_item_id, preferenceGroup, preferenceValue, preferencePrice) 
+    VALUES (?, ?, ?, ?)
   `,
   toggleManualVendorAssignment: `
     INSERT INTO settings(setting_key, setting_value)

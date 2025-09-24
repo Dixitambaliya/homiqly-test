@@ -20,31 +20,30 @@ const userGetQueries = {
     getServices: `SELECT
     services.service_id,
     services.serviceName,
+    services.serviceFilter,
     service_categories.serviceCategory AS serviceCategory
         FROM services
         LEFT JOIN service_categories ON services.service_categories_id = service_categories.service_categories_id;`,
 
     getAllServicesWithCategory: `
        SELECT 
-    c.service_categories_id AS serviceCategoryId,
-    c.serviceCategory AS categoryName,
-    sc.subcategory_id,
-    sc.subCategories AS subcategoryName,
+    sc.serviceCategory AS categoryName,
+    sc.service_categories_id AS serviceCategoryId,
     s.service_id AS serviceId,
     s.serviceName,
     s.serviceDescription,
     s.serviceImage,
+    s.serviceFilter,
     s.slug,
-    st.service_type_id,
-    st.serviceTypeName,
-    st.serviceTypeMedia
-FROM service_categories c
-LEFT JOIN services s 
-    ON s.service_categories_id = c.service_categories_id
-LEFT JOIN service_subcategories sc 
-    ON sc.service_id = s.service_id
-LEFT JOIN service_type st 
-    ON st.service_id = s.service_id
+    st.service_type_id
+FROM services s
+JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+JOIN service_type st ON st.service_id = s.service_id
+JOIN packages p ON p.service_type_id = st.service_type_id
+-- ensure package is valid
+WHERE p.package_id IS NOT NULL AND p.package_id <> ''
+GROUP BY s.service_id, st.service_type_id;
+
 `,
 
     getCategoriesById: `SELECT
@@ -58,8 +57,6 @@ LEFT JOIN service_type st
    SELECT
     st.service_type_id,
     st.service_id,
-    st.serviceTypeName,
-    st.serviceTypeMedia,
     st.created_at
 FROM service_type st
 WHERE st.service_id = ?

@@ -6,8 +6,6 @@ const vendorGetQueries = {
         vendors.vendorType,
 
         service_type.service_type_id,
-        service_type.serviceTypeName,
-        service_type.serviceTypeMedia,
 
         services.service_id,
         services.serviceName,
@@ -18,12 +16,6 @@ const vendorGetQueries = {
         COALESCE(individual_services.serviceDescription, company_services.serviceDescription) AS serviceDescription,
 
         packages.package_id,
-        packages.packageName,
-        packages.description AS packageDescription,
-        packages.totalPrice,
-        packages.totalTime,
-        packages.packageMedia,
-
         package_items.item_id,
         package_items.itemName,
         package_items.itemMedia,
@@ -104,7 +96,6 @@ const vendorGetQueries = {
   getVendorFullPayment: `
     SELECT
         sb.booking_id,
-        sb.service_categories_id,
         sb.service_id,
         sb.vendor_id,
         sb.assigned_employee_id,
@@ -132,7 +123,6 @@ const vendorGetQueries = {
         -- Package Info
         pkg.package_id,
         pkg.packageName,
-        pkg.totalTime,
 
         -- Payment Info (apply platform fee)
         CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS totalPrice,
@@ -183,11 +173,6 @@ const vendorGetQueries = {
                     SELECT CONCAT('[', GROUP_CONCAT(
                         JSON_OBJECT(
                             'package_id', package_table.package_id,
-                            'title', package_table.packageName,
-                            'description', package_table.description,
-                            'price', package_table.totalPrice,
-                            'time_required', package_table.totalTime,
-                            'package_media', package_table.packageMedia,
 
                             'sub_packages', IFNULL((
                                 SELECT CONCAT('[', GROUP_CONCAT(
@@ -243,19 +228,12 @@ const vendorGetQueries = {
           s.serviceName,
 
           st.service_type_id,
-          st.serviceTypeName,
-          st.serviceTypeMedia,
 
           -- Packages grouped per service_type
           COALESCE((
             SELECT CONCAT('[', GROUP_CONCAT(
               JSON_OBJECT(
                 'package_id', p.package_id,
-                'packageName', p.packageName,
-                'packageMedia', p.packageMedia,
-                'description', p.description,
-                'totalPrice', p.totalPrice,
-                'totalTime', p.totalTime,
                 'is_applied', IF(vp.vendor_id IS NOT NULL, 1, 0),
                 'subPackages', IFNULL((
                   SELECT CONCAT('[', GROUP_CONCAT(
@@ -293,7 +271,7 @@ const vendorGetQueries = {
         JOIN service_type st ON st.service_id = s.service_id
 
         GROUP BY st.service_type_id
-        ORDER BY sc.serviceCategory, s.serviceName, st.serviceTypeName DESC
+        ORDER BY sc.serviceCategory, s.serviceName DESC
     `
 }
 

@@ -5,7 +5,6 @@ const { createStripeAccount,
     refreshStripeOnboarding,
     getStripeAccountStatus,
     createPaymentIntent,
-    confirmBooking,
     adminGetVendorStripeInfo,
     confirmPaymentIntentManually
 } = require("../controller/stripeController")
@@ -18,7 +17,6 @@ router.get("/vendor/stripe-account-status", authenticationToken, getStripeAccoun
 
 // User payment
 router.post("/user/create-payment-intent", authenticationToken, createPaymentIntent);
-router.post("/user/confirm-booking", authenticationToken, confirmBooking);
 
 router.post("/user/confirm-payment-intent", authenticationToken, confirmPaymentIntentManually);
 // Admin routes

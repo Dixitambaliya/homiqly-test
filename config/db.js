@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 // Create connection pool with correct MySQL2 configuration
-const db = mysql.createPool({
+const pool = mysql.createPool({
     host: process.env.MYSQL_HOST,
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
@@ -13,32 +13,24 @@ const db = mysql.createPool({
     charset: 'utf8mb4',
 });
 
+// Apply session settings for every new pooled connection
+pool.on("connection", (connection) => {
+    connection.promise().query(
+        "SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))"
+    ).catch(err => console.error("❌ Failed to set sql_mode:", err.message));
 
-async function applySessionSettings(connection) {
-    try {
+    connection.promise().query(
+        "SET SESSION group_concat_max_len = 1000000"
+    ).catch(err => console.error("❌ Failed to set group_concat_max_len:", err.message));
 
-        await connection.promise().query(
-            "SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))"
-        );
-
-        await connection.promise().query(
-            "SET SESSION group_concat_max_len = 1000000"
-        );
-
-    } catch (err) {
-        console.error("❌ Failed to apply session settings:", err.message);
-    }
-}
-
-// Apply on every new connection
-db.on('connection', async (connection) => {
-    await applySessionSettings(connection);
+    console.log("✅ Session settings applied for new connection");
 });
+
 
 // Test connection function
 async function testConnection() {
     try {
-        const [rows] = await db.query("SELECT 1");
+        const [rows] = await pool.query("SELECT 1");
         console.log("✅ DB connected", rows);
         return true; // ✅ return true if successful
     } catch (error) {
@@ -47,5 +39,4 @@ async function testConnection() {
     }
 }
 
-
-module.exports = { db, testConnection };
+module.exports = { db: pool, testConnection };

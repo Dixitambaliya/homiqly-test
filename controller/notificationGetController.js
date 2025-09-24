@@ -60,13 +60,11 @@ const getUserNotifications = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getVendorNotifications = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
     if (!vendor_id) {
         return res.status(400).json({ message: "Missing 'vendor_id' parameter" });
     }
-    console.log(vendor_id);
 
     const [notificationsRaw] = await db.query(
         `SELECT notification_id, user_id, title, body, is_read, sent_at
@@ -129,7 +127,6 @@ const readNotification = asyncHandler(async (req, res) => {
          WHERE notification_id = ?`,
         [notification_id]
     );
-    console.log(result);
     if (result.affectedRows === 0) {
         return res.status(400).json({ message: "Notification not found" });
     }

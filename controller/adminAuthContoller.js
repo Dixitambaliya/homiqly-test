@@ -277,10 +277,7 @@ const resetPassword = asyncHandler(async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const email = decoded.email;
 
-        console.log("Decoded email from token:", email);
-
         const adminRows = await db.query(adminAuthQueries.getAdminByEmail, [email]);
-        console.log("Query result:", adminRows);
 
         if (!adminRows || adminRows.length === 0) {
             return res.status(404).json({ error: "Admin not found" });

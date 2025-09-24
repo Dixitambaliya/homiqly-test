@@ -25,8 +25,11 @@ const approveVendor = asyncHandler(async (req, res) => {
         return res.status(400).json({ error: "Invalid status, use 1 for approve 2 for reject." });
     }
 
+    const conn = await db.getConnection();
+    await conn.beginTransaction();
+
     try {
-        const [vendorCheck] = await db.query(verificationQueries.vendorCheck, [vendor_id]);
+        const [vendorCheck] = await conn.query(verificationQueries.vendorCheck, [vendor_id]);
         if (!vendorCheck.length) {
             return res.status(404).json({ error: "Vendor not found" });
         }
@@ -35,41 +38,83 @@ const approveVendor = asyncHandler(async (req, res) => {
         let email;
         let plainPassword = null;
 
+        // 1️⃣ Fetch vendor email and generate password if company
         if (vendor_type === "company") {
-            const [result] = await db.query(verificationQueries.getCompanyEmail, [vendor_id]);
+            const [result] = await conn.query(verificationQueries.getCompanyEmail, [vendor_id]);
             email = result[0]?.companyEmail;
 
             if (is_authenticated === 1) {
-                // ✅ Generate a strong password using `generate-password`
                 plainPassword = generator.generate({
                     length: 10,
                     numbers: true,
                     uppercase: true,
                     lowercase: true
                 });
-
                 const hashedPassword = await bcrypt.hash(plainPassword, 10);
-
-                await db.query(verificationQueries.addVendorPassword, [hashedPassword, vendor_id]);
+                await conn.query(verificationQueries.addVendorPassword, [hashedPassword, vendor_id]);
             }
 
         } else if (vendor_type === "individual") {
-            const [result] = await db.query(verificationQueries.getIndividualEmail, [vendor_id]);
+            const [result] = await conn.query(verificationQueries.getIndividualEmail, [vendor_id]);
             email = result[0]?.email;
         } else {
             return res.status(400).json({ error: "Email not found for vendor" });
         }
 
-        await db.query(verificationQueries.vendorApprove, [is_authenticated, vendor_id]);
+        // 2️⃣ Update vendor approval status
+        await conn.query(verificationQueries.vendorApprove, [is_authenticated, vendor_id]);
 
+        // 3️⃣ If approved, transfer packages and sub-packages
+        if (is_authenticated === 1) {
+            const [applications] = await conn.query(`
+                SELECT * FROM vendor_package_applications WHERE vendor_id = ? AND status = 0
+            `, [vendor_id]);
+
+            for (const app of applications) {
+                // Insert into vendor_packages
+                const [vpRes] = await conn.query(`
+                    INSERT INTO vendor_packages (vendor_id, package_id, serviceLocation)
+                    VALUES (?, ?, ?)
+                `, [vendor_id, app.package_id, app.serviceLocation]);
+                const vendorPackageId = vpRes.insertId;
+
+                // Fetch sub-packages from application
+                const [subItems] = await conn.query(`
+                    SELECT package_item_id FROM vendor_package_item_application
+                    WHERE application_id = ?
+                `, [app.application_id]);
+
+                for (const sub of subItems) {
+                    await conn.query(`
+                        INSERT INTO vendor_package_items (vendor_packages_id, package_item_id, vendor_id, package_id)
+                        VALUES (?, ?, ?, ?)
+                    `, [vendorPackageId, sub.package_item_id, vendor_id, app.package_id]);
+                }
+                // Clear application tables
+                await conn.query(`DELETE FROM vendor_package_item_application WHERE application_id = ?`, [app.application_id]);
+                await conn.query(`DELETE FROM vendor_package_applications WHERE application_id = ?`, [app.application_id]);
+            }
+
+
+            // ✅ Initialize vendor_settings
+            await conn.query(`
+                INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled, start_datetime, end_datetime)
+                VALUES (?, 1, NULL, NULL)
+                ON DUPLICATE KEY UPDATE manual_assignment_enabled = 1
+            `, [vendor_id]);
+        }
+
+        await conn.commit();
+
+        // 4️⃣ Send notification email
         const message = is_authenticated === 1 ? "Vendor approved" : "Vendor rejected";
         const subject = is_authenticated === 1 ? "Your account has been approved" : "Your account has been rejected";
 
         let text;
         if (is_authenticated === 1 && vendor_type === "company") {
-            text = `Your account has been approved.\n\nYou can now log in to your dashboard - https://ts-homiqly-adminpanel.vercel.app/vendor/login .\n\nYour password: ${plainPassword}\n\n NOTE:- You can change your password after logging in.`;
+            text = `Your company account has been approved.\n\nYou can now log in to your dashboard - https://ts-homiqly-adminpanel.vercel.app/vendor/login .\n\nYour password: ${plainPassword}\n\n NOTE:- You can change your password after logging in.`;
         } else if (is_authenticated === 1) {
-            text = `Your company account has been approved. You can now log in to your dashboard - https://ts-homiqly-adminpanel.vercel.app/vendor/login`;
+            text = `Your account has been approved. You can now log in to your dashboard - https://ts-homiqly-adminpanel.vercel.app/vendor/login`;
         } else {
             text = `Your account has been rejected. You may contact support if you believe this is a mistake.`;
         }
@@ -89,7 +134,10 @@ const approveVendor = asyncHandler(async (req, res) => {
         }
 
     } catch (err) {
+        await conn.rollback();
         res.status(500).json({ error: "Database error", details: err.message });
+    } finally {
+        conn.release();
     }
 });
 

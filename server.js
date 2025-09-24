@@ -6,7 +6,6 @@ const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
 require("./controller/reminder")
-
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
@@ -127,11 +126,8 @@ app.use((err, req, res, next) => {
 
 // Start server with proper database connection check
 app.listen(PORT, async () => {
-    console.log(`🚀 Homiqly Backend Server starting on port ${PORT}`);
     console.log(`📊 Health check available at: http://localhost:${PORT}/api/health`);
-    console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`);
-    console.log(`👨‍💼 Admin Panel: http://localhost:${PORT}/admin`);
-    console.log(`🏪 Vendor Panel: http://localhost:${PORT}/vendor`);
+    console.log(`🗄️  Database health check at: http://localhost:${PORT}/api/health/db`)
 
     // Test database connection
     const isConnected = await testConnection();

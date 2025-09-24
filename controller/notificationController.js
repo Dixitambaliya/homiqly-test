@@ -2,24 +2,34 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const admin = require('../config/firebaseConfig');
 const notificationGetQueries = require('../config/notificationQueries/notificationGetQueries');
+const nodemailer = require("nodemailer");
+
+ 
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
 
 const sendNotification = asyncHandler(async (req, res) => {
-    const { user_type, user_ids, vendor_type, title, body, data } = req.body;
+    const { user_type, user_ids, vendor_type, title, body, data, channel } = req.body;
+    // channel can be: "notification" | "mail"
 
-    if (!user_type || !title || !body) {
-        return res.status(400).json({ message: "User type, title, and body are required" });
+    if (!user_type || !title || !body || !channel) {
+        return res.status(400).json({ message: "User type, title, body, and channel are required" });
     }
 
     try {
-        let tokenQuery;
+        let tokenQuery, emailQuery;
         let queryParams = [];
 
-        // Determine table and column based on user_type
         switch (user_type) {
             case 'users':
                 tokenQuery = user_ids
-                    ? `SELECT user_id AS id, fcmToken FROM users WHERE user_id IN (${user_ids.map(() => '?').join(',')}) AND fcmToken IS NOT NULL`
-                    : `SELECT user_id AS id, fcmToken FROM users WHERE fcmToken IS NOT NULL`;
+                    ? `SELECT user_id AS id, fcmToken, email FROM users WHERE user_id IN (${user_ids.map(() => '?').join(',')})`
+                    : `SELECT user_id AS id, fcmToken, email FROM users`;
                 queryParams = user_ids || [];
                 break;
 
@@ -27,74 +37,109 @@ const sendNotification = asyncHandler(async (req, res) => {
                 if (!vendor_type || !['individual', 'company'].includes(vendor_type)) {
                     return res.status(400).json({ message: "Vendor type must be 'individual' or 'company'" });
                 }
-
                 tokenQuery = user_ids
-                    ? `SELECT vendor_id AS id, fcmToken FROM vendors WHERE vendorType = ? AND vendor_id IN (${user_ids.map(() => '?').join(',')}) AND fcmToken IS NOT NULL`
-                    : `SELECT vendor_id AS id, fcmToken FROM vendors WHERE vendorType = ? AND fcmToken IS NOT NULL`;
-
-
+                    ? `SELECT vendor_id AS id, fcmToken, email FROM vendors WHERE vendorType = ? AND vendor_id IN (${user_ids.map(() => '?').join(',')})`
+                    : `SELECT vendor_id AS id, fcmToken, email FROM vendors WHERE vendorType = ?`;
                 queryParams = vendor_type ? [vendor_type, ...(user_ids || [])] : [];
                 break;
 
             case 'employees':
                 tokenQuery = user_ids
-                    ? `SELECT employee_id AS id, fcmToken FROM company_employees WHERE employee_id IN (${user_ids.map(() => '?').join(',')}) AND fcmToken IS NOT NULL`
-                    : `SELECT employee_id AS id, fcmToken FROM company_employees WHERE fcmToken IS NOT NULL`;
+                    ? `SELECT employee_id AS id, fcmToken, email FROM company_employees WHERE employee_id IN (${user_ids.map(() => '?').join(',')})`
+                    : `SELECT employee_id AS id, fcmToken, email FROM company_employees`;
                 queryParams = user_ids || [];
                 break;
 
             case 'admin':
-                tokenQuery = `SELECT id, fcmToken FROM admin WHERE fcmToken IS NOT NULL`;
+                tokenQuery = `SELECT id, fcmToken, email FROM admin`;
                 break;
 
             default:
                 return res.status(400).json({ message: "Invalid user type" });
         }
 
-        const [tokenRows] = await db.query(tokenQuery, queryParams);
-        const tokens = tokenRows.map(row => row.fcmToken).filter(Boolean);
+        const [rows] = await db.query(tokenQuery, queryParams);
 
-        if (tokens.length === 0) {
-            return res.status(404).json({ message: "No FCM tokens found for specified users" });
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "No users found for the specified filter" });
         }
 
-        const message = {
-            notification: { title, body },
-            data: data || {},
-            tokens,
-        };
+        let successCount = 0, failureCount = 0, dbFailureCount = 0;
 
-        let successCount = 0;
-        let failureCount = 0;
-        let dbFailureCount = 0;
-
-        const response = await admin.messaging().sendEachForMulticast(message);
-
-        // Store notification per user
-        for (let i = 0; i < tokenRows.length; i++) {
-            const row = tokenRows[i];
-            const sendSuccess = response.responses[i]?.success;
-
-            if (sendSuccess) {
-                successCount++;
-                try {
-                    await db.query(
-                        `INSERT INTO notifications (user_type, user_id, title, body, data, sent_at)
-             VALUES (?, ?, ?, ?, ?, NOW())`,
-                        [user_type, row.id, title, body, JSON.stringify(data || {})]
-                    );
-                } catch (dbErr) {
-                    dbFailureCount++;
-                    console.error(`Failed to store notification in DB for user_id ${row.id}:`, dbErr.message);
-                }
-            } else {
-                failureCount++;
-                console.error(`Failed to send notification to token: ${row.fcmToken}`, response.responses[i]?.error);
+        if (channel === "notification") {
+            // Push Notifications (FCM)
+            const tokens = rows.map(r => r.fcmToken).filter(Boolean);
+            if (tokens.length === 0) {
+                return res.status(404).json({ message: "No FCM tokens available" });
             }
+
+            const message = {
+                notification: { title, body },
+                data: data || {},
+                tokens,
+            };
+
+            const response = await admin.messaging().sendEachForMulticast(message);
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const sendSuccess = response.responses[i]?.success;
+                if (sendSuccess) {
+                    successCount++;
+                    try {
+                        await db.query(
+                            `INSERT INTO notifications (user_type, user_id, title, body, data, sent_at)
+                             VALUES (?, ?, ?, ?, ?, NOW())`,
+                            [user_type, row.id, title, body, JSON.stringify(data || {})]
+                        );
+                    } catch (dbErr) {
+                        dbFailureCount++;
+                        console.error(`DB insert failed for user_id ${row.id}:`, dbErr.message);
+                    }
+                } else {
+                    failureCount++;
+                    console.error(`FCM failed for token: ${row.fcmToken}`, response.responses[i]?.error);
+                }
+            }
+
+        } else if (channel === "mail") {
+            // Send Email
+            for (const row of rows) {
+                if (!row.email) continue;
+                try {
+                    await transporter.sendMail({
+                        from: process.env.EMAIL_USER || "noreply@homiqly.com",
+                        to: row.email,
+                        subject: title,
+                        html: `
+                            <h2>${title}</h2>
+                            <p>${body}</p>
+                            <pre>${JSON.stringify(data || {}, null, 2)}</pre>
+                        `
+                    });
+
+                    successCount++;
+                    try {
+                        await db.query(
+                            `INSERT INTO notifications (user_type, user_id, title, body, data, sent_at)
+                             VALUES (?, ?, ?, ?, ?, NOW())`,
+                            [user_type, row.id, title, body, JSON.stringify(data || {})]
+                        );
+                    } catch (dbErr) {
+                        dbFailureCount++;
+                        console.error(`DB insert failed for user_id ${row.id}:`, dbErr.message);
+                    }
+                } catch (mailErr) {
+                    failureCount++;
+                    console.error(`Email failed for ${row.email}:`, mailErr.message);
+                }
+            }
+        } else {
+            return res.status(400).json({ message: "Invalid channel. Must be 'notification' or 'mail'" });
         }
 
         res.status(200).json({
-            message: "Notifications processed",
+            message: `Notifications processed via ${channel}`,
             success_count: successCount,
             failure_count: failureCount,
             db_failure_count: dbFailureCount,
@@ -102,10 +147,7 @@ const sendNotification = asyncHandler(async (req, res) => {
 
     } catch (error) {
         console.error("Error sending notifications:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message,
-        });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
 
