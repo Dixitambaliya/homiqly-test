@@ -8,7 +8,7 @@ const nodemailer = require("nodemailer");
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000; // 10 minutes
 
-const transport = nodemailer.createTransporter({
+const transport = nodemailer.createTransport({
     service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,
