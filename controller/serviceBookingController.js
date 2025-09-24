@@ -924,7 +924,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         }
 
         const blocking = [1, 3]; // statuses that block the vendor
-        const vendorBreakMinutes = 60; // vendor break after booking (can be made dynamic)
+        const vendorBreakMinutes = 60; // vendor break after booking
 
         const sql = `
             SELECT
@@ -944,7 +944,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             LEFT JOIN vendor_package_items vpi ON vpi.vendor_packages_id = vp.vendor_packages_id
             LEFT JOIN package_items pi ON pi.item_id = vpi.package_item_id
             LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-            LEFT JOIN vendor_service_ratings r ON r.vendor_id = v.vendor_id
+            LEFT JOIN service_booking sb_rating ON sb_rating.vendor_id = v.vendor_id
+            LEFT JOIN ratings r ON r.booking_id = sb_rating.booking_id AND r.package_id = vp.package_id
             WHERE vst.manual_assignment_enabled = 1
             AND (? IS NULL OR vp.package_id = ?)
             AND (? IS NULL OR vpi.package_item_id = ?)
@@ -991,6 +992,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
