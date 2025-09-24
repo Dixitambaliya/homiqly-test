@@ -16,7 +16,6 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-
 const getVendor = asyncHandler(async (req, res) => {
     try {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
