@@ -441,7 +441,7 @@ const getCartDetails = asyncHandler(async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ message: "Cart not found" });
+            return res.status(204).json({ message: "Cart not found" });
         }
 
         res.status(200).json({
