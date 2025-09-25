@@ -242,7 +242,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
   const paymentIntent = event.data.object;
   const paymentIntentId = paymentIntent.id;
 
-  // Only handle manual capture flow
+  // Only handle manual capture events
   if (event.type === "payment_intent.amount_capturable_updated") {
     const connection = await db.getConnection();
     try {
@@ -250,15 +250,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // 🔎 Find payment + cart
       const [rows] = await connection.query(
-        `SELECT cart_id, user_id FROM payments WHERE payment_intent_id = ? LIMIT 1`,
+        `SELECT cart_id, user_id, status FROM payments WHERE payment_intent_id = ? LIMIT 1`,
         [paymentIntentId]
       );
 
       if (!rows.length) {
         console.warn("⚠️ No cart found for payment intent:", paymentIntentId);
-        await stripe.paymentIntents.cancel(paymentIntentId, {
-          cancellation_reason: "abandoned"
-        });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Cart not found' WHERE payment_intent_id = ?`,
           [paymentIntentId]
@@ -267,7 +264,14 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return;
       }
 
-      const { cart_id, user_id } = rows[0];
+      const { cart_id, user_id, status } = rows[0];
+
+      // ✅ Prevent double processing
+      if (status === "completed") {
+        console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
+        await connection.commit();
+        return;
+      }
 
       // 🔎 Fetch cart
       const [[cart]] = await connection.query(
@@ -277,9 +281,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       if (!cart || !cart.bookingDate || !cart.bookingTime || !cart.vendor_id) {
         console.warn("⚠️ Incomplete cart:", cart_id);
-        await stripe.paymentIntents.cancel(paymentIntentId, {
-          cancellation_reason: "abandoned"
-        });
+        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Incomplete cart data' WHERE payment_intent_id = ?`,
           [paymentIntentId]
@@ -296,9 +298,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       if (!cartPackages.length) {
         console.warn("⚠️ No package in cart:", cart_id);
-        await stripe.paymentIntents.cancel(paymentIntentId, {
-          cancellation_reason: "abandoned"
-        });
+        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'No package selected' WHERE payment_intent_id = ?`,
           [paymentIntentId]
@@ -312,9 +312,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // ✅ Create booking (payment pending)
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-    (user_id, service_id, bookingDate, bookingTime,
-     vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (user_id, service_id, bookingDate, bookingTime,
+           vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
           cart.service_id,
@@ -333,25 +333,19 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       const booking_id = insertBooking.insertId;
       console.log(`✅ Booking #${booking_id} created from Cart #${cart_id}`);
 
-      // =============================
-      // 🔽 Move cart data to booking
-      // =============================
-
-      // ✅ Packages (required)
+      // ✅ Move cart data to booking
       await connection.query(
         `INSERT INTO service_booking_packages (booking_id, package_id)
-   SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
+         SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
 
-      // ✅ Sub-packages (required if packages exist)
       await connection.query(
         `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
-   SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
+         SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
 
-      // ✅ Preferences (optional)
       const [preferences] = await connection.query(
         `SELECT preference_id FROM cart_preferences WHERE cart_id = ?`,
         [cart_id]
@@ -359,12 +353,11 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       if (preferences.length > 0) {
         await connection.query(
           `INSERT INTO service_booking_preferences (booking_id, preference_id)
-     SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
+           SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
           [booking_id, cart_id]
         );
       }
 
-      // ✅ Consents (optional)
       const [consents] = await connection.query(
         `SELECT consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
         [cart_id]
@@ -377,7 +370,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         );
       }
 
-      // ✅ Addons (optional)
       const [addons] = await connection.query(
         `SELECT addon_id, package_id, price FROM cart_addons WHERE cart_id = ?`,
         [cart_id]
@@ -389,7 +381,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           [booking_id, cart_id]
         );
       }
-
 
       // ✅ Capture payment **after booking success**
       await stripe.paymentIntents.capture(paymentIntentId);
@@ -405,7 +396,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         [booking_id]
       );
 
-      // Clear cart
+      // ✅ Clear cart
       await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_packages WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
@@ -416,7 +407,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       await connection.commit();
       console.log(`✅ Booking transaction fully completed for booking #${booking_id}`);
 
-      // Optional: send receipt email...
+      // Optional: send receipt email
       const [[bookingInfo]] = await connection.query(
         `SELECT sb.bookingDate, sb.bookingTime, u.firstName, u.lastName, u.email
          FROM service_booking sb
@@ -449,7 +440,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       await connection.rollback();
       try {
         await stripe.paymentIntents.cancel(paymentIntentId, {
-          cancellation_reason: "abandoned"
+          cancellation_reason: "abandoned",
         });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ?`,
@@ -465,6 +456,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     console.log("ℹ️ Ignored event type:", event.type);
   }
 });
+
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;
