@@ -318,7 +318,10 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         );
 
         if (cartRows.length === 0) {
-            return res.status(204).json({ message: "No cart found for this package" });
+            // ✅ Return a message clearly indicating no cart
+            return res.status(200).json({
+                message: "No cart found for this package"
+            });
         }
 
         let cart_id = cartRows[0].cart_id;
@@ -473,7 +476,10 @@ const getCartDetails = asyncHandler(async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return res.status(204).json({ message: "Cart not found" });
+            // ✅ Return a message clearly indicating no cart
+            return res.status(200).json({
+                message: "No cart found for this package"
+            });
         }
 
         res.status(200).json({
