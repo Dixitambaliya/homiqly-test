@@ -4,15 +4,14 @@ const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-
     const { service_id, packages, preferences = [], consents = [] } = req.body;
 
     if (!service_id) return res.status(400).json({ message: "service_id is required" });
     if (!packages || packages.length === 0) return res.status(400).json({ message: "At least one package is required to add to cart" });
 
-    let parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
-    let parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-    let parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
+    const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+    const parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
+    const parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -20,7 +19,7 @@ const addToCartService = asyncHandler(async (req, res) => {
     try {
         const createdOrUpdatedCarts = [];
 
-        // Step 0: Remove old packages not in request
+        // Remove old packages not in request
         const [existingPackages] = await connection.query(
             `SELECT package_id, cart_id FROM service_cart WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
             [user_id, service_id]
@@ -42,7 +41,7 @@ const addToCartService = asyncHandler(async (req, res) => {
             await connection.query("DELETE FROM service_cart WHERE cart_id = ?", [cart_id]);
         }
 
-        // Step 1: Process incoming packages
+        // Process incoming packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [], addons = [], consents: packageConsents = [] } = pkg;
 
@@ -56,19 +55,17 @@ const addToCartService = asyncHandler(async (req, res) => {
             if (existingCart.length > 0) {
                 cart_id = existingCart[0].cart_id;
 
-                // clean old children
+                // Clean old children
                 await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
             } else {
-                // insert new cart row
                 const [insertCart] = await connection.query(
                     `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus) VALUES (?, ?, ?, 0)`,
                     [user_id, service_id, package_id]
                 );
                 cart_id = insertCart.insertId;
-
                 await connection.query("INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)", [cart_id, package_id]);
             }
 
@@ -85,9 +82,10 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
 
-                // Insert consents linked to this sub-package
-                const linkedConsents = packageConsents.filter(c => c.consent_id);
-                for (const consent of linkedConsents) {
+                // Insert package-specific consents
+                for (const consent of packageConsents) {
+                    if (!consent.consent_id) continue;
+
                     await connection.query(
                         `INSERT INTO cart_consents (cart_id, package_item_id, consent_id, answer)
                          VALUES (?, ?, ?, ?)`,
@@ -96,17 +94,15 @@ const addToCartService = asyncHandler(async (req, res) => {
                 }
             }
 
-            // Top-level consents (not tied to sub-package)
+            // Top-level consents (assigned to first sub-package if exists)
+            const firstPackageItemId = sub_packages[0]?.sub_package_id || null;
             for (const consent of parsedConsents) {
                 if (!consent.consent_id) continue;
-
-                // Assign to first sub-package if exists, otherwise null
-                const package_item_id = sub_packages[0]?.sub_package_id || null;
 
                 await connection.query(
                     `INSERT INTO cart_consents (cart_id, package_item_id, consent_id, answer)
                      VALUES (?, ?, ?, ?)`,
-                    [cart_id, package_item_id, consent.consent_id, consent.answer || null]
+                    [cart_id, firstPackageItemId, consent.consent_id, consent.answer || null]
                 );
             }
 
