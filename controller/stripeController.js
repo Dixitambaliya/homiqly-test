@@ -428,7 +428,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       await connection.commit();
       console.log(`✅ Booking transaction fully completed for booking #${booking_id}`);
-      
+
 
       // Optional: send receipt email
       const [[bookingInfo]] = await connection.query(
@@ -528,3 +528,32 @@ exports.getVendorBookings = asyncHandler(async (req, res) => {
   res.json(rows);
 });
 
+exports.getPaymentStatus = asyncHandler(async (req, res) => {
+  const { paymentIntentId } = req.query;
+
+  if (!paymentIntentId) {
+    return res.status(400).json({ error: "payment_intent_id is required" });
+  }
+
+  // Fetch payment + booking info
+  const [rows] = await db.query(
+    `SELECT p.status as payment_status, p.cart_id, sb.booking_id, sb.bookingStatus
+     FROM payments p
+     LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+     WHERE p.payment_intent_id = ? LIMIT 1`,
+    [paymentIntentId]
+  );
+
+  if (!rows.length) {
+    return res.status(404).json({ error: "Payment not found" });
+  }
+
+  const payment = rows[0];
+
+  res.status(200).json({
+    payment_status: payment.payment_status,        // pending / completed / failed
+    booking_status: payment.bookingStatus || null, // confirmed / pending / null
+    booking_id: payment.booking_id || null,
+    cart_id: payment.cart_id,
+  });
+});
