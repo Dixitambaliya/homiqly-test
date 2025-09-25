@@ -129,6 +129,10 @@ const DashboardLayout = () => {
       icon: <FiTool className="w-5 h-5" />,
       children: [
         {
+          path: "/admin/promocodes",
+          name: "Promo Codes",
+        },
+        {
           path: "/admin/settings/general",
           name: "General Settings",
         },
