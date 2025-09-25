@@ -312,9 +312,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // ✅ Create booking (payment pending)
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-          (user_id, service_id, bookingDate, bookingTime,
-           vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    (user_id, service_id, bookingDate, bookingTime,
+     vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
           cart.service_id,
@@ -333,19 +333,25 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       const booking_id = insertBooking.insertId;
       console.log(`✅ Booking #${booking_id} created from Cart #${cart_id}`);
 
-      // ✅ Move cart data to booking
+      // =============================
+      // 🔽 Move cart data to booking
+      // =============================
+
+      // ✅ Packages (required)
       await connection.query(
         `INSERT INTO service_booking_packages (booking_id, package_id)
-         SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
+   SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
 
+      // ✅ Sub-packages (required if packages exist)
       await connection.query(
         `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
-         SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
+   SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
 
+      // ✅ Preferences (optional)
       const [preferences] = await connection.query(
         `SELECT preference_id FROM cart_preferences WHERE cart_id = ?`,
         [cart_id]
@@ -353,23 +359,39 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       if (preferences.length > 0) {
         await connection.query(
           `INSERT INTO service_booking_preferences (booking_id, preference_id)
-           SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
+     SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
           [booking_id, cart_id]
         );
       }
 
-      const [consents] = await connection.query(
+      // ✅ Consents (optional + FK-safe)
+      const [cartConsents] = await connection.query(
         `SELECT consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
         [cart_id]
       );
-      if (consents.length > 0) {
-        await connection.query(
-          `INSERT INTO service_booking_consents (booking_id, consent_id, package_id, answer)
-           SELECT ?, consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
-          [booking_id, cart_id]
+      if (cartConsents.length > 0) {
+        // Only insert consents that exist in package_consent_forms to avoid FK errors
+        const [validConsents] = await connection.query(
+          `SELECT c.consent_id, c.package_id, c.answer
+     FROM cart_consents c
+     JOIN package_consent_forms pcf ON c.consent_id = pcf.consent_id
+     WHERE c.cart_id = ?`,
+          [cart_id]
         );
+
+        if (validConsents.length > 0) {
+          for (const consent of validConsents) {
+            await connection.query(
+              `INSERT INTO service_booking_consents (booking_id, consent_id, package_id, answer)
+         VALUES (?, ?, ?, ?)`,
+              [booking_id, consent.consent_id, consent.package_id, consent.answer]
+            );
+          }
+          console.log(`✅ Inserted ${validConsents.length} consents for booking #${booking_id}`);
+        }
       }
 
+      // ✅ Addons (optional)
       const [addons] = await connection.query(
         `SELECT addon_id, package_id, price FROM cart_addons WHERE cart_id = ?`,
         [cart_id]
@@ -377,7 +399,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       if (addons.length > 0) {
         await connection.query(
           `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
-           SELECT ?, package_id, addon_id, price FROM cart_addons WHERE cart_id = ?`,
+     SELECT ?, package_id, addon_id, price FROM cart_addons WHERE cart_id = ?`,
           [booking_id, cart_id]
         );
       }
@@ -386,7 +408,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       await stripe.paymentIntents.capture(paymentIntentId);
       console.log(`💰 Payment captured for PaymentIntent ${paymentIntentId}`);
 
-      // Update payment and booking status
+      // ✅ Update payment & booking status
       await connection.query(
         `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
         [paymentIntentId]
@@ -396,7 +418,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         [booking_id]
       );
 
-      // ✅ Clear cart
+      // ✅ Clear cart (deleting empty rows is safe)
       await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_packages WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
@@ -406,6 +428,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       await connection.commit();
       console.log(`✅ Booking transaction fully completed for booking #${booking_id}`);
+      
 
       // Optional: send receipt email
       const [[bookingInfo]] = await connection.query(
