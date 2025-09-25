@@ -350,7 +350,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         [booking_id, cart_id]
       );
       await connection.query(
-        `INSERT INTO service_booking_consents (booking_id, package_id, consent_id, answer)
+        `INSERT INTO service_booking_consents (booking_id, consent_id, package_id, answer)
          SELECT ?, consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
