@@ -4,14 +4,48 @@ const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { service_id, packages, preferences = [], consents = [] } = req.body;
 
-    if (!service_id) return res.status(400).json({ message: "service_id is required" });
-    if (!packages || packages.length === 0) return res.status(400).json({ message: "At least one package is required to add to cart" });
+    const {
+        service_id,
+        packages,
+        preferences = [],
+        consents = [] // top-level consents
+    } = req.body;
 
-    const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
-    const parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
-    const parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
+    if (!service_id) {
+        return res.status(400).json({ message: "service_id is required" });
+    }
+
+    if (!packages) {
+        return res.status(400).json({
+            message: "At least one package is required to add to cart"
+        });
+    }
+
+    let parsedPackages = [];
+    let parsedPreferences = [];
+    let parsedConsents = [];
+
+    try {
+        parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        if (!Array.isArray(parsedPackages) || parsedPackages.length === 0) {
+            return res.status(400).json({ message: "'packages' must be a non-empty array." });
+        }
+    } catch (e) {
+        return res.status(400).json({ message: "'packages' must be valid JSON.", error: e.message });
+    }
+
+    try {
+        parsedPreferences = typeof preferences === "string" ? JSON.parse(preferences) : preferences;
+    } catch (e) {
+        return res.status(400).json({ message: "Invalid preferences JSON", error: e.message });
+    }
+
+    try {
+        parsedConsents = typeof consents === "string" ? JSON.parse(consents) : consents;
+    } catch (e) {
+        return res.status(400).json({ message: "Invalid consents JSON", error: e.message });
+    }
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -19,15 +53,17 @@ const addToCartService = asyncHandler(async (req, res) => {
     try {
         const createdOrUpdatedCarts = [];
 
-        // Remove old packages not in request
+        // Step 0: Get existing packages in this cart
         const [existingPackages] = await connection.query(
-            `SELECT package_id, cart_id FROM service_cart WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
+            `SELECT package_id, cart_id FROM service_cart 
+       WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
             [user_id, service_id]
         );
 
         const existingPackageIds = existingPackages.map(row => row.package_id);
         const newPackageIds = parsedPackages.map(pkg => pkg.package_id);
 
+        // Step 1: Remove packages no longer in request
         for (const packageId of existingPackageIds.filter(id => !newPackageIds.includes(id))) {
             const cart = existingPackages.find(row => row.package_id === packageId);
             if (!cart) continue;
@@ -41,31 +77,34 @@ const addToCartService = asyncHandler(async (req, res) => {
             await connection.query("DELETE FROM service_cart WHERE cart_id = ?", [cart_id]);
         }
 
-        // Process incoming packages
+        // Step 2: Process incoming packages
         for (const pkg of parsedPackages) {
-            const { package_id, sub_packages = [], addons = [], consents: packageConsents = [] } = pkg;
+            const { package_id, sub_packages = [], addons = [] } = pkg;
 
             // Check if cart exists
             const [existingCart] = await connection.query(
-                `SELECT cart_id FROM service_cart WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
+                `SELECT cart_id FROM service_cart 
+         WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
                 [user_id, service_id, package_id]
             );
 
             let cart_id;
             if (existingCart.length > 0) {
                 cart_id = existingCart[0].cart_id;
-
                 // Clean old children
                 await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
             } else {
+                // Insert new cart row
                 const [insertCart] = await connection.query(
-                    `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus) VALUES (?, ?, ?, 0)`,
+                    `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
+           VALUES (?, ?, ?, 0)`,
                     [user_id, service_id, package_id]
                 );
                 cart_id = insertCart.insertId;
+
                 await connection.query("INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)", [cart_id, package_id]);
             }
 
@@ -75,56 +114,55 @@ const addToCartService = asyncHandler(async (req, res) => {
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
-
                 await connection.query(
                     `INSERT INTO cart_package_items (cart_id, sub_package_id, price, package_id, item_id, quantity)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?)`,
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
-
-                // Insert package-specific consents
-                for (const consent of packageConsents) {
-                    if (!consent.consent_id) continue;
-
-                    await connection.query(
-                        `INSERT INTO cart_consents (cart_id, package_item_id, consent_id, answer)
-                         VALUES (?, ?, ?, ?)`,
-                        [cart_id, sub_package_id, consent.consent_id, consent.answer || null]
-                    );
-                }
             }
 
-            // Top-level consents (assigned to first sub-package if exists)
-            const firstPackageItemId = sub_packages[0]?.sub_package_id || null;
-            for (const consent of parsedConsents) {
-                if (!consent.consent_id) continue;
-
+            // Insert addons
+            for (const addon of addons) {
+                const { addon_id, price = 0 } = addon;
+                if (!addon_id) continue;
                 await connection.query(
-                    `INSERT INTO cart_consents (cart_id, package_item_id, consent_id, answer)
-                     VALUES (?, ?, ?, ?)`,
-                    [cart_id, firstPackageItemId, consent.consent_id, consent.answer || null]
+                    "INSERT INTO cart_addons (cart_id, package_id, addon_id, price) VALUES (?, ?, ?, ?)",
+                    [cart_id, package_id, addon_id, price]
                 );
             }
 
-            // Preferences
+            // Insert preferences
             for (const pref of parsedPreferences) {
                 const preference_id = typeof pref === "object" ? pref.preference_id : pref;
                 if (!preference_id) continue;
-
                 await connection.query(
                     "INSERT INTO cart_preferences (cart_id, package_id, preference_id) VALUES (?, ?, ?)",
                     [cart_id, package_id, preference_id]
                 );
             }
+            // // Insert **consents**
+            // // 1. Consents inside package (if provided)
+            // if (pkg.consents?.length) {
+            //     for (const consent of pkg.consents) {
+            //         const { consent_id, answer = null } = consent;
+            //         if (!consent_id) continue;
+            //         await connection.query(
+            //             `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+            //  VALUES (?, ?, ?, ?)`,
+            //             [cart_id, package_id, consent_id, answer]
+            //         );
+            //     }
+            // }
 
-            // Addons
-            for (const addon of addons) {
-                const { addon_id, price = 0 } = addon;
-                if (!addon_id) continue;
-
+            // 2. Top-level consents (from request)
+            for (const consent of parsedConsents) {
+                const { consent_id, answer = null } = consent;
+                if (!consent_id) continue;
+                // Assign to first package
                 await connection.query(
-                    "INSERT INTO cart_addons (cart_id, package_id, addon_id, price) VALUES (?, ?, ?, ?)",
-                    [cart_id, package_id, addon_id, price]
+                    `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+           VALUES (?, ?, ?, ?)`,
+                    [cart_id, package_id, consent_id, answer]
                 );
             }
         }
@@ -132,7 +170,10 @@ const addToCartService = asyncHandler(async (req, res) => {
         await connection.commit();
         connection.release();
 
-        res.status(200).json({ message: "Cart updated successfully", cart_ids: createdOrUpdatedCarts });
+        res.status(200).json({
+            message: "Cart updated successfully",
+            cart_ids: createdOrUpdatedCarts
+        });
 
     } catch (err) {
         await connection.rollback();
@@ -141,7 +182,6 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
-
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -306,7 +346,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             ca.price
              FROM cart_addons ca
              LEFT JOIN package_addons pa ON ca.addon_id = pa.addon_id
-             WHERE ca.cart_id = ? AND ca.package_item_id = ?`,
+             WHERE ca.cart_id = ? AND ca.package_id = ?`,
             [cart_id, package_id]
         );
 
