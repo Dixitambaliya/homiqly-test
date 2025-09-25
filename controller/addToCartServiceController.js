@@ -9,7 +9,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         service_id,
         packages,
         preferences = [],
-        consents = []
+        consents = [] // top-level consents
     } = req.body;
 
     if (!service_id) {
@@ -32,7 +32,7 @@ const addToCartService = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "'packages' must be a non-empty array." });
         }
     } catch (e) {
-        return res.status(400).json({ message: "'packages' must be a valid JSON array.", error: e.message });
+        return res.status(400).json({ message: "'packages' must be valid JSON.", error: e.message });
     }
 
     try {
@@ -51,122 +51,118 @@ const addToCartService = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        let createdOrUpdatedCarts = [];
+        const createdOrUpdatedCarts = [];
 
-        // 🔎 Step 0: Get all existing packages in this cart
+        // Step 0: Get existing packages in this cart
         const [existingPackages] = await connection.query(
-            `SELECT package_id, cart_id 
-             FROM service_cart 
-             WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
+            `SELECT package_id, cart_id FROM service_cart 
+       WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
             [user_id, service_id]
         );
 
         const existingPackageIds = existingPackages.map(row => row.package_id);
         const newPackageIds = parsedPackages.map(pkg => pkg.package_id);
 
-        // 🧹 Step 1: Remove packages that are no longer in request
-        const packagesToRemove = existingPackageIds.filter(id => !newPackageIds.includes(id));
-
-        for (const packageId of packagesToRemove) {
+        // Step 1: Remove packages no longer in request
+        for (const packageId of existingPackageIds.filter(id => !newPackageIds.includes(id))) {
             const cart = existingPackages.find(row => row.package_id === packageId);
             if (!cart) continue;
-
             const cart_id = cart.cart_id;
 
-            // delete children first
             await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
             await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
             await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
             await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
             await connection.query("DELETE FROM cart_packages WHERE cart_id = ? AND package_id = ?", [cart_id, packageId]);
-
-            // finally delete cart row
             await connection.query("DELETE FROM service_cart WHERE cart_id = ?", [cart_id]);
         }
 
-        // 🆕 Step 2: Process incoming packages
+        // Step 2: Process incoming packages
         for (const pkg of parsedPackages) {
-            const { package_id = null, sub_packages = [], addons = [] } = pkg;
+            const { package_id, sub_packages = [], addons = [] } = pkg;
 
-            // check if this cart already exists
+            // Check if cart exists
             const [existingCart] = await connection.query(
                 `SELECT cart_id FROM service_cart 
-                 WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0
-                 LIMIT 1`,
+         WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
                 [user_id, service_id, package_id]
             );
 
             let cart_id;
             if (existingCart.length > 0) {
                 cart_id = existingCart[0].cart_id;
-
-                // 🧹 clean old children before inserting new
+                // Clean old children
                 await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
                 await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND package_id = ?", [cart_id, package_id]);
-
             } else {
-                // insert new cart row
+                // Insert new cart row
                 const [insertCart] = await connection.query(
                     `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
-                     VALUES (?, ?, ?, ?)`,
-                    [user_id, service_id, package_id, 0]
+           VALUES (?, ?, ?, 0)`,
+                    [user_id, service_id, package_id]
                 );
                 cart_id = insertCart.insertId;
 
-                // also insert into cart_packages
-                await connection.query(
-                    "INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)",
-                    [cart_id, package_id]
-                );
+                await connection.query("INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)", [cart_id, package_id]);
             }
 
             createdOrUpdatedCarts.push(cart_id);
 
-            // insert sub-packages
+            // Insert sub-packages
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
-
                 await connection.query(
-                    `INSERT INTO cart_package_items
-                     (cart_id, sub_package_id, price, package_id, item_id, quantity)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO cart_package_items (cart_id, sub_package_id, price, package_id, item_id, quantity)
+           VALUES (?, ?, ?, ?, ?, ?)`,
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
 
-            // insert addons
+            // Insert addons
             for (const addon of addons) {
                 const { addon_id, price = 0 } = addon;
                 if (!addon_id) continue;
-
                 await connection.query(
                     "INSERT INTO cart_addons (cart_id, package_id, addon_id, price) VALUES (?, ?, ?, ?)",
                     [cart_id, package_id, addon_id, price]
                 );
             }
 
-            // insert preferences
+            // Insert preferences
             for (const pref of parsedPreferences) {
                 const preference_id = typeof pref === "object" ? pref.preference_id : pref;
                 if (!preference_id) continue;
-
                 await connection.query(
                     "INSERT INTO cart_preferences (cart_id, package_id, preference_id) VALUES (?, ?, ?)",
                     [cart_id, package_id, preference_id]
                 );
             }
 
-            // insert consents
+            // Insert **consents**
+            // 1. Consents inside package (if provided)
+            if (pkg.consents?.length) {
+                for (const consent of pkg.consents) {
+                    const { consent_id, answer = null } = consent;
+                    if (!consent_id) continue;
+                    await connection.query(
+                        `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+             VALUES (?, ?, ?, ?)`,
+                        [cart_id, package_id, consent_id, answer]
+                    );
+                }
+            }
+
+            // 2. Top-level consents (from request)
             for (const consent of parsedConsents) {
                 const { consent_id, answer = null } = consent;
                 if (!consent_id) continue;
-
+                // Assign to first package
                 await connection.query(
                     `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
-                     VALUES (?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?)`,
                     [cart_id, package_id, consent_id, answer]
                 );
             }
