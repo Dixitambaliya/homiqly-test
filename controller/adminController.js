@@ -1719,7 +1719,6 @@ const deleteEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 module.exports = {
     getVendor,
     getAllServiceType,
