@@ -141,19 +141,19 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Insert **consents**
-            // 1. Consents inside package (if provided)
-            if (pkg.consents?.length) {
-                for (const consent of pkg.consents) {
-                    const { consent_id, answer = null } = consent;
-                    if (!consent_id) continue;
-                    await connection.query(
-                        `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
-             VALUES (?, ?, ?, ?)`,
-                        [cart_id, package_id, consent_id, answer]
-                    );
-                }
-            }
+            // // Insert **consents**
+            // // 1. Consents inside package (if provided)
+            // if (pkg.consents?.length) {
+            //     for (const consent of pkg.consents) {
+            //         const { consent_id, answer = null } = consent;
+            //         if (!consent_id) continue;
+            //         await connection.query(
+            //             `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
+            //  VALUES (?, ?, ?, ?)`,
+            //             [cart_id, package_id, consent_id, answer]
+            //         );
+            //     }
+            // }
 
             // 2. Top-level consents (from request)
             for (const consent of parsedConsents) {
