@@ -306,7 +306,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             ca.price
              FROM cart_addons ca
              LEFT JOIN package_addons pa ON ca.addon_id = pa.addon_id
-             WHERE ca.cart_id = ? AND ca.package_id = ?`,
+             WHERE ca.cart_id = ? AND ca.package_item_id = ?`,
             [cart_id, package_id]
         );
 
