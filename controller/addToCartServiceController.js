@@ -351,6 +351,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         // ✅ Fetch sub-packages
         const [subPackages] = await db.query(
             `SELECT 
+            pt.item_id,
             cpi.cart_package_items_id, 
             pt.itemName,
             pt.description,
@@ -365,6 +366,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         // ✅ Fetch addons
         const [addons] = await db.query(
             `SELECT 
+            pa.addon_id,
             ca.cart_addon_id, 
             pa.addonName,
             pa.addonDescription,
@@ -378,6 +380,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         // ✅ Fetch preferences
         const [preferences] = await db.query(
             `SELECT 
+             bp.preference_id,
              cp.cart_preference_id, 
              bp.preferenceValue
              FROM cart_preferences cp
@@ -389,8 +392,8 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         // ✅ Fetch consents
         const [consents] = await db.query(
             `SELECT 
-            cc.cart_consent_id, 
-
+            pcf.consent_id,
+            cc.cart_consent_id,
             pcf.question, 
             cc.answer
              FROM cart_consents cc
