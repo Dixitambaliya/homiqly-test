@@ -90,6 +90,30 @@ JOIN package_addons a ON sba.addon_id = a.addon_id
 WHERE sba.booking_id = ?
 `,
 
+    getUserBookedConsents: `
+        SELECT 
+        c.consent_id,
+        c.question,
+        sbc.answer,
+        sbc.package_id
+    FROM service_booking_consents sbc
+    LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+    WHERE sbc.booking_id = ? `,
+
+    getUserBookedPromos: `
+        SELECT 
+        upu.booking_id, 
+        upu.promo_id, 
+        upu.user_id, 
+        upu.usage_count,
+        pc.code AS promoCode, 
+        pc.discountValue, 
+        pc.minSpend, 
+        pc.maxUse
+    FROM user_promo_usage upu
+    LEFT JOIN promo_codes pc ON upu.promo_id = pc.promo_id
+    WHERE upu.booking_id = ? AND upu.user_id = ?`,
+
     getVendorIdForBooking: `
     SELECT 
     vendorType 
@@ -150,6 +174,8 @@ WHERE sba.booking_id = ?
                     LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
                     WHERE sp.booking_id = ?
 `,
+
+
     getBoookedConsents:
         `SELECT 
         c.consent_id,

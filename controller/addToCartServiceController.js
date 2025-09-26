@@ -9,7 +9,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         service_id,
         packages,
         preferences = [],
-        consents = [] // top-level consents
+        consents = [],
+        promoCode // ✅ Optional promo code
     } = req.body;
 
     if (!service_id) {
@@ -48,22 +49,36 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 
     const connection = await db.getConnection();
+    await connection.query(`SET time_zone = '-04:00';`); // for EDT (DST)
     await connection.beginTransaction();
 
     try {
         const createdOrUpdatedCarts = [];
 
-        // Step 0: Get existing packages in this cart
+        // 🔎 Step 0: fetch promo if provided
+        let appliedPromo = null;
+        if (promoCode) {
+            const [[promo]] = await connection.query(
+                `SELECT * FROM promo_codes 
+                 WHERE code = ? 
+                   AND (start_date IS NULL OR start_date <= NOW()) 
+                   AND (end_date IS NULL OR end_date >= NOW())`,
+                [promoCode]
+            );
+            if (promo) appliedPromo = promo;
+        }
+
+        // 🔎 Step 1: Get existing packages in this cart
         const [existingPackages] = await connection.query(
             `SELECT package_id, cart_id FROM service_cart 
-       WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
+             WHERE user_id = ? AND service_id = ? AND bookingStatus = 0`,
             [user_id, service_id]
         );
 
         const existingPackageIds = existingPackages.map(row => row.package_id);
         const newPackageIds = parsedPackages.map(pkg => pkg.package_id);
 
-        // Step 1: Remove packages no longer in request
+        // Remove deleted packages
         for (const packageId of existingPackageIds.filter(id => !newPackageIds.includes(id))) {
             const cart = existingPackages.find(row => row.package_id === packageId);
             if (!cart) continue;
@@ -77,14 +92,14 @@ const addToCartService = asyncHandler(async (req, res) => {
             await connection.query("DELETE FROM service_cart WHERE cart_id = ?", [cart_id]);
         }
 
-        // Step 2: Process incoming packages
+        // 🔎 Step 2: Process incoming packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [], addons = [] } = pkg;
 
             // Check if cart exists
             const [existingCart] = await connection.query(
                 `SELECT cart_id FROM service_cart 
-         WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
+                 WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
                 [user_id, service_id, package_id]
             );
 
@@ -100,7 +115,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 // Insert new cart row
                 const [insertCart] = await connection.query(
                     `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus)
-           VALUES (?, ?, ?, 0)`,
+                     VALUES (?, ?, ?, 0)`,
                     [user_id, service_id, package_id]
                 );
                 cart_id = insertCart.insertId;
@@ -108,15 +123,13 @@ const addToCartService = asyncHandler(async (req, res) => {
                 await connection.query("INSERT INTO cart_packages (cart_id, package_id) VALUES (?, ?)", [cart_id, package_id]);
             }
 
-            createdOrUpdatedCarts.push(cart_id);
-
             // Insert sub-packages
             for (const item of sub_packages) {
                 const { sub_package_id, price = 0, quantity = 1 } = item;
                 if (!sub_package_id) continue;
                 await connection.query(
                     `INSERT INTO cart_package_items (cart_id, sub_package_id, price, package_id, item_id, quantity)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [cart_id, sub_package_id, price, package_id, sub_package_id, quantity]
                 );
             }
@@ -131,7 +144,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Insert preferences
+            // Preferences
             for (const pref of parsedPreferences) {
                 const preference_id = typeof pref === "object" ? pref.preference_id : pref;
                 if (!preference_id) continue;
@@ -140,31 +153,30 @@ const addToCartService = asyncHandler(async (req, res) => {
                     [cart_id, package_id, preference_id]
                 );
             }
-            // // Insert **consents**
-            // // 1. Consents inside package (if provided)
-            // if (pkg.consents?.length) {
-            //     for (const consent of pkg.consents) {
-            //         const { consent_id, answer = null } = consent;
-            //         if (!consent_id) continue;
-            //         await connection.query(
-            //             `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
-            //  VALUES (?, ?, ?, ?)`,
-            //             [cart_id, package_id, consent_id, answer]
-            //         );
-            //     }
-            // }
 
-            // 2. Top-level consents (from request)
+            // Consents
             for (const consent of parsedConsents) {
                 const { consent_id, answer = null } = consent;
                 if (!consent_id) continue;
-                // Assign to first package
                 await connection.query(
                     `INSERT INTO cart_consents (cart_id, package_id, consent_id, answer)
-           VALUES (?, ?, ?, ?)`,
+                     VALUES (?, ?, ?, ?)`,
                     [cart_id, package_id, consent_id, answer]
                 );
             }
+
+            // ✅ Only store promo code ID
+            await connection.query(
+                `UPDATE service_cart 
+                 SET promo_code_id = ? 
+                 WHERE cart_id = ?`,
+                [appliedPromo ? appliedPromo.promo_id : null, cart_id]
+            );
+
+            createdOrUpdatedCarts.push({
+                cart_id,
+                promo: appliedPromo ? appliedPromo.code : null
+            });
         }
 
         await connection.commit();
@@ -172,7 +184,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "Cart updated successfully",
-            cart_ids: createdOrUpdatedCarts
+            carts: createdOrUpdatedCarts
         });
 
     } catch (err) {
@@ -187,7 +199,7 @@ const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // ✅ Fetch all carts for the user (latest first)
+        // Fetch all carts for the user (latest first), including promo code
         const [cartRows] = await db.query(
             `SELECT 
                 sc.cart_id,
@@ -202,10 +214,16 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sc.created_at,
                 sc.bookingDate,
                 sc.bookingTime,
-                p.packageName
+                p.packageName,
+                sc.promo_code_id,
+                pc.code AS promoCode,
+                pc.discountValue,
+                pc.minSpend,
+                pc.maxUse
              FROM service_cart sc
              LEFT JOIN packages p ON sc.package_id = p.package_id
              LEFT JOIN services s ON sc.service_id = s.service_id
+             LEFT JOIN promo_codes pc ON sc.promo_code_id = pc.promo_id
              WHERE sc.user_id = ?
              ORDER BY sc.created_at DESC`,
             [user_id]
@@ -220,7 +238,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         for (const cart of cartRows) {
             const cart_id = cart.cart_id;
 
-            // ✅ Sub-packages
+            // Sub-packages
             const [cartPackageItems] = await db.query(
                 `SELECT
                     cpi.cart_package_items_id,
@@ -235,7 +253,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 [cart_id]
             );
 
-            // ✅ Addons
+            // Addons
             const [cartAddons] = await db.query(
                 `SELECT
                     ca.cart_addon_id,
@@ -248,7 +266,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 [cart_id]
             );
 
-            // ✅ Preferences
+            // Preferences
             const [cartPreferences] = await db.query(
                 `SELECT
                     cp.cart_preference_id,
@@ -260,7 +278,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 [cart_id]
             );
 
-            // ✅ Consents
+            // Consents
             const [cartConsents] = await db.query(
                 `SELECT
                     cc.cart_consent_id,
@@ -285,7 +303,16 @@ const getUserCart = asyncHandler(async (req, res) => {
                     consent_id: con.consent_id,
                     consentText: con.question,
                     answer: con.answer
-                }))
+                })),
+                promo: cart.promoCode
+                    ? {
+                        promo_id: cart.promo_code_id,
+                        code: cart.promoCode,
+                        discountValue: cart.discountValue,
+                        minSpend: cart.minSpend,
+                        maxUse: cart.maxUse
+                    }
+                    : null
             });
         }
 

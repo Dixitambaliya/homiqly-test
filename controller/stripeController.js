@@ -3,8 +3,6 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
 const nodemailer = require("nodemailer");
 
-
-
 // 1. Vendor creates Stripe account
 exports.createStripeAccount = asyncHandler(async (req, res) => {
   const vendorId = req.user.vendor_id;
@@ -129,30 +127,23 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "'cart_id' is required" });
   }
 
-  // ✅ Fetch cart details along with user_id
+  // ✅ Fetch cart details
   const [cartRows] = await db.query(
-    `SELECT sc.cart_id, sc.user_id, sc.vendor_id, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime,
-            sc.package_id, p.packageName
+    `SELECT sc.*, sc.promo_code_id, p.packageName
      FROM service_cart sc
      LEFT JOIN packages p ON sc.package_id = p.package_id
      WHERE sc.cart_id = ?`,
     [cart_id]
   );
 
-  if (cartRows.length === 0) {
-    return res.status(404).json({ error: "Cart not found" });
-  }
-
+  if (cartRows.length === 0) return res.status(404).json({ error: "Cart not found" });
   const cart = cartRows[0];
 
-  // 3️⃣ Validate cart data
   if (!cart.bookingDate || !cart.bookingTime) {
     return res.status(400).json({
-      success: false,
       error: "Incomplete booking details. Please select booking date and time."
     });
   }
-
 
   // ✅ Fetch sub-packages
   const [subPackages] = await db.query(
@@ -172,45 +163,88 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     [cart_id]
   );
 
-  // ✅ Calculate total amount (CAD)
-  let totalAmount = 0;
+  // ✅ Fetch promo if exists
+  let appliedPromo = null;
+  if (cart.promo_code_id) {
+    const [[promo]] = await db.query(
+      `SELECT * FROM promo_codes 
+       WHERE promo_id = ? AND (start_date IS NULL OR start_date <= NOW()) 
+       AND (end_date IS NULL OR end_date >= NOW())`,
+      [cart.promo_code_id]
+    );
+    if (promo) appliedPromo = promo;
+  }
+
+  // ✅ Calculate subtotal
+  let subtotal = 0;
   const metadata = { cart_id };
 
   subPackages.forEach((item, idx) => {
     const quantity = parseInt(item.quantity) || 1;
     const price = parseFloat(item.price) || 0;
-    totalAmount += price * quantity;
+    subtotal += price * quantity;
     metadata[`item_${idx}`] = `${item.itemName || "Item"} x${quantity} @${price}`;
   });
 
   addons.forEach((addon, idx) => {
     const price = parseFloat(addon.price) || 0;
-    totalAmount += price;
+    subtotal += price;
     metadata[`addon_${idx}`] = addon.addonName || "Addon";
   });
 
-  if (totalAmount <= 0) {
-    return res.status(400).json({ error: "Total amount must be greater than 0" });
+  // ✅ Apply percentage discount
+  let discount = 0;
+  let totalAmount = subtotal;
+
+  if (appliedPromo && (!appliedPromo.minSpend || subtotal >= appliedPromo.minSpend)) {
+    discount = appliedPromo.discountValue; // percentage
+    totalAmount = subtotal * (1 - discount / 100);
+    metadata.promo_code = appliedPromo.code;
   }
 
+  metadata.subtotal = subtotal;
+  metadata.discount = discount;
   metadata.totalAmount = totalAmount.toFixed(2);
 
-  // ✅ Create Stripe PaymentIntent
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(totalAmount * 100), // in cents
-    currency: "cad",
-    payment_method_types: ["card"],
-    capture_method: "manual",  // 🔑 manual capture
-    metadata,
-  });
+  if (totalAmount <= 0) return res.status(400).json({ error: "Total amount must be greater than 0" });
 
-
-  // ✅ Save payment record in DB
-  await db.query(
-    `INSERT INTO payments (user_id, payment_intent_id, cart_id, amount, currency, status)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [cart.user_id, paymentIntent.id, cart_id, totalAmount, "cad", "pending"]
+  // ✅ Check if PaymentIntent exists
+  const [existingPayment] = await db.query(
+    `SELECT payment_intent_id FROM payments WHERE cart_id = ? AND status = 'pending' LIMIT 1`,
+    [cart_id]
   );
+
+  let paymentIntent;
+
+  if (existingPayment.length > 0) {
+    // Update existing PaymentIntent
+    paymentIntent = await stripe.paymentIntents.update(existingPayment[0].payment_intent_id, {
+      amount: Math.round(totalAmount * 100),
+      metadata,
+    });
+
+    // Update DB amount
+    await db.query(
+      `UPDATE payments SET amount = ?, currency = 'cad' WHERE payment_intent_id = ?`,
+      [totalAmount, paymentIntent.id]
+    );
+
+  } else {
+    // Create new PaymentIntent
+    paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(totalAmount * 100),
+      currency: "cad",
+      payment_method_types: ["card"],
+      capture_method: "manual",
+      metadata,
+    });
+
+    await db.query(
+      `INSERT INTO payments (user_id, payment_intent_id, cart_id, amount, currency, status)
+       VALUES (?, ?, ?, ?, ?, ?)` ,
+      [cart.user_id, paymentIntent.id, cart_id, totalAmount, "cad", "pending"]
+    );
+  }
 
   res.status(200).json({
     clientSecret: paymentIntent.client_secret,
@@ -242,19 +276,18 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
   const paymentIntent = event.data.object;
   const paymentIntentId = paymentIntent.id;
 
-  // Only handle manual capture events
   if (event.type === "payment_intent.amount_capturable_updated") {
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
 
       // 🔎 Find payment + cart
-      const [rows] = await connection.query(
+      const [paymentRows] = await connection.query(
         `SELECT cart_id, user_id, status FROM payments WHERE payment_intent_id = ? LIMIT 1`,
         [paymentIntentId]
       );
 
-      if (!rows.length) {
+      if (!paymentRows.length) {
         console.warn("⚠️ No cart found for payment intent:", paymentIntentId);
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Cart not found' WHERE payment_intent_id = ?`,
@@ -264,7 +297,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return;
       }
 
-      const { cart_id, user_id, status } = rows[0];
+      const { cart_id, user_id, status } = paymentRows[0];
 
       // ✅ Prevent double processing
       if (status === "completed") {
@@ -312,9 +345,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // ✅ Create booking (payment pending)
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-    (user_id, service_id, bookingDate, bookingTime,
-     vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (user_id, service_id, bookingDate, bookingTime,
+         vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
           cart.service_id,
@@ -336,75 +369,116 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // =============================
       // 🔽 Move cart data to booking
       // =============================
-
-      // ✅ Packages (required)
       await connection.query(
         `INSERT INTO service_booking_packages (booking_id, package_id)
-   SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
+         SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
 
-      // ✅ Sub-packages (required if packages exist)
       await connection.query(
         `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
-   SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
+         SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
         [booking_id, cart_id]
       );
 
-      // ✅ Preferences (optional)
-      const [preferences] = await connection.query(
-        `SELECT preference_id FROM cart_preferences WHERE cart_id = ?`,
-        [cart_id]
-      );
-      if (preferences.length > 0) {
-        await connection.query(
-          `INSERT INTO service_booking_preferences (booking_id, preference_id)
-     SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
-          [booking_id, cart_id]
-        );
-      }
-
-      // ✅ Consents (optional + FK-safe)
-      const [cartConsents] = await connection.query(
-        `SELECT consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
-        [cart_id]
-      );
-      if (cartConsents.length > 0) {
-        // Only insert consents that exist in package_consent_forms to avoid FK errors
-        const [validConsents] = await connection.query(
-          `SELECT c.consent_id, c.package_id, c.answer
-     FROM cart_consents c
-     JOIN package_consent_forms pcf ON c.consent_id = pcf.consent_id
-     WHERE c.cart_id = ?`,
+      // =============================
+      // Optional steps (fail if provided)
+      // =============================
+      try {
+        // Preferences
+        const [preferences] = await connection.query(
+          `SELECT preference_id FROM cart_preferences WHERE cart_id = ?`,
           [cart_id]
         );
+        if (preferences.length > 0) {
+          await connection.query(
+            `INSERT INTO service_booking_preferences (booking_id, preference_id)
+             SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
+            [booking_id, cart_id]
+          );
+        }
 
-        if (validConsents.length > 0) {
+        // Consents
+        const [cartConsents] = await connection.query(
+          `SELECT consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
+          [cart_id]
+        );
+        if (cartConsents.length > 0) {
+          const [validConsents] = await connection.query(
+            `SELECT c.consent_id, c.package_id, c.answer
+             FROM cart_consents c
+             JOIN package_consent_forms pcf ON c.consent_id = pcf.consent_id
+             WHERE c.cart_id = ?`,
+            [cart_id]
+          );
+          if (validConsents.length !== cartConsents.length) {
+            throw new Error("Some consents are invalid");
+          }
           for (const consent of validConsents) {
             await connection.query(
               `INSERT INTO service_booking_consents (booking_id, consent_id, package_id, answer)
-         VALUES (?, ?, ?, ?)`,
+               VALUES (?, ?, ?, ?)`,
               [booking_id, consent.consent_id, consent.package_id, consent.answer]
             );
           }
-          console.log(`✅ Inserted ${validConsents.length} consents for booking #${booking_id}`);
         }
-      }
 
-      // ✅ Addons (optional)
-      const [addons] = await connection.query(
-        `SELECT addon_id, package_id, price FROM cart_addons WHERE cart_id = ?`,
-        [cart_id]
-      );
-      if (addons.length > 0) {
-        await connection.query(
-          `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
-     SELECT ?, package_id, addon_id, price FROM cart_addons WHERE cart_id = ?`,
-          [booking_id, cart_id]
+        // Addons
+        const [addons] = await connection.query(
+          `SELECT addon_id, package_id, price FROM cart_addons WHERE cart_id = ?`,
+          [cart_id]
         );
+        if (addons.length > 0) {
+          await connection.query(
+            `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
+             SELECT ?, package_id, addon_id, price FROM cart_addons WHERE cart_id = ?`,
+            [booking_id, cart_id]
+          );
+        }
+
+        // =============================
+        // Promo
+        // =============================
+        if (cart.promo_code_id) {
+          const [existingUsage] = await connection.query(
+            `SELECT usage_id, usage_count FROM user_promo_usage 
+             WHERE promo_id = ? AND user_id = ? LIMIT 1`,
+            [cart.promo_code_id, user_id]
+          );
+
+          if (existingUsage.length > 0) {
+            // ✅ Update usage_count and attach booking_id
+            await connection.query(
+              `UPDATE user_promo_usage 
+               SET usage_count = usage_count + 1, booking_id = ? 
+               WHERE usage_id = ?`,
+              [booking_id, existingUsage[0].usage_id]
+            );
+          } else {
+            // ✅ Insert new usage with booking_id
+            await connection.query(
+              `INSERT INTO user_promo_usage (promo_id, user_id, usage_count, booking_id) 
+               VALUES (?, ?, 1, ?)`,
+              [cart.promo_code_id, user_id, booking_id]
+            );
+          }
+
+          console.log(`✅ Promo usage updated for promo_id ${cart.promo_code_id}, user_id ${user_id}, booking_id ${booking_id}`);
+        }
+
+
+      } catch (optionalErr) {
+        console.error("❌ Optional data provided but failed to insert:", optionalErr.message);
+        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
+        await connection.query(
+          `UPDATE payments SET status = 'failed', notes = 'Optional cart data insertion failed' WHERE payment_intent_id = ?`,
+          [paymentIntentId]
+        );
+        await connection.rollback();
+        return;
       }
 
-      // ✅ Capture payment **after booking success**
+      // ✅ Capture payment
       await stripe.paymentIntents.capture(paymentIntentId);
       console.log(`💰 Payment captured for PaymentIntent ${paymentIntentId}`);
 
@@ -418,7 +492,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         [booking_id]
       );
 
-      // ✅ Clear cart (deleting empty rows is safe)
+      // ✅ Clear cart
       await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_packages WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
@@ -429,42 +503,11 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       await connection.commit();
       console.log(`✅ Booking transaction fully completed for booking #${booking_id}`);
 
-
-      // Optional: send receipt email
-      const [[bookingInfo]] = await connection.query(
-        `SELECT sb.bookingDate, sb.bookingTime, u.firstName, u.lastName, u.email
-         FROM service_booking sb
-         LEFT JOIN users u ON sb.user_id = u.user_id
-         WHERE sb.booking_id = ?`,
-        [booking_id]
-      );
-
-      if (bookingInfo?.email) {
-        try {
-          const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-          });
-          const receiptHtml = `<p>Hi ${bookingInfo.firstName}, your booking #${booking_id} is confirmed.</p>`;
-          await transporter.sendMail({
-            from: `"Homiqly" <${process.env.EMAIL_USER}>`,
-            to: bookingInfo.email,
-            subject: `Receipt for Booking #${booking_id}`,
-            html: receiptHtml,
-          });
-          console.log(`✅ Receipt email sent to ${bookingInfo.email}`);
-        } catch (emailErr) {
-          console.error(`⚠️ Failed to send receipt email: ${emailErr.message}`);
-        }
-      }
-
     } catch (err) {
       console.error("❌ Error processing Stripe webhook:", err.message);
       await connection.rollback();
       try {
-        await stripe.paymentIntents.cancel(paymentIntentId, {
-          cancellation_reason: "abandoned",
-        });
+        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ?`,
           [paymentIntentId]
@@ -479,7 +522,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     console.log("ℹ️ Ignored event type:", event.type);
   }
 });
-
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;

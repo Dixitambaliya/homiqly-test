@@ -82,7 +82,6 @@ const updatePromoCode = asyncHandler(async (req, res) => {
     }
 });
 
-
 const deletePromoCode = asyncHandler(async (req, res) => {
     const { promo_id } = req.params;
 
@@ -100,4 +99,66 @@ const deletePromoCode = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { createPromoCode, getAllPromoCodes, updatePromoCode, deletePromoCode }
+const getUserPromoUsage = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id; // from auth
+
+    try {
+        // 1️⃣ Fetch all promo codes
+        const [promos] = await db.query(`
+      SELECT promo_id, code, maxUse, discountValue, minSpend, start_date, end_date
+      FROM promo_codes 
+      ORDER BY start_date DESC
+    `);
+
+        if (!promos.length) {
+            return res.status(404).json({ message: "No promo codes found" });
+        }
+
+        // 2️⃣ Get all usage for this user
+        const [usages] = await db.query(
+            `SELECT promo_id, usage_count 
+       FROM user_promo_usage 
+       WHERE user_id = ?`,
+            [user_id]
+        );
+
+        // Map usage counts by promo_id for quick lookup
+        const usageMap = {};
+        usages.forEach(u => {
+            usageMap[u.promo_id] = u.usage_count;
+        });
+
+        // 3️⃣ Attach usage info to each promo
+        const result = promos.map(promo => {
+            const used = usageMap[promo.promo_id] || 0;
+            const remaining = Math.max(promo.maxUse - used, 0); // subtract used from maxUse
+
+            return {
+                ...promo,
+                used,        // how many times the user already used it
+                remaining    // how many uses are left
+            };
+        });
+
+        res.status(200).json({
+            message: "Promo codes with usage fetched successfully",
+            promos: result
+        });
+
+    } catch (err) {
+        console.error("Get user promo usage error:", err);
+        res.status(500).json({ message: "Failed to fetch promo usage", error: err.message });
+    }
+});
+
+
+
+
+
+module.exports = {
+    createPromoCode,
+    getAllPromoCodes,
+    updatePromoCode,
+    deletePromoCode,
+    getUserPromoUsage
+}

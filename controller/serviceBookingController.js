@@ -3,8 +3,8 @@ const asyncHandler = require('express-async-handler');
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
 const sendEmail = require('../config/mailer');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
-const bookingPutQueries = require('../config/bookingQueries/bookingPutQueries');
-const { sendServiceBookingNotification,
+const {
+    sendServiceBookingNotification,
     sendBookingNotificationToUser,
     sendBookingAssignedNotificationToVendor,
     sendVendorAssignedNotificationToUser
@@ -349,8 +349,24 @@ const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // Fetch all bookings for the user
-        const [userBookings] = await db.query(bookingGetQueries.userGetBooking, [user_id]);
+        const [userBookings] = await db.query(
+            `SELECT 
+        sb.*,
+        v.vendor_id,
+        v.vendorType,
+        IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+        IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
+        IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage
+    FROM service_booking sb
+    LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+    LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+    LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+    WHERE sb.user_id = ?`,
+            [user_id]
+        );
+
 
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
@@ -360,21 +376,9 @@ const getUserBookings = asyncHandler(async (req, res) => {
             const [packageItems] = await db.query(bookingGetQueries.getUserPackageItems, [bookingId]);
             const [bookingAddons] = await db.query(bookingGetQueries.getUserBookedAddons, [bookingId]);
             const [bookingPreferences] = await db.query(bookingGetQueries.getUserBookedPrefrences, [bookingId]);
+            const [bookingConsents] = await db.query(bookingGetQueries.getUserBookedConsents, [bookingId]);
+            const [[promoUsage]] = await db.query(bookingGetQueries.getUserBookedPromos, [bookingId, user_id]);
 
-            // Fetch consents linked to this booking
-            const [bookingConsents] = await db.query(
-                `SELECT 
-                    c.consent_id, 
-                    c.question, 
-                    sbc.answer, 
-                    sbc.package_id
-                 FROM service_booking_consents sbc
-                 LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
-                 WHERE sbc.booking_id = ?`,
-                [bookingId]
-            );
-
-            // Group consents by package_id, or 'no_package' for general consents
             const consentsGroupedByPackage = {};
             bookingConsents.forEach(consent => {
                 const pkgId = consent.package_id || 'no_package';
@@ -386,37 +390,44 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 });
             });
 
-            // Group packages with their items & addons
+            // Group packages with items, addons, consents, preferences, and promo
             const groupedPackages = bookingPackages.map(pkg => {
                 const items = packageItems.filter(item => item.package_id === pkg.package_id);
                 const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
                 const consents = consentsGroupedByPackage[pkg.package_id] || [];
 
-                return {
+                const packageObj = {
                     ...pkg,
                     ...(items.length && { items }),
                     ...(addons.length && { addons }),
                     ...(consents.length && { consents })
                 };
+
+                // Attach preferences and promo only to the last package
+                if (pkg === bookingPackages[bookingPackages.length - 1]) {
+                    if (bookingPreferences.length > 0) packageObj.preferences = bookingPreferences;
+
+                    if (promoUsage) {
+                        packageObj.promo = {
+                            promo_id: promoUsage.promo_id,
+                            code: promoUsage.promoCode,
+                            discountValue: promoUsage.discountValue,
+                            maxUse: promoUsage.maxUse,
+                            usage_count: promoUsage.usage_count
+                        };
+                    }
+
+                    const rootConsents = consentsGroupedByPackage['no_package'] || [];
+                    if (rootConsents.length > 0) {
+                        packageObj.consents = packageObj.consents
+                            ? [...packageObj.consents, ...rootConsents]
+                            : rootConsents;
+                    }
+                }
+
+                return packageObj;
             });
 
-            // Attach booking-level preferences & consents to the last package
-            if (groupedPackages.length > 0) {
-                const lastPackage = groupedPackages[groupedPackages.length - 1];
-
-                if (bookingPreferences.length > 0) {
-                    lastPackage.preferences = bookingPreferences;
-                }
-
-                const rootConsents = consentsGroupedByPackage['no_package'] || [];
-                if (rootConsents.length > 0) {
-                    lastPackage.consents = lastPackage.consents
-                        ? [...lastPackage.consents, ...rootConsents]
-                        : rootConsents;
-                }
-            }
-
-            // Attach grouped packages to booking
             booking.packages = groupedPackages;
 
             // Clean nulls from booking object

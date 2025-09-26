@@ -75,7 +75,6 @@ const getVendorRatings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllRatings = asyncHandler(async (req, res) => {
     try {
         const [ratings] = await db.query(ratingGetQueries.getAllRatings);
@@ -182,7 +181,6 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
