@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
 const nodemailer = require("nodemailer");
+const { sendBookingEmail } = require("../config/mailer")
 
 // 1. Vendor creates Stripe account
 exports.createStripeAccount = asyncHandler(async (req, res) => {
@@ -478,11 +479,11 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 pk.packageName,
                 GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
                 GROUP_CONCAT(DISTINCT a.addonName) AS addons,
-                GROUP_CONCAT(DISTINCT pref.preferenceName) AS preferences,
-                GROUP_CONCAT(DISTINCT c.consentName) AS consents
+                GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
+                GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents
          FROM service_booking sb
          LEFT JOIN user_promo_usage upu ON sb.booking_id = upu.booking_id
-         LEFT JOIN promo_codes p ON upu.promo_id = p.id
+         LEFT JOIN promo_codes p ON upu.promo_id = p.promo_id
          LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
          LEFT JOIN packages pk ON sbp.package_id = pk.package_id
          LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
