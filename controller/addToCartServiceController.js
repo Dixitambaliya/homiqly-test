@@ -28,7 +28,7 @@ const addToCartService = asyncHandler(async (req, res) => {
     catch (e) { return res.status(400).json({ message: "Invalid consents JSON", error: e.message }); }
 
     const connection = await db.getConnection();
-    await connection.query(`SET time_zone = '-04:00';`); // EDT
+    // await connection.query(`SET time_zone = '-04:00';`); // EDT
     await connection.beginTransaction();
 
     try {
@@ -38,10 +38,20 @@ const addToCartService = asyncHandler(async (req, res) => {
         let appliedPromo = null;
         if (promoCode) {
             const [[promo]] = await connection.query(
-                `SELECT * FROM promo_codes WHERE code = ? AND (start_date IS NULL OR start_date <= NOW()) AND (end_date IS NULL OR end_date >= NOW())`,
+                `SELECT * FROM promo_codes 
+                WHERE code = ? 
+                AND (start_date IS NULL OR start_date <= NOW()) 
+                AND (end_date IS NULL OR end_date >= NOW())`,
                 [promoCode]
             );
-            if (promo) appliedPromo = promo;
+
+            if (!promo) {
+                return res.status(400).json({
+                    message: "Promo code is expired or not yet active."
+                });
+            }
+
+            appliedPromo = promo;
         }
 
         // Step 1: Process each package
@@ -179,7 +189,6 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
-
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
