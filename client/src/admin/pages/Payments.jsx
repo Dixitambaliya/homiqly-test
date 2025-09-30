@@ -15,6 +15,7 @@ const Payments = () => {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all"); // all, individual, company
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,15 +44,56 @@ const Payments = () => {
     setDateRange((prev) => ({ ...prev, [name]: value }));
   };
 
+  const normalize = (v) =>
+    (v === null || v === undefined ? "" : String(v)).toLowerCase().trim();
+
+  const matchesSearch = (payment, term) => {
+    if (!term) return true;
+    const t = term.toLowerCase().trim();
+
+    // possible ID fields
+    const idCandidates = [payment.payment_id, payment.id, payment._id];
+    const idCombined = idCandidates.filter(Boolean).join(" ");
+
+    // possible user name fields
+    const userCandidates = [
+      `${payment.user_firstname || ""} ${payment.user_lastname || ""}`,
+      payment.user?.name,
+      payment.user_name,
+      payment.customer_name,
+    ];
+    const userCombined = userCandidates.filter(Boolean).join(" ");
+
+    // possible vendor fields (individual/company)
+    const vendorCandidates = [
+      payment.individual_name,
+      payment.company_name,
+      payment.vendor_name,
+      payment.vendor?.name,
+    ];
+    const vendorCombined = vendorCandidates.filter(Boolean).join(" ");
+
+    return (
+      normalize(idCombined).includes(t) ||
+      normalize(userCombined).includes(t) ||
+      normalize(vendorCombined).includes(t)
+    );
+  };
+
   const filteredPayments = payments.filter((payment) => {
     if (filter !== "all" && payment.vendorType !== filter) return false;
+
     if (dateRange.startDate && dateRange.endDate) {
-      const paymentDate = new Date(payment.created_at);
+      const paymentDate = new Date(payment.created_at || payment.createdAt || payment.date);
       const startDate = new Date(dateRange.startDate);
       const endDate = new Date(dateRange.endDate);
       endDate.setHours(23, 59, 59, 999);
+      if (isNaN(paymentDate.getTime())) return false;
       if (paymentDate < startDate || paymentDate > endDate) return false;
     }
+
+    if (!matchesSearch(payment, searchTerm)) return false;
+
     return true;
   });
 
@@ -67,17 +109,22 @@ const Payments = () => {
     ];
     const rows = filteredPayments.map((payment) => [
       payment.payment_id,
-      `${payment.user_firstname} ${payment.user_lastname}`,
-      payment.individual_name,
-      payment.packageName,
+      `${payment.user_firstname || ""} ${payment.user_lastname || ""}`.trim(),
+      payment.individual_name || payment.company_name || payment.vendor_name || "",
+      payment.packageName || payment.package_name || payment.productName || "",
       payment.amount,
-      payment.currency.toUpperCase(),
-      new Date(payment.created_at).toLocaleDateString(),
+      (payment.currency || "").toUpperCase(),
+      new Date(payment.created_at || payment.createdAt || payment.date).toLocaleDateString(),
     ]);
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.join(",")),
-    ].join("\n");
+    const csvContent = [headers.join(","), ...rows.map((row) => row.map(cell => {
+      // escape commas and quotes in cells
+      if (cell === null || cell === undefined) return "";
+      const cellStr = String(cell);
+      if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -114,10 +161,7 @@ const Payments = () => {
         <h2 className="text-2xl font-bold text-gray-800">
           Admin Payment History
         </h2>
-        <Button
-          onClick={exportToCSV}
-          // className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark flex items-center"
-        >
+        <Button onClick={exportToCSV}>
           <FiDownload className="mr-2" />
           Export CSV
         </Button>
@@ -130,7 +174,23 @@ const Payments = () => {
             <FiFilter className="mr-2 text-gray-500" />
             <h3 className="text-sm font-medium text-gray-700">Filters</h3>
           </div>
-          <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+
+          <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full md:w-auto">
+            {/* Search */}
+            <div className="flex-1 md:flex-none md:w-64">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Search
+              </label>
+              <input
+                type="text"
+                placeholder="Search by Payment ID, user or vendor"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
+              />
+            </div>
+
+            {/* Vendor Type */}
             <div>
               <label
                 htmlFor="status-filter"
@@ -149,6 +209,8 @@ const Payments = () => {
                 <option value="company">Company</option>
               </select>
             </div>
+
+            {/* Start Date */}
             <div>
               <label
                 htmlFor="start-date"
@@ -165,6 +227,8 @@ const Payments = () => {
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
               />
             </div>
+
+            {/* End Date */}
             <div>
               <label
                 htmlFor="end-date"
@@ -181,7 +245,8 @@ const Payments = () => {
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
               />
             </div>
-            <div className="flex items-end">
+
+            <div className="flex items-end space-x-2">
               <Button
                 onClick={() => {
                   setFilter("all");
@@ -190,6 +255,17 @@ const Payments = () => {
                 variant="ghost"
               >
                 Clear Filters
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setSearchTerm("");
+                  setFilter("all");
+                  setDateRange({ startDate: "", endDate: "" });
+                }}
+                variant="outline"
+              >
+                Reset All
               </Button>
             </div>
           </div>

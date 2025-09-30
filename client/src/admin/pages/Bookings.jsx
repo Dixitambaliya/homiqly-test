@@ -18,6 +18,7 @@ const Bookings = () => {
   // const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filter, setFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,17 +47,79 @@ const Bookings = () => {
     setDateRange((prev) => ({ ...prev, [name]: value }));
   };
 
+  const normalize = (v) =>
+    (v === null || v === undefined ? "" : String(v)).toLowerCase().trim();
+
+  const matchesSearch = (booking, term) => {
+    if (!term) return true;
+    const t = term.toLowerCase().trim();
+
+    // possible ID fields
+    const idCandidates = [
+      booking.booking_id,
+      booking.bookingId,
+      booking.id,
+      booking._id,
+    ];
+    const idCombined = idCandidates.filter(Boolean).join(" ");
+
+    // possible customer name fields
+    const customerCandidates = [
+      booking.customerName,
+      booking.customer?.name,
+      booking.user?.name,
+      booking.customer_name,
+      booking.user_name,
+    ];
+    const customerCombined = customerCandidates.filter(Boolean).join(" ");
+
+    // possible service fields
+    const serviceCandidates = [
+      booking.serviceName,
+      booking.service?.name,
+      booking.package?.title,
+      booking.packageName,
+      booking.productName,
+    ];
+    const serviceCombined = serviceCandidates.filter(Boolean).join(" ");
+
+    // Match if term appears in id, customer, or service
+    return (
+      normalize(idCombined).includes(t) ||
+      normalize(customerCombined).includes(t) ||
+      normalize(serviceCombined).includes(t)
+    );
+  };
+
   const filteredBookings = bookings.filter((booking) => {
-    if (filter !== "all" && booking.bookingStatus !== parseInt(filter)) {
-      return false;
+    // Status filter
+    if (filter !== "all") {
+      // bookingStatus might be number or string; convert both to string for safe compare
+      const statusVal =
+        booking.bookingStatus !== undefined
+          ? String(booking.bookingStatus)
+          : booking.status !== undefined
+          ? String(booking.status)
+          : "";
+      if (statusVal !== String(filter)) return false;
     }
+
+    // Date range filter
     if (dateRange.startDate && dateRange.endDate) {
-      const bookingDate = new Date(booking.bookingDate);
+      const bookingDate = new Date(booking.bookingDate || booking.date || booking.createdAt);
       const start = new Date(dateRange.startDate);
       const end = new Date(dateRange.endDate);
       end.setHours(23, 59, 59, 999);
+      if (isNaN(bookingDate.getTime())) {
+        // if booking has invalid/missing date, exclude it when date filter applied
+        return false;
+      }
       if (bookingDate < start || bookingDate > end) return false;
     }
+
+    // Search filter
+    if (!matchesSearch(booking, searchTerm)) return false;
+
     return true;
   });
 
@@ -69,7 +132,7 @@ const Bookings = () => {
       if (response.status === 200) {
         setBookings((prev) =>
           prev.map((b) =>
-            b.booking_id === bookingId || b.bookingId === bookingId
+            b.booking_id === bookingId || b.bookingId === bookingId || b.id === bookingId
               ? { ...b, bookingStatus: status }
               : b
           )
@@ -118,7 +181,18 @@ const Bookings = () => {
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
           <h3 className="text-sm font-medium text-gray-700">Filters</h3>
-          <div className="flex flex-col md:flex-row md:space-x-4">
+          <div className="flex flex-col md:flex-row md:space-x-4 w-full md:w-auto">
+            <div className="flex-1 md:flex-none md:w-48">
+              <label className="text-xs block text-gray-500">Search</label>
+              <input
+                type="text"
+                placeholder="Search by ID, customer name or service"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="border px-3 py-2 rounded text-sm w-full"
+              />
+            </div>
+
             <div>
               <label className="text-xs block text-gray-500">Status</label>
               <select
@@ -132,6 +206,7 @@ const Bookings = () => {
                 <option value="2">Cancelled</option>
               </select>
             </div>
+
             <div>
               <label className="text-xs block text-gray-500">Start Date</label>
               <input
@@ -152,16 +227,31 @@ const Bookings = () => {
                 className="border px-3 py-2 rounded text-sm"
               />
             </div>
-            <Button
-              variant="ghost"
-              className="mt-4 md:mt-4"
-              onClick={() => {
-                setFilter("all");
-                setDateRange({ startDate: "", endDate: "" });
-              }}
-            >
-              Clear
-            </Button>
+
+            <div className="flex items-end space-x-2">
+              <Button
+                variant="ghost"
+                className="mt-4 md:mt-4"
+                onClick={() => {
+                  setFilter("all");
+                  setDateRange({ startDate: "", endDate: "" });
+                }}
+              >
+                Clear
+              </Button>
+
+              <Button
+                variant="outline"
+                className="mt-4 md:mt-4"
+                onClick={() => {
+                  setSearchTerm("");
+                  setFilter("all");
+                  setDateRange({ startDate: "", endDate: "" });
+                }}
+              >
+                Reset All
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -171,7 +261,7 @@ const Bookings = () => {
         bookings={filteredBookings}
         isLoading={loading}
         onViewBooking={(booking) =>
-          navigate(`/admin/bookings/${booking.booking_id}`, {
+          navigate(`/admin/bookings/${booking.booking_id || booking.id || booking.bookingId}`, {
             state: { booking },
           })
         }
