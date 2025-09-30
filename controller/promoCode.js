@@ -3,7 +3,7 @@ const asyncHandler = require("express-async-handler");
 
 
 const createPromoCode = asyncHandler(async (req, res) => {
-    const { code, discount_value, minSpend, maxUse, start_date, end_date } = req.body;
+    const { code, discount_value, minSpend, maxUse, start_date, end_date, description } = req.body;
 
     if (!code || !discount_value) {
         return res.status(400).json({ message: "code, and discount_value are required" });
@@ -11,9 +11,17 @@ const createPromoCode = asyncHandler(async (req, res) => {
 
     try {
         await db.query(
-            `INSERT INTO promo_codes (code, discountValue, minSpend, maxUse, start_date, end_date)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [code, discount_value, minSpend || null, maxUse || 1, start_date || new Date(), end_date || null]
+            `INSERT INTO promo_codes (code, discountValue, minSpend, maxUse, start_date, end_date, description)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                code,
+                discount_value,
+                minSpend || null,
+                maxUse || 1,
+                start_date || new Date(),
+                end_date || null,
+                description || null
+            ]
         );
 
         res.status(201).json({ message: `Promo code '${code}' created successfully` });
@@ -22,6 +30,7 @@ const createPromoCode = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to create promo code", error: err.message });
     }
 });
+
 
 // ✅ READ ALL
 const getAllPromoCodes = asyncHandler(async (req, res) => {
@@ -37,7 +46,7 @@ const getAllPromoCodes = asyncHandler(async (req, res) => {
 // ✅ UPDATE
 const updatePromoCode = asyncHandler(async (req, res) => {
     const { promo_id } = req.params;
-    const { code, discount_value, minSpend, maxUse, start_date, end_date } = req.body;
+    const { code, discount_value, description, minSpend, maxUse, start_date, end_date } = req.body;
 
     try {
         // 1️⃣ Fetch current record
@@ -53,6 +62,7 @@ const updatePromoCode = asyncHandler(async (req, res) => {
         const updatedData = {
             code: code ?? existing.code,
             discountValue: discount_value ?? existing.discountValue,
+            description: description ?? existing.description,
             minSpend: minSpend ?? existing.minSpend,
             maxUse: maxUse ?? existing.maxUse,
             start_date: start_date ?? existing.start_date,
@@ -61,12 +71,13 @@ const updatePromoCode = asyncHandler(async (req, res) => {
 
         // 3️⃣ Update with merged data
         const [result] = await db.query(
-            `UPDATE promo_codes 
-             SET code = ?, discountValue = ?, minSpend = ?, maxUse = ?, start_date = ?, end_date = ?
+            `UPDATE promo_codes
+             SET code = ?, discountValue = ?, description = ?, minSpend = ?, maxUse = ?, start_date = ?, end_date = ?
              WHERE promo_id = ?`,
             [
                 updatedData.code,
                 updatedData.discountValue,
+                updatedData.description,
                 updatedData.minSpend,
                 updatedData.maxUse,
                 updatedData.start_date,
@@ -106,7 +117,7 @@ const getUserPromoUsage = asyncHandler(async (req, res) => {
         // 1️⃣ Fetch all promo codes
         const [promos] = await db.query(`
       SELECT promo_id, code, maxUse, discountValue, minSpend, start_date, end_date
-      FROM promo_codes 
+      FROM promo_codes
       ORDER BY start_date DESC
     `);
 
@@ -116,8 +127,8 @@ const getUserPromoUsage = asyncHandler(async (req, res) => {
 
         // 2️⃣ Get all usage for this user
         const [usages] = await db.query(
-            `SELECT promo_id, usage_count 
-       FROM user_promo_usage 
+            `SELECT promo_id, usage_count
+       FROM user_promo_usage
        WHERE user_id = ?`,
             [user_id]
         );
