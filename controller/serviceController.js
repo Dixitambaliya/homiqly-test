@@ -224,7 +224,6 @@ const deleteServiceFilter = asyncHandler(async (req, res) => {
     res.status(200).json({ message: "Service filter deleted successfully" });
 });
 
-
 const addServiceCity = asyncHandler(async (req, res) => {
     const { serviceCity } = req.body;
 
@@ -321,7 +320,6 @@ const addServiceType = asyncHandler(async (req, res) => {
         subtype_id: finalSubtypeId
     });
 });
-
 // Get service type by ID
 const getServiceTypeById = asyncHandler(async (req, res) => {
     const { service_id } = req.params;
@@ -456,7 +454,6 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getService = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getServices);
@@ -512,8 +509,6 @@ const searchService = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
@@ -637,7 +632,6 @@ const editService = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
 
 const deleteService = asyncHandler(async (req, res) => {
     const { serviceId } = req.body;

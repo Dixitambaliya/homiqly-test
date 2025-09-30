@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
+const { assignWelcomeCode } = require("./promoCode");
 
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -172,6 +173,14 @@ const loginUser = asyncHandler(async (req, res) => {
             }
         }
 
+        // Auto-assign welcome code if available
+        let welcomeCode = null;
+        try {
+            welcomeCode = await assignWelcomeCode(user.user_id);
+        } catch (err) {
+            console.error("❌ Auto-assign welcome code error:", err.message);
+        }
+
         const token = jwt.sign(
             {
                 user_id: user.user_id,
@@ -185,12 +194,14 @@ const loginUser = asyncHandler(async (req, res) => {
             message: "Login successful",
             user_id: user.user_id,
             token,
+            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
         });
     } catch (err) {
         console.error("Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;

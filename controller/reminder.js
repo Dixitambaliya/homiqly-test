@@ -227,7 +227,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
     }
 });
 
-cron.schedule('* * * * *', async () => {
+cron.schedule('*/10 * * * *', async () => {
     try {
         const [rows] = await db.query(`
             UPDATE vendor_settings
@@ -241,5 +241,78 @@ cron.schedule('* * * * *', async () => {
         }
     } catch (err) {
         console.error("Cron error:", err);
+    }
+});
+
+// Email function (non-blocking)
+const sendPromoEmail = async (userEmail, promoCode, discountValue) => {
+    try {
+        // Configure your transporter
+        const transport = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+        });
+        const mailOptions = {
+            from: 'homiqlydevelopment@gmail.com',
+            to: userEmail,
+            subject: `You've received a new promo code!`,
+            html: `<p>Hi,</p>
+                   <p>You've received a new promo code: <b>${promoCode}</b></p>
+                   <p>Discount Value: ${discountValue}</p>
+                   <p>Use it on your next booking!</p>`
+        };
+
+        await transport.sendMail(mailOptions);
+        console.log(`📧 Promo email sent to ${userEmail}`);
+    } catch (err) {
+        console.error(`❌ Error sending promo email to ${userEmail}:`, err.message);
+    }
+};
+
+// Cron job at midnight daily
+cron.schedule("0 0 * * *", async () => {
+    console.log("🔄 Running promo assignment cron job at midnight...");
+
+    try {
+        const [promos] = await db.query(
+            "SELECT * FROM promo_codes WHERE requiredBookings IS NOT NULL"
+        );
+
+        for (const promo of promos) {
+            const [eligibleUsers] = await db.query(
+                `SELECT user_id, email, COUNT(*) as completed_count
+                 FROM service_booking
+                 JOIN users ON users.user_id = service_booking.user_id
+                 WHERE payment_status = 'completed'
+                 GROUP BY user_id
+                 HAVING completed_count >= ?`,
+                [promo.requiredBookings]
+            );
+
+            for (const user of eligibleUsers) {
+                const [exists] = await db.query(
+                    "SELECT * FROM user_promo_codes WHERE user_id = ? AND code = ?",
+                    [user.user_id, promo.code]
+                );
+
+                if (exists.length > 0) continue;
+
+                await db.query(
+                    `INSERT INTO user_promo_codes (user_id, code, assigned_at, maxUse, promo_id, source_type)
+                     VALUES (?, ?, NOW(), ?, ?, 'admin')`,
+                    [user.user_id, promo.code, promo.maxUse, promo.promo_id]
+                );
+
+                console.log(`✅ Assigned promo ${promo.code} to user ${user.user_id}`);
+
+                // Send email asynchronously without waiting
+                sendPromoEmail(user.email, promo.code, promo.discountValue);
+            }
+        }
+    } catch (err) {
+        console.error("❌ Error in promo cron job:", err.message);
     }
 });

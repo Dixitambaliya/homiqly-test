@@ -3,16 +3,30 @@ const asyncHandler = require("express-async-handler");
 
 
 const createPromoCode = asyncHandler(async (req, res) => {
-    const { code, discount_value, minSpend, maxUse, start_date, end_date, description } = req.body;
+    const {
+        code,
+        discount_value,
+        minSpend,
+        maxUse,
+        start_date,
+        end_date,
+        description,
+        requiredBookings // 👈 new field (number of successful bookings required)
+    } = req.body;
 
     if (!code || !discount_value) {
-        return res.status(400).json({ message: "code, and discount_value are required" });
+        return res.status(400).json({ message: "code and discount_value are required" });
     }
 
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
     try {
-        await db.query(
-            `INSERT INTO promo_codes (code, discountValue, minSpend, maxUse, start_date, end_date, description)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        // 1️⃣ Insert promo into promo_codes
+        const [result] = await connection.query(
+            `INSERT INTO promo_codes 
+             (code, discountValue, minSpend, maxUse, start_date, end_date, description, requiredBookings)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 code,
                 discount_value,
@@ -20,17 +34,38 @@ const createPromoCode = asyncHandler(async (req, res) => {
                 maxUse || 1,
                 start_date || new Date(),
                 end_date || null,
-                description || null
+                description || null,
+                requiredBookings || 0
             ]
         );
 
-        res.status(201).json({ message: `Promo code '${code}' created successfully` });
+        const promo_id = result.insertId;
+
+        // 2️⃣ If requiredBookings = 0 → assign to all users immediately
+        if (!requiredBookings || requiredBookings === 0) {
+            const [users] = await connection.query(`SELECT user_id FROM users`);
+            for (const user of users) {
+                await connection.query(
+                    `INSERT IGNORE INTO user_promo_codes (user_id, promo_id) VALUES (?, ?)`,
+                    [user.user_id, promo_id]
+                );
+            }
+        }
+
+        await connection.commit();
+        connection.release();
+
+        res.status(201).json({
+            message: `Promo code '${code}' created successfully`,
+            promo_id
+        });
     } catch (err) {
-        console.error(err);
+        await connection.rollback();
+        connection.release();
+        console.error("Create promo code error:", err);
         res.status(500).json({ message: "Failed to create promo code", error: err.message });
     }
 });
-
 
 // ✅ READ ALL
 const getAllPromoCodes = asyncHandler(async (req, res) => {
@@ -110,60 +145,187 @@ const deletePromoCode = asyncHandler(async (req, res) => {
     }
 });
 
-const getUserPromoUsage = asyncHandler(async (req, res) => {
-    const user_id = req.user.user_id; // from auth
+// Get User Promo Code(s)
+const getUserPromoCodes = asyncHandler(async (req, res) => {
+    const { user_id } = req.user;
+
+    if (!user_id) {
+        return res.status(400).json({ message: "user_id is required" });
+    }
 
     try {
-        // 1️⃣ Fetch all promo codes
-        const [promos] = await db.query(`
-      SELECT promo_id, code, maxUse, discountValue, minSpend, start_date, end_date
-      FROM promo_codes
-      ORDER BY start_date DESC
-    `);
-
-        if (!promos.length) {
-            return res.status(404).json({ message: "No promo codes found" });
-        }
-
-        // 2️⃣ Get all usage for this user
-        const [usages] = await db.query(
-            `SELECT promo_id, usage_count
-       FROM user_promo_usage
-       WHERE user_id = ?`,
+        // Fetch user promo codes with admin details if available
+        const [promoCodes] = await db.query(
+            `SELECT 
+                upc.user_promo_code_id,
+                upc.assigned_at,
+                upc.maxUse AS userMaxUse,
+                upc.code AS userCode,
+                upc.source_type,
+                pc.promo_id,
+                pc.code AS promoCode,
+                pc.discountValue,
+                pc.minSpend,
+                pc.description,
+                pc.maxUse AS promoMaxUse,
+                pc.start_date,
+                pc.end_date
+            FROM user_promo_codes upc
+            LEFT JOIN promo_codes pc 
+                ON upc.promo_id = pc.promo_id
+            WHERE upc.user_id = ?`,
             [user_id]
         );
 
-        // Map usage counts by promo_id for quick lookup
-        const usageMap = {};
-        usages.forEach(u => {
-            usageMap[u.promo_id] = u.usage_count;
-        });
+        if (promoCodes.length === 0) {
+            return res.status(404).json({ message: "No promo codes assigned to this user" });
+        }
 
-        // 3️⃣ Attach usage info to each promo
-        const result = promos.map(promo => {
-            const used = usageMap[promo.promo_id] || 0;
-            const remaining = Math.max(promo.maxUse - used, 0); // subtract used from maxUse
-
-            return {
-                ...promo,
-                used,        // how many times the user already used it
-                remaining    // how many uses are left
-            };
+        // Hide fields for system-generated codes
+        const result = promoCodes.map(p => {
+            if (p.source_type === 'system') {
+                return {
+                    user_promo_code_id: p.user_promo_code_id,
+                    assigned_at: p.assigned_at,
+                    userMaxUse: p.userMaxUse,
+                    userCode: p.userCode,
+                    source_type: p.source_type,
+                    promoMaxUse: p.userMaxUse
+                };
+            } else {
+                return {
+                    user_promo_code_id: p.user_promo_code_id,
+                    assigned_at: p.assigned_at,
+                    userMaxUse: p.userMaxUse,
+                    userCode: p.userCode,
+                    source_type: p.source_type,
+                    promo_id: p.promo_id,
+                    promoCode: p.promoCode,
+                    discountValue: p.discountValue,
+                    minSpend: p.minSpend,
+                    description: p.description,
+                    promoMaxUse: p.promoMaxUse,
+                    start_date: p.start_date,
+                    end_date: p.end_date
+                };
+            }
         });
 
         res.status(200).json({
-            message: "Promo codes with usage fetched successfully",
-            promos: result
+            message: "Promo codes fetched successfully",
+            promoCodes: result
         });
 
     } catch (err) {
-        console.error("Get user promo usage error:", err);
-        res.status(500).json({ message: "Failed to fetch promo usage", error: err.message });
+        console.error("Error fetching user promo codes:", err.message);
+        res.status(500).json({ message: "Server error", details: err.message });
     }
 });
 
+const assignWelcomeCode = async (user_id) => {
+    try {
+        // Check if auto-assign is enabled
+        const [setting] = await db.query(
+            "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
+        );
 
+        if (!setting[0] || setting[0].setting_value !== 1) {
+            console.error("Auto-assign welcome code is disabled");
+            return null;
+        }
 
+        // Check if user already has a system promo code
+        const [existing] = await db.query(
+            "SELECT * FROM user_promo_codes WHERE user_id = ? AND source_type = 'system'",
+            [user_id]
+        );
+        if (existing.length > 0) {
+            console.log("User already has a system promo code assigned");
+            return null;
+        }
+
+        // Generate random 5-character uppercase code
+        const generateRandomCode = () => {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 5; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        };
+
+        const code = generateRandomCode();
+        const defaultMaxUse = 1;
+
+        // Assign code to user (no promo_id needed for system code)
+        await db.query(
+            `INSERT INTO user_promo_codes (user_id, code, assigned_at, maxUse, source_type)
+             VALUES (?, ?, NOW(), ?, 'system')`,
+            [user_id, code, defaultMaxUse]
+        );
+
+        console.log(`Promo code ${code} (maxUse=${defaultMaxUse}) assigned to user ${user_id}`);
+        return code;
+
+    } catch (err) {
+        console.error("Error assigning welcome promo code:", err.message);
+        return null;
+    }
+};
+
+// Toggle Auto-Assign Welcome Code
+const toggleAutoAssignWelcomeCode = asyncHandler(async (req, res) => {
+    const { enable } = req.body; // expect true/false or 1/0
+
+    if (enable === undefined) {
+        return res.status(400).json({ message: "Please provide 'enable' (true/false)" });
+    }
+
+    try {
+        // Convert boolean to '1' or '0'
+        const value = enable ? '1' : '0';
+
+        // Check if the setting already exists
+        const [existing] = await db.query(
+            "SELECT * FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
+        );
+
+        if (existing.length > 0) {
+            // Update existing setting
+            await db.query(
+                "UPDATE settings SET setting_value = ? WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'",
+                [value]
+            );
+        } else {
+            // Insert if not exists
+            await db.query(
+                "INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)",
+                ['AUTO_ASSIGN_WELCOME_CODE', value]
+            );
+        }
+
+        res.status(200).json({
+            message: `Auto-assign welcome code has been ${enable ? 'enabled' : 'disabled'}`
+        });
+
+    } catch (err) {
+        console.error("Error toggling auto-assign welcome code:", err.message);
+        res.status(500).json({ message: "Server error", details: err.message });
+    }
+});
+
+const getAutoAssignWelcomeCodeStatus = asyncHandler(async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
+        );
+
+        res.status(200).json({enable: rows[0].setting_value}); // directly return 0 or 1
+    } catch (err) {
+        console.error("Error fetching auto-assign welcome code status:", err.message);
+        res.status(500).json({ message: "Server error", details: err.message });
+    }
+});
 
 
 module.exports = {
@@ -171,5 +333,8 @@ module.exports = {
     getAllPromoCodes,
     updatePromoCode,
     deletePromoCode,
-    getUserPromoUsage
+    getUserPromoCodes,
+    assignWelcomeCode,
+    toggleAutoAssignWelcomeCode,
+    getAutoAssignWelcomeCodeStatus
 }
