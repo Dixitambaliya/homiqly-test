@@ -134,7 +134,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                     await connection.query(
                         `INSERT INTO cart_package_items (cart_id, sub_package_id, price, package_id, item_id, quantity)
                          VALUES (?, ?, ?, ?, ?, ?)`,
-                        [cart_id, item.sub_package_id, item.price || 0, package_id, item.sub_package_id, item.quantity || 1]
+                        [cart_id, item.sub_package_id, item.price || 0, package_id, item.item_id, item.quantity || 1]
                     );
                 }
             }
@@ -330,6 +330,9 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "package_id is required" });
     }
 
+    console.log(user_id);
+
+
     try {
         // ✅ Fetch cart row(s) for the user and package
         const [cartRows] = await db.query(
@@ -338,6 +341,9 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
              WHERE sc.user_id = ? AND sc.package_id = ?`,
             [user_id, package_id]
         );
+
+
+        console.log(cartRows);
 
         if (cartRows.length === 0) {
             // ✅ Return a message clearly indicating no cart
