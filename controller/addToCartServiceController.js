@@ -339,9 +339,6 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             [user_id, package_id]
         );
 
-
-        console.log(cartRows);
-
         if (cartRows.length === 0) {
             // ✅ Return a message clearly indicating no cart
             return res.status(200).json({
