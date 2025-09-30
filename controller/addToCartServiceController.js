@@ -354,7 +354,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         // ✅ Fetch sub-packages
         const [subPackages] = await db.query(
             `SELECT 
-            pt.item_id,
+            pt.item_id AS sub_package_id,
             cpi.cart_package_items_id, 
             pt.itemName,
             pt.description,
