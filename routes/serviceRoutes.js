@@ -19,7 +19,8 @@ const { addService,
     getServiceFilters,
     updateServiceFilter,
     deleteServiceFilter,
-    getAdminServicesWithfilter
+    getAdminServicesWithfilter,
+    searchService
 } = require("../controller/serviceController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -49,5 +50,7 @@ router.put('/editcategory', editCategory);
 router.delete('/deletecategory', deleteCategory);
 router.put('/editservicecity', editServiceCity);
 router.delete('/deleteservicecity/:service_city_id', deleteServiceCity);
+
+router.get('/searchservice', searchService);
 
 module.exports = router

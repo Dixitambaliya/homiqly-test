@@ -478,6 +478,38 @@ const getService = asyncHandler(async (req, res) => {
     }
 });
 
+const searchService = asyncHandler(async (req, res) => {
+    try {
+        const { query } = req.query; // input from frontend (e.g., ?query=beauty)
+
+        if (!query || query.trim() === "") {
+            return res.status(400).json({ error: "Search query is required" });
+        }
+
+        const [rows] = await db.query(
+            `SELECT service_id, serviceName 
+             FROM services
+             WHERE serviceName LIKE ?`,
+            [`%${query}%`]
+        );
+
+        const services = rows.map(row => ({
+            service: row.serviceName,
+            serviceId: row.service_id
+        }));
+
+        res.status(200).json({
+            message: "Search results fetched successfully",
+            services
+        });
+    } catch (err) {
+        console.error("Error searching services:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
+
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
         // Query categories + subcategoriestype
@@ -762,5 +794,6 @@ module.exports = {
     getServiceFilters,
     updateServiceFilter,
     deleteServiceFilter,
-    getAdminServicesWithfilter
+    getAdminServicesWithfilter,
+    searchService
 }
