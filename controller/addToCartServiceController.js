@@ -330,9 +330,6 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "package_id is required" });
     }
 
-    console.log(user_id);
-
-
     try {
         // ✅ Fetch cart row(s) for the user and package
         const [cartRows] = await db.query(
