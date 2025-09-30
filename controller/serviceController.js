@@ -487,15 +487,20 @@ const searchService = asyncHandler(async (req, res) => {
         }
 
         const [rows] = await db.query(
-            `SELECT service_id, serviceName 
-             FROM services
+            `SELECT 
+             s.service_id, 
+             s.serviceName,
+             st.service_type_id
+             FROM services s
+             LEFT JOIN service_type st ON s.service_id = st.service_id
              WHERE serviceName LIKE ?`,
             [`%${query}%`]
         );
 
         const services = rows.map(row => ({
             service: row.serviceName,
-            serviceId: row.service_id
+            serviceId: row.service_id,
+            service_type_id: row.service_type_id,
         }));
 
         res.status(200).json({
