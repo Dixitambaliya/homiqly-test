@@ -224,7 +224,6 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
     }
 });
 
-
 const assignWelcomeCode = async (user_id) => {
     try {
         // ✅ Check if auto-assign is enabled
@@ -278,9 +277,6 @@ const assignWelcomeCode = async (user_id) => {
         return null;
     }
 };
-
-
-
 
 // Toggle Auto-Assign Welcome Code
 const toggleAutoAssignWelcomeCode = asyncHandler(async (req, res) => {

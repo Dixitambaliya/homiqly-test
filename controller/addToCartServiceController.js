@@ -139,7 +139,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -345,7 +344,6 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { package_id } = req.params;
@@ -524,9 +522,8 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
-    const user_id = req.user.user_id; // make sure user_id is available
+    const user_id = req.user.user_id;
 
-    // fields you want to allow updating
     const {
         vendor_id = null,
         bookingDate = null,
@@ -541,6 +538,7 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         const fields = [];
         const values = [];
 
+        // Basic fields
         if (vendor_id !== null) {
             fields.push("vendor_id = ?");
             values.push(vendor_id);
@@ -562,26 +560,42 @@ const updateCartDetails = asyncHandler(async (req, res) => {
             values.push(bookingMedia);
         }
 
-        // ✅ Check promo code for this user
+        // Promo code logic
         if (promoCode !== null) {
+            // 1️⃣ Check user_promo_codes
             const [[userPromo]] = await db.query(
-                `SELECT user_promo_code_id FROM user_promo_codes 
+                `SELECT user_promo_code_id 
+                 FROM user_promo_codes 
                  WHERE user_id = ? AND code = ? LIMIT 1`,
                 [user_id, promoCode]
             );
 
-            if (!userPromo) {
-                return res.status(400).json({ message: "Promo code not valid for this user" });
-            }
+            if (userPromo) {
+                fields.push("user_promo_code_id = ?");
+                values.push(userPromo.user_promo_code_id);
+            } else {
+                // 2️⃣ Check system_promo_codes
+                const [[systemPromo]] = await db.query(
+                    `SELECT system_promo_code_id  
+                     FROM system_promo_codes 
+                     WHERE user_id = ? AND code = ? LIMIT 1`,
+                    [user_id, promoCode]
+                );
 
-            fields.push("promo_code_id = ?");
-            values.push(userPromo.user_promo_code_id);
+                if (systemPromo) {
+                    fields.push("user_promo_code_id  = ?");
+                    values.push(systemPromo.system_promo_code_id );
+                } else {
+                    return res.status(400).json({ message: "Promo code not valid for this user" });
+                }
+            }
         }
 
         if (fields.length === 0) {
             return res.status(400).json({ message: "No valid fields provided for update" });
         }
 
+        // Update query
         const query = `UPDATE service_cart SET ${fields.join(", ")} WHERE cart_id = ? AND user_id = ?`;
         values.push(cart_id, user_id);
 
@@ -598,6 +612,8 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to update cart", error: err.message });
     }
 });
+
+
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

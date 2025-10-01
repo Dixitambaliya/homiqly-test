@@ -273,7 +273,7 @@ const sendPromoEmail = async (userEmail, promoCode, discountValue) => {
 };
 
 // Cron job at midnight daily
-cron.schedule("*/1 * * * *", async () => {
+cron.schedule("0 0 * * *", async () => {
     console.log("🔄 Running promo assignment cron job at midnight...");
 
     try {
