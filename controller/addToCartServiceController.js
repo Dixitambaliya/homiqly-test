@@ -519,7 +519,6 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
     const user_id = req.user.user_id;
@@ -561,35 +560,41 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         }
 
         // Promo code logic
-        if (promoCode !== null) {
-            // 1️⃣ Check user_promo_codes
-            const [[userPromo]] = await db.query(
-                `SELECT user_promo_code_id 
-                 FROM user_promo_codes 
-                 WHERE user_id = ? AND code = ? LIMIT 1`,
-                [user_id, promoCode]
-            );
-
-            if (userPromo) {
-                fields.push("user_promo_code_id = ?");
-                values.push(userPromo.user_promo_code_id);
-            } else {
-                // 2️⃣ Check system_promo_codes
-                const [[systemPromo]] = await db.query(
-                    `SELECT system_promo_code_id  
-                     FROM system_promo_codes 
-                     WHERE user_id = ? AND code = ? LIMIT 1`,
+        if (promoCode !== undefined) { // note: check for undefined so that empty string still counts as "not provided"
+            if (promoCode) {
+                // 1️⃣ Check user_promo_codes
+                const [[userPromo]] = await db.query(
+                    `SELECT user_promo_code_id 
+             FROM user_promo_codes 
+             WHERE user_id = ? AND code = ? LIMIT 1`,
                     [user_id, promoCode]
                 );
 
-                if (systemPromo) {
-                    fields.push("user_promo_code_id  = ?");
-                    values.push(systemPromo.system_promo_code_id );
+                if (userPromo) {
+                    fields.push("user_promo_code_id = ?");
+                    values.push(userPromo.user_promo_code_id);
                 } else {
-                    return res.status(400).json({ message: "Promo code not valid for this user" });
+                    // 2️⃣ Check system_promo_codes
+                    const [[systemPromo]] = await db.query(
+                        `SELECT system_promo_code_id  
+                 FROM system_promo_codes 
+                 WHERE user_id = ? AND code = ? LIMIT 1`,
+                        [user_id, promoCode]
+                    );
+
+                    if (systemPromo) {
+                        fields.push("user_promo_code_id  = ?");
+                        values.push(systemPromo.system_promo_code_id);
+                    } else {
+                        return res.status(400).json({ message: "Promo code not valid for this user" });
+                    }
                 }
+            } else {
+                // ✅ If promoCode is empty or null, remove any applied promo code
+                fields.push("user_promo_code_id = NULL");
             }
         }
+
 
         if (fields.length === 0) {
             return res.status(400).json({ message: "No valid fields provided for update" });
@@ -612,8 +617,6 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to update cart", error: err.message });
     }
 });
-
-
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
