@@ -145,7 +145,7 @@ const deletePromoCode = asyncHandler(async (req, res) => {
     }
 });
 
-// Get User Promo Code(s)
+// Get User Promo Code(s) from both user and system tables
 const getUserPromoCodes = asyncHandler(async (req, res) => {
     const { user_id } = req.user;
 
@@ -154,15 +154,13 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
     }
 
     try {
-        // Fetch user promo codes with admin details if available
-        const [promoCodes] = await db.query(
+        // 1️⃣ Fetch user promo codes (assigned/approved by admin)
+        const [userPromos] = await db.query(
             `SELECT 
                 upc.user_promo_code_id,
-                upc.assigned_at,
                 upc.maxUse AS userMaxUse,
                 upc.code AS userCode,
                 upc.source_type,
-                upc.discountValue AS userDiscountValue,
                 pc.promo_id,
                 pc.code AS promoCode,
                 pc.discountValue,
@@ -178,44 +176,52 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             [user_id]
         );
 
-        if (promoCodes.length === 0) {
+        // 2️⃣ Fetch system promo codes (auto-generated)
+        const [systemPromos] = await db.query(
+            `SELECT 
+                system_promo_code_id,
+                user_id,
+                source_type,
+                code AS userCode,
+                discountValue AS userDiscountValue
+            FROM system_promo_codes
+            WHERE user_id = ?`,
+            [user_id]
+        );
+
+        // Normalize user promo codes
+        const normalizedUserPromos = userPromos.map(p => ({
+            user_promo_code_id: p.user_promo_code_id,
+            source_type: p.source_type,
+            userMaxUse: p.userMaxUse,
+            userCode: p.userCode,
+            promo_id: p.promo_id,
+            promoCode: p.promoCode,
+            discountValue: p.discountValue,
+            minSpend: p.minSpend,
+            description: p.description,
+            promoMaxUse: p.promoMaxUse,
+            start_date: p.start_date,
+            end_date: p.end_date
+        }));
+
+        // Normalize system promo codes
+        const normalizedSystemPromos = systemPromos.map(p => ({
+            source_type: p.source_type,
+            system_promo_code_id: p.system_promo_code_id,
+            userCode: p.userCode,
+            userDiscountValue: p.userDiscountValue
+        }));
+
+        const allPromos = [...normalizedUserPromos, ...normalizedSystemPromos];
+
+        if (allPromos.length === 0) {
             return res.status(404).json({ message: "No promo codes assigned to this user" });
         }
 
-        // Hide fields for system-generated codes
-        const result = promoCodes.map(p => {
-            if (p.source_type === 'system') {
-                return {
-                    user_promo_code_id: p.user_promo_code_id,
-                    assigned_at: p.assigned_at,
-                    userMaxUse: p.userMaxUse,
-                    userCode: p.userCode,
-                    source_type: p.source_type,
-                    promoMaxUse: p.userMaxUse,
-                    discountValue: p.userDiscountValue
-                };
-            } else {
-                return {
-                    user_promo_code_id: p.user_promo_code_id,
-                    assigned_at: p.assigned_at,
-                    userMaxUse: p.userMaxUse,
-                    userCode: p.userCode,
-                    source_type: p.source_type,
-                    promo_id: p.promo_id,
-                    promoCode: p.promoCode,
-                    discountValue: p.discountValue,
-                    minSpend: p.minSpend,
-                    description: p.description,
-                    promoMaxUse: p.promoMaxUse,
-                    start_date: p.start_date,
-                    end_date: p.end_date
-                };
-            }
-        });
-
         res.status(200).json({
             message: "Promo codes fetched successfully",
-            promoCodes: result
+            promoCodes: allPromos
         });
 
     } catch (err) {
@@ -223,6 +229,8 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Server error", details: err.message });
     }
 });
+
+
 
 const assignWelcomeCode = async (user_id) => {
     try {

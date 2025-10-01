@@ -4,14 +4,15 @@ const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { service_id, packages = [], preferences = [], consents = [] } = req.body;
+    const { service_id, packages, preferences, consents } = req.body;
 
     if (!service_id) return res.status(400).json({ message: "service_id is required" });
-    if (!packages.length) return res.status(400).json({ message: "At least one package is required" });
 
     let parsedPackages = [];
     try {
-        parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        if (packages !== undefined) {
+            parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        }
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be valid JSON", error: e.message });
     }
@@ -42,7 +43,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 cart_id = insertCart.insertId;
             }
 
-            // Fetch existing children for deletion checks
+            // Fetch existing sub-packages, addons, preferences, consents
             const [existingItems] = await connection.query(
                 "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?",
                 [cart_id]
@@ -70,20 +71,45 @@ const addToCartService = asyncHandler(async (req, res) => {
             const existingConsentMap = {};
             existingConsents.forEach(c => existingConsentMap[`${c.sub_package_id}_${c.consent_id}`] = true);
 
-            // Delete removed sub-packages and related data
-            const itemsToDelete = existingItemIds.filter(id => !sub_packages.some(p => p.sub_package_id === id));
-            if (itemsToDelete.length) {
-                await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
-                await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
-                await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
-                await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
+            // === DELETE LOGIC ===
+            if (Array.isArray(sub_packages)) {
+                if (sub_packages.length === 0) {
+                    // Delete all sub-packages and related data
+                    if (existingItemIds.length) {
+                        await connection.query("DELETE FROM cart_package_items WHERE cart_id = ?", [cart_id]);
+                        await connection.query("DELETE FROM cart_addons WHERE cart_id = ?", [cart_id]);
+                        await connection.query("DELETE FROM cart_preferences WHERE cart_id = ?", [cart_id]);
+                        await connection.query("DELETE FROM cart_consents WHERE cart_id = ?", [cart_id]);
+                    }
+                } else {
+                    // Delete only removed sub-packages
+                    const itemsToDelete = existingItemIds.filter(id => !sub_packages.some(p => p.sub_package_id === id));
+                    if (itemsToDelete.length) {
+                        await connection.query("DELETE FROM cart_package_items WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
+                        await connection.query("DELETE FROM cart_addons WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
+                        await connection.query("DELETE FROM cart_preferences WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
+                        await connection.query("DELETE FROM cart_consents WHERE cart_id = ? AND sub_package_id IN (?)", [cart_id, itemsToDelete]);
+                    }
+                }
             }
 
-            // Insert/update sub-packages and apply top-level preferences & consents
+            if (Array.isArray(addons) && addons.length === 0) {
+                await connection.query("DELETE FROM cart_addons WHERE cart_id = ?", [cart_id]);
+            }
+
+            if (Array.isArray(preferences) && preferences.length === 0) {
+                await connection.query("DELETE FROM cart_preferences WHERE cart_id = ?", [cart_id]);
+            }
+
+            if (Array.isArray(consents) && consents.length === 0) {
+                await connection.query("DELETE FROM cart_consents WHERE cart_id = ?", [cart_id]);
+            }
+
+            // === INSERT/UPDATE LOGIC ===
             for (const item of sub_packages) {
                 const sub_package_id = item.sub_package_id;
 
-                // Cart package items
+                // Insert sub-package if not exists
                 if (!existingItemIds.includes(sub_package_id)) {
                     await connection.query(
                         "INSERT INTO cart_package_items (cart_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?)",
@@ -92,34 +118,40 @@ const addToCartService = asyncHandler(async (req, res) => {
                 }
 
                 // Addons
-                for (const addon of addons) {
-                    if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
-                        await connection.query(
-                            "INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) VALUES (?, ?, ?, ?)",
-                            [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
-                        );
+                if (Array.isArray(addons)) {
+                    for (const addon of addons) {
+                        if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
+                            await connection.query(
+                                "INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) VALUES (?, ?, ?, ?)",
+                                [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
+                            );
+                        }
                     }
                 }
 
                 // Top-level preferences applied to each sub-package
-                for (const pref of preferences) {
-                    const preference_id = pref.preference_id;
-                    if (!existingPrefMap[`${sub_package_id}_${preference_id}`]) {
-                        await connection.query(
-                            "INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) VALUES (?, ?, ?)",
-                            [cart_id, sub_package_id, preference_id]
-                        );
+                if (Array.isArray(preferences)) {
+                    for (const pref of preferences) {
+                        const preference_id = pref.preference_id;
+                        if (!existingPrefMap[`${sub_package_id}_${preference_id}`]) {
+                            await connection.query(
+                                "INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) VALUES (?, ?, ?)",
+                                [cart_id, sub_package_id, preference_id]
+                            );
+                        }
                     }
                 }
 
                 // Top-level consents applied to each sub-package
-                for (const consent of consents) {
-                    const { consent_id, answer = null } = consent;
-                    if (!existingConsentMap[`${sub_package_id}_${consent_id}`]) {
-                        await connection.query(
-                            "INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) VALUES (?, ?, ?, ?)",
-                            [cart_id, sub_package_id, consent_id, answer]
-                        );
+                if (Array.isArray(consents)) {
+                    for (const consent of consents) {
+                        const { consent_id, answer = null } = consent;
+                        if (!existingConsentMap[`${sub_package_id}_${consent_id}`]) {
+                            await connection.query(
+                                "INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) VALUES (?, ?, ?, ?)",
+                                [cart_id, sub_package_id, consent_id, answer]
+                            );
+                        }
                     }
                 }
             }
