@@ -475,6 +475,7 @@ const getService = asyncHandler(async (req, res) => {
     }
 });
 
+
 const searchService = asyncHandler(async (req, res) => {
     try {
         const { query } = req.query; // input from frontend (e.g., ?query=beauty)
@@ -484,13 +485,16 @@ const searchService = asyncHandler(async (req, res) => {
         }
 
         const [rows] = await db.query(
-            `SELECT 
-             s.service_id, 
-             s.serviceName,
-             st.service_type_id
-             FROM services s
-             LEFT JOIN service_type st ON s.service_id = st.service_id
-             WHERE serviceName LIKE ?`,
+            `
+      SELECT DISTINCT
+          s.service_id,
+          s.serviceName,
+          st.service_type_id
+      FROM services s
+      INNER JOIN service_type st ON s.service_id = st.service_id
+      INNER JOIN packages p ON st.service_type_id = p.service_type_id
+      WHERE s.serviceName LIKE ?
+      `,
             [`%${query}%`]
         );
 
@@ -502,13 +506,15 @@ const searchService = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "Search results fetched successfully",
-            services
+            services,
         });
     } catch (err) {
         console.error("Error searching services:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
