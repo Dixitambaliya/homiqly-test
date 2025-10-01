@@ -81,9 +81,6 @@ const loginEmployee = asyncHandler(async (req, res) => {
                 last_name: employee.last_name,
                 email: employee.email,
                 vendor_id: employee.vendor_id,
-                role: employee.role,
-                department: employee.department,
-                position: employee.position,
                 company_name: employee.company_name
             }
         });

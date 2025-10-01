@@ -8,9 +8,6 @@ const employeeAuthQueries = {
             ce.email,
             ce.password,
             ce.vendor_id,
-            ce.role,
-            ce.department,
-            ce.position,
             ce.is_active,
             v.vendorType,
             CASE 
