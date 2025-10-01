@@ -291,6 +291,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
 
 // ✅ stripeWebhook.js
+
 exports.stripeWebhook = asyncHandler(async (req, res) => {
   let event;
 
@@ -306,7 +307,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // ✅ Immediately acknowledge Stripe (important!)
+  // ✅ Immediately acknowledge Stripe
   res.status(200).json({ received: true });
 
   // Background task – don’t block Stripe
@@ -325,8 +326,10 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // 🔎 Find payment + cart
       const [paymentRows] = await connection.query(
-        `SELECT cart_id, user_id, status 
-         FROM payments WHERE payment_intent_id = ? LIMIT 1`,
+        `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime, sc.vendor_id, sc.notes, sc.bookingMedia
+         FROM payments p
+         LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
+         WHERE p.payment_intent_id = ? LIMIT 1`,
         [paymentIntentId]
       );
 
@@ -340,7 +343,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return;
       }
 
-      const { cart_id, user_id, status } = paymentRows[0];
+      const cart = paymentRows[0];
+      const { cart_id, user_id, status } = cart;
 
       if (status === "completed") {
         console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
@@ -348,48 +352,30 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return;
       }
 
-      // 🔎 Fetch cart
-      const [[cart]] = await connection.query(
-        `SELECT * FROM service_cart WHERE cart_id = ? LIMIT 1`,
-        [cart_id]
-      );
-
-      if (!cart || !cart.bookingDate || !cart.bookingTime || !cart.vendor_id) {
-        console.warn("⚠️ Incomplete cart:", cart_id);
-        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
-        await connection.query(
-          `UPDATE payments SET status = 'failed', notes = 'Incomplete cart data' WHERE payment_intent_id = ?`,
-          [paymentIntentId]
-        );
-        await connection.commit();
-        return;
-      }
-
-      // 🔎 Get first package
+      // 🔎 Fetch all cart packages with parent package info
       const [cartPackages] = await connection.query(
-        `SELECT package_id FROM cart_packages WHERE cart_id = ? LIMIT 1`,
+        `SELECT cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, p.service_type_id
+         FROM cart_package_items cpi
+         JOIN packages p ON cpi.package_id = p.package_id
+         WHERE cpi.cart_id = ?`,
         [cart_id]
       );
 
       if (!cartPackages.length) {
-        console.warn("⚠️ No package in cart:", cart_id);
-        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
+        console.warn("⚠️ Cart has no packages/sub-packages");
         await connection.query(
-          `UPDATE payments SET status = 'failed', notes = 'No package selected' WHERE payment_intent_id = ?`,
+          `UPDATE payments SET status = 'failed', notes = 'Cart has no packages' WHERE payment_intent_id = ?`,
           [paymentIntentId]
         );
         await connection.commit();
         return;
       }
 
-      const packageId = cartPackages[0].package_id;
-
-      // ✅ Create booking
+      // ✅ Create booking (main booking row)
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-        (user_id, service_id, bookingDate, bookingTime,
-         vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, package_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
           cart.service_id,
@@ -400,8 +386,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           cart.bookingMedia,
           "pending",
           "pending",
-          paymentIntentId,
-          packageId,
+          paymentIntentId
         ]
       );
 
@@ -411,83 +396,62 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // ==================================
       // Move cart data to booking tables
       // ==================================
-      await connection.query(
-        `INSERT INTO service_booking_packages (booking_id, package_id)
-         SELECT ?, package_id FROM cart_packages WHERE cart_id = ?`,
-        [booking_id, cart_id]
-      );
+      for (const pkg of cartPackages) {
+        const { sub_package_id, service_type_id, price, quantity } = pkg;
 
-      await connection.query(
-        `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, price, quantity)
-         SELECT ?, sub_package_id, price, quantity FROM cart_package_items WHERE cart_id = ?`,
-        [booking_id, cart_id]
-      );
-
-      // Preferences
-      const [preferences] = await connection.query(
-        `SELECT preference_id FROM cart_preferences WHERE cart_id = ?`,
-        [cart_id]
-      );
-      if (preferences.length > 0) {
+        // Sub-packages
         await connection.query(
-          `INSERT INTO service_booking_preferences (booking_id, preference_id)
-           SELECT ?, preference_id FROM cart_preferences WHERE cart_id = ?`,
-          [booking_id, cart_id]
-        );
-      }
-
-      // Consents
-      const [cartConsents] = await connection.query(
-        `SELECT consent_id, package_id, answer FROM cart_consents WHERE cart_id = ?`,
-        [cart_id]
-      );
-      for (const consent of cartConsents) {
-        await connection.query(
-          `INSERT INTO service_booking_consents (booking_id, consent_id, package_id, answer)
-           VALUES (?, ?, ?, ?)`,
-          [booking_id, consent.consent_id, consent.package_id, consent.answer]
-        );
-      }
-
-      // Addons
-      const [addons] = await connection.query(
-        `SELECT addon_id, package_id, price FROM cart_addons WHERE cart_id = ?`,
-        [cart_id]
-      );
-      for (const addon of addons) {
-        await connection.query(
-          `INSERT INTO service_booking_addons (booking_id, package_id, addon_id, price)
-           VALUES (?, ?, ?, ?)`,
-          [booking_id, addon.package_id, addon.addon_id, addon.price]
-        );
-      }
-      // ✅ Promo usage tracking
-      if (cart.promo_code_id) {
-        const [[userPromo]] = await connection.query(
-          `SELECT user_promo_code_id, maxUse, usedCount 
-          FROM user_promo_codes 
-          WHERE user_id = ? AND promo_id = ? LIMIT 1`,
-          [user_id, cart.promo_code_id]
+          `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, service_type_id, price, quantity)
+           VALUES (?, ?, ?, ?, ?)`,
+          [booking_id, sub_package_id, service_type_id, price, quantity]
         );
 
-        if (userPromo) {
-          if (userPromo.usedCount < userPromo.maxUse) {
-            await connection.query(
-              `UPDATE user_promo_codes 
-                SET usedCount = usedCount + 1 
-                WHERE user_promo_code_id = ?`,
-              [userPromo.user_promo_code_id]
-            );
-          } else {
-            console.warn(
-              `⚠️ Promo ${cart.promo_code_id} for user ${user_id} already fully used`
-            );
-          }
-        } else {
-          console.warn(
-            `⚠️ Promo ${cart.promo_code_id} not found for user ${user_id}, skipping update`
-          ); ``
+        // Addons
+        const [addons] = await connection.query(
+          `SELECT addon_id, price FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
+          [cart_id, sub_package_id]
+        );
+        for (const addon of addons) {
+          await connection.query(
+            `INSERT INTO service_booking_addons (booking_id, sub_package_id, addon_id, price)
+             VALUES (?, ?, ?, ?)`,
+            [booking_id, sub_package_id, addon.addon_id, addon.price]
+          );
         }
+
+        // Preferences
+        const [prefs] = await connection.query(
+          `SELECT preference_id FROM cart_preferences WHERE cart_id = ? AND sub_package_id = ?`,
+          [cart_id, sub_package_id]
+        );
+        for (const pref of prefs) {
+          await connection.query(
+            `INSERT INTO service_booking_preferences (booking_id, sub_package_id, preference_id)
+             VALUES (?, ?, ?)`,
+            [booking_id, sub_package_id, pref.preference_id]
+          );
+        }
+
+        // Consents
+        const [consents] = await connection.query(
+          `SELECT consent_id, answer FROM cart_consents WHERE cart_id = ? AND sub_package_id = ?`,
+          [cart_id, sub_package_id]
+        );
+        for (const consent of consents) {
+          await connection.query(
+            `INSERT INTO service_booking_consents (booking_id, sub_package_id, consent_id, answer)
+             VALUES (?, ?, ?, ?)`,
+            [booking_id, sub_package_id, consent.consent_id, consent.answer]
+          );
+        }
+      }
+
+      // ✅ Promo usage tracking
+      if (cart.user_promo_code_id) {
+        await connection.query(
+          `UPDATE user_promo_codes SET usedCount = usedCount + 1 WHERE user_promo_code_id = ? AND usedCount < maxUse`,
+          [cart.user_promo_code_id]
+        );
       }
 
       // ✅ Capture payment
@@ -506,10 +470,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // ✅ Clear cart
       await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
-      await connection.query(`DELETE FROM cart_packages WHERE cart_id = ?`, [cart_id]);
-      await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [cart_id]);
+      await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
       await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
 
       await connection.commit();
@@ -517,15 +480,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // 🔽 Fetch full booking details to send email
       const [[bookingDetails]] = await connection.query(
-        `SELECT sb.*, p.code as promo_code,
+        `SELECT sb.*,
                 pk.packageName,
                 GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
                 GROUP_CONCAT(DISTINCT a.addonName) AS addons,
                 GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
                 GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents
          FROM service_booking sb
-         LEFT JOIN user_promo_usage upu ON sb.booking_id = upu.booking_id
-         LEFT JOIN promo_codes p ON upu.promo_id = p.promo_id
          LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
          LEFT JOIN packages pk ON sbp.package_id = pk.package_id
          LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
@@ -562,6 +523,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
   })(); // end background task
 });
+
+
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;

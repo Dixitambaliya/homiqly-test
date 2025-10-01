@@ -112,8 +112,8 @@ const addToCartService = asyncHandler(async (req, res) => {
                 // Insert sub-package if not exists
                 if (!existingItemIds.includes(sub_package_id)) {
                     await connection.query(
-                        "INSERT INTO cart_package_items (cart_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?)",
-                        [cart_id, sub_package_id, item.price || 0, item.quantity || 1]
+                        "INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?, ?)",
+                        [cart_id, package_id, sub_package_id, item.price || 0, item.quantity || 1]
                     );
                 }
 
