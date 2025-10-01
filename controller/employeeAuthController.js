@@ -118,7 +118,7 @@ const getEmployeeProfile = asyncHandler(async (req, res) => {
         }
 
         const employee = employees[0];
-        
+
         // Remove sensitive information
         delete employee.password;
 
@@ -199,9 +199,9 @@ const verifyResetCode = asyncHandler(async (req, res) => {
     // Generate temporary token for password reset
     const token = jwt.sign({ email, type: 'password_reset' }, process.env.JWT_SECRET, { expiresIn: "10m" });
 
-    res.status(200).json({ 
-        message: "Code verified successfully", 
-        token 
+    res.status(200).json({
+        message: "Code verified successfully",
+        token
     });
 });
 
@@ -221,7 +221,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
         if (decoded.type !== 'password_reset') {
             return res.status(400).json({ error: "Invalid token type" });
         }

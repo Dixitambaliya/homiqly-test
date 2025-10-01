@@ -167,14 +167,34 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   // ✅ Fetch promo if exists
   let appliedPromo = null;
   if (cart.promo_code_id) {
+    // Join user_promo_codes with promo_codes
     const [[promo]] = await db.query(
-      `SELECT * FROM promo_codes 
-       WHERE promo_id = ? AND (start_date IS NULL OR start_date <= NOW()) 
-       AND (end_date IS NULL OR end_date >= NOW())`,
-      [cart.promo_code_id]
+      `SELECT upc.*, pc.discountValue, pc.minSpend, pc.start_date, pc.end_date
+      FROM user_promo_codes upc
+      LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+      WHERE upc.user_promo_code_id = ? AND upc.user_id = ?`,
+      [cart.promo_code_id, cart.user_id]
     );
-    if (promo) appliedPromo = promo;
+
+    if (promo) {
+      // Check usage limit
+      if (promo.usedCount < promo.maxUse) {
+        if (promo.source_type === "admin") {
+          // ✅ Check date validity for admin promos
+          if (
+            (!promo.start_date || new Date(promo.start_date) <= new Date()) &&
+            (!promo.end_date || new Date(promo.end_date) >= new Date())
+          ) {
+            appliedPromo = promo;
+          }
+        } else if (promo.source_type === "system") {
+          // ✅ No date check for system promos
+          appliedPromo = promo;
+        }
+      }
+    }
   }
+
 
   // ✅ Calculate subtotal
   let subtotal = 0;
@@ -201,7 +221,10 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     discount = appliedPromo.discountValue; // percentage
     totalAmount = subtotal * (1 - discount / 100);
     metadata.promo_code = appliedPromo.code;
+    metadata.user_promo_code_id = appliedPromo.user_promo_code_id;
+    metadata.promo_source = appliedPromo.source_type;
   }
+
 
   metadata.subtotal = subtotal;
   metadata.discount = discount;
@@ -426,25 +449,32 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           [booking_id, addon.package_id, addon.addon_id, addon.price]
         );
       }
-
-      // Promo usage
+      // ✅ Promo usage tracking
       if (cart.promo_code_id) {
-        const [existingUsage] = await connection.query(
-          `SELECT usage_id FROM user_promo_usage WHERE promo_id = ? AND user_id = ? LIMIT 1`,
-          [cart.promo_code_id, user_id]
+        const [[userPromo]] = await connection.query(
+          `SELECT user_promo_code_id, maxUse, usedCount 
+          FROM user_promo_codes 
+          WHERE user_id = ? AND promo_id = ? LIMIT 1`,
+          [user_id, cart.promo_code_id]
         );
 
-        if (existingUsage.length > 0) {
-          await connection.query(
-            `UPDATE user_promo_usage SET usage_count = usage_count + 1, booking_id = ? WHERE usage_id = ?`,
-            [booking_id, existingUsage[0].usage_id]
-          );
+        if (userPromo) {
+          if (userPromo.usedCount < userPromo.maxUse) {
+            await connection.query(
+              `UPDATE user_promo_codes 
+                SET usedCount = usedCount + 1 
+                WHERE user_promo_code_id = ?`,
+              [userPromo.user_promo_code_id]
+            );
+          } else {
+            console.warn(
+              `⚠️ Promo ${cart.promo_code_id} for user ${user_id} already fully used`
+            );
+          }
         } else {
-          await connection.query(
-            `INSERT INTO user_promo_usage (promo_id, user_id, usage_count, booking_id)
-             VALUES (?, ?, 1, ?)`,
-            [cart.promo_code_id, user_id, booking_id]
-          );
+          console.warn(
+            `⚠️ Promo ${cart.promo_code_id} not found for user ${user_id}, skipping update`
+          );``
         }
       }
 

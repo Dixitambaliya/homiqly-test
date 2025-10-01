@@ -273,7 +273,7 @@ const sendPromoEmail = async (userEmail, promoCode, discountValue) => {
 };
 
 // Cron job at midnight daily
-cron.schedule("0 0 * * *", async () => {
+cron.schedule("*/1 * * * *", async () => {
     console.log("🔄 Running promo assignment cron job at midnight...");
 
     try {
@@ -283,7 +283,10 @@ cron.schedule("0 0 * * *", async () => {
 
         for (const promo of promos) {
             const [eligibleUsers] = await db.query(
-                `SELECT user_id, email, COUNT(*) as completed_count
+                `SELECT 
+                 service_booking.user_id, 
+                 email, 
+                 COUNT(*) as completed_count
                  FROM service_booking
                  JOIN users ON users.user_id = service_booking.user_id
                  WHERE payment_status = 'completed'

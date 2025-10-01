@@ -162,6 +162,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 upc.maxUse AS userMaxUse,
                 upc.code AS userCode,
                 upc.source_type,
+                upc.discountValue AS userDiscountValue,
                 pc.promo_id,
                 pc.code AS promoCode,
                 pc.discountValue,
@@ -190,7 +191,8 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                     userMaxUse: p.userMaxUse,
                     userCode: p.userCode,
                     source_type: p.source_type,
-                    promoMaxUse: p.userMaxUse
+                    promoMaxUse: p.userMaxUse,
+                    discountValue: p.userDiscountValue
                 };
             } else {
                 return {
@@ -222,21 +224,22 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
     }
 });
 
+
 const assignWelcomeCode = async (user_id) => {
     try {
-        // Check if auto-assign is enabled
+        // ✅ Check if auto-assign is enabled
         const [setting] = await db.query(
             "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
         );
 
-        if (!setting[0] || setting[0].setting_value !== 1) {
-            console.error("Auto-assign welcome code is disabled");
+        if (!setting[0] || setting[0].setting_value != 1) {
+            console.log("Auto-assign welcome code is disabled");
             return null;
         }
 
-        // Check if user already has a system promo code
+        // ✅ Check if user already has a system promo code
         const [existing] = await db.query(
-            "SELECT * FROM user_promo_codes WHERE user_id = ? AND source_type = 'system'",
+            "SELECT * FROM system_promo_codes WHERE user_id = ?",
             [user_id]
         );
         if (existing.length > 0) {
@@ -244,7 +247,7 @@ const assignWelcomeCode = async (user_id) => {
             return null;
         }
 
-        // Generate random 5-character uppercase code
+        // ✅ Generate random 5-character uppercase code
         const generateRandomCode = () => {
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
             let code = '';
@@ -253,18 +256,21 @@ const assignWelcomeCode = async (user_id) => {
             }
             return code;
         };
-
         const code = generateRandomCode();
-        const defaultMaxUse = 1;
 
-        // Assign code to user (no promo_id needed for system code)
+        // ✅ You can make these configurable defaults (admin can change them later if needed)
+        const defaultMaxUse = 1;
+        const defaultDiscount = 10; // system welcome discount %
+
+        // ✅ Assign promo code directly to user
         await db.query(
-            `INSERT INTO user_promo_codes (user_id, code, assigned_at, maxUse, source_type)
-             VALUES (?, ?, NOW(), ?, 'system')`,
-            [user_id, code, defaultMaxUse]
+            `INSERT INTO system_promo_codes 
+                (user_id, code, maxUse, discountValue, usage_count, source_type) 
+             VALUES (?, ?, ?, ?, 0 ,'system')`,
+            [user_id, code, defaultMaxUse, defaultDiscount]
         );
 
-        console.log(`Promo code ${code} (maxUse=${defaultMaxUse}) assigned to user ${user_id}`);
+        console.log(`Promo code ${code} assigned to user ${user_id} with discount ${defaultDiscount}%`);
         return code;
 
     } catch (err) {
@@ -272,6 +278,9 @@ const assignWelcomeCode = async (user_id) => {
         return null;
     }
 };
+
+
+
 
 // Toggle Auto-Assign Welcome Code
 const toggleAutoAssignWelcomeCode = asyncHandler(async (req, res) => {
@@ -320,7 +329,7 @@ const getAutoAssignWelcomeCodeStatus = asyncHandler(async (req, res) => {
             "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
         );
 
-        res.status(200).json({enable: rows[0].setting_value}); // directly return 0 or 1
+        res.status(200).json({ enable: rows[0].setting_value }); // directly return 0 or 1
     } catch (err) {
         console.error("Error fetching auto-assign welcome code status:", err.message);
         res.status(500).json({ message: "Server error", details: err.message });
