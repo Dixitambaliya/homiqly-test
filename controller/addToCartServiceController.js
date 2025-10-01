@@ -348,99 +348,173 @@ const getUserCart = asyncHandler(async (req, res) => {
 });
 
 
-
-
-
 const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { package_id } = req.params; // 🔑 package_id from URL param
+    const { package_id } = req.params;
 
     if (!package_id) {
         return res.status(400).json({ message: "package_id is required" });
     }
 
     try {
-        // ✅ Fetch cart row(s) for the user and package
+        // 1️⃣ Fetch cart row(s) for the user and package (minimal info)
         const [cartRows] = await db.query(
-            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.package_id, sc.bookingStatus
+            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.package_id, sc.bookingStatus, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime, sc.user_promo_code_id
              FROM service_cart sc
              WHERE sc.user_id = ? AND sc.package_id = ?`,
             [user_id, package_id]
         );
 
-        if (cartRows.length === 0) {
-            // ✅ Return a message clearly indicating no cart
-            return res.status(200).json({
-                message: "No cart found for this package"
-            });
+        if (!cartRows.length) {
+            return res.status(200).json({ message: "No cart found for this package" });
         }
 
-        let cart_id = cartRows[0].cart_id;
+        const cart = cartRows[0];
+        const { cart_id, user_promo_code_id } = cart;
 
-        // ✅ Fetch sub-packages
+        // 2️⃣ Fetch sub-packages
         const [subPackages] = await db.query(
-            `SELECT 
-            pt.item_id AS sub_package_id,
-            cpi.cart_package_items_id, 
-            pt.itemName,
-            pt.description,
-            cpi.price, 
-            cpi.quantity
+            `SELECT cpi.sub_package_id, pi.itemName, cpi.price, cpi.quantity, pi.timeRequired
              FROM cart_package_items cpi
-             LEFT JOIN package_items pt ON cpi.sub_package_id = pt.item_id
-             WHERE cpi.cart_id = ? AND cpi.package_id = ?`,
-            [cart_id, package_id]
+             LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+             WHERE cpi.cart_id = ?`,
+            [cart_id]
         );
 
-        // ✅ Fetch addons
+        // 3️⃣ Fetch addons
         const [addons] = await db.query(
-            `SELECT 
-            pa.addon_id,
-            ca.cart_addon_id, 
-            pa.addonName,
-            pa.addonDescription,
-            ca.price
+            `SELECT ca.sub_package_id, a.addonName, ca.price
              FROM cart_addons ca
-             LEFT JOIN package_addons pa ON ca.addon_id = pa.addon_id
-             WHERE ca.cart_id = ? AND ca.package_id = ?`,
-            [cart_id, package_id]
+             LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
+             WHERE ca.cart_id = ?`,
+            [cart_id]
         );
 
-        // ✅ Fetch preferences
+        // 4️⃣ Fetch preferences
         const [preferences] = await db.query(
-            `SELECT 
-             bp.preference_id,
-             cp.cart_preference_id, 
-             bp.preferenceValue
+            `SELECT cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
              FROM cart_preferences cp
-             LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id 
-             WHERE cp.cart_id = ? AND cp.package_id = ?`,
-            [cart_id, package_id]
+             LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+             WHERE cp.cart_id = ?`,
+            [cart_id]
         );
 
-        // ✅ Fetch consents
+        // 5️⃣ Fetch consents
         const [consents] = await db.query(
-            `SELECT 
-            pcf.consent_id,
-            cc.cart_consent_id,
-            pcf.question, 
-            cc.answer
+            `SELECT cc.cart_consent_id, cc.sub_package_id, c.question, cc.answer
              FROM cart_consents cc
-             LEFT JOIN package_consent_forms pcf ON pcf.consent_id = cc.consent_id
-             WHERE cc.cart_id = ? AND cc.package_id = ?`,
-            [cart_id, package_id]
+             LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+             WHERE cc.cart_id = ?`,
+            [cart_id]
         );
 
-        // ✅ Build response
+        // 6️⃣ Group addons/preferences/consents by sub_package_id
+        const addonsBySub = {};
+        addons.forEach(a => {
+            if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
+            addonsBySub[a.sub_package_id].push(a);
+        });
+
+        const prefsBySub = {};
+        preferences.forEach(p => {
+            if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
+            prefsBySub[p.sub_package_id].push({
+                cart_preference_id: p.cart_preference_id,
+                preferenceValue: p.preferenceValue,
+                price: p.preferencePrice || 0
+            });
+        });
+
+        const consentsBySub = {};
+        consents.forEach(c => {
+            if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
+            consentsBySub[c.sub_package_id].push({
+                consent_id: c.cart_consent_id,
+                consentText: c.question,
+                answer: c.answer
+            });
+        });
+
+        // 7️⃣ Attach child arrays to sub-packages
+        const subPackagesStructured = subPackages.map(sub => ({
+            ...sub,
+            addons: addonsBySub[sub.sub_package_id] || [],
+            preferences: prefsBySub[sub.sub_package_id] || [],
+            consents: consentsBySub[sub.sub_package_id] || []
+        }));
+
+        // 8️⃣ Calculate total
+        let totalAmount = 0;
+        subPackagesStructured.forEach(sp => {
+            totalAmount += (parseFloat(sp.price) || 0) * (parseInt(sp.quantity) || 1);
+            sp.addons.forEach(a => totalAmount += parseFloat(a.price) || 0);
+            sp.preferences.forEach(p => totalAmount += parseFloat(p.price) || 0);
+        });
+
+        // 9️⃣ Promo logic (same as getUserCart)
+        let discountedTotal = totalAmount;
+        let promoDetails = null;
+
+        if (user_promo_code_id) {
+            const [userPromoRows] = await db.query(
+                `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+                [user_id, user_promo_code_id]
+            );
+
+            if (userPromoRows.length) {
+                const promo = userPromoRows[0];
+
+                if (promo.source_type === 'admin') {
+                    const [adminPromo] = await db.query(
+                        `SELECT * FROM promo_codes WHERE promo_id = ?`,
+                        [promo.promo_id]
+                    );
+
+                    if (adminPromo.length) {
+                        const discountValue = parseFloat(adminPromo[0].discountValue || 0);
+                        if (discountValue > 0) {
+                            discountedTotal = totalAmount - (totalAmount * discountValue / 100);
+                        }
+
+                        promoDetails = {
+                            user_promo_code_id: promo.user_promo_code_id,
+                            source_type: 'admin',
+                            ...adminPromo[0],
+                            code: promo.code,
+                            usedCount: promo.usedCount,
+                            maxUse: promo.maxUse
+                        };
+                    }
+                }
+            }
+        }
+
+        if (!promoDetails && user_promo_code_id) {
+            const [systemPromoRows] = await db.query(
+                `SELECT * FROM system_promo_codes WHERE system_promo_code_id = ? AND user_id = ? LIMIT 1`,
+                [user_promo_code_id, user_id]
+            );
+
+            if (systemPromoRows.length) {
+                const sysPromo = systemPromoRows[0];
+                const discountValue = parseFloat(sysPromo.discountValue || 0);
+                if (discountValue > 0) {
+                    discountedTotal = totalAmount - (totalAmount * discountValue / 100);
+                }
+
+                promoDetails = { ...sysPromo };
+            }
+        }
+
         res.status(200).json({
             message: "Cart fetched successfully",
             cart: {
-                ...cartRows[0],
-                sub_packages: subPackages,
-                addons,
-                preferences,
-                consents
-            }
+                ...cart,
+                packages: [{ sub_packages: subPackagesStructured }],
+                totalAmount,
+                discountedTotal
+            },
+            promo: promoDetails || null
         });
 
     } catch (err) {
@@ -448,6 +522,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
+
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
