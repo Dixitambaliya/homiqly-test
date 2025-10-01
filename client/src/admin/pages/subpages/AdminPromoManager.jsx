@@ -7,6 +7,13 @@ import { Button, IconButton } from "../../../shared/components/Button";
 import Modal from "../../../shared/components/Modal/Modal";
 import { Edit2, Trash2 } from "lucide-react";
 
+/**
+ * AdminPromoManager
+ * - keeps all your existing promo management features
+ * - adds an "Auto-generate code" toggle which hits:
+ *    GET  /api/getstatuscode           -> { enable: 0 | 1 }
+ *    PATCH /api/changautogeneratecode  -> { enable: 0 | 1 } (body)
+ */
 export default function AdminPromoManager() {
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,8 +31,13 @@ export default function AdminPromoManager() {
     end_date: "",
   });
 
+  // AUTO-GENERATE CODE toggle state
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [autoLoading, setAutoLoading] = useState(false);
+
   useEffect(() => {
     fetchPromos();
+    fetchAutoStatus();
   }, []);
 
   async function fetchPromos() {
@@ -38,6 +50,48 @@ export default function AdminPromoManager() {
       toast.error("Failed to load promo codes");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // fetch current enable value
+  async function fetchAutoStatus() {
+    try {
+      setAutoLoading(true);
+      const res = await axios.get("/api/getstatuscode");
+      // expecting { enable: 0 | 1 }
+      const val = res?.data?.enable;
+      setAutoEnabled(Number(val) === 1);
+    } catch (err) {
+      console.error("fetchAutoStatus:", err);
+      toast.error("Failed to fetch auto-generate status");
+    } finally {
+      setAutoLoading(false);
+    }
+  }
+
+  // toggle function
+  async function toggleAutoEnable() {
+    const newValue = !autoEnabled;
+    // optimistic UI
+    setAutoEnabled(newValue);
+    setAutoLoading(true);
+    try {
+      // API expects { enable: 0 | 1 }
+      const payload = { enable: newValue ? 1 : 0 };
+      const res = await axios.patch("/api/changautogeneratecode", payload);
+      // You can use res.data.message if returned
+      toast.success(
+        res?.data?.message ||
+          `Auto-generate welcome code ${newValue ? "enabled" : "disabled"}`
+      );
+    } catch (err) {
+      console.error("toggleAutoEnable:", err);
+      // revert UI
+      setAutoEnabled(!newValue);
+      const message = err?.response?.data?.message || "Failed to update";
+      toast.error(message);
+    } finally {
+      setAutoLoading(false);
     }
   }
 
@@ -142,19 +196,43 @@ export default function AdminPromoManager() {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">Promotions Manager</h1>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-4">
             <FormInput
+              className="w-64"
               placeholder="Search code or value..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <Button
-              onClick={openCreateModal}
-              className="
-             w-full"
-            >
+            <Button onClick={openCreateModal} className="w-52">
               + Add Promo
             </Button>
+          </div>
+          {/* Auto-generate toggle */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm">Auto-assign welcome code</label>
+            <button
+              onClick={toggleAutoEnable}
+              disabled={autoLoading}
+              className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none ${
+                autoEnabled ? "bg-emerald-500" : "bg-gray-300"
+              }`}
+              aria-pressed={autoEnabled}
+              title={
+                autoLoading
+                  ? "Updating..."
+                  : autoEnabled
+                  ? "Auto-assign is enabled"
+                  : "Auto-assign is disabled"
+              }
+              type="button"
+            >
+              <span
+                className={`transform transition-transform inline-block h-5 w-5 rounded-full bg-white shadow ${
+                  autoEnabled ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
+            </button>
           </div>
         </div>
 
@@ -213,7 +291,7 @@ export default function AdminPromoManager() {
                             icon={<Edit2 className="w-4 h-4" />}
                             variant="ghost"
                             onClick={() => openEditModal(p)}
-                          ></IconButton>
+                          />
                           <IconButton
                             icon={<Trash2 className="w-4 h-4" />}
                             variant="lightDanger"
