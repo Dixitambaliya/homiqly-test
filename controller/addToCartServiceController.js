@@ -143,8 +143,6 @@ const addToCartService = asyncHandler(async (req, res) => {
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
-    console.log(user_id);
-
     try {
         // 1️⃣ Fetch all carts for the user
         const [cartRows] = await db.query(
