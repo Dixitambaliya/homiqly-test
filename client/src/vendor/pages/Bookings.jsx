@@ -88,7 +88,7 @@ const Bookings = () => {
       fetchBookings();
     } catch (error) {
       console.error("Failed to assign employee:", error);
-      toast.error("Failed to assign employee");
+      toast.error(error?.response?.data?.message || "Failed to assign employee");
     }
   };
 
