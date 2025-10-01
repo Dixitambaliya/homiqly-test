@@ -70,7 +70,7 @@ const BookingsTable = ({
                       <option value="">Select</option>
                       {employees.map((emp) => (
                         <option key={emp.employee_id} value={emp.employee_id}>
-                          {emp.employee_name}
+                          {emp.first_name} {emp.last_name}
                         </option>
                       ))}
                     </select>
