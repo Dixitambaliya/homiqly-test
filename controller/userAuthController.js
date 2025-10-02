@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
+const { assignWelcomeCode } = require("./promoCode");
 
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -172,6 +173,14 @@ const loginUser = asyncHandler(async (req, res) => {
             }
         }
 
+        // Auto-assign welcome code if available
+        let welcomeCode = null;
+        try {
+            welcomeCode = await assignWelcomeCode(user.user_id, user.email);
+        } catch (err) {
+            console.error("❌ Auto-assign welcome code error:", err.message);
+        }
+
         const token = jwt.sign(
             {
                 user_id: user.user_id,
@@ -185,12 +194,14 @@ const loginUser = asyncHandler(async (req, res) => {
             message: "Login successful",
             user_id: user.user_id,
             token,
+            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
         });
     } catch (err) {
         console.error("Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;
@@ -298,45 +309,77 @@ const googleLogin = asyncHandler(async (req, res) => {
     // Split name
     const [given_name = "", family_name = ""] = name?.split(" ") || [];
 
-    const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
+    try {
+        // Check if user already exists
+        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
 
-    let user_id;
+        let user;
+        let user_id;
 
-    if (existingUser.length === 0) {
-        const [result] = await db.query(userAuthQueries.userInsert, [
-            given_name,
-            family_name,
-            email,
-            "",        // phone
-            picture,
-            fcmToken
-        ]);
-        user_id = result.insertId;
-    } else {
-        user_id = existingUser[0].user_id;
+        if (!existingUser || existingUser.length === 0) {
+            // First-time user: insert into DB
+            const [result] = await db.query(userAuthQueries.userInsert, [
+                given_name,
+                family_name,
+                email,
+                "",        // phone
+                picture,
+                fcmToken
+            ]);
+            user_id = result.insertId;
 
-        // ✅ Update FCM token for returning user
-        if (fcmToken) {
-            await db.query(
-                "UPDATE users SET fcmToken = ? WHERE user_id = ?",
-                [fcmToken, user_id]
-            );
+            // Fetch the inserted user
+            const [[newUser]] = await db.query(userAuthQueries.userMailCheck, [email]);
+            user = newUser;
+        } else {
+            user = existingUser[0];
+            user_id = user.user_id;
+
+            // ✅ Update FCM token if provided and changed
+            if (fcmToken && fcmToken !== user.fcmToken) {
+                try {
+                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
+                } catch (err) {
+                    console.error("❌ FCM token update error:", err.message);
+                }
+            } else {
+                console.log("ℹ️ FCM token already up-to-date for user:", user_id);
+            }
         }
+
+        // Auto-assign welcome code if available
+        let welcomeCode = null;
+        try {
+            welcomeCode = await assignWelcomeCode(user_id, email);
+            console.log(user_id);
+
+            console.log(welcomeCode);
+
+        } catch (err) {
+            console.error("❌ Auto-assign welcome code error:", err.message);
+        }
+
+        const token = jwt.sign(
+            {
+                user_id: user.user_id,
+                email: user.email,
+                status: user.status || "active",
+            },
+            process.env.JWT_SECRET
+        );
+
+        res.status(200).json({
+            message: "Login successful via Google",
+            user_id: user.user_id,
+            token,
+            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
+        });
+    } catch (err) {
+        console.error("Google Login Error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
     }
-
-    const jwtToken = jwt.sign({
-        user_id, email,
-        status: "active"
-    },
-        process.env.JWT_SECRET
-    );
-
-    res.status(200).json({
-        message: "Login successful via Google",
-        token: jwtToken,
-        user_id,
-    });
 });
+
 
 
 

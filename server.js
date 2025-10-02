@@ -10,6 +10,7 @@ require("./controller/reminder")
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
 const vendorAuthRoutes = require("./routes/vendorAuthRoutes")
+const employeeAuthRoutes = require("./routes/employeeAuthRoutes")
 const verificationRoutes = require("./routes/verificationRoutes")
 const adminRoutes = require("./routes/adminRoutes")
 const serviceRoutes = require("./routes/serviceRoutes")
@@ -29,6 +30,7 @@ const settingsRoutes = require("./routes/settingsRoutes")
 const ticketRoutes = require("./routes/ticketRoutes")
 const paymentRoutes = require("./routes/paymentRoutes")
 const notificationGetRoutes = require("./routes/notificationGetRoutes");
+const promoRoutes = require = require("./routes/promoRoutes")
 
 const PORT = process.env.PORT || 8000
 
@@ -51,6 +53,7 @@ app.use(bodyParser.json());
 app.use("/api/user", userAuthRoutes)
 app.use("/api/admin", adminAuthRoutes)
 app.use("/api/vendor", vendorAuthRoutes)
+app.use("/api/employee", employeeAuthRoutes)
 app.use("/api/approval", verificationRoutes)
 app.use("/api/admin", adminRoutes)
 app.use("/api/service", serviceRoutes)
@@ -70,6 +73,7 @@ app.use("/api/rating", ratingRoutes)
 app.use("/api/payment", paymentRoutes)
 app.use("/api", ticketRoutes)
 app.use("/api/notifications", notificationGetRoutes)
+app.use("/api", promoRoutes)
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));

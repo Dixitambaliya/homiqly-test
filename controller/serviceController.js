@@ -224,7 +224,6 @@ const deleteServiceFilter = asyncHandler(async (req, res) => {
     res.status(200).json({ message: "Service filter deleted successfully" });
 });
 
-
 const addServiceCity = asyncHandler(async (req, res) => {
     const { serviceCity } = req.body;
 
@@ -321,7 +320,6 @@ const addServiceType = asyncHandler(async (req, res) => {
         subtype_id: finalSubtypeId
     });
 });
-
 // Get service type by ID
 const getServiceTypeById = asyncHandler(async (req, res) => {
     const { service_id } = req.params;
@@ -456,7 +454,6 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getService = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(userGetQueries.getServices);
@@ -477,6 +474,47 @@ const getService = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
+const searchService = asyncHandler(async (req, res) => {
+    try {
+        const { query } = req.query; // input from frontend (e.g., ?query=beauty)
+
+        if (!query || query.trim() === "") {
+            return res.status(400).json({ error: "Search query is required" });
+        }
+
+        const [rows] = await db.query(
+            `
+      SELECT DISTINCT
+          s.service_id,
+          s.serviceName,
+          st.service_type_id
+      FROM services s
+      INNER JOIN service_type st ON s.service_id = st.service_id
+      INNER JOIN packages p ON st.service_type_id = p.service_type_id
+      WHERE s.serviceName LIKE ?
+      `,
+            [`%${query}%`]
+        );
+
+        const services = rows.map(row => ({
+            service: row.serviceName,
+            serviceId: row.service_id,
+            service_type_id: row.service_type_id,
+        }));
+
+        res.status(200).json({
+            message: "Search results fetched successfully",
+            services,
+        });
+    } catch (err) {
+        console.error("Error searching services:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
@@ -600,7 +638,6 @@ const editService = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
 
 const deleteService = asyncHandler(async (req, res) => {
     const { serviceId } = req.body;
@@ -762,5 +799,6 @@ module.exports = {
     getServiceFilters,
     updateServiceFilter,
     deleteServiceFilter,
-    getAdminServicesWithfilter
+    getAdminServicesWithfilter,
+    searchService
 }

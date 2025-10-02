@@ -253,7 +253,7 @@ const updateUserData = asyncHandler(async (req, res) => {
 
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { firstName, lastName, phone, parkingInstruction, address, state, postalcode } = req.body;
+    const { firstName, lastName, phone, parkingInstruction, address, state, postalcode, flatNumber } = req.body;
 
     try {
         const [userCheck] = await db.query(
@@ -266,8 +266,8 @@ const addUserData = asyncHandler(async (req, res) => {
         }
 
         const [userDataInsert] = await db.query(
-            `UPDATE users SET firstName = ?, lastName = ? , parkingInstruction = ?,  phone = ?, address = ?, state = ?, postalcode = ? WHERE user_id = ?`,
-            [firstName, lastName, parkingInstruction, phone, address, state, postalcode, user_id]
+            `UPDATE users SET firstName = ?, lastName = ? , parkingInstruction = ?,  phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ? WHERE user_id = ?`,
+            [firstName, lastName, parkingInstruction, phone, address, state, postalcode, flatNumber, user_id]
         );
 
         res.status(200).json({

@@ -11,6 +11,18 @@ const authenticationToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
+    
+    // Set user type for easier identification
+    if (decoded.employee_id) {
+      req.user.userType = 'employee';
+    } else if (decoded.vendor_id) {
+      req.user.userType = 'vendor';
+    } else if (decoded.admin_id) {
+      req.user.userType = 'admin';
+    } else if (decoded.user_id) {
+      req.user.userType = 'user';
+    }
+    
     next();
   } catch (error) {
     res.status(403).json({ error: "Invalid token" });

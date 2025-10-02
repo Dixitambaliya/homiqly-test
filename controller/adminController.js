@@ -273,10 +273,10 @@ const getBookings = asyncHandler(async (req, res) => {
             LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
             LEFT JOIN packages pkg ON sbp.package_id = pkg.package_id
 
-            LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id 
+            LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
             LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
 
-            LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id 
+            LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
             LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
 
             LEFT JOIN service_booking_preferences sp ON sb.booking_id = sp.booking_id
@@ -733,7 +733,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
-
+    
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -1718,7 +1718,6 @@ const deleteEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 });
-
 
 module.exports = {
     getVendor,

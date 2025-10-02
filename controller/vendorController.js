@@ -94,7 +94,6 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const { service_id } = req.params;
 
@@ -500,7 +499,6 @@ const editServiceType = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const deletePackage = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
