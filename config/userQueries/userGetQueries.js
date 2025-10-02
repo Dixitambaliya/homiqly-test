@@ -10,6 +10,7 @@ const userGetQueries = {
                     lastName,
                     profileImage,
                     phone,
+                    flatNumber,
                     parkingInstruction,
                     postalCode AS postalcode,
                     address,
