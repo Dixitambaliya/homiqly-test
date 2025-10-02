@@ -349,88 +349,129 @@ const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
+        // 1️⃣ Fetch all bookings for the user
         const [userBookings] = await db.query(
             `SELECT 
-        sb.*,
-        v.vendor_id,
-        v.vendorType,
-        IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
-        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-        IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
-        IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage
-    FROM service_booking sb
-    LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-    LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-    LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-    WHERE sb.user_id = ?`,
+                sb.*,
+                v.vendor_id,
+                v.vendorType,
+                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+                IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
+                IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage
+            FROM service_booking sb
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            WHERE sb.user_id = ?`,
             [user_id]
         );
-
 
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            // Fetch packages, package items, addons, preferences
-            const [bookingPackages] = await db.query(bookingGetQueries.getUserBookedpackages, [bookingId]);
-            const [packageItems] = await db.query(bookingGetQueries.getUserPackageItems, [bookingId]);
-            const [bookingAddons] = await db.query(bookingGetQueries.getUserBookedAddons, [bookingId]);
-            const [bookingPreferences] = await db.query(bookingGetQueries.getUserBookedPrefrences, [bookingId]);
-            const [bookingConsents] = await db.query(bookingGetQueries.getUserBookedConsents, [bookingId]);
-            const [[promoUsage]] = await db.query(bookingGetQueries.getUserBookedPromos, [bookingId, user_id]);
+            // 2️⃣ Fetch sub-packages (with package + item details)
+            const [subPackages] = await db.query(`
+                SELECT 
+                    sbsp.sub_package_id,
+                    p.package_id,
+                    p.packageName,
+                    p.packageMedia,
+                    pi.itemName,
+                    pi.itemMedia,
+                    pi.timeRequired,
+                    sbsp.price,
+                    sbsp.quantity
+                FROM service_booking_sub_packages sbsp
+                JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                JOIN packages p ON pi.package_id = p.package_id
+                WHERE sbsp.booking_id = ?`,
+                [bookingId]
+            );
 
-            const consentsGroupedByPackage = {};
-            bookingConsents.forEach(consent => {
-                const pkgId = consent.package_id || 'no_package';
-                if (!consentsGroupedByPackage[pkgId]) consentsGroupedByPackage[pkgId] = [];
-                consentsGroupedByPackage[pkgId].push({
-                    consent_id: consent.consent_id,
-                    consentText: consent.question,
-                    answer: consent.answer
-                });
-            });
+            // 3️⃣ Fetch related data (addons, consents, preferences, promos)
+            const [bookingAddons] = await db.query(`
+                SELECT 
+                    sba.sub_package_id,
+                    sba.addon_id,
+                    a.addonName,
+                    a.addonMedia,
+                    sba.price,
+                    sba.quantity
+                FROM service_booking_addons sba
+                JOIN package_addons a ON sba.addon_id = a.addon_id
+                WHERE sba.booking_id = ?`,
+                [bookingId]
+            );
 
-            // Group packages with items, addons, consents, preferences, and promo
-            const groupedPackages = bookingPackages.map(pkg => {
-                const items = packageItems.filter(item => item.package_id === pkg.package_id);
-                const addons = bookingAddons.filter(addon => addon.package_id === pkg.package_id);
-                const consents = consentsGroupedByPackage[pkg.package_id] || [];
+            const [bookingConsents] = await db.query(`
+                SELECT 
+                    c.consent_id,
+                    c.question,
+                    sbc.answer,
+                    sbc.sub_package_id
+                FROM service_booking_consents sbc
+                LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+                WHERE sbc.booking_id = ?`,
+                [bookingId]
+            );
 
-                const packageObj = {
-                    ...pkg,
-                    ...(items.length && { items }),
+            const [bookingPreferences] = await db.query(`
+                SELECT
+                    sp.sub_package_id,
+                    sp.preference_id,
+                    bp.preferenceValue,
+                    bp.preferencePrice
+                FROM service_booking_preferences sp
+                JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+                WHERE sp.booking_id = ?`,
+                [bookingId]
+            );
+
+            const [[promoUsage]] = await db.query(`
+                SELECT 
+                    upu.promo_id, 
+                    upu.user_id, 
+                    upu.usedCount,
+                    pc.code AS promoCode, 
+                    pc.discountValue, 
+                    pc.minSpend, 
+                    pc.maxUse
+                FROM user_promo_codes upu
+                LEFT JOIN promo_codes pc ON upu.promo_id = pc.promo_id
+                WHERE upu.user_id = ?`,
+                [bookingId, user_id]
+            );
+
+            // 4️⃣ Group everything by sub_package_id
+            const groupedSubPackages = subPackages.map(sp => {
+                const addons = bookingAddons.filter(a => a.sub_package_id === sp.sub_package_id);
+                const consents = bookingConsents.filter(c => c.sub_package_id === sp.sub_package_id);
+                const prefs = bookingPreferences.filter(p => p.sub_package_id === sp.sub_package_id);
+
+                return {
+                    ...sp,
                     ...(addons.length && { addons }),
-                    ...(consents.length && { consents })
+                    ...(consents.length && { consents }),
+                    ...(prefs.length && { preferences: prefs })
                 };
-
-                // Attach preferences and promo only to the last package
-                if (pkg === bookingPackages[bookingPackages.length - 1]) {
-                    if (bookingPreferences.length > 0) packageObj.preferences = bookingPreferences;
-
-                    if (promoUsage) {
-                        packageObj.promo = {
-                            promo_id: promoUsage.promo_id,
-                            code: promoUsage.promoCode,
-                            discountValue: promoUsage.discountValue,
-                            maxUse: promoUsage.maxUse,
-                            usage_count: promoUsage.usage_count
-                        };
-                    }
-
-                    const rootConsents = consentsGroupedByPackage['no_package'] || [];
-                    if (rootConsents.length > 0) {
-                        packageObj.consents = packageObj.consents
-                            ? [...packageObj.consents, ...rootConsents]
-                            : rootConsents;
-                    }
-                }
-
-                return packageObj;
             });
 
-            booking.packages = groupedPackages;
+            // 5️⃣ Attach promo to the booking level (not per sub-package)
+            if (promoUsage) {
+                booking.promo = {
+                    promo_id: promoUsage.promo_id,
+                    code: promoUsage.promoCode,
+                    discountValue: promoUsage.discountValue,
+                    maxUse: promoUsage.maxUse,
+                    usage_count: promoUsage.usage_count
+                };
+            }
 
-            // Clean nulls from booking object
+            booking.subPackages = groupedSubPackages;
+
+            // 6️⃣ Clean null values
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
@@ -449,6 +490,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const { booking_id, status } = req.body;

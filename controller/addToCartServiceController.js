@@ -411,7 +411,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
         // 3️⃣ Fetch addons
         const [addons] = await db.query(
-            `SELECT ca.sub_package_id, a.addonName, ca.price
+            `SELECT ca.addon_id, ca.sub_package_id, a.addonName, ca.price
              FROM cart_addons ca
              LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
              WHERE ca.cart_id = ?`,
@@ -420,7 +420,12 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
         // 4️⃣ Fetch preferences
         const [preferences] = await db.query(
-            `SELECT cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
+            `SELECT 
+            cp.preference_id, 
+            cp.cart_preference_id, 
+            cp.sub_package_id, 
+            bp.preferenceValue, 
+            bp.preferencePrice
              FROM cart_preferences cp
              LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
              WHERE cp.cart_id = ?`,
@@ -447,7 +452,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         preferences.forEach(p => {
             if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
             prefsBySub[p.sub_package_id].push({
-                cart_preference_id: p.cart_preference_id,
+                preference_id: p.preference_id,
                 preferenceValue: p.preferenceValue,
                 price: p.preferencePrice || 0
             });
