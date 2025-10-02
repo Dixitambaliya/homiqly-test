@@ -326,7 +326,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // 🔎 Find payment + cart
       const [paymentRows] = await connection.query(
-        `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime, sc.vendor_id, sc.notes, sc.bookingMedia
+        `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.package_id, sc.bookingDate, sc.bookingTime, sc.vendor_id, sc.notes, sc.bookingMedia
          FROM payments p
          LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
          WHERE p.payment_intent_id = ? LIMIT 1`,
@@ -374,13 +374,14 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       // ✅ Create booking (main booking row)
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-          (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (user_id, service_id, bookingDate, bookingTime, package_id, vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
           cart.service_id,
           cart.bookingDate,
           cart.bookingTime,
+          cart.package_id,
           cart.vendor_id,
           cart.notes,
           cart.bookingMedia,
