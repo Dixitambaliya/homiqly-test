@@ -469,16 +469,28 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
             // 5️⃣ Group sub-packages
             const groupedSubPackages = subPackages.map(sp => {
-                const addons = bookingAddons.filter(a => a.sub_package_id === sp.sub_package_id);
-                const consents = bookingConsents.filter(c => c.sub_package_id === sp.sub_package_id);
-                const prefs = bookingPreferences.filter(p => p.sub_package_id === sp.sub_package_id);
+                const addons = bookingAddons
+                    .filter(a => a.sub_package_id === sp.sub_package_id)
+                    .map(({ sub_package_id, ...rest }) => rest); // remove sub_package_id
 
-                return {
+                const consents = bookingConsents
+                    .filter(c => c.sub_package_id === sp.sub_package_id)
+                    .map(({ sub_package_id, ...rest }) => rest);
+
+                const prefs = bookingPreferences
+                    .filter(p => p.sub_package_id === sp.sub_package_id)
+                    .map(({ sub_package_id, ...rest }) => rest);
+
+                const result = {
                     ...sp,
                     ...(addons.length && { addons }),
                     ...(consents.length && { consents }),
                     ...(prefs.length && { preferences: prefs })
                 };
+
+                // Optional: remove sub_package_id from sub-package itself
+                const { sub_package_id, ...cleaned } = result;
+                return cleaned;
             });
 
             booking.subPackages = groupedSubPackages;
