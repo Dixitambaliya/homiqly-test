@@ -238,78 +238,106 @@ const bookService = asyncHandler(async (req, res) => {
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-
+    
     try {
-        // Get vendor type
-        const [[vendorRow]] = await db.query(
-            bookingGetQueries.getVendorIdForBooking,
-            [vendor_id]
-        );
+        // 1️⃣ Get vendor type
+        const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
         const vendorType = vendorRow?.vendorType || null;
 
-        // Get latest platform fee
-        const [platformSettings] = await db.query(
-            bookingGetQueries.getPlateFormFee,
-            [vendorType]
-        );
+        // 2️⃣ Get latest platform fee
+        const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-        const netFactor = 1 - platformFee / 100;
-
-        // Fetch vendor bookings
-        const [bookings] = await db.query(
-            bookingGetQueries.getVendorBookings,
-            [platformFee, vendor_id]
-        );
+        
+        // 3️⃣ Fetch vendor bookings (raw payment amounts)
+        const [bookings] = await db.query(bookingGetQueries.getVendorBookings, [vendor_id]);
 
         for (const booking of bookings) {
-            booking.payment_amount = booking.payment_amount ? Number(booking.payment_amount) : 0;
             const bookingId = booking.booking_id;
+            const rawAmount = Number(booking.amount) || 0;
 
-            // Packages
-            const [bookingPackages] = await db.query(bookingGetQueries.getBookedPackages, [bookingId]);
+            // 4️⃣ Calculate platform fee and net amount
+            booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2)); // amount deducted by platform
+
+            // 5️⃣ Fetch sub-packages/items, addons, preferences, consents
             const [packageItems] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
             const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
             const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
 
-            // Group consents by package_id
-            const consentsGroupedByPackage = {};
+            // Group consents by sub_package_id
+            const consentsGroupedByItem = {};
             bookingConsents.forEach(consent => {
-                const pkgId = consent.package_id || 'no_package';
-                if (!consentsGroupedByPackage[pkgId]) consentsGroupedByPackage[pkgId] = [];
-                consentsGroupedByPackage[pkgId].push({
+                const itemId = consent.sub_package_id;
+                if (!consentsGroupedByItem[itemId]) consentsGroupedByItem[itemId] = [];
+                consentsGroupedByItem[itemId].push({
                     consent_id: consent.consent_id,
                     consentText: consent.question,
                     answer: consent.answer
                 });
             });
 
-            // Merge everything into packages
-            booking.packages = bookingPackages.map(pkg => {
-                const items = packageItems
-                    .filter(item => item.package_id === pkg.package_id)
-                    .map(({ package_id, ...rest }) => rest); // remove package_id
-                const addons = bookingAddons
-                    .filter(addon => addon.package_id === pkg.package_id)
-                    .map(({ package_id, ...rest }) => rest);
-                const preferences = bookingPreferences
-                    .map(({ package_id, ...rest }) => rest);
-                const consents = consentsGroupedByPackage[pkg.package_id] || [];
+            // Group addons by sub_package_id
+            const addonsByItem = {};
+            bookingAddons.forEach(addon => {
+                const itemId = addon.sub_package_id;
+                if (!addonsByItem[itemId]) addonsByItem[itemId] = [];
+                const { sub_package_id, ...rest } = addon;
+                addonsByItem[itemId].push(rest);
+            });
 
+            // Group preferences by sub_package_id
+            const prefsByItem = {};
+            bookingPreferences.forEach(pref => {
+                const itemId = pref.sub_package_id;
+                if (!prefsByItem[itemId]) prefsByItem[itemId] = [];
+                const { sub_package_id, ...rest } = pref;
+                prefsByItem[itemId].push(rest);
+            });
+
+            // Attach sub_packages with addons, preferences, consents
+            booking.sub_packages = packageItems.map(item => {
+                const { item_id, package_id, ...rest } = item;
                 return {
-                    ...pkg,
-                    items,
-                    addons,
-                    preferences,
-                    consents
+                    ...rest,
+                    ...(addonsByItem[item_id] ? { addons: addonsByItem[item_id] } : {}),
+                    ...(prefsByItem[item_id] ? { preferences: prefsByItem[item_id] } : {}),
+                    ...(consentsGroupedByItem[item_id] ? { consents: consentsGroupedByItem[item_id] } : {})
                 };
             });
 
-            // Remove old top-level arrays
-            delete booking.package_items;
-            delete booking.addons;
-            delete booking.preferences;
-            delete booking.consents;
+            // Attach promo code if exists
+            if (booking.user_promo_code_id) {
+                let promo = null;
+
+                // Try user promo code first
+                const [[userPromo]] = await db.query(`
+                    SELECT upc.user_promo_code_id AS promo_id,
+                           pc.code AS promoCode,
+                           pc.discountValue,
+                           pc.minSpend,
+                           upc.usedCount AS usage_count,
+                           upc.maxUse
+                    FROM user_promo_codes upc
+                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                    WHERE upc.user_promo_code_id = ?
+                `, [booking.user_promo_code_id]);
+
+                if (userPromo) {
+                    promo = { ...userPromo };
+                } else {
+                    const [[systemPromo]] = await db.query(`
+                        SELECT spc.system_promo_code_id AS promo_id,
+                               spc.code AS promoCode,
+                               spc.discountValue
+                        FROM system_promo_codes spc
+                        WHERE spc.system_promo_code_id = ?
+                    `, [booking.user_promo_code_id]);
+
+                    if (systemPromo) promo = { ...systemPromo };
+                }
+
+                if (promo) booking.promo = promo;
+            }
 
             // Employee info
             if (booking.assignedEmployeeId) {
@@ -320,13 +348,11 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     phone: booking.employeePhone,
                 };
             }
-            delete booking.assignedEmployeeId;
-            delete booking.employeeFirstName;
-            delete booking.employeeLastName;
-            delete booking.employeeEmail;
-            delete booking.employeePhone;
 
-            // Remove null/empty fields
+            // Cleanup old fields
+            ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(key => delete booking[key]);
+
+            // Remove null values
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
@@ -344,6 +370,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 
 const getUserBookings = asyncHandler(async (req, res) => {
