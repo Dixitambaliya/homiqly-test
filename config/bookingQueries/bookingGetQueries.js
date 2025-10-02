@@ -6,7 +6,7 @@ const bookingGetQueries = {
     s.serviceName,
     sb.package_id,
     sb.payment_status AS payment_status,
-    p.amount,  
+    p.amount AS payment_amount,  
     p.currency AS payment_currency,
     CONCAT(u.firstName, ' ', u.lastName) AS userName,
     u.profileImage AS userProfileImage,

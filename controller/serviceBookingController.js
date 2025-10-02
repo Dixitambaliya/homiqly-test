@@ -238,7 +238,7 @@ const bookService = asyncHandler(async (req, res) => {
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    
+
     try {
         // 1️⃣ Get vendor type
         const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
@@ -247,17 +247,19 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         // 2️⃣ Get latest platform fee
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-        
+
         // 3️⃣ Fetch vendor bookings (raw payment amounts)
         const [bookings] = await db.query(bookingGetQueries.getVendorBookings, [vendor_id]);
 
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
-            const rawAmount = Number(booking.amount) || 0;
+            const rawAmount = Number(booking.payment_amount) || 0;
 
             // 4️⃣ Calculate platform fee and net amount
             booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2)); // amount deducted by platform
+            booking.net_amount = parseFloat((rawAmount - booking.platform_fee).toFixed(2));
 
+            booking.payment_amount = booking.net_amount;
             // 5️⃣ Fetch sub-packages/items, addons, preferences, consents
             const [packageItems] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
@@ -370,6 +372,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
