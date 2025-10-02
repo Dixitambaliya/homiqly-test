@@ -434,7 +434,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
         // 5️⃣ Fetch consents
         const [consents] = await db.query(
-            `SELECT cc.cart_consent_id, cc.sub_package_id, c.question, cc.answer
+            `SELECT cc.sub_package_id, c.question, cc.answer ,c.consent_id 
              FROM cart_consents cc
              LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
              WHERE cc.cart_id = ?`,
@@ -462,7 +462,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         consents.forEach(c => {
             if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
             consentsBySub[c.sub_package_id].push({
-                consent_id: c.cart_consent_id,
+                consent_id: c.consent_id,
                 consentText: c.question,
                 answer: c.answer
             });
