@@ -338,12 +338,10 @@ const googleLogin = asyncHandler(async (req, res) => {
 
     // Auto-assign welcome code if first-time user
     let welcomeCode = null;
-    if (isFirstLogin) {
-        try {
-            welcomeCode = await assignWelcomeCode(user_id);
-        } catch (err) {
-            console.error("❌ Auto-assign welcome code error:", err.message);
-        }
+    try {
+        welcomeCode = await assignWelcomeCode(user.user_id);
+    } catch (err) {
+        console.error("❌ Auto-assign welcome code error:", err.message);
     }
 
     const jwtToken = jwt.sign(
