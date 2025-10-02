@@ -1,6 +1,14 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
+const nodemailer = require("nodemailer");
 
+const transport = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
 
 const createPromoCode = asyncHandler(async (req, res) => {
     const {
@@ -236,7 +244,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
 });
 
 
-const assignWelcomeCode = async (user_id) => {
+const assignWelcomeCode = async (user_id, user_email) => {
     try {
         // ✅ Check if auto-assign is enabled
         const [setting] = await db.query(
@@ -269,7 +277,6 @@ const assignWelcomeCode = async (user_id) => {
         };
         const code = generateRandomCode();
 
-        // ✅ You can make these configurable defaults (admin can change them later if needed)
         const defaultMaxUse = 1;
         const defaultDiscount = 10; // system welcome discount %
 
@@ -282,6 +289,30 @@ const assignWelcomeCode = async (user_id) => {
         );
 
         console.log(`Promo code ${code} assigned to user ${user_id} with discount ${defaultDiscount}%`);
+
+        // ✅ Send email to user
+        if (user_email) {
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: user_email,
+                subject: "Welcome! Your Promo Code Inside 🎉",
+                html: `
+                    <p>Hello,</p>
+                    <p>Welcome to our platform! 🎉</p>
+                    <p>Your welcome promo code is: <b>${code}</b></p>
+                    <p>Discount: ${defaultDiscount}% | Max Use: ${defaultMaxUse}</p>
+                    <p>Use it on your next booking!</p>
+                    <br/>
+                    <p>Thanks,<br/>The Team</p>
+                `,
+            };
+
+            transport.sendMail(mailOptions, (err, info) => {
+                if (err) console.error("❌ Error sending promo email:", err.message);
+                else console.log(`✅ Welcome promo email sent to ${user_email}: ${info.response}`);
+            });
+        }
+
         return code;
 
     } catch (err) {

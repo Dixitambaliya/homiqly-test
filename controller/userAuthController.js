@@ -176,7 +176,7 @@ const loginUser = asyncHandler(async (req, res) => {
         // Auto-assign welcome code if available
         let welcomeCode = null;
         try {
-            welcomeCode = await assignWelcomeCode(user.user_id);
+            welcomeCode = await assignWelcomeCode(user.user_id, user.email);
         } catch (err) {
             console.error("❌ Auto-assign welcome code error:", err.message);
         }
@@ -350,11 +350,11 @@ const googleLogin = asyncHandler(async (req, res) => {
         // Auto-assign welcome code if available
         let welcomeCode = null;
         try {
-            welcomeCode = await assignWelcomeCode(user_id);
+            welcomeCode = await assignWelcomeCode(user_id, email);
             console.log(user_id);
-            
+
             console.log(welcomeCode);
-            
+
         } catch (err) {
             console.error("❌ Auto-assign welcome code error:", err.message);
         }
