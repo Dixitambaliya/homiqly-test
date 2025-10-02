@@ -345,11 +345,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // 1️⃣ Fetch all bookings for the user
+        // 1️⃣ Fetch all bookings for the user, include payment info via payment_intent_id
         const [userBookings] = await db.query(
             `SELECT 
                 sb.*,
@@ -359,11 +360,14 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
                 IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
-                IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage
+                IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage,
+                p.payment_intent_id,
+                p.amount AS paymentAmount
             FROM service_booking sb
             LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
             WHERE sb.user_id = ?`,
             [user_id]
         );
@@ -390,7 +394,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 [bookingId]
             );
 
-            // 3️⃣ Fetch related data (addons, consents, preferences, promos)
+            // 3️⃣ Fetch related data
             const [bookingAddons] = await db.query(`
                 SELECT 
                     sba.sub_package_id,
@@ -429,22 +433,41 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 [bookingId]
             );
 
-            const [[promoUsage]] = await db.query(`
-                SELECT 
-                    upu.promo_id, 
-                    upu.user_id, 
-                    upu.usedCount,
-                    pc.code AS promoCode, 
-                    pc.discountValue, 
-                    pc.minSpend, 
-                    pc.maxUse
-                FROM user_promo_codes upu
-                LEFT JOIN promo_codes pc ON upu.promo_id = pc.promo_id
-                WHERE upu.user_id = ?`,
-                [bookingId, user_id]
-            );
+            // 4️⃣ Fetch promo code info (user or system promo)
+            let promo = null;
+            if (booking.user_promo_code_id) {
+                const [[userPromo]] = await db.query(`
+                    SELECT upc.user_promo_code_id AS promo_id, 
+                        pc.code AS promoCode, 
+                        pc.discountValue, 
+                        pc.minSpend, 
+                        upc.usedCount AS usage_count, 
+                        upc.maxUse
+                    FROM user_promo_codes upc
+                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                    WHERE upc.user_promo_code_id = ?`,
+                    [booking.user_promo_code_id]
+                );
 
-            // 4️⃣ Group everything by sub_package_id
+                if (userPromo) {
+                    promo = { ...userPromo };
+                } else {
+                    const [[systemPromo]] = await db.query(`
+                        SELECT 
+                            spc.system_promo_code_id AS promo_id, 
+                            spc.code AS promoCode, 
+                            spc.discountValue 
+                        FROM system_promo_codes spc
+                        WHERE spc.system_promo_code_id = ?`,
+                        [booking.user_promo_code_id]
+                    );
+                    if (systemPromo) {
+                        promo = { ...systemPromo };
+                    }
+                }
+            }
+
+            // 5️⃣ Group sub-packages
             const groupedSubPackages = subPackages.map(sp => {
                 const addons = bookingAddons.filter(a => a.sub_package_id === sp.sub_package_id);
                 const consents = bookingConsents.filter(c => c.sub_package_id === sp.sub_package_id);
@@ -458,18 +481,8 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 };
             });
 
-            // 5️⃣ Attach promo to the booking level (not per sub-package)
-            if (promoUsage) {
-                booking.promo = {
-                    promo_id: promoUsage.promo_id,
-                    code: promoUsage.promoCode,
-                    discountValue: promoUsage.discountValue,
-                    maxUse: promoUsage.maxUse,
-                    usage_count: promoUsage.usage_count
-                };
-            }
-
             booking.subPackages = groupedSubPackages;
+            if (promo) booking.promo = promo;
 
             // 6️⃣ Clean null values
             Object.keys(booking).forEach(key => {
@@ -490,6 +503,9 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
+
 
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {

@@ -326,7 +326,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // 🔎 Find payment + cart
       const [paymentRows] = await connection.query(
-        `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.package_id, sc.bookingDate, sc.bookingTime, sc.vendor_id, sc.notes, sc.bookingMedia
+        `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.package_id, sc.bookingDate, sc.bookingTime, 
+                sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
          FROM payments p
          LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
          WHERE p.payment_intent_id = ? LIMIT 1`,
@@ -344,7 +345,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       }
 
       const cart = paymentRows[0];
-      const { cart_id, user_id, status } = cart;
+      const { cart_id, user_id, status, user_promo_code_id } = cart;
 
       if (status === "completed") {
         console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
@@ -371,11 +372,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return;
       }
 
-      // ✅ Create booking (main booking row)
+      // ✅ Create booking (main booking row) with promo if exists
       const [insertBooking] = await connection.query(
         `INSERT INTO service_booking 
-          (user_id, service_id, bookingDate, bookingTime, package_id, vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (user_id, service_id, bookingDate, bookingTime, package_id, vendor_id, notes, bookingMedia, 
+           bookingStatus, payment_status, payment_intent_id, user_promo_code_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id,
           cart.service_id,
@@ -387,7 +389,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           cart.bookingMedia,
           "pending",
           "pending",
-          paymentIntentId
+          paymentIntentId,
+          user_promo_code_id || null
         ]
       );
 
@@ -448,11 +451,38 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       }
 
       // ✅ Promo usage tracking
-      if (cart.user_promo_code_id) {
-        await connection.query(
-          `UPDATE user_promo_codes SET usedCount = usedCount + 1 WHERE user_promo_code_id = ? AND usedCount < maxUse`,
-          [cart.user_promo_code_id]
+      if (user_promo_code_id) {
+        // check if promo exists in user_promo_codes
+        const [[userPromo]] = await connection.query(
+          `SELECT user_promo_code_id, promo_id, source_type FROM user_promo_codes WHERE user_promo_code_id = ?`,
+          [user_promo_code_id]
         );
+
+        if (userPromo) {
+          // user/admin assigned code
+          await connection.query(
+            `UPDATE user_promo_codes 
+             SET usedCount = usedCount + 1 
+             WHERE user_promo_code_id = ? AND usedCount < maxUse`,
+            [user_promo_code_id]
+          );
+          console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
+        } else {
+          // check system promo codes
+          const [[systemPromo]] = await connection.query(
+            `SELECT system_promo_code_id FROM system_promo_codes WHERE system_promo_code_id = ?`,
+            [user_promo_code_id]
+          );
+          if (systemPromo) {
+            await connection.query(
+              `UPDATE system_promo_codes 
+               SET usage_count = usage_count + 1 
+               WHERE system_promo_code_id = ? AND usage_count < maxUse`,
+              [user_promo_code_id]
+            );
+            console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
+          }
+        }
       }
 
       // ✅ Capture payment
@@ -488,10 +518,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
                 GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents
          FROM service_booking sb
-         LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-         LEFT JOIN packages pk ON sbp.package_id = pk.package_id
          LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
          LEFT JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
+         LEFT JOIN packages pk ON sp.package_id = pk.package_id
          LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
          LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
          LEFT JOIN service_booking_preferences sbpr ON sb.booking_id = sbpr.booking_id
@@ -524,6 +553,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
   })(); // end background task
 });
+
 
 
 

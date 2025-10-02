@@ -596,48 +596,59 @@ const updateCartDetails = asyncHandler(async (req, res) => {
             values.push(bookingMedia);
         }
 
-        // Promo code logic
-        if (promoCode !== undefined) { // note: check for undefined so that empty string still counts as "not provided"
+        // Promo code logic with unified usage check
+        if (promoCode !== undefined) {
             if (promoCode) {
-                // 1️⃣ Check user_promo_codes
+                // Try user promo first
                 const [[userPromo]] = await db.query(
-                    `SELECT user_promo_code_id 
-             FROM user_promo_codes 
-             WHERE user_id = ? AND code = ? LIMIT 1`,
+                    `SELECT user_promo_code_id AS promo_id, usedCount AS used_count, maxUse AS max_use 
+                    FROM user_promo_codes 
+                    WHERE user_id = ? AND code = ? LIMIT 1`,
                     [user_id, promoCode]
                 );
 
+                let promoId, usedCount, maxUse;
+
                 if (userPromo) {
-                    fields.push("user_promo_code_id = ?");
-                    values.push(userPromo.user_promo_code_id);
+                    promoId = userPromo.promo_id;
+                    usedCount = userPromo.used_count;
+                    maxUse = userPromo.max_use;
                 } else {
-                    // 2️⃣ Check system_promo_codes
+                    // Fallback to system promo
                     const [[systemPromo]] = await db.query(
-                        `SELECT system_promo_code_id  
-                 FROM system_promo_codes 
-                 WHERE user_id = ? AND code = ? LIMIT 1`,
-                        [user_id, promoCode]
+                        `SELECT system_promo_code_id AS promo_id, usage_count AS used_count, maxUse AS max_use
+                        FROM system_promo_codes 
+                        WHERE code = ? LIMIT 1`,
+                        [promoCode]
                     );
 
-                    if (systemPromo) {
-                        fields.push("user_promo_code_id  = ?");
-                        values.push(systemPromo.system_promo_code_id);
-                    } else {
-                        return res.status(400).json({ message: "Promo code not valid for this user" });
+                    if (!systemPromo) {
+                        return res.status(400).json({ message: "Promo code not valid" });
                     }
+
+                    promoId = systemPromo.promo_id;
+                    usedCount = systemPromo.used_count;
+                    maxUse = systemPromo.max_use;
                 }
+
+                // Unified usage check
+                if (usedCount >= maxUse) {
+                    return res.status(400).json({ message: "Promo code has reached its max usage" });
+                }
+
+                fields.push("user_promo_code_id = ?");
+                values.push(promoId);
+
             } else {
-                // ✅ If promoCode is empty or null, remove any applied promo code
+                // Remove applied promo code if empty
                 fields.push("user_promo_code_id = NULL");
             }
         }
-
 
         if (fields.length === 0) {
             return res.status(400).json({ message: "No valid fields provided for update" });
         }
 
-        // Update query
         const query = `UPDATE service_cart SET ${fields.join(", ")} WHERE cart_id = ? AND user_id = ?`;
         values.push(cart_id, user_id);
 
@@ -654,6 +665,7 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to update cart", error: err.message });
     }
 });
+
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

@@ -158,9 +158,9 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
         const [userPromos] = await db.query(
             `SELECT 
                 upc.user_promo_code_id,
-                upc.maxUse AS userMaxUse,
                 upc.code AS userCode,
                 upc.source_type,
+                upc.usedCount,
                 pc.promo_id,
                 pc.code AS promoCode,
                 pc.discountValue,
@@ -183,6 +183,8 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 user_id,
                 source_type,
                 code AS userCode,
+                maxUse AS promoMaxUse,
+                usage_count AS usedCount,
                 discountValue AS userDiscountValue
             FROM system_promo_codes
             WHERE user_id = ?`,
@@ -191,26 +193,29 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
 
         // Normalize user promo codes
         const normalizedUserPromos = userPromos.map(p => ({
+            promo_id: p.promo_id,
             user_promo_code_id: p.user_promo_code_id,
             source_type: p.source_type,
-            userMaxUse: p.userMaxUse,
-            userCode: p.userCode,
-            promo_id: p.promo_id,
+            usedCount: p.usedCount,
             promoCode: p.promoCode,
+            promoMaxUse: p.promoMaxUse,
             discountValue: p.discountValue,
             minSpend: p.minSpend,
             description: p.description,
-            promoMaxUse: p.promoMaxUse,
             start_date: p.start_date,
-            end_date: p.end_date
+            end_date: p.end_date,
+            promoUsed: p.usedCount >= p.promoMaxUse ? 1 : 0  // ✅ new column
         }));
 
         // Normalize system promo codes
         const normalizedSystemPromos = systemPromos.map(p => ({
             source_type: p.source_type,
             system_promo_code_id: p.system_promo_code_id,
-            userCode: p.userCode,
-            userDiscountValue: p.userDiscountValue
+            promoCode: p.userCode,
+            promoMaxUse: p.promoMaxUse,
+            usedCount: p.usedCount,
+            userDiscountValue: p.userDiscountValue,
+            promoUsed: p.usedCount >= p.promoMaxUse ? 1 : 0  // ✅ new column
         }));
 
         const allPromos = [...normalizedUserPromos, ...normalizedSystemPromos];
@@ -229,7 +234,6 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Server error", details: err.message });
     }
 });
-
 
 
 const assignWelcomeCode = async (user_id) => {
