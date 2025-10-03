@@ -44,22 +44,30 @@ const addToCartService = asyncHandler(async (req, res) => {
             }
 
             // Fetch existing data
-            const [existingItems] = await connection.query("SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]);
+            const [existingItems] = await connection.query(
+                "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
+            );
             const existingItemIds = existingItems.map(i => i.sub_package_id);
 
-            const [existingAddons] = await connection.query("SELECT addon_id, sub_package_id FROM cart_addons WHERE cart_id = ?", [cart_id]);
+            const [existingAddons] = await connection.query(
+                "SELECT addon_id, sub_package_id FROM cart_addons WHERE cart_id = ?", [cart_id]
+            );
             const existingAddonMap = {};
             existingAddons.forEach(a => existingAddonMap[`${a.sub_package_id}_${a.addon_id}`] = true);
 
-            const [existingPrefs] = await connection.query("SELECT preference_id, sub_package_id FROM cart_preferences WHERE cart_id = ?", [cart_id]);
+            const [existingPrefs] = await connection.query(
+                "SELECT preference_id, sub_package_id FROM cart_preferences WHERE cart_id = ?", [cart_id]
+            );
             const existingPrefMap = {};
             existingPrefs.forEach(p => existingPrefMap[`${p.sub_package_id}_${p.preference_id}`] = true);
 
-            const [existingConsents] = await connection.query("SELECT consent_id, sub_package_id FROM cart_consents WHERE cart_id = ?", [cart_id]);
+            const [existingConsents] = await connection.query(
+                "SELECT consent_id, sub_package_id FROM cart_consents WHERE cart_id = ?", [cart_id]
+            );
             const existingConsentMap = {};
             existingConsents.forEach(c => existingConsentMap[`${c.sub_package_id}_${c.consent_id}`] = true);
 
-            // === DELETE ONLY IF EMPTY ARRAYS ===
+            // DELETE old data only if empty arrays
             if (Array.isArray(sub_packages) && sub_packages.length === 0) {
                 await connection.query("DELETE FROM cart_package_items WHERE cart_id = ?", [cart_id]);
                 await connection.query("DELETE FROM cart_addons WHERE cart_id = ?", [cart_id]);
@@ -79,14 +87,23 @@ const addToCartService = asyncHandler(async (req, res) => {
                 await connection.query("DELETE FROM cart_consents WHERE cart_id = ?", [cart_id]);
             }
 
-            // === INSERT NEW ITEMS ONLY ===
+            // INSERT or UPDATE sub-packages
             for (const item of sub_packages) {
                 const sub_package_id = item.sub_package_id;
+                const quantity = item.quantity; // must be provided by user
+                const price = item.price || 0;
 
-                if (!existingItemIds.includes(sub_package_id)) {
+                if (existingItemIds.includes(sub_package_id)) {
+                    // Update quantity if exists
+                    await connection.query(
+                        "UPDATE cart_package_items SET price = ?, quantity = ? WHERE cart_id = ? AND sub_package_id = ?",
+                        [price, quantity, cart_id, sub_package_id]
+                    );
+                } else {
+                    // Insert new
                     await connection.query(
                         "INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?, ?)",
-                        [cart_id, package_id, sub_package_id, item.price || 0, item.quantity || 1]
+                        [cart_id, package_id, sub_package_id, price, quantity]
                     );
                 }
 

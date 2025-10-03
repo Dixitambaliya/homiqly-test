@@ -334,8 +334,8 @@ const getBookings = asyncHandler(async (req, res) => {
                         package_id: row.package_id,
                         items: [],
                         addons: [],
-                        preferences:[],
-                        censents:[]
+                        preferences: [],
+                        censents: []
                     };
                     booking.packages.push(pkg);
                 }
@@ -733,7 +733,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
         });
     }
 });
-    
+
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -1145,50 +1145,50 @@ const getAllPayments = asyncHandler(async (req, res) => {
     try {
         const [payments] = await db.query(`
       SELECT
-          p.payment_id,
-          p.payment_intent_id,
-          p.amount,
-          p.currency,
-          p.created_at,
-          p.status,
+    p.payment_id,
+    p.payment_intent_id,
+    p.amount,
+    p.currency,
+    p.created_at,
+    p.status,
 
-          -- User Info
-          u.user_id,
-          u.firstname AS user_firstname,
-          u.lastname AS user_lastname,
-          u.email AS user_email,
-          u.phone AS user_phone,
+    -- User Info
+    u.user_id,
+    u.firstname AS user_firstname,
+    u.lastname AS user_lastname,
+    u.email AS user_email,
+    u.phone AS user_phone,
 
-          -- Vendor Info
-          v.vendor_id,
-          v.vendorType,
+    -- Vendor Info
+    v.vendor_id,
+    v.vendorType,
 
-          -- Individual Vendor Info
-          idet.name AS individual_name,
-          idet.phone AS individual_phone,
-          idet.email AS individual_email,
-          idet.profileImage AS individual_profile_image,
+    -- Individual Vendor Info
+    idet.name AS individual_name,
+    idet.phone AS individual_phone,
+    idet.email AS individual_email,
+    idet.profileImage AS individual_profile_image,
 
-          -- Company Vendor Info
-          cdet.companyName,
-          cdet.contactPerson,
-          cdet.companyEmail AS email,
-          cdet.companyPhone AS phone,
-          cdet.profileImage AS company_profile_image,
+    -- Company Vendor Info
+    cdet.companyName,
+    cdet.contactPerson,
+    cdet.companyEmail AS email,
+    cdet.companyPhone AS phone,
+    cdet.profileImage AS company_profile_image,
 
-          -- Package Info
-          pkg.package_id
+    -- Package Info
+    pkg.package_id,
+    pkg.packageName
 
-      FROM payments p
-      JOIN users u ON p.user_id = u.user_id
-      JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-      JOIN vendors v ON sb.vendor_id = v.vendor_id
-      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-      JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-      JOIN packages pkg ON pkg.package_id = sbp.package_id
+FROM payments p
+JOIN users u ON p.user_id = u.user_id
+LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+JOIN packages pkg ON pkg.package_id = sb.package_id
+ORDER BY p.created_at DESC;
 
-      ORDER BY p.created_at DESC
     `);
 
         const enhancedPayments = await Promise.all(
