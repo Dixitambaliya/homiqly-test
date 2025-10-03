@@ -378,7 +378,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // 1️⃣ Fetch all bookings for the user, include payment info via payment_intent_id
+        // 1️⃣ Fetch all bookings for the user, include payment info
         const [userBookings] = await db.query(
             `SELECT 
                 sb.*,
@@ -403,7 +403,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            // 2️⃣ Fetch sub-packages (with package + item details)
+            // 2️⃣ Fetch sub-packages (items with package + service type details)
             const [subPackages] = await db.query(`
                 SELECT 
                     sbsp.sub_package_id,
@@ -489,17 +489,28 @@ const getUserBookings = asyncHandler(async (req, res) => {
                         WHERE spc.system_promo_code_id = ?`,
                         [booking.user_promo_code_id]
                     );
-                    if (systemPromo) {
-                        promo = { ...systemPromo };
-                    }
+                    if (systemPromo) promo = { ...systemPromo };
                 }
             }
 
-            // 5️⃣ Group sub-packages
-            const groupedSubPackages = subPackages.map(sp => {
+            // 5️⃣ Group sub-packages by service_type_id
+            const groupedByServiceType = subPackages.reduce((acc, sp) => {
+                const serviceTypeId = sp.service_type_id;
+
+                if (!acc[serviceTypeId]) {
+                    acc[serviceTypeId] = {
+                        service_type_id: serviceTypeId,
+                        package_id: sp.package_id,
+                        packageName: sp.packageName,
+                        packageMedia: sp.packageMedia,
+                        items: []
+                    };
+                }
+
+                // Addons, consents, prefs for this item
                 const addons = bookingAddons
                     .filter(a => a.sub_package_id === sp.sub_package_id)
-                    .map(({ sub_package_id, ...rest }) => rest); // remove sub_package_id
+                    .map(({ sub_package_id, ...rest }) => rest);
 
                 const consents = bookingConsents
                     .filter(c => c.sub_package_id === sp.sub_package_id)
@@ -509,19 +520,22 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     .filter(p => p.sub_package_id === sp.sub_package_id)
                     .map(({ sub_package_id, ...rest }) => rest);
 
-                const result = {
-                    ...sp,
+                acc[serviceTypeId].items.push({
+                    sub_package_id: sp.sub_package_id,
+                    itemName: sp.itemName,
+                    itemMedia: sp.itemMedia,
+                    timeRequired: sp.timeRequired,
+                    price: sp.price,
+                    quantity: sp.quantity,
                     ...(addons.length && { addons }),
                     ...(consents.length && { consents }),
                     ...(prefs.length && { preferences: prefs })
-                };
+                });
 
-                // Optional: remove sub_package_id from sub-package itself
-                const { sub_package_id, ...cleaned } = result;
-                return cleaned;
-            });
+                return acc;
+            }, {});
 
-            booking.subPackages = groupedSubPackages;
+            booking.subPackages = Object.values(groupedByServiceType);
             if (promo) booking.promo = promo;
 
             // 6️⃣ Clean null values
@@ -543,6 +557,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const { booking_id, status } = req.body;
