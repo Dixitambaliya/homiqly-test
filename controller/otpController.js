@@ -14,13 +14,6 @@ const sendOtp = asyncHandler(async (req, res) => {
     if (!phone) return res.status(400).json({ message: "Phone is required" });
 
     try {
-        // Check if user exists
-        const [users] = await db.query("SELECT user_id, is_approved FROM users WHERE phone=?", [phone]);
-        if (users.length === 0) return res.status(404).json({ message: "User not found" });
-
-        const user = users[0];
-        if (user.is_approved === 1) return res.json({ message: "User already verified" });
-
         const otp = generateOTP();
 
         // Create JWT containing phone + OTP (expires in 5 minutes)
@@ -39,6 +32,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to send OTP" });
     }
 });
+
 
 // ---- Verify OTP ----
 const verifyOtp = asyncHandler(async (req, res) => {
