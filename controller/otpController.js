@@ -43,23 +43,37 @@ const sendOtp = asyncHandler(async (req, res) => {
 // ---- Verify OTP ----
 const verifyOtp = asyncHandler(async (req, res) => {
     const { phone, otp, token } = req.body;
-    if (!phone || !otp || !token) return res.status(400).json({ message: "Phone, OTP and token are required" });
+    if (!phone || !otp || !token) {
+        return res.status(400).json({ message: "Phone, OTP and token are required" });
+    }
 
     try {
-        // Verify JWT
+        // 🔐 Verify JWT
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        if (decoded.phone !== phone) return res.status(400).json({ message: "Phone mismatch" });
-        if (decoded.otp !== parseInt(otp)) return res.status(400).json({ message: "Incorrect OTP" });
+        if (decoded.phone !== phone) {
+            return res.status(400).json({ message: "Phone mismatch" });
+        }
+        if (decoded.otp !== parseInt(otp)) {
+            return res.status(400).json({ message: "Incorrect OTP" });
+        }
 
-        // ✅ OTP is valid, update user as approved
-        await db.query("UPDATE users SET is_approved=1 WHERE phone=?", [phone]);
+        // ✅ OTP is valid → update user phone & approve
+        const [updateResult] = await db.query(
+            "UPDATE users SET phone = ?, is_approved = 1 WHERE user_id = ?",
+            [phone, decoded.user_id] // assuming you stored user_id in token when generating
+        );
 
-        res.json({ message: "OTP verified, user approved" });
+        if (updateResult.affectedRows === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json({ message: "OTP verified, user approved and phone updated" });
     } catch (err) {
-        console.error(err);
+        console.error("OTP verification error:", err);
         res.status(400).json({ message: "Invalid or expired OTP" });
     }
 });
+
 
 module.exports = { sendOtp, verifyOtp };
