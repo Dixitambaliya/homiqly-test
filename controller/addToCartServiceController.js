@@ -152,8 +152,8 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sc.package_id,
                 p.packageName,
                 p.service_type_id,
-                s.serviceName,
-                s.serviceImage,
+                pi.itemMedia,
+                pi.itemName,
                 sc.user_id,
                 sc.vendor_id,
                 sc.bookingStatus,
@@ -165,6 +165,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sc.user_promo_code_id
             FROM service_cart sc
             LEFT JOIN packages p ON sc.package_id = p.package_id
+            LEFT JOIN package_items pi ON p.package_id = pi.package_id
             LEFT JOIN services s ON sc.service_id = s.service_id
             WHERE sc.user_id = ?
             ORDER BY sc.created_at DESC`,
