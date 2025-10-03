@@ -421,7 +421,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 1️⃣ Fetch cart row(s) for the user and package (minimal info)
+        // 1️⃣ Fetch cart row(s) for the user and package
         const [cartRows] = await db.query(
             `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.package_id, sc.bookingStatus, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime, sc.user_promo_code_id
              FROM service_cart sc
@@ -456,12 +456,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
         // 4️⃣ Fetch preferences
         const [preferences] = await db.query(
-            `SELECT 
-            cp.preference_id, 
-            cp.cart_preference_id, 
-            cp.sub_package_id, 
-            bp.preferenceValue, 
-            bp.preferencePrice
+            `SELECT cp.preference_id, cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
              FROM cart_preferences cp
              LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
              WHERE cp.cart_id = ?`,
@@ -470,7 +465,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
         // 5️⃣ Fetch consents
         const [consents] = await db.query(
-            `SELECT cc.sub_package_id, c.question, cc.answer ,c.consent_id 
+            `SELECT cc.sub_package_id, c.question, cc.answer, c.consent_id 
              FROM cart_consents cc
              LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
              WHERE cc.cart_id = ?`,
@@ -504,23 +499,30 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             });
         });
 
-        // 7️⃣ Attach child arrays to sub-packages
-        const subPackagesStructured = subPackages.map(sub => ({
-            ...sub,
-            addons: addonsBySub[sub.sub_package_id] || [],
-            preferences: prefsBySub[sub.sub_package_id] || [],
-            consents: consentsBySub[sub.sub_package_id] || []
-        }));
+        // 7️⃣ Attach child arrays + calculate sub-package total
+        const subPackagesStructured = subPackages.map(sub => {
+            const subAddons = addonsBySub[sub.sub_package_id] || [];
+            const subPrefs = prefsBySub[sub.sub_package_id] || [];
+            const subConsents = consentsBySub[sub.sub_package_id] || [];
 
-        // 8️⃣ Calculate total
-        let totalAmount = 0;
-        subPackagesStructured.forEach(sp => {
-            totalAmount += (parseFloat(sp.price) || 0) * (parseInt(sp.quantity) || 1);
-            sp.addons.forEach(a => totalAmount += parseFloat(a.price) || 0);
-            sp.preferences.forEach(p => totalAmount += parseFloat(p.price) || 0);
+            const subTotal =
+                (parseFloat(sub.price) || 0) * (parseInt(sub.quantity) || 1) +
+                subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) +
+                subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+
+            return {
+                ...sub,
+                addons: subAddons,
+                preferences: subPrefs,
+                consents: subConsents,
+                total: subTotal
+            };
         });
 
-        // 9️⃣ Promo logic (same as getUserCart)
+        // 8️⃣ Calculate cart-level total
+        let totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
+
+        // 9️⃣ Apply promo logic (same as getUserCart)
         let discountedTotal = totalAmount;
         let promoDetails = null;
 
@@ -532,8 +534,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
             if (userPromoRows.length) {
                 const promo = userPromoRows[0];
-
-                if (promo.source_type === 'admin') {
+                if (promo.source_type === "admin") {
                     const [adminPromo] = await db.query(
                         `SELECT * FROM promo_codes WHERE promo_id = ?`,
                         [promo.promo_id]
@@ -547,7 +548,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
                         promoDetails = {
                             user_promo_code_id: promo.user_promo_code_id,
-                            source_type: 'admin',
+                            source_type: "admin",
                             ...adminPromo[0],
                             code: promo.code,
                             usedCount: promo.usedCount,
@@ -575,6 +576,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             }
         }
 
+        // 🔟 Final response
         res.status(200).json({
             message: "Cart fetched successfully",
             cart: {
@@ -591,6 +593,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
+
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
