@@ -25,6 +25,8 @@ export default function AdminPromoManager() {
   const [form, setForm] = useState({
     code: "",
     discount_value: "",
+    requiredBookings: 0,
+    description: "",
     minSpend: 0,
     maxUse: 1,
     start_date: "",
@@ -105,6 +107,8 @@ export default function AdminPromoManager() {
       maxUse: 1,
       start_date: "",
       end_date: "",
+      requiredBookings: 0,
+      description: "",
     });
     setModalOpen(true);
   }
@@ -120,6 +124,8 @@ export default function AdminPromoManager() {
       // convert ISO -> datetime-local compatible (YYYY-MM-DDTHH:mm)
       start_date: p.start_date ? p.start_date.slice(0, 16) : "",
       end_date: p.end_date ? p.end_date.slice(0, 16) : "",
+      requiredBookings: p.requiredBookings || 0,
+      description: p.description || "",
     });
     setModalOpen(true);
   }
@@ -145,6 +151,8 @@ export default function AdminPromoManager() {
         maxUse: Number(form.maxUse),
         start_date: form.start_date ? formatDateForApi(form.start_date) : "",
         end_date: form.end_date ? formatDateForApi(form.end_date) : "",
+        requiredBookings: Number(form.requiredBookings) || 0,
+        description: form.description || "",
       };
 
       if (isEditing && currentPromo) {
@@ -247,7 +255,10 @@ export default function AdminPromoManager() {
                   <th className="px-4 py-3">Max Uses</th>
                   <th className="px-4 py-3">Start</th>
                   <th className="px-4 py-3">End</th>
+                  <th className="px-4 py-3">Required Bookings</th>
+                  <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3">Actions</th>
+                  
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -285,6 +296,10 @@ export default function AdminPromoManager() {
                           ? new Date(p.end_date).toLocaleString()
                           : "-"}
                       </td>
+                      <td className="px-4 py-3">{p.requiredBookings ?? 0}</td>
+                      <td className="px-4 py-3">
+                        {p.description ? p.description : "-"}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <IconButton
@@ -301,6 +316,7 @@ export default function AdminPromoManager() {
                           </IconButton>
                         </div>
                       </td>
+                      
                     </tr>
                   ))
                 )}
@@ -371,6 +387,24 @@ export default function AdminPromoManager() {
                 onChange={handleChange}
                 placeholder="End Date"
                 label="End Date"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <FormInput
+                name="requiredBookings"
+                type="number"
+                value={form.requiredBookings}
+                onChange={handleChange}
+                placeholder="Required Bookings"
+                label="Required Bookings"
+              />
+              <FormInput
+                name="description"
+                type="text"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Description"
+                label="Description"
               />
             </div>
 
