@@ -89,7 +89,7 @@ const getAllPromoCodes = asyncHandler(async (req, res) => {
 // ✅ UPDATE
 const updatePromoCode = asyncHandler(async (req, res) => {
     const { promo_id } = req.params;
-    const { code, discount_value, description, minSpend, maxUse, start_date, end_date } = req.body;
+    const { code, discount_value, description, requiredBookings, minSpend, maxUse, start_date, end_date } = req.body;
 
     try {
         // 1️⃣ Fetch current record
@@ -106,6 +106,7 @@ const updatePromoCode = asyncHandler(async (req, res) => {
             code: code ?? existing.code,
             discountValue: discount_value ?? existing.discountValue,
             description: description ?? existing.description,
+            requiredBookings: requiredBookings ?? existing.requiredBookings,
             minSpend: minSpend ?? existing.minSpend,
             maxUse: maxUse ?? existing.maxUse,
             start_date: start_date ?? existing.start_date,
@@ -115,12 +116,13 @@ const updatePromoCode = asyncHandler(async (req, res) => {
         // 3️⃣ Update with merged data
         const [result] = await db.query(
             `UPDATE promo_codes
-             SET code = ?, discountValue = ?, description = ?, minSpend = ?, maxUse = ?, start_date = ?, end_date = ?
+             SET code = ?, discountValue = ?, description = ?, requiredBookings = ?,minSpend = ?, maxUse = ?, start_date = ?, end_date = ?
              WHERE promo_id = ?`,
             [
                 updatedData.code,
                 updatedData.discountValue,
                 updatedData.description,
+                updatedData.requiredBookings,
                 updatedData.minSpend,
                 updatedData.maxUse,
                 updatedData.start_date,
