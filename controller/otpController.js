@@ -37,6 +37,8 @@ const sendOtp = asyncHandler(async (req, res) => {
 // ---- Verify OTP ----
 const verifyOtp = asyncHandler(async (req, res) => {
     const { phone, otp, token } = req.body;
+    const user_id = req.user.user_id;
+
     if (!phone || !otp || !token) {
         return res.status(400).json({ message: "Phone, OTP and token are required" });
     }
@@ -55,19 +57,20 @@ const verifyOtp = asyncHandler(async (req, res) => {
         // ✅ OTP is valid → update user phone & approve
         const [updateResult] = await db.query(
             "UPDATE users SET phone = ?, is_approved = 1 WHERE user_id = ?",
-            [phone, decoded.user_id] // assuming you stored user_id in token when generating
+            [phone, user_id]
         );
 
         if (updateResult.affectedRows === 0) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        res.json({ message: "OTP verified, user approved and phone updated" });
+        res.json({ message: "OTP verified, phone updated and user approved" });
     } catch (err) {
         console.error("OTP verification error:", err);
         res.status(400).json({ message: "Invalid or expired OTP" });
     }
 });
+
 
 
 module.exports = { sendOtp, verifyOtp };
