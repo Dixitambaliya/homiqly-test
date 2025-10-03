@@ -153,8 +153,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         console.error("Cart insert/update error:", err);
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
-}); 
-	
+});
+
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -346,6 +346,81 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(200).json({ message: "Cart retrieved successfully", carts: allCarts, promos });
     } catch (error) {
         console.error("Error retrieving cart:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const deleteCartSubPackage = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { cart_id } = req.params;
+    const { sub_package_id } = req.body;
+
+    if (!cart_id || !sub_package_id) {
+        return res.status(400).json({ message: "cart_id and sub_package_id are required" });
+    }
+
+    try {
+        // ✅ Verify the cart belongs to the user
+        const [cartCheck] = await db.query(
+            `SELECT * FROM service_cart WHERE cart_id = ? AND user_id = ?`,
+            [cart_id, user_id]
+        );
+
+        if (cartCheck.length === 0) {
+            return res.status(404).json({ message: "Cart not found or unauthorized" });
+        }
+
+        // ✅ Delete related data (addons, preferences, consents) for this sub_package
+        await db.query(
+            `DELETE FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
+            [cart_id, sub_package_id]
+        );
+
+        await db.query(
+            `DELETE FROM cart_preferences WHERE cart_id = ? AND sub_package_id = ?`,
+            [cart_id, sub_package_id]
+        );
+
+        await db.query(
+            `DELETE FROM cart_consents WHERE cart_id = ? AND sub_package_id = ?`,
+            [cart_id, sub_package_id]
+        );
+
+        // ✅ Delete the sub-package itself
+        const [deleteResult] = await db.query(
+            `DELETE FROM cart_package_items WHERE cart_id = ? AND sub_package_id = ?`,
+            [cart_id, sub_package_id]
+        );
+
+        if (deleteResult.affectedRows === 0) {
+            return res.status(404).json({ message: "Sub-package not found in cart" });
+        }
+
+        // ✅ Check if there are any sub-packages left in this cart
+        const [remainingSubs] = await db.query(
+            `SELECT COUNT(*) as count FROM cart_package_items WHERE cart_id = ?`,
+            [cart_id]
+        );
+
+        if (remainingSubs[0].count === 0) {
+            // If no sub-packages left, delete the cart itself
+            await db.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
+
+            return res.status(200).json({
+                message: "Last sub-package removed. Cart deleted.",
+                cart_id,
+                sub_package_id
+            });
+        }
+
+        // ✅ If still has sub-packages
+        res.status(200).json({
+            message: "Sub-package deleted successfully",
+            cart_id,
+            sub_package_id
+        });
+    } catch (error) {
+        console.error("Error deleting sub-package:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
@@ -726,4 +801,12 @@ const deleteCartItem = asyncHandler(async (req, res) => {
 
 
 
-module.exports = { addToCartService, getUserCart, deleteCartItem, updateCartDetails, getCartDetails, getCartByPackageId };
+module.exports = {
+    addToCartService,
+    getUserCart,
+    deleteCartItem,
+    updateCartDetails,
+    getCartDetails,
+    getCartByPackageId,
+    deleteCartSubPackage
+};

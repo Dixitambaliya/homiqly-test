@@ -7,7 +7,8 @@ const {
     deleteCartItem,
     updateCartDetails,
     getCartDetails,
-    getCartByPackageId
+    getCartByPackageId,
+    deleteCartSubPackage
 } = require("../controller/addToCartServiceController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -20,5 +21,6 @@ router.get('/getcartbypackages/:package_id', authenticationToken, getCartByPacka
 router.get('/getcartdetails/:cart_id', authenticationToken, getCartDetails);
 router.patch('/addcartdetails/:cart_id', multiUpload, handleUploads, authenticationToken, updateCartDetails);
 router.delete('/deletecart/:cart_id', authenticationToken, deleteCartItem);
+router.delete('/deletesubpackage/:cart_id', authenticationToken, deleteCartSubPackage);
 
 module.exports = router;
