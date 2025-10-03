@@ -155,8 +155,8 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sc.package_id,
                 p.packageName,
                 p.service_type_id,
-                pi.itemName AS serviceName,
-                pi.itemMedia AS serviceImage,
+                s.serviceName,
+                s.serviceImage,
                 sc.user_id,
                 sc.vendor_id,
                 sc.bookingStatus,
@@ -166,12 +166,11 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sc.bookingDate,
                 sc.bookingTime,
                 sc.user_promo_code_id
-             FROM service_cart sc
-             LEFT JOIN packages p ON sc.package_id = p.package_id
-             LEFT JOIN services s ON sc.service_id = s.service_id
-             LEFT JOIN package_items pi ON sc.package_id = pi.package_id
-             WHERE sc.user_id = ?
-             ORDER BY sc.created_at DESC`,
+            FROM service_cart sc
+            LEFT JOIN packages p ON sc.package_id = p.package_id
+            LEFT JOIN services s ON sc.service_id = s.service_id
+            WHERE sc.user_id = ?
+            ORDER BY sc.created_at DESC`,
             [user_id]
         );
 
@@ -183,49 +182,48 @@ const getUserCart = asyncHandler(async (req, res) => {
         const promos = [];
 
         for (const cart of cartRows) {
-            const { cart_id, package_id, service_type_id } = cart;
+            const { cart_id } = cart;
 
-            // 2️⃣ Fetch sub-packages
+            // 2️⃣ Fetch sub-packages for this cart
             const [subPackages] = await db.query(
-                `SELECT cpi.sub_package_id, pi.itemName, cpi.price, cpi.quantity, pi.timeRequired
+                `SELECT 
+                    cpi.cart_package_items_id,
+                    cpi.sub_package_id,
+                    pi.itemName,
+                    cpi.price,
+                    cpi.quantity,
+                    pi.timeRequired
                  FROM cart_package_items cpi
                  LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
-                 LEFT JOIN packages p ON pi.package_id = p.package_id
-                 WHERE cpi.cart_id = ? AND p.service_type_id = ?`,
-                [cart_id, service_type_id]
+                 WHERE cpi.cart_id = ?`,
+                [cart_id]
             );
 
             // 3️⃣ Fetch addons
             const [addons] = await db.query(
                 `SELECT ca.sub_package_id, a.addonName, ca.price
                  FROM cart_addons ca
-                 LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
-                 LEFT JOIN package_items pi ON ca.sub_package_id = pi.item_id
-                 LEFT JOIN packages p ON pi.package_id = p.package_id
-                 WHERE ca.cart_id = ? AND p.service_type_id = ?`,
-                [cart_id, service_type_id]
+                 JOIN package_addons a ON ca.addon_id = a.addon_id
+                 WHERE ca.cart_id = ?`,
+                [cart_id]
             );
 
             // 4️⃣ Fetch preferences
             const [preferences] = await db.query(
                 `SELECT cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
                  FROM cart_preferences cp
-                 LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-                 LEFT JOIN package_items pi ON cp.sub_package_id = pi.item_id
-                 LEFT JOIN packages p ON pi.package_id = p.package_id
-                 WHERE cp.cart_id = ? AND p.service_type_id = ?`,
-                [cart_id, service_type_id]
+                 JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+                 WHERE cp.cart_id = ?`,
+                [cart_id]
             );
 
             // 5️⃣ Fetch consents
             const [consents] = await db.query(
                 `SELECT cc.cart_consent_id, cc.sub_package_id, c.question, cc.answer
                  FROM cart_consents cc
-                 LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
-                 LEFT JOIN package_items pi ON cc.sub_package_id = pi.item_id
-                 LEFT JOIN packages p ON pi.package_id = p.package_id
-                 WHERE cc.cart_id = ? AND p.service_type_id = ?`,
-                [cart_id, service_type_id]
+                 JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+                 WHERE cc.cart_id = ?`,
+                [cart_id]
             );
 
             // 6️⃣ Group addons/preferences/consents by sub_package_id
@@ -275,8 +273,8 @@ const getUserCart = asyncHandler(async (req, res) => {
             let discountedTotal = totalAmount;
             let promoDetails = null;
 
-            // 1️⃣ Try admin promo first
             if (cart.user_promo_code_id) {
+                // Check user promo first
                 const [userPromoRows] = await db.query(
                     `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                     [user_id, cart.user_promo_code_id]
@@ -284,56 +282,44 @@ const getUserCart = asyncHandler(async (req, res) => {
 
                 if (userPromoRows.length) {
                     const promo = userPromoRows[0];
+                    const [adminPromo] = await db.query(
+                        `SELECT * FROM promo_codes WHERE promo_id = ?`,
+                        [promo.promo_id]
+                    );
 
-                    if (promo.source_type === 'admin') {
-                        const [adminPromo] = await db.query(
-                            `SELECT * FROM promo_codes WHERE promo_id = ?`,
-                            [promo.promo_id]
-                        );
-
-                        if (adminPromo.length) {
-                            const discountValue = parseFloat(adminPromo[0].discountValue || 0);
-                            if (discountValue > 0) {
-                                discountedTotal = totalAmount - (totalAmount * discountValue / 100);
-                            }
-
-                            promoDetails = {
-                                user_promo_code_id: promo.user_promo_code_id,
-                                source_type: 'admin',
-                                ...adminPromo[0],
-                                code: promo.code,
-                                usedCount: promo.usedCount,
-                                maxUse: promo.maxUse
-                            };
-                        }
+                    if (adminPromo.length) {
+                        const discountValue = parseFloat(adminPromo[0].discountValue || 0);
+                        if (discountValue > 0) discountedTotal = totalAmount - (totalAmount * discountValue / 100);
+                        promoDetails = {
+                            user_promo_code_id: promo.user_promo_code_id,
+                            source_type: 'admin',
+                            ...adminPromo[0],
+                            code: promo.code,
+                            usedCount: promo.usedCount,
+                            maxUse: promo.maxUse
+                        };
                     }
                 }
-            }
 
-            // 2️⃣ If no admin promo found, try system promo by code
-            if (!promoDetails && cart.user_promo_code_id) {
-                const [systemPromoRows] = await db.query(
-                    `SELECT * FROM system_promo_codes WHERE system_promo_code_id = ? AND user_id = ? LIMIT 1`,
-                    [cart.user_promo_code_id, user_id]
-                );
+                // If no admin promo found, check system promo
+                if (!promoDetails) {
+                    const [systemPromoRows] = await db.query(
+                        `SELECT * FROM system_promo_codes WHERE system_promo_code_id = ? LIMIT 1`,
+                        [cart.user_promo_code_id]
+                    );
 
-                if (systemPromoRows.length) {
-                    const sysPromo = systemPromoRows[0];
-                    const discountValue = parseFloat(sysPromo.discountValue || 0);
-                    if (discountValue > 0) {
-                        discountedTotal = totalAmount - (totalAmount * discountValue / 100);
+                    if (systemPromoRows.length) {
+                        const sysPromo = systemPromoRows[0];
+                        const discountValue = parseFloat(sysPromo.discountValue || 0);
+                        if (discountValue > 0) discountedTotal = totalAmount - (totalAmount * discountValue / 100);
+                        promoDetails = { ...sysPromo };
                     }
-
-                    promoDetails = {
-                        ...sysPromo
-                    };
                 }
+
+                if (promoDetails) promos.push(promoDetails);
             }
 
-            if (promoDetails) {
-                promos.push(promoDetails);
-            }
-
+            // 10️⃣ Attach sub-packages, totals
             allCarts.push({
                 ...cart,
                 packages: [{ sub_packages: subPackagesStructured }],
@@ -348,6 +334,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getCartByPackageId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
