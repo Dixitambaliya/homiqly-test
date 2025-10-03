@@ -2,6 +2,7 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 
+
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { service_id, packages, preferences, consents } = req.body;
@@ -45,10 +46,9 @@ const addToCartService = asyncHandler(async (req, res) => {
 
             // Fetch existing data
             const [existingItems] = await connection.query(
-                "SELECT cart_package_items_id, sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
+                "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
             );
-            const existingItemMap = {};
-            existingItems.forEach(i => existingItemMap[i.sub_package_id] = i.cart_package_items_id);
+            const existingItemIds = existingItems.map(i => i.sub_package_id);
 
             const [existingAddons] = await connection.query(
                 "SELECT addon_id, sub_package_id FROM cart_addons WHERE cart_id = ?", [cart_id]
@@ -88,83 +88,53 @@ const addToCartService = asyncHandler(async (req, res) => {
                     const sub_package_id = item.sub_package_id;
                     const quantity = item.quantity || 1;
                     const price = item.price || 0;
-                    const addNewInstance = item.addNewInstance || false; // optional flag
 
-                    if (!existingItemMap[sub_package_id] || addNewInstance) {
-                        // Insert new row
+                    if (existingItemIds.includes(sub_package_id)) {
+                        // Sub-package exists → update quantity & price
+                        await connection.query(
+                            "UPDATE cart_package_items SET price = ?, quantity = ? WHERE cart_id = ? AND sub_package_id = ?",
+                            [price, quantity, cart_id, sub_package_id]
+                        );
+                    } else {
+                        // Insert new sub-package
                         await connection.query(
                             "INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?, ?)",
                             [cart_id, package_id, sub_package_id, price, quantity]
                         );
+                    }
 
-                        // Addons → insert all
-                        if (Array.isArray(addons)) {
-                            for (const addon of addons) {
+                    // Addons → add only new ones
+                    if (Array.isArray(addons)) {
+                        for (const addon of addons) {
+                            if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
                                 await connection.query(
                                     "INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) VALUES (?, ?, ?, ?)",
                                     [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
                                 );
                             }
                         }
+                    }
 
-                        // Preferences → insert all
-                        if (Array.isArray(pkgPreferences)) {
-                            for (const pref of pkgPreferences) {
+                    // Preferences → add only new ones
+                    if (Array.isArray(pkgPreferences)) {
+                        for (const pref of pkgPreferences) {
+                            if (!existingPrefMap[`${sub_package_id}_${pref.preference_id}`]) {
                                 await connection.query(
                                     "INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) VALUES (?, ?, ?)",
                                     [cart_id, sub_package_id, pref.preference_id]
                                 );
                             }
                         }
+                    }
 
-                        // Consents → insert all
-                        if (Array.isArray(pkgConsents)) {
-                            for (const consent of pkgConsents) {
+                    // Consents → add only new ones
+                    if (Array.isArray(pkgConsents)) {
+                        for (const consent of pkgConsents) {
+                            if (!existingConsentMap[`${sub_package_id}_${consent.consent_id}`]) {
                                 await connection.query(
                                     "INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) VALUES (?, ?, ?, ?)",
                                     [cart_id, sub_package_id, consent.consent_id, consent.answer || null]
                                 );
-                            }
-                        }
-
-                    } else {
-                        // Update existing row
-                        await connection.query(
-                            "UPDATE cart_package_items SET price = ?, quantity = ? WHERE cart_id = ? AND sub_package_id = ?",
-                            [price, quantity, cart_id, sub_package_id]
-                        );
-
-                        // Add new addons, preferences, consents if not exists
-                        if (Array.isArray(addons)) {
-                            for (const addon of addons) {
-                                if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
-                                    await connection.query(
-                                        "INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) VALUES (?, ?, ?, ?)",
-                                        [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
-                                    );
-                                }
-                            }
-                        }
-
-                        if (Array.isArray(pkgPreferences)) {
-                            for (const pref of pkgPreferences) {
-                                if (!existingPrefMap[`${sub_package_id}_${pref.preference_id}`]) {
-                                    await connection.query(
-                                        "INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) VALUES (?, ?, ?)",
-                                        [cart_id, sub_package_id, pref.preference_id]
-                                    );
-                                }
-                            }
-                        }
-
-                        if (Array.isArray(pkgConsents)) {
-                            for (const consent of pkgConsents) {
-                                if (!existingConsentMap[`${sub_package_id}_${consent.consent_id}`]) {
-                                    await connection.query(
-                                        "INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) VALUES (?, ?, ?, ?)",
-                                        [cart_id, sub_package_id, consent.consent_id, consent.answer || null]
-                                    );
-                                }
                             }
                         }
                     }
@@ -183,11 +153,8 @@ const addToCartService = asyncHandler(async (req, res) => {
         console.error("Cart insert/update error:", err);
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
-});
-
-
-
-
+}); 
+	
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
