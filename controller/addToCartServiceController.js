@@ -25,9 +25,10 @@ const addToCartService = asyncHandler(async (req, res) => {
         const createdOrUpdatedCarts = [];
 
         for (const pkg of parsedPackages) {
-            const { package_id, sub_packages, addons, preferences: pkgPreferences, consents: pkgConsents } = pkg;
+            const { package_id, sub_packages, addons } = pkg; // only addons here
+            // preferences & consents come from root-level body
 
-            // Check if cart exists
+            // ✅ Check if cart exists
             const [existingCart] = await connection.query(
                 `SELECT cart_id FROM service_cart 
                  WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
@@ -44,7 +45,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                 cart_id = insertCart.insertId;
             }
 
-            // Fetch existing data
+            // ✅ Fetch existing data
             const [existingItems] = await connection.query(
                 "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
             );
@@ -68,21 +69,7 @@ const addToCartService = asyncHandler(async (req, res) => {
             const existingConsentMap = {};
             existingConsents.forEach(c => existingConsentMap[`${c.sub_package_id}_${c.consent_id}`] = true);
 
-            // DELETE old data ONLY if client explicitly sends empty arrays
-            if (Array.isArray(sub_packages) && sub_packages.length === 0) {
-                await connection.query("DELETE FROM cart_package_items WHERE cart_id = ?", [cart_id]);
-            }
-            if (Array.isArray(addons) && addons.length === 0) {
-                await connection.query("DELETE FROM cart_addons WHERE cart_id = ?", [cart_id]);
-            }
-            if (Array.isArray(pkgPreferences) && pkgPreferences.length === 0) {
-                await connection.query("DELETE FROM cart_preferences WHERE cart_id = ?", [cart_id]);
-            }
-            if (Array.isArray(pkgConsents) && pkgConsents.length === 0) {
-                await connection.query("DELETE FROM cart_consents WHERE cart_id = ?", [cart_id]);
-            }
-
-            // INSERT or UPDATE sub-packages
+            // ✅ INSERT or UPDATE sub-packages
             if (Array.isArray(sub_packages)) {
                 for (const item of sub_packages) {
                     const sub_package_id = item.sub_package_id;
@@ -90,20 +77,18 @@ const addToCartService = asyncHandler(async (req, res) => {
                     const price = item.price || 0;
 
                     if (existingItemIds.includes(sub_package_id)) {
-                        // Sub-package exists → update quantity & price
                         await connection.query(
                             "UPDATE cart_package_items SET price = ?, quantity = ? WHERE cart_id = ? AND sub_package_id = ?",
                             [price, quantity, cart_id, sub_package_id]
                         );
                     } else {
-                        // Insert new sub-package
                         await connection.query(
                             "INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?, ?)",
                             [cart_id, package_id, sub_package_id, price, quantity]
                         );
                     }
 
-                    // Addons → add only new ones
+                    // ✅ Addons (from pkg.addons)
                     if (Array.isArray(addons)) {
                         for (const addon of addons) {
                             if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
@@ -115,9 +100,9 @@ const addToCartService = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // Preferences → add only new ones
-                    if (Array.isArray(pkgPreferences)) {
-                        for (const pref of pkgPreferences) {
+                    // ✅ Preferences (from root-level)
+                    if (Array.isArray(preferences)) {
+                        for (const pref of preferences) {
                             if (!existingPrefMap[`${sub_package_id}_${pref.preference_id}`]) {
                                 await connection.query(
                                     "INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) VALUES (?, ?, ?)",
@@ -127,9 +112,9 @@ const addToCartService = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // Consents → add only new ones
-                    if (Array.isArray(pkgConsents)) {
-                        for (const consent of pkgConsents) {
+                    // ✅ Consents (from root-level)
+                    if (Array.isArray(consents)) {
+                        for (const consent of consents) {
                             if (!existingConsentMap[`${sub_package_id}_${consent.consent_id}`]) {
                                 await connection.query(
                                     "INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) VALUES (?, ?, ?, ?)",
@@ -154,6 +139,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
