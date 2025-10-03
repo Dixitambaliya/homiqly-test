@@ -538,7 +538,7 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         bookingDate = null,
         bookingTime = null,
         notes = null,
-        promoCode = null
+        promoCode
     } = req.body;
 
     const bookingMedia = req.uploadedFiles?.bookingMedia?.[0]?.url || null;
@@ -547,7 +547,7 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         const fields = [];
         const values = [];
 
-        // Basic fields
+        // ✅ Basic fields
         if (vendor_id !== null) {
             fields.push("vendor_id = ?");
             values.push(vendor_id);
@@ -569,14 +569,14 @@ const updateCartDetails = asyncHandler(async (req, res) => {
             values.push(bookingMedia);
         }
 
-        // Promo code logic with unified usage check
+        // ✅ Promo code logic
         if (promoCode !== undefined) {
-            if (promoCode) {
+            if (typeof promoCode === "string" && promoCode.trim() !== "") {
                 // Try user promo first
                 const [[userPromo]] = await db.query(
                     `SELECT user_promo_code_id AS promo_id, usedCount AS used_count, maxUse AS max_use 
-                    FROM user_promo_codes 
-                    WHERE user_id = ? AND code = ? LIMIT 1`,
+                     FROM user_promo_codes 
+                     WHERE user_id = ? AND code = ? LIMIT 1`,
                     [user_id, promoCode]
                 );
 
@@ -590,8 +590,8 @@ const updateCartDetails = asyncHandler(async (req, res) => {
                     // Fallback to system promo
                     const [[systemPromo]] = await db.query(
                         `SELECT system_promo_code_id AS promo_id, usage_count AS used_count, maxUse AS max_use
-                        FROM system_promo_codes 
-                        WHERE code = ? LIMIT 1`,
+                         FROM system_promo_codes 
+                         WHERE code = ? LIMIT 1`,
                         [promoCode]
                     );
 
@@ -612,10 +612,11 @@ const updateCartDetails = asyncHandler(async (req, res) => {
                 fields.push("user_promo_code_id = ?");
                 values.push(promoId);
 
-            } else {
-                // Remove applied promo code if empty
+            } else if (promoCode === "") {
+                // ❌ Remove only if explicitly empty string
                 fields.push("user_promo_code_id = NULL");
             }
+            // If promoCode is null → do nothing
         }
 
         if (fields.length === 0) {
@@ -652,6 +653,7 @@ const getCartDetails = asyncHandler(async (req, res) => {
                 bookingDate,
                 bookingTime,
                 notes,
+                user_promo_code_id,
                 bookingMedia,
                 bookingStatus,
                 created_at
