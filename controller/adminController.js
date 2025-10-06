@@ -239,7 +239,7 @@ const getBookings = asyncHandler(async (req, res) => {
                 p.amount AS payment_amount,
                 p.currency AS payment_currency,
 
-                pkg.package_id,
+                sb.package_id,
                 pi.item_id,
                 pi.itemName,
                 pi.itemMedia,
