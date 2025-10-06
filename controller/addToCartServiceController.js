@@ -163,7 +163,6 @@ const getUserCart = asyncHandler(async (req, res) => {
                 sc.user_promo_code_id
             FROM service_cart sc
             LEFT JOIN packages p ON sc.package_id = p.package_id
-            LEFT JOIN services s ON sc.service_id = s.service_id
             WHERE sc.user_id = ?
             ORDER BY sc.created_at DESC`,
             [user_id]
@@ -186,7 +185,6 @@ const getUserCart = asyncHandler(async (req, res) => {
                     cpi.sub_package_id,
                     pi.itemName,
                     pi.itemMedia,
-                    pi.itemName, 
                     cpi.price,
                     cpi.quantity,
                     pi.timeRequired
@@ -278,6 +276,7 @@ const getUserCart = asyncHandler(async (req, res) => {
             let promoDetails = null;
 
             if (cart.user_promo_code_id) {
+                // Check admin promo
                 const [userPromoRows] = await db.query(
                     `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                     [user_id, cart.user_promo_code_id]
@@ -285,36 +284,59 @@ const getUserCart = asyncHandler(async (req, res) => {
 
                 if (userPromoRows.length) {
                     const promo = userPromoRows[0];
-                    const [adminPromo] = await db.query(
-                        `SELECT * FROM promo_codes WHERE promo_id = ?`,
-                        [promo.promo_id]
-                    );
+                    if (promo.promo_id) {
+                        const [adminPromo] = await db.query(
+                            `SELECT * FROM promo_codes WHERE promo_id = ?`,
+                            [promo.promo_id]
+                        );
 
-                    if (adminPromo.length) {
-                        const discountValue = parseFloat(adminPromo[0].discountValue || 0);
-                        if (discountValue > 0) discountedTotal = totalAmount - (totalAmount * discountValue / 100);
-                        promoDetails = {
-                            user_promo_code_id: promo.user_promo_code_id,
-                            source_type: 'admin',
-                            ...adminPromo[0],
-                            code: promo.code,
-                            usedCount: promo.usedCount,
-                            maxUse: promo.maxUse
-                        };
+                        if (adminPromo.length) {
+                            const discountValue = parseFloat(adminPromo[0].discountValue || 0);
+                            const discountType = adminPromo[0].discount_type || 'percentage';
+
+                            discountedTotal =
+                                discountType === 'fixed'
+                                    ? Math.max(0, totalAmount - discountValue)
+                                    : totalAmount - (totalAmount * discountValue / 100);
+
+                            promoDetails = {
+                                user_promo_code_id: promo.user_promo_code_id,
+                                source_type: 'admin',
+                                ...adminPromo[0],
+                                code: promo.code,
+                                usedCount: promo.usedCount,
+                                maxUse: promo.maxUse
+                            };
+                        }
                     }
                 }
 
+                // Check system promo if no admin promo applied
                 if (!promoDetails) {
                     const [systemPromoRows] = await db.query(
-                        `SELECT * FROM system_promo_codes WHERE system_promo_code_id = ? LIMIT 1`,
+                        `SELECT sc.*, 
+                         st.discount_type, 
+                         st.discountValue 
+                         FROM system_promo_codes sc
+                         JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
+                         WHERE sc.system_promo_code_id = ? LIMIT 1`,
                         [cart.user_promo_code_id]
                     );
 
                     if (systemPromoRows.length) {
                         const sysPromo = systemPromoRows[0];
                         const discountValue = parseFloat(sysPromo.discountValue || 0);
-                        if (discountValue > 0) discountedTotal = totalAmount - (totalAmount * discountValue / 100);
-                        promoDetails = { ...sysPromo };
+                        const discountType = sysPromo.discount_type || 'percentage';
+
+                        discountedTotal =
+                            discountType === 'fixed'
+                                ? Math.max(0, totalAmount - discountValue)
+                                : totalAmount - (totalAmount * discountValue / 100);
+
+                        promoDetails = {
+                            ...sysPromo,
+                            source_type: 'system'
+                        };
                     }
                 }
 
@@ -335,6 +357,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -522,11 +545,12 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
         // 8️⃣ Calculate cart-level total
         let totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
 
-        // 9️⃣ Apply promo logic (same as getUserCart)
+        // 9️⃣ Apply promo logic (admin or system, percentage/fixed)
         let discountedTotal = totalAmount;
         let promoDetails = null;
 
         if (user_promo_code_id) {
+            // Admin promo
             const [userPromoRows] = await db.query(
                 `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                 [user_id, user_promo_code_id]
@@ -534,7 +558,7 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
             if (userPromoRows.length) {
                 const promo = userPromoRows[0];
-                if (promo.source_type === "admin") {
+                if (promo.source_type === "admin" && promo.promo_id) {
                     const [adminPromo] = await db.query(
                         `SELECT * FROM promo_codes WHERE promo_id = ?`,
                         [promo.promo_id]
@@ -542,9 +566,12 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
 
                     if (adminPromo.length) {
                         const discountValue = parseFloat(adminPromo[0].discountValue || 0);
-                        if (discountValue > 0) {
-                            discountedTotal = totalAmount - (totalAmount * discountValue / 100);
-                        }
+                        const discountType = adminPromo[0].discount_type || "percentage";
+
+                        discountedTotal =
+                            discountType === "fixed"
+                                ? Math.max(0, totalAmount - discountValue)
+                                : totalAmount - (totalAmount * discountValue / 100);
 
                         promoDetails = {
                             user_promo_code_id: promo.user_promo_code_id,
@@ -557,22 +584,31 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
                     }
                 }
             }
-        }
 
-        if (!promoDetails && user_promo_code_id) {
-            const [systemPromoRows] = await db.query(
-                `SELECT * FROM system_promo_codes WHERE system_promo_code_id = ? AND user_id = ? LIMIT 1`,
-                [user_promo_code_id, user_id]
-            );
+            // System promo (if admin promo not applied)
+            if (!promoDetails) {
+                const [systemPromoRows] = await db.query(
+                    `SELECT sc.*, 
+                     st.discount_type,
+                     st.discountValue 
+                     FROM system_promo_codes sc
+                     JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
+                     WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+                    [user_promo_code_id, user_id]
+                );
 
-            if (systemPromoRows.length) {
-                const sysPromo = systemPromoRows[0];
-                const discountValue = parseFloat(sysPromo.discountValue || 0);
-                if (discountValue > 0) {
-                    discountedTotal = totalAmount - (totalAmount * discountValue / 100);
+                if (systemPromoRows.length) {
+                    const sysPromo = systemPromoRows[0];
+                    const discountValue = parseFloat(sysPromo.discountValue || 0);
+                    const discountType = sysPromo.discount_type || "percentage";
+
+                    discountedTotal =
+                        discountType === "fixed"
+                            ? Math.max(0, totalAmount - discountValue)
+                            : totalAmount - (totalAmount * discountValue / 100);
+
+                    promoDetails = { ...sysPromo, source_type: "system" };
                 }
-
-                promoDetails = { ...sysPromo };
             }
         }
 
@@ -587,9 +623,8 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             },
             promo: promoDetails || null
         });
-
     } catch (err) {
-        console.error("Get cart error:", err);
+        console.error("Get cart by package error:", err);
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
@@ -655,8 +690,12 @@ const updateCartDetails = asyncHandler(async (req, res) => {
                 } else {
                     // Fallback to system promo
                     const [[systemPromo]] = await db.query(
-                        `SELECT system_promo_code_id AS promo_id, usage_count AS used_count, maxUse AS max_use
-                         FROM system_promo_codes 
+                        `SELECT 
+                         spc.system_promo_code_id AS promo_id, 
+                         spc.usage_count AS used_count,
+                         spct.maxUse AS max_use
+                         FROM system_promo_codes spc
+                         LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id
                          WHERE code = ? LIMIT 1`,
                         [promoCode]
                     );
