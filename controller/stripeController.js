@@ -520,7 +520,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           const [[systemPromo]] = await connection.query(
             `SELECT spc.system_promo_code_id, spt.maxUse
             FROM system_promo_codes spc
-            JOIN system_promo_code_templates spt ON spc.system_promo_code_template_id = spt.system_promo_code_template_id
+            JOIN system_promo_code_templates spt ON spc.template_id = spt.system_promo_code_template_id
             WHERE spc.system_promo_code_id = ?`,
             [user_promo_code_id]
           );
