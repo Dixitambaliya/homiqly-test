@@ -240,6 +240,8 @@ const getBookings = asyncHandler(async (req, res) => {
                 p.currency AS payment_currency,
 
                 sb.package_id,
+                pkg.packageName,
+                pkg.packageMedia,
                 pi.item_id,
                 pi.itemName,
                 pi.itemMedia,
@@ -270,8 +272,7 @@ const getBookings = asyncHandler(async (req, res) => {
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
 
-            LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-            LEFT JOIN packages pkg ON sbp.package_id = pkg.package_id
+            LEFT JOIN packages pkg ON sb.package_id = pkg.package_id
 
             LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
             LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
@@ -332,6 +333,8 @@ const getBookings = asyncHandler(async (req, res) => {
                 if (!pkg) {
                     pkg = {
                         package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
                         items: [],
                         addons: [],
                         preferences: [],
