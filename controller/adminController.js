@@ -1197,13 +1197,13 @@ ORDER BY p.created_at DESC;
 
         const enhancedPayments = await Promise.all(
             payments.map(async (payment, index) => {
-                console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
-                console.log(`👉 Payment ID: ${payment.payment_id}`);
-                console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
+                // console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
+                // console.log(`👉 Payment ID: ${payment.payment_id}`);
+                // console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
 
                 try {
                     const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id);
-                    console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
+                    // console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
 
                     const charges = await stripe.charges.list({
                         payment_intent: payment.payment_intent_id,
@@ -1211,16 +1211,16 @@ ORDER BY p.created_at DESC;
                     });
                     const charge = charges.data?.[0];
 
-                    if (!charge) {
-                        console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
-                    } else {
-                        console.log(`✅ Retrieved Charge ID: ${charge.id}`);
-                        console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
-                        console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
-                        console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
-                        console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
-                        console.log(`🕒 Paid At (raw): ${charge.created}`);
-                    }
+                    // if (!charge) {
+                    //     console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
+                    // } else {
+                    //     console.log(`✅ Retrieved Charge ID: ${charge.id}`);
+                    //     console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
+                    //     console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
+                    //     console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
+                    //     console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
+                    //     console.log(`🕒 Paid At (raw): ${charge.created}`);
+                    // }
 
                     const stripeMetadata = {
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
