@@ -1181,7 +1181,8 @@ const getAllPayments = asyncHandler(async (req, res) => {
 
     -- Package Info
     pkg.package_id,
-    pkg.packageName
+    pkg.packageName,
+    pkg.packageMedia
 
 FROM payments p
 JOIN users u ON p.user_id = u.user_id

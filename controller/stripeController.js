@@ -339,7 +339,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
 
 // ✅ stripeWebhook.js
-
 exports.stripeWebhook = asyncHandler(async (req, res) => {
   let event;
 
