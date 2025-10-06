@@ -8,11 +8,12 @@ import Modal from "../../../shared/components/Modal/Modal";
 import { Edit2, Trash2 } from "lucide-react";
 
 /**
- * AdminPromoManager
- * - keeps all your existing promo management features
- * - adds an "Auto-generate code" toggle which hits:
- *    GET  /api/getstatuscode           -> { enable: 0 | 1 }
- *    PATCH /api/changautogeneratecode  -> { enable: 0 | 1 } (body)
+ * AdminPromoManager (JSX)
+ *
+ * - Adds a source_type dropdown ("admin" | "system")
+ * - Adds a discount_type dropdown ("percentage" | "fixed")
+ * - If source_type === "system", hide and clear start_date, end_date, requiredBookings
+ * - Includes both source_type and discount_type in submitted payload
  */
 export default function AdminPromoManager() {
   const [promos, setPromos] = useState([]);
@@ -25,12 +26,16 @@ export default function AdminPromoManager() {
   const [form, setForm] = useState({
     code: "",
     discount_value: "",
+    // NEW: discount_type - default to "percentage"
+    discount_type: "percentage",
     requiredBookings: 0,
     description: "",
     minSpend: 0,
     maxUse: 1,
     start_date: "",
     end_date: "",
+    // default to "admin" so fields visible on create
+    source_type: "admin",
   });
 
   // AUTO-GENERATE CODE toggle state
@@ -81,7 +86,6 @@ export default function AdminPromoManager() {
       // API expects { enable: 0 | 1 }
       const payload = { enable: newValue ? 1 : 0 };
       const res = await axios.patch("/api/changautogeneratecode", payload);
-      // You can use res.data.message if returned
       toast.success(
         res?.data?.message ||
           `Auto-generate welcome code ${newValue ? "enabled" : "disabled"}`
@@ -103,12 +107,14 @@ export default function AdminPromoManager() {
     setForm({
       code: "",
       discount_value: "",
+      discount_type: "percentage", // default
       minSpend: 0,
       maxUse: 1,
       start_date: "",
       end_date: "",
       requiredBookings: 0,
       description: "",
+      source_type: "admin",
     });
     setModalOpen(true);
   }
@@ -116,17 +122,23 @@ export default function AdminPromoManager() {
   function openEditModal(p) {
     setIsEditing(true);
     setCurrentPromo(p);
+
+    const sourceVal = p?.source_type ?? "admin";
+    const discountTypeVal = p?.discount_type ?? p?.discountType ?? "percentage";
+
     setForm({
       code: p.code || "",
       discount_value: (p.discountValue ?? p.discount_value ?? "").toString(),
+      discount_type: discountTypeVal,
       minSpend: p.minSpend ?? 0,
       maxUse: p.maxUse ?? 1,
-      // convert ISO -> datetime-local compatible (YYYY-MM-DDTHH:mm)
       start_date: p.start_date ? p.start_date.slice(0, 16) : "",
       end_date: p.end_date ? p.end_date.slice(0, 16) : "",
-      requiredBookings: p.requiredBookings || 0,
+      requiredBookings: p.requiredBookings ?? 0,
       description: p.description || "",
+      source_type: sourceVal,
     });
+
     setModalOpen(true);
   }
 
@@ -136,22 +148,58 @@ export default function AdminPromoManager() {
 
   function handleChange(e) {
     const { name, value } = e.target;
+
+    // if switching to 'system' we clear the fields that should be hidden
+    if (name === "source_type") {
+      if (value === "system") {
+        setForm((s) => ({
+          ...s,
+          [name]: value,
+          start_date: "",
+          end_date: "",
+          requiredBookings: 0,
+        }));
+        return;
+      }
+      setForm((s) => ({ ...s, [name]: value }));
+      return;
+    }
+
     setForm((s) => ({ ...s, [name]: value }));
   }
 
   async function handleSubmit(e) {
     e?.preventDefault();
     if (!form.code) return toast.error("Code is required");
+    // convert discount_value to number
+    const discountValueNum =
+      form.discount_value === ""
+        ? 0
+        : Number(String(form.discount_value).trim());
+
+    if (Number.isNaN(discountValueNum)) {
+      return toast.error("Discount value must be a number");
+    }
 
     try {
       const payload = {
         code: form.code,
-        discount_value: form.discount_value,
+        // send number, not string
+        discount_value: discountValueNum,
+        discount_type: form.discount_type || "percentage",
         minSpend: Number(form.minSpend),
         maxUse: Number(form.maxUse),
-        start_date: form.start_date ? formatDateForApi(form.start_date) : "",
-        end_date: form.end_date ? formatDateForApi(form.end_date) : "",
-        requiredBookings: Number(form.requiredBookings) || 0,
+        source_type: form.source_type || "admin",
+        start_date:
+          form.source_type === "admin" && form.start_date
+            ? formatDateForApi(form.start_date)
+            : "",
+        end_date:
+          form.source_type === "admin" && form.end_date
+            ? formatDateForApi(form.end_date)
+            : "",
+        requiredBookings:
+          form.source_type === "admin" ? Number(form.requiredBookings) || 0 : 0,
         description: form.description || "",
       };
 
@@ -181,8 +229,25 @@ export default function AdminPromoManager() {
       return;
     try {
       const id = p.promo_id || p.id;
-      await axios.delete(`/api/deletecode/${id}`);
-      toast.success("Promo code deleted successfully");
+      if (!id) {
+        toast.error("Promo id not found");
+        return;
+      }
+
+      // Build payload with source_type — prefer promo's source_type, fallback to current form value, then 'admin'
+      const payload = {
+        source_type: p?.source_type ?? form?.source_type ?? "admin",
+      };
+
+      // axios.delete accepts request body via the `data` config property
+      const res = await axios.delete(`/api/deletecode/${id}`, {
+        data: payload,
+      });
+
+      // Optionally log response
+      console.log("delete response:", res?.status, res?.data);
+
+      toast.success(res?.data?.message || "Promo code deleted successfully");
       fetchPromos();
     } catch (err) {
       console.error(err);
@@ -251,6 +316,7 @@ export default function AdminPromoManager() {
                 <tr className="text-left text-xs  bg-gray-50 uppercase">
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3">Discount</th>
+                  <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Min Spend</th>
                   <th className="px-4 py-3">Max Uses</th>
                   <th className="px-4 py-3">Start</th>
@@ -258,19 +324,18 @@ export default function AdminPromoManager() {
                   <th className="px-4 py-3">Required Bookings</th>
                   <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3">Actions</th>
-                  
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                    <td colSpan={10} className="p-8 text-center text-slate-500">
                       Loading...
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                    <td colSpan={10} className="p-8 text-center text-slate-500">
                       No promo codes found
                     </td>
                   </tr>
@@ -283,6 +348,9 @@ export default function AdminPromoManager() {
                       <td className="px-4 py-3 ">{p.code}</td>
                       <td className="px-4 py-3">
                         {p.discountValue ?? p.discount_value ?? "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.discount_type ?? p.discountType ?? "-"}
                       </td>
                       <td className="px-4 py-3">{p.minSpend ?? "-"}</td>
                       <td className="px-4 py-3">{p.maxUse ?? "-"}</td>
@@ -316,7 +384,6 @@ export default function AdminPromoManager() {
                           </IconButton>
                         </div>
                       </td>
-                      
                     </tr>
                   ))
                 )}
@@ -333,7 +400,38 @@ export default function AdminPromoManager() {
           title={isEditing ? "View / Edit Promo" : "Create Promo"}
         >
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            {/* Add source_type dropdown and discount_type dropdown here */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Source
+                </label>
+                <select
+                  name="source_type"
+                  value={form.source_type}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Discount Type
+                </label>
+                <select
+                  name="discount_type"
+                  value={form.discount_type}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </div>
+
               <FormInput
                 name="code"
                 value={form.code}
@@ -341,17 +439,17 @@ export default function AdminPromoManager() {
                 placeholder="Code"
                 label="Code"
               />
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <FormInput
+                type="number"
                 name="discount_value"
                 value={form.discount_value}
                 onChange={handleChange}
                 placeholder="Discount (e.g. 'upto 30' or '10%')"
                 label="Discount (e.g. 'upto 30' or '10%')"
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <FormInput
                 name="minSpend"
                 type="number"
@@ -360,6 +458,9 @@ export default function AdminPromoManager() {
                 placeholder="Min Spend"
                 label="Min Spend"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <FormInput
                 name="maxUse"
                 type="number"
@@ -368,36 +469,47 @@ export default function AdminPromoManager() {
                 placeholder="Max Uses"
                 label="Max Uses"
               />
-              <div />
+              {/* If source_type === 'admin' show start/end and requiredBookings */}
+              {form.source_type === "admin" ? (
+                <>
+                  <FormInput
+                    name="start_date"
+                    type="datetime-local"
+                    value={form.start_date}
+                    onChange={handleChange}
+                    placeholder="Start Date"
+                    label="Start Date"
+                  />
+                  <FormInput
+                    name="end_date"
+                    type="datetime-local"
+                    value={form.end_date}
+                    onChange={handleChange}
+                    placeholder="End Date"
+                    label="End Date"
+                  />
+                </>
+              ) : (
+                <>
+                  <div />
+                  <div />
+                </>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormInput
-                name="start_date"
-                type="datetime-local"
-                value={form.start_date}
-                onChange={handleChange}
-                placeholder="Start Date"
-                label="Start Date"
-              />
-              <FormInput
-                name="end_date"
-                type="datetime-local"
-                value={form.end_date}
-                onChange={handleChange}
-                placeholder="End Date"
-                label="End Date"
-              />
-            </div>
+            {/* Required Bookings and Description */}
             <div className="grid grid-cols-1 gap-4">
-              <FormInput
-                name="requiredBookings"
-                type="number"
-                value={form.requiredBookings}
-                onChange={handleChange}
-                placeholder="Required Bookings"
-                label="Required Bookings"
-              />
+              {form.source_type === "admin" && (
+                <FormInput
+                  name="requiredBookings"
+                  type="number"
+                  value={form.requiredBookings}
+                  onChange={handleChange}
+                  placeholder="Required Bookings"
+                  label="Required Bookings"
+                />
+              )}
+
               <FormInput
                 name="description"
                 type="text"
