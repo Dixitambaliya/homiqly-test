@@ -1,14 +1,28 @@
-import React, { useEffect, useState } from "react";
+// File: app/(admin)/PackagesPage.jsx
+"use client";
+
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "../../shared/components/Button";
-import { FiPlus, FiTrash2, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiPlus, FiTrash2, FiSearch } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EditPackageModal from "../components/Modals/EditPackageModal";
-import FormSelect from "../../shared/components/Form/FormSelect"; // assume correct import
+import FormSelect from "../../shared/components/Form/FormSelect";
 import { FormInput } from "../../shared/components/Form";
 import { Search } from "lucide-react";
 
+// Simple debounce hook
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+/* ---------- small helpers ---------- */
 const safeSrc = (src) => (typeof src === "string" ? src.trim() : "");
 const fmtTime = (t) => (t ? String(t).trim() : "—");
 const fmtPrice = (n) =>
@@ -16,9 +30,9 @@ const fmtPrice = (n) =>
     ? `$${Number(n)}`
     : "—";
 
-/* Presentational subcomponents */
+/* ---------- presentational components (memoized) ---------- */
 
-function PreferencesChips({ preferences }) {
+const PreferencesChips = React.memo(function PreferencesChips({ preferences }) {
   if (!preferences || Object.keys(preferences).length === 0) {
     return <div className="text-xs text-gray-400 italic">No preferences</div>;
   }
@@ -26,7 +40,6 @@ function PreferencesChips({ preferences }) {
   return (
     <div className="space-y-3">
       {Object.entries(preferences).map(([groupKey, group]) => {
-        // assume group is { is_required: 0|1, items: [ { preference_value, preference_price, ... } ] }
         const isRequired = Number(group?.is_required) === 1;
         const items = Array.isArray(group?.items) ? group.items : [];
 
@@ -39,7 +52,6 @@ function PreferencesChips({ preferences }) {
               <div className="text-sm font-semibold text-gray-700">
                 {groupKey}
               </div>
-
               <span
                 className={
                   "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
@@ -66,9 +78,7 @@ function PreferencesChips({ preferences }) {
 
                     <div className="flex items-center gap-3 ml-4">
                       <span className="text-gray-500">
-                        {typeof fmtPrice === "function"
-                          ? fmtPrice(p?.preference_price)
-                          : p?.preference_price}
+                        {fmtPrice(p?.preference_price)}
                       </span>
                     </div>
                   </li>
@@ -82,9 +92,9 @@ function PreferencesChips({ preferences }) {
       })}
     </div>
   );
-}
+});
 
-function AddonsChips({ addons }) {
+const AddonsChips = React.memo(function AddonsChips({ addons }) {
   if (!Array.isArray(addons) || addons.length === 0) {
     return <div className="text-xs text-gray-400 italic">No add-ons</div>;
   }
@@ -125,25 +135,21 @@ function AddonsChips({ addons }) {
       ))}
     </ul>
   );
-}
+});
 
-function SubPackageItem({ sub }) {
-  // If API already returns `preferences` as an object, use it directly
+/* SubPackage view used in modal (still memoized) */
+const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
   const buildPreferencesObject = (subObj) => {
     if (
       subObj &&
       typeof subObj.preferences === "object" &&
       !Array.isArray(subObj.preferences)
-    ) {
+    )
       return subObj.preferences;
-    }
-
-    // otherwise collect preference keys like preferences0, preferences1
     const prefKeys = Object.keys(subObj || {}).filter((k) =>
       /^preferences\d+$/.test(k)
     );
     if (prefKeys.length === 0) return {};
-
     return prefKeys.reduce((acc, k) => {
       const idx = k.replace(/^preferences/, "");
       acc[idx] = subObj[k] || [];
@@ -155,27 +161,24 @@ function SubPackageItem({ sub }) {
 
   return (
     <li className="bg-white rounded-lg border p-4 shadow-sm">
-      <div className="flex flex-row gap-4 ">
-        <div className="">
-          <div className="w-full h-24 rounded-md overflow-hidden border bg-gray-100">
-            <img
-              src={
-                safeSrc(sub.item_media) ||
-                "https://via.placeholder.com/160?text=Item"
-              }
-              alt={sub.item_name || "Item"}
-              loading="lazy" // ✅ lazy-loads offscreen images
-              decoding="async" // ✅ doesn't block page rendering
-              width="160" // ✅ helps browser pre-allocate space
-              height="160"
-              className="w-full h-full object-cover rounded-md bg-gray-100"
-            />
-            
-          </div>
+      <div className="flex gap-4">
+        <div className="w-36 h-24 rounded-md overflow-hidden border bg-gray-100 flex-shrink-0">
+          <img
+            src={
+              safeSrc(sub.item_media) ||
+              "https://via.placeholder.com/160?text=Item"
+            }
+            alt={sub.item_name || "Item"}
+            loading="lazy"
+            decoding="async"
+            width="160"
+            height="160"
+            className="w-full h-full object-cover rounded-md bg-gray-100"
+          />
         </div>
 
-        <div className="">
-          <div className="flex justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start">
             <div className="min-w-0">
               <p className="text-base font-medium text-gray-900 truncate">
                 {sub.item_name}
@@ -184,7 +187,6 @@ function SubPackageItem({ sub }) {
                 Time: {fmtTime(sub.time_required)}
               </p>
             </div>
-
             <div className="ml-4 text-right">
               <p className="text-sm font-semibold text-sky-700">
                 {fmtPrice(sub.price)}
@@ -197,263 +199,296 @@ function SubPackageItem({ sub }) {
               {sub.description}
             </p>
           )}
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-1">
-          <div className="text-xs font-semibold text-gray-700 mb-2">
-            Preferences
-          </div>
-          <PreferencesChips preferences={preferencesObj} />
-        </div>
 
-        <div className="md:col-span-1">
-          <div className="text-xs font-semibold text-gray-700 mb-2">
-            Add-ons
-          </div>
-          <AddonsChips addons={sub.addons} />
-        </div>
-
-        <div className="md:col-span-2">
-          <div className="text-xs font-semibold text-gray-700 mb-2">
-            Consent
-          </div>
-          {Array.isArray(sub.consentForm) && sub.consentForm.length > 0 ? (
-            <div className="space-y-2">
-              {sub.consentForm.map((c, i) => {
-                const isReq = Number(c.is_required) === 1;
-                return (
-                  <div
-                    key={c.consent_id ?? i}
-                    className="flex items-center justify-between gap-3 p-2 bg-gray-50 rounded-md border border-gray-100"
-                  >
-                    <div className="text-sm text-gray-700 truncate">
-                      {c.question}
-                    </div>
-                    <div>
-                      <span
-                        className={
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
-                          (isReq
-                            ? "bg-red-100 text-red-800 border border-red-200"
-                            : "bg-gray-100 text-gray-700 border border-gray-200")
-                        }
-                      >
-                        {isReq ? "Required" : "Optional"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs font-semibold text-gray-700 mb-2">
+                Preferences
+              </div>
+              <PreferencesChips preferences={preferencesObj} />
             </div>
-          ) : (
-            <div className="text-xs text-gray-400 italic">No consent items</div>
-          )}
+
+            <div>
+              <div className="text-xs font-semibold text-gray-700 mb-2">
+                Add-ons
+              </div>
+              <AddonsChips addons={sub.addons} />
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <div className="text-xs font-semibold text-gray-700 mb-2">
+              Consent
+            </div>
+            {Array.isArray(sub.consentForm) && sub.consentForm.length > 0 ? (
+              <div className="space-y-2">
+                {sub.consentForm.map((c, i) => {
+                  const isReq = Number(c.is_required) === 1;
+                  return (
+                    <div
+                      key={c.consent_id ?? i}
+                      className="flex items-center justify-between gap-3 p-2 bg-gray-50 rounded-md border border-gray-100"
+                    >
+                      <div className="text-sm text-gray-700 truncate">
+                        {c.question}
+                      </div>
+                      <div>
+                        <span
+                          className={
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium " +
+                            (isReq
+                              ? "bg-red-100 text-red-800 border border-red-200"
+                              : "bg-gray-100 text-gray-700 border border-gray-200")
+                          }
+                        >
+                          {isReq ? "Required" : "Optional"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 italic">
+                No consent items
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </li>
   );
-}
+});
 
-function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
-  const pkgThumb = safeSrc(pkg.packageMedia) || null;
+/* Details Modal: lazy-loads package details when opened */
+function PackageDetailsModal({ packageId, isOpen, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [pkgData, setPkgData] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPkgData(null);
+      setLoading(false);
+      return;
+    }
+
+    let canceled = false;
+
+    async function loadDetails() {
+      try {
+        setLoading(true);
+        const resp = await api.get(`/api/admin/getpackagedetails/${packageId}`);
+        const data = resp?.data?.package ?? resp?.data ?? null;
+        if (!canceled) setPkgData(data);
+      } catch (err) {
+        console.error("Failed to load package details", err);
+      } finally {
+        if (!canceled) setLoading(false);
+      }
+    }
+
+    if (packageId) loadDetails();
+
+    return () => {
+      canceled = true;
+    };
+  }, [isOpen, packageId]);
+
+  if (!isOpen) return null;
 
   return (
-    <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <button
-            onClick={() => onToggle(pkg.package_id)}
-            aria-expanded={!!expanded}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md text-sm hover:shadow-sm"
-          >
-            {expanded ? (
-              <>
-                <FiChevronUp />
-                <span>Collapse</span>
-              </>
-            ) : (
-              <>
-                <FiChevronDown />
-                <span>Expand</span>
-              </>
-            )}
-          </button>
-
-          <div className="flex items-center gap-4 min-w-0">
-            {pkgThumb && (
-              <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
-                <img
-                  src={pkgThumb || "https://via.placeholder.com/56?text=Pkg"}
-                  alt={
-                    pkg.packageName ||
-                    pkg.service_type_name ||
-                    `Package ${pkg.package_id}`
-                  }
-                  width="56"
-                  height="56"
-                  loading="lazy"
-                  decoding="async"
-                  srcSet={`${pkgThumb}?w=56 56w, ${pkgThumb}?w=112 112w, ${pkgThumb}?w=224 224w`}
-                  sizes="56px"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-gray-900 truncate">
-                {pkg.packageName ||
-                  pkg.service_type_name ||
-                  `Package #${pkg.package_id}`}
-              </div>
-              <div className="text-xs text-gray-500 truncate">
-                {pkg.service_type_name &&
-                pkg.service_type_name !== pkg.packageName
-                  ? pkg.service_type_name
-                  : pkg.time_required
-                  ? `Time: ${pkg.time_required}`
-                  : ""}
-              </div>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 max-w-4xl w-full max-h-[90vh] overflow-auto bg-white rounded-lg shadow-xl p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-xl font-semibold">
+            {pkgData?.packageName ?? `Package #${packageId}`}
+          </h3>
+          <div className="flex items-center gap-3">
+            <Button size="sm" variant="outline" onClick={onClose}>
+              Close
+            </Button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => onEdit(pkg)}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="error"
-            onClick={() => onDelete(pkg.package_id)}
-            icon={<FiTrash2 />}
-          >
-            Delete
-          </Button>
-        </div>
-      </div>
-
-      <div
-        className={`px-4 transition-all duration-300 ease-in-out ${
-          expanded
-            ? "pb-6 pt-4 max-h-[1100px] opacity-100"
-            : "pt-0 pb-0 max-h-0 opacity-0"
-        }`}
-        aria-hidden={!expanded}
-      >
-        <div className="space-y-6 max-h-[560px] overflow-auto pr-2 min-h-0">
-          {Array.isArray(pkg.sub_packages) && pkg.sub_packages.length > 0 ? (
-            <ul className="space-y-4">
-              {pkg.sub_packages.map((sub) => (
-                <SubPackageItem
-                  key={
-                    sub.sub_package_id ?? `${pkg.package_id}-${sub.item_name}`
-                  }
-                  sub={sub}
-                />
-              ))}
-            </ul>
-          ) : (
-            <div className="text-sm text-gray-500 italic">No items listed.</div>
-          )}
-        </div>
+        {loading ? (
+          <div className="py-8 flex justify-center">
+            <LoadingSpinner />
+          </div>
+        ) : (
+          <>
+            {Array.isArray(pkgData?.sub_packages) &&
+            pkgData.sub_packages.length > 0 ? (
+              <ul className="space-y-4">
+                {pkgData.sub_packages.map((sub) => (
+                  <SubPackageItem
+                    key={sub.sub_package_id ?? sub.item_name}
+                    sub={sub}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-500 italic">
+                No items listed.
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-/* Main component */
+/* ---------------- Main component ---------------- */
 
 export default function Packages() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [allServices, setAllServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [selectedPackageForEdit, setSelectedPackageForEdit] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [category, setCategory] = useState("");
   const [categories, setCategories] = useState([]);
+  // details modal
+  const [detailsModalPkgId, setDetailsModalPkgId] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
     fetchPackages();
   }, []);
 
-  async function fetchPackages() {
+  const fetchPackages = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get("/api/admin/getpackages");
-      const raw = Array.isArray(response.data)
-        ? response.data
-        : response.data?.result || [];
-      setAllServices(raw);
+      const resp = await api.get("/api/admin/getpackagelist");
+      const raw =
+        resp?.data?.packages ??
+        resp?.data?.result ??
+        (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
+      const list = Array.isArray(raw) ? raw : [];
+
+      // Group into services
+      const servicesMap = {};
+      list.forEach((pkg) => {
+        const serviceId =
+          pkg.service_id ?? pkg.service_type_id ?? `s_${pkg.package_id}`;
+        const serviceName =
+          pkg.service_name ??
+          pkg.service_type_name ??
+          pkg.service_filter ??
+          `Service ${serviceId}`;
+        const serviceCategory = pkg.service_category_name ?? "Other";
+
+        if (!servicesMap[serviceId]) {
+          servicesMap[serviceId] = {
+            service_id: serviceId,
+            service_name: serviceName,
+            service_category_name: serviceCategory,
+            packages: [],
+          };
+        }
+
+        servicesMap[serviceId].packages.push({
+          package_id: pkg.package_id ?? pkg.packageId ?? pkg.id,
+          packageName: pkg.packageName ?? pkg.package_name ?? pkg.name,
+          packageMedia:
+            pkg.packageMedia ?? pkg.package_media ?? pkg.packageMediaUrl,
+          time_required: pkg.time_required ?? pkg.duration,
+          price: pkg.price ?? pkg.package_price,
+          service_type_name: pkg.service_type_name ?? pkg.service_name,
+          service_category_name: serviceCategory,
+        });
+      });
+
+      const services = Object.values(servicesMap);
+      setAllServices(services);
+
       const unique = Object.keys(
-        raw.reduce((acc, it) => {
+        services.reduce((acc, it) => {
           acc[it.service_category_name || "Other"] = true;
           return acc;
         }, {})
       );
       setCategories(unique.map((c) => ({ value: c, label: c })));
     } catch (err) {
-      console.error("Error fetching packages", err);
+      console.error("Error fetching packages list", err);
+      setAllServices([]);
+      setCategories([]);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function handleDeletePackage(packageId) {
-    if (!window.confirm("Are you sure you want to delete this package?"))
-      return;
-    try {
-      await api.delete(`/api/admin/deletepackage/${packageId}`);
-      await fetchPackages();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  function toggleExpand(pkgId) {
-    setExpanded((s) => ({ ...s, [pkgId]: !s[pkgId] }));
-  }
-  function handleEdit(pkg) {
-    setSelectedPackage(pkg);
-    setShowEditModal(true);
-  }
-
-  // only include services that actually have packages (hide empty)
-  const filteredServices = allServices
-    .filter(
-      (service) =>
-        Array.isArray(service.packages) && service.packages.length > 0
-    )
-    .filter((service) => {
-      const matchesCategory =
-        category === "" || service.service_category_name === category;
-      const sname = (service.service_name || "").toLowerCase();
-      const matchesServiceName =
-        search === "" || sname.includes(search.toLowerCase());
-      let matchesItemName = false;
-      if (Array.isArray(service.packages)) {
-        matchesItemName = service.packages.some(
-          (pkg) =>
-            Array.isArray(pkg.sub_packages) &&
-            pkg.sub_packages.some((sub) =>
-              (sub.item_name || "").toLowerCase().includes(search.toLowerCase())
-            )
-        );
+  const handleDeletePackage = useCallback(
+    async (packageId) => {
+      if (!window.confirm("Are you sure you want to delete this package?"))
+        return;
+      try {
+        await api.delete(`/api/admin/deletepackage/${packageId}`);
+        // re-fetch the light list
+        await fetchPackages();
+      } catch (err) {
+        console.error(err);
       }
-      return (
-        matchesCategory &&
-        (matchesServiceName || matchesItemName || search === "")
-      );
-    });
+    },
+    [fetchPackages]
+  );
 
-  const displayPackages = filteredServices.reduce((acc, itm) => {
-    const k = itm.service_category_name || "Other";
-    (acc[k] ||= []).push(itm);
-    return acc;
-  }, {});
+  const openDetails = useCallback((pkgId) => {
+    setDetailsModalPkgId(pkgId);
+    setIsDetailsOpen(true);
+  }, []);
+
+  const closeDetails = useCallback(() => {
+    setDetailsModalPkgId(null);
+    setIsDetailsOpen(false);
+  }, []);
+
+  const handleEdit = useCallback((pkg) => {
+    setSelectedPackageForEdit(pkg);
+    setShowEditModal(true);
+  }, []);
+
+  // Search & filter (debounced)
+  const filteredServices = useMemo(() => {
+    const s = allServices
+      .filter(
+        (service) =>
+          Array.isArray(service.packages) && service.packages.length > 0
+      )
+      .filter((service) => {
+        const matchesCategory =
+          category === "" || service.service_category_name === category;
+        const sname = (service.service_name || "").toLowerCase();
+        const matchesServiceName =
+          debouncedSearch === "" ||
+          sname.includes(debouncedSearch.toLowerCase());
+        let matchesPackageName = false;
+        if (Array.isArray(service.packages)) {
+          matchesPackageName = service.packages.some((pkg) =>
+            (pkg.packageName || "")
+              .toLowerCase()
+              .includes(debouncedSearch.toLowerCase())
+          );
+        }
+        return (
+          matchesCategory &&
+          (matchesServiceName || matchesPackageName || debouncedSearch === "")
+        );
+      });
+
+    return s;
+  }, [allServices, category, debouncedSearch]);
+
+  const displayPackages = useMemo(() => {
+    return filteredServices.reduce((acc, itm) => {
+      const k = itm.service_category_name || "Other";
+      (acc[k] ||= []).push(itm);
+      return acc;
+    }, {});
+  }, [filteredServices]);
 
   if (loading)
     return (
@@ -470,7 +505,7 @@ export default function Packages() {
             All Packages
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            Filter by service name, item name or category.
+            Filter by service name, package name, or category.
           </p>
         </div>
         <div>
@@ -489,7 +524,7 @@ export default function Packages() {
           className="w-full sm:w-2/3"
           type="text"
           icon={<Search />}
-          placeholder="Search Service Name or Item Name"
+          placeholder="Search Service Name or Package Name (debounced)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -526,10 +561,10 @@ export default function Packages() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4">
                           <div className="truncate">
-                            <h4 className="text-xl font-semibold text-gray-900 truncate">
+                            {/* <h4 className="text-xl font-semibold text-gray-900 truncate">
                               {service.service_name || "—"}
-                            </h4>
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            </h4> */}
+                            <div className=" flex flex-wrap gap-2">
                               <span className="text-sm bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                                 {service.packages?.length || 0} package
                                 {service.packages?.length !== 1 ? "s" : ""}
@@ -547,14 +582,77 @@ export default function Packages() {
                           {Array.isArray(service.packages) &&
                           service.packages.length > 0 ? (
                             service.packages.map((pkg) => (
-                              <PackageCard
+                              <div
                                 key={pkg.package_id}
-                                pkg={pkg}
-                                expanded={!!expanded[pkg.package_id]}
-                                onToggle={toggleExpand}
-                                onEdit={handleEdit}
-                                onDelete={handleDeletePackage}
-                              />
+                                className="rounded-lg border bg-white overflow-hidden"
+                              >
+                                <div className="flex items-center justify-between p-4">
+                                  <div className="flex items-center gap-4 min-w-0">
+                                    <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
+                                      <img
+                                        src={
+                                          safeSrc(pkg.packageMedia) ||
+                                          "https://via.placeholder.com/56?text=Pkg"
+                                        }
+                                        alt={
+                                          pkg.packageName ||
+                                          `Package ${pkg.package_id}`
+                                        }
+                                        width="56"
+                                        height="56"
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-gray-900 truncate">
+                                        {pkg.packageName ||
+                                          `Package #${pkg.package_id}`}
+                                      </div>
+                                      <div className="text-xs text-gray-500 truncate">
+                                        {pkg.service_type_name &&
+                                        pkg.service_type_name !==
+                                          pkg.packageName
+                                          ? pkg.service_type_name
+                                          : pkg.time_required
+                                          ? `Time: ${pkg.time_required}`
+                                          : ""}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEdit(pkg)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="error"
+                                      onClick={() =>
+                                        handleDeletePackage(pkg.package_id)
+                                      }
+                                      icon={<FiTrash2 />}
+                                    >
+                                      Delete
+                                    </Button>
+
+                                    {/* Open details modal instead of expanding inline */}
+                                    <Button
+                                      size="sm"
+                                      variant="lightPrimary"
+                                      onClick={() =>
+                                        openDetails(pkg.package_id)
+                                      }
+                                    >
+                                      View Details
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
                             ))
                           ) : (
                             <div className="text-sm text-gray-500">
@@ -581,10 +679,16 @@ export default function Packages() {
         isOpen={showEditModal}
         onClose={() => {
           setShowEditModal(false);
-          setSelectedPackage(null);
+          setSelectedPackageForEdit(null);
         }}
         refresh={fetchPackages}
-        packageData={selectedPackage}
+        packageData={selectedPackageForEdit}
+      />
+
+      <PackageDetailsModal
+        packageId={detailsModalPkgId}
+        isOpen={isDetailsOpen}
+        onClose={closeDetails}
       />
     </div>
   );
