@@ -32,6 +32,7 @@ const paymentRoutes = require("./routes/paymentRoutes")
 const notificationGetRoutes = require("./routes/notificationGetRoutes");
 const promoRoutes = require("./routes/promoRoutes")
 const otpRoutes = require ("./routes/otpRoutes")
+const serviceTaxRoutes = require ("./routes/serviceTaxRoutes")
 
 const PORT = process.env.PORT || 8000
 
@@ -76,6 +77,7 @@ app.use("/api", ticketRoutes)
 app.use("/api/notifications", notificationGetRoutes)
 app.use("/api", promoRoutes)
 app.use("/verification", otpRoutes)
+app.use("/api/tax", serviceTaxRoutes)
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));

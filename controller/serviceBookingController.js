@@ -329,9 +329,10 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 } else {
                     const [[systemPromo]] = await db.query(`
                         SELECT spc.system_promo_code_id AS promo_id,
-                               spc.code AS promoCode,
-                               spc.discountValue
+                               spct.code AS promoCode,
+                               spct.discountValue
                         FROM system_promo_codes spc
+                        LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
                         WHERE spc.system_promo_code_id = ?
                     `, [booking.user_promo_code_id]);
 
