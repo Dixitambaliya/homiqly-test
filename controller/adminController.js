@@ -583,8 +583,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
-// GET /api/admin/packages?page=1
 const getPackageList = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -623,7 +621,6 @@ const getPackageList = asyncHandler(async (req, res) => {
     }
 });
 
-// GET /api/admin/package/:package_id/details
 const getPackageDetails = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
