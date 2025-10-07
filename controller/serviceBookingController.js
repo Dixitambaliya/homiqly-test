@@ -1071,8 +1071,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 IFNULL(AVG(r.rating), 0) AS avgRating,
                 COUNT(r.rating_id) AS totalReviews,
                 GROUP_CONCAT(DISTINCT s.serviceName ORDER BY s.serviceName ASC) AS serviceNames,
-                GROUP_CONCAT(DISTINCT s.serviceImage ORDER BY s.serviceName ASC) AS serviceImages,
-                COUNT(DISTINCT vpi.package_item_id) AS vendorSubPackageCount
+                GROUP_CONCAT(DISTINCT s.serviceImage ORDER BY s.serviceName ASC) AS serviceImages
             FROM vendors v
             LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
             LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
