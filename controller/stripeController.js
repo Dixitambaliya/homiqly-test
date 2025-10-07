@@ -434,7 +434,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           cart.vendor_id,
           cart.notes,
           cart.bookingMedia,
-          "pending",
+          0,
           "pending",
           paymentIntentId,
           user_promo_code_id || null
