@@ -742,10 +742,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 // GET /api/admin/packages?page=1
 const getPackageList = asyncHandler(async (req, res) => {
     try {
-        const page = parseInt(req.query.page || 1); // default to page 1
-        const limit = 10; // number of items per page
-        const offset = (page - 1) * limit; // calculate offset based on page
-
         const [rows] = await db.query(`
             SELECT 
                 p.package_id,
@@ -771,19 +767,17 @@ const getPackageList = asyncHandler(async (req, res) => {
             JOIN services s ON st.service_id = s.service_id
             JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
             ORDER BY p.package_id DESC
-            LIMIT ? OFFSET ?
-        `, [limit, offset]);
+        `);
 
         res.json({
             message: "Packages list fetched successfully",
-            page,
-            perPage: limit,
             packages: rows
         });
     } catch (error) {
         res.status(500).json({ message: "Error fetching packages", error: error.message });
     }
 });
+
 
 
 // GET /api/admin/package/:package_id/details
