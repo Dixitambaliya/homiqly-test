@@ -133,6 +133,10 @@ const DashboardLayout = () => {
           name: "Promo Codes",
         },
         {
+          path: "/admin/settings/platform-tax",
+          name: "Platform Tax",
+        },
+        {
           path: "/admin/settings/general",
           name: "General Settings",
         },

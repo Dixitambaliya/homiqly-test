@@ -35,6 +35,7 @@ import VendorApplications from "../pages/VendorApplications";
 import VendorApplicationDetails from "../pages/subpages/VendorApplicationDetails";
 import { Loader, Loader2 } from "lucide-react";
 import AdminPromoManager from "../pages/subpages/AdminPromoManager";
+import PlatformTax from "../pages/subpages/PlatformTax";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -113,6 +114,7 @@ const AdminRoutes = () => {
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/platform-fees" element={<PlatformFees />} />
+        <Route path="settings/platform-tax" element={<PlatformTax />} />
         <Route path="settings/general" element={<GeneralSettings />} />
         <Route path="settings/city" element={<ServiceCities />} />
         <Route path="tickets" element={<Tickets />} />
