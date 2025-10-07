@@ -17,11 +17,20 @@ export const CustomFileInput = ({
     const file = e.target.files?.[0];
     if (file) {
       const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+      const maxSizeInMB = 2;
+      const maxSizeInBytes = maxSizeInMB * 1024 * 1024;
 
       if (!allowedTypes.includes(file.type)) {
         toast.error("Only JPG, PNG, and WebP files are allowed.");
         setError("Only JPG, PNG, and WebP files are allowed.");
         e.target.value = ""; // reset input
+        return;
+      }
+
+      if (file.size > maxSizeInBytes) {
+        toast.error("File size must be less than 2 MB.");
+        setError("File size must be less than 2 MB.");
+        e.target.value = "";
         return;
       }
 

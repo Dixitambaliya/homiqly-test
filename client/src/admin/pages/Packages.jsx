@@ -164,8 +164,13 @@ function SubPackageItem({ sub }) {
                 "https://via.placeholder.com/160?text=Item"
               }
               alt={sub.item_name || "Item"}
-              className="w-full h-full object-cover"
+              loading="lazy" // ✅ lazy-loads offscreen images
+              decoding="async" // ✅ doesn't block page rendering
+              width="160" // ✅ helps browser pre-allocate space
+              height="160"
+              className="w-full h-full object-cover rounded-md bg-gray-100"
             />
+            
           </div>
         </div>
 
@@ -285,6 +290,12 @@ function PackageCard({ pkg, onEdit, onDelete, expanded, onToggle }) {
                     pkg.service_type_name ||
                     `Package ${pkg.package_id}`
                   }
+                  width="56"
+                  height="56"
+                  loading="lazy"
+                  decoding="async"
+                  srcSet={`${pkgThumb}?w=56 56w, ${pkgThumb}?w=112 112w, ${pkgThumb}?w=224 224w`}
+                  sizes="56px"
                   className="w-full h-full object-cover"
                 />
               </div>
