@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "../../shared/components/Button";
-import { FiPlus, FiTrash2, FiSearch } from "react-icons/fi";
+import { FiPlus, FiTrash2 } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
@@ -11,16 +11,6 @@ import EditPackageModal from "../components/Modals/EditPackageModal";
 import FormSelect from "../../shared/components/Form/FormSelect";
 import { FormInput } from "../../shared/components/Form";
 import { Search } from "lucide-react";
-
-// Simple debounce hook
-function useDebouncedValue(value, delay = 300) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
-}
 
 /* ---------- small helpers ---------- */
 const safeSrc = (src) => (typeof src === "string" ? src.trim() : "");
@@ -30,8 +20,38 @@ const fmtPrice = (n) =>
     ? `$${Number(n)}`
     : "—";
 
-/* ---------- presentational components (memoized) ---------- */
+/* -------------------------------
+  Module-level prefetch (starts as soon as this module is evaluated)
+   - The promise resolves to an array of raw package items (as returned by server)
+   - We then transform into grouped services inside component (so UI grouping is consistent)
+---------------------------------*/
+let prefetchPackagesPromise = null;
 
+function startPrefetchPackages() {
+  if (!prefetchPackagesPromise) {
+    prefetchPackagesPromise = api
+      .get("/api/admin/getpackagelist")
+      .then((resp) => {
+        const raw =
+          resp?.data?.packages ??
+          resp?.data?.result ??
+          (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
+        return Array.isArray(raw) ? raw : [];
+      })
+      .catch((err) => {
+        // swallow error so promise remains rejection-free for consumer; we'll re-throw for debugging
+        console.error("prefetchPackages error:", err);
+        throw err;
+      });
+  }
+  return prefetchPackagesPromise;
+}
+
+// start prefetch immediately
+startPrefetchPackages();
+
+/* ---------- presentational components (small/memoized) ---------- */
+// (I keep these compact — same as your original components)
 const PreferencesChips = React.memo(function PreferencesChips({ preferences }) {
   if (!preferences || Object.keys(preferences).length === 0) {
     return <div className="text-xs text-gray-400 italic">No preferences</div>;
@@ -137,7 +157,6 @@ const AddonsChips = React.memo(function AddonsChips({ addons }) {
   );
 });
 
-/* SubPackage view used in modal (still memoized) */
 const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
   const buildPreferencesObject = (subObj) => {
     if (
@@ -163,7 +182,7 @@ const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
     <li className="bg-white rounded-lg border p-4 shadow-sm">
       <div className="flex gap-4">
         <div className="w-36 h-24 rounded-md overflow-hidden border bg-gray-100 flex-shrink-0">
-          <img
+          {/* <img
             src={
               safeSrc(sub.item_media) ||
               "https://via.placeholder.com/160?text=Item"
@@ -174,7 +193,7 @@ const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
             width="160"
             height="160"
             className="w-full h-full object-cover rounded-md bg-gray-100"
-          />
+          /> */}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -260,7 +279,7 @@ const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
   );
 });
 
-/* Details Modal: lazy-loads package details when opened */
+/* Details Modal (same behavior) */
 function PackageDetailsModal({ packageId, isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [pkgData, setPkgData] = useState(null);
@@ -347,19 +366,110 @@ export default function Packages() {
   const [loading, setLoading] = useState(true);
   const [selectedPackageForEdit, setSelectedPackageForEdit] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const [search, setSearch] = useState(""); // immediate search, no debounce
   const [category, setCategory] = useState("");
   const [categories, setCategories] = useState([]);
   // details modal
   const [detailsModalPkgId, setDetailsModalPkgId] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
+  // transforms raw list (array of package objects) into grouped services
+  const transformListToServices = (list) => {
+    const servicesMap = {};
+    list.forEach((pkg) => {
+      const serviceId =
+        pkg.service_id ?? pkg.service_type_id ?? `s_${pkg.package_id}`;
+      const serviceName =
+        pkg.service_name ??
+        pkg.service_type_name ??
+        pkg.service_filter ??
+        `Service ${serviceId}`;
+      const serviceCategory = pkg.service_category_name ?? "Other";
+
+      if (!servicesMap[serviceId]) {
+        servicesMap[serviceId] = {
+          service_id: serviceId,
+          service_name: serviceName,
+          service_category_name: serviceCategory,
+          packages: [],
+        };
+      }
+
+      servicesMap[serviceId].packages.push({
+        package_id: pkg.package_id ?? pkg.packageId ?? pkg.id,
+        packageName: pkg.packageName ?? pkg.package_name ?? pkg.name,
+        packageMedia:
+          pkg.packageMedia ?? pkg.package_media ?? pkg.packageMediaUrl,
+        time_required: pkg.time_required ?? pkg.duration,
+        price: pkg.price ?? pkg.package_price,
+        service_type_name: pkg.service_type_name ?? pkg.service_name,
+        service_category_name: serviceCategory,
+      });
+    });
+
+    return Object.values(servicesMap);
+  };
+
+  // Use module-level prefetch if available; otherwise fetch
   useEffect(() => {
-    fetchPackages();
+    let canceled = false;
+
+    async function init() {
+      setLoading(true);
+      try {
+        if (prefetchPackagesPromise) {
+          // use prefetch result
+          const rawList = await prefetchPackagesPromise;
+          if (canceled) return;
+          const services = transformListToServices(rawList);
+          setAllServices(services);
+          const unique = Object.keys(
+            services.reduce((acc, it) => {
+              acc[it.service_category_name || "Other"] = true;
+              return acc;
+            }, {})
+          );
+          setCategories(unique.map((c) => ({ value: c, label: c })));
+          // clear prefetch so consumer code can re-fetch later if needed (optional)
+          // prefetchPackagesPromise = null;
+        } else {
+          // fallback
+          const resp = await api.get("/api/admin/getpackagelist");
+          const raw =
+            resp?.data?.packages ??
+            resp?.data?.result ??
+            (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
+          const list = Array.isArray(raw) ? raw : [];
+          const services = transformListToServices(list);
+          if (canceled) return;
+          setAllServices(services);
+          const unique = Object.keys(
+            services.reduce((acc, it) => {
+              acc[it.service_category_name || "Other"] = true;
+              return acc;
+            }, {})
+          );
+          setCategories(unique.map((c) => ({ value: c, label: c })));
+        }
+      } catch (err) {
+        console.error("Error fetching packages list", err);
+        setAllServices([]);
+        setCategories([]);
+      } finally {
+        if (!canceled) setLoading(false);
+      }
+    }
+
+    init();
+
+    return () => {
+      canceled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchPackages = useCallback(async () => {
+    // allow manual refresh (used by modals)
     try {
       setLoading(true);
       const resp = await api.get("/api/admin/getpackagelist");
@@ -368,43 +478,8 @@ export default function Packages() {
         resp?.data?.result ??
         (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
       const list = Array.isArray(raw) ? raw : [];
-
-      // Group into services
-      const servicesMap = {};
-      list.forEach((pkg) => {
-        const serviceId =
-          pkg.service_id ?? pkg.service_type_id ?? `s_${pkg.package_id}`;
-        const serviceName =
-          pkg.service_name ??
-          pkg.service_type_name ??
-          pkg.service_filter ??
-          `Service ${serviceId}`;
-        const serviceCategory = pkg.service_category_name ?? "Other";
-
-        if (!servicesMap[serviceId]) {
-          servicesMap[serviceId] = {
-            service_id: serviceId,
-            service_name: serviceName,
-            service_category_name: serviceCategory,
-            packages: [],
-          };
-        }
-
-        servicesMap[serviceId].packages.push({
-          package_id: pkg.package_id ?? pkg.packageId ?? pkg.id,
-          packageName: pkg.packageName ?? pkg.package_name ?? pkg.name,
-          packageMedia:
-            pkg.packageMedia ?? pkg.package_media ?? pkg.packageMediaUrl,
-          time_required: pkg.time_required ?? pkg.duration,
-          price: pkg.price ?? pkg.package_price,
-          service_type_name: pkg.service_type_name ?? pkg.service_name,
-          service_category_name: serviceCategory,
-        });
-      });
-
-      const services = Object.values(servicesMap);
+      const services = transformListToServices(list);
       setAllServices(services);
-
       const unique = Object.keys(
         services.reduce((acc, it) => {
           acc[it.service_category_name || "Other"] = true;
@@ -451,7 +526,7 @@ export default function Packages() {
     setShowEditModal(true);
   }, []);
 
-  // Search & filter (debounced)
+  // Search & filter (no debounce — immediate)
   const filteredServices = useMemo(() => {
     const s = allServices
       .filter(
@@ -463,24 +538,21 @@ export default function Packages() {
           category === "" || service.service_category_name === category;
         const sname = (service.service_name || "").toLowerCase();
         const matchesServiceName =
-          debouncedSearch === "" ||
-          sname.includes(debouncedSearch.toLowerCase());
+          search === "" || sname.includes(search.toLowerCase());
         let matchesPackageName = false;
         if (Array.isArray(service.packages)) {
           matchesPackageName = service.packages.some((pkg) =>
-            (pkg.packageName || "")
-              .toLowerCase()
-              .includes(debouncedSearch.toLowerCase())
+            (pkg.packageName || "").toLowerCase().includes(search.toLowerCase())
           );
         }
         return (
           matchesCategory &&
-          (matchesServiceName || matchesPackageName || debouncedSearch === "")
+          (matchesServiceName || matchesPackageName || search === "")
         );
       });
 
     return s;
-  }, [allServices, category, debouncedSearch]);
+  }, [allServices, category, search]);
 
   const displayPackages = useMemo(() => {
     return filteredServices.reduce((acc, itm) => {
@@ -524,7 +596,7 @@ export default function Packages() {
           className="w-full sm:w-2/3"
           type="text"
           icon={<Search />}
-          placeholder="Search Service Name or Package Name (debounced)"
+          placeholder="Search Service Name or Package Name"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -561,9 +633,6 @@ export default function Packages() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4">
                           <div className="truncate">
-                            {/* <h4 className="text-xl font-semibold text-gray-900 truncate">
-                              {service.service_name || "—"}
-                            </h4> */}
                             <div className=" flex flex-wrap gap-2">
                               <span className="text-sm bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                                 {service.packages?.length || 0} package
@@ -588,7 +657,11 @@ export default function Packages() {
                               >
                                 <div className="flex items-center justify-between p-4">
                                   <div className="flex items-center gap-4 min-w-0">
-                                    <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
+                                    <img
+                                      className="w-14 h-14 flex-shrink-0 rounded-md"
+                                      src={pkg.packageMedia}
+                                    ></img>
+                                    {/* <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
                                       <img
                                         src={
                                           safeSrc(pkg.packageMedia) ||
@@ -602,7 +675,7 @@ export default function Packages() {
                                         height="56"
                                         className="w-full h-full object-cover"
                                       />
-                                    </div>
+                                    </div> */}
 
                                     <div className="min-w-0">
                                       <div className="text-sm font-medium text-gray-900 truncate">
@@ -639,8 +712,6 @@ export default function Packages() {
                                     >
                                       Delete
                                     </Button>
-
-                                    {/* Open details modal instead of expanding inline */}
                                     <Button
                                       size="sm"
                                       variant="lightPrimary"
