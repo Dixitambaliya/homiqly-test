@@ -6,7 +6,7 @@ const { getVendor,
     updateUserByAdmin,
     getBookings,
     createPackageByAdmin,
-    getAdminCreatedPackages,
+    // getAdminCreatedPackages,
     assignPackageToVendor,
     editPackageByAdmin,
     deletePackageByAdmin,
@@ -19,7 +19,9 @@ const { getVendor,
     removeVendorPackageByAdmin,
     deleteUserByAdmin,
     editEmployeeProfileByAdmin,
-    deleteEmployeeProfileByAdmin
+    deleteEmployeeProfileByAdmin,
+    getPackageList,
+    getPackageDetails
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -35,8 +37,14 @@ router.put("/editpackage", authenticationToken, multiUpload, handleUploads, edit
 router.post("/addpackages", authenticationToken, multiUpload, handleUploads, createPackageByAdmin)
 router.post("/assignpackage", authenticationToken, assignPackageToVendor)
 router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
-router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
+// router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 router.get("/getallemployees", authenticationToken, getAllEmployeesForAdmin)
+
+
+router.get("/getpackagelist", authenticationToken, getPackageList)
+router.get("/getpackagedetails/:package_id", authenticationToken, getPackageDetails)
+
+
 router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequests)
 router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
 router.get("/getpayments", authenticationToken, getAllPayments)
