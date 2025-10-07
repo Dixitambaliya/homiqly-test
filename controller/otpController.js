@@ -8,7 +8,7 @@ const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TO
 // Generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
-// ---- Send OTP ----
+// ---- Send OTP via SMS ----
 const sendOtp = asyncHandler(async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: "Phone is required" });
@@ -19,17 +19,17 @@ const sendOtp = asyncHandler(async (req, res) => {
         // Create JWT containing phone + OTP (expires in 5 minutes)
         const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: '5m' });
 
-        // Send OTP via WhatsApp
+        // Send OTP via SMS
         await client.messages.create({
-            from: process.env.TWILIO_WHATSAPP_NUMBER,
-            to: `whatsapp:${phone}`,
-            body: `Your OTP is: ${otp}. It expires in 5 minutes.`
+            body: `Your OTP is: ${otp}. It expires in 5 minutes.`,
+            from: process.env.TWILIO_PHONE_NUMBER, // Your Canadian Twilio number
+            to: phone
         });
 
-        res.json({ message: "OTP sent", token });
+        res.json({ message: "OTP sent via SMS", token });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Failed to send OTP" });
+        console.error("SMS sending error:", err);
+        res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
 });
 
@@ -44,7 +44,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 🔐 Verify JWT
+        // Verify JWT
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         if (decoded.phone !== phone) {
@@ -54,7 +54,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Incorrect OTP" });
         }
 
-        // ✅ OTP is valid → update user phone & approve
+        // Update phone and approval status
         const [updateResult] = await db.query(
             "UPDATE users SET phone = ?, is_approved = 1 WHERE user_id = ?",
             [phone, user_id]
@@ -70,6 +70,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         res.status(400).json({ message: "Invalid or expired OTP" });
     }
 });
+
 
 
 
