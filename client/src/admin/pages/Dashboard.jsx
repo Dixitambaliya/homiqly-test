@@ -54,7 +54,6 @@ const Dashboard = () => {
 
         // Fetch dashboard stats
         const statsResponse = await api.get("/api/analytics/dashboard");
-        console.log(statsResponse.data);
         setStats(statsResponse.data.stats);
 
         // Fetch booking trends
