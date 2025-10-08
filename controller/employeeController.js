@@ -214,7 +214,6 @@ const employeeLogin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const assignBookingToEmployee = asyncHandler(async (req, res) => {
     const { booking_id, employee_id } = req.body;
 
@@ -323,9 +322,6 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
-
 
 const getEmployeesWithPackages = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -590,7 +586,17 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
         // 3️⃣ Fetch employee bookings
         const [bookings] = await db.query(`
             SELECT
-                sb.*,
+                sb.booking_id, 
+                sb.bookingDate, 
+                sb.bookingTime, 
+                sb.bookingStatus, 
+                sb.notes, 
+                sb.bookingMedia, 
+                sb.package_id,
+                sb.assigned_employee_id,
+                sb.payment_status, 
+                sb.start_time,
+                sb.end_time,
                 s.serviceName,
                 p.amount AS payment_amount,
                 p.currency AS payment_currency,
