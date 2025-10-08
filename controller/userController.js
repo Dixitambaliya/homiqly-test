@@ -1,7 +1,7 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
 const userGetQueries = require("../config/userQueries/userGetQueries")
-const bcrypt = require ("bcryptjs")
+const bcrypt = require("bcryptjs")
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
@@ -225,7 +225,7 @@ const updateUserData = asyncHandler(async (req, res) => {
         );
 
         if (existingRows.length === 0) {
-            return res.status(404).json({ message: "User not found" });
+            return res.status(400).json({ message: "User not found" });
         }
 
         const existing = existingRows[0];
@@ -642,6 +642,271 @@ const changeUserPassword = asyncHandler(async (req, res) => {
     }
 });
 
+const getUserProfileWithCart = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { cart_id } = req.params; // ✅ Get cart_id from URL params
+
+    try {
+        // =======================
+        // 1️⃣ Fetch user data
+        // =======================
+        const results = await db.query(
+            `SELECT 
+                user_id, 
+                firstName, 
+                lastName, 
+                email, 
+                phone, 
+                flatNumber
+             FROM users 
+             WHERE user_id = ?`,
+            [user_id]
+        );
+
+        if (!results || results.length === 0) {
+            return res.status(400).json({ message: "User not found" });
+        }
+
+        const userData = results[0];
+        Object.keys(userData).forEach(key => {
+            if (userData[key] === null) userData[key] = "";
+        });
+
+        // =======================
+        // 2️⃣ Fetch active service tax
+        // =======================
+        const [[taxRow]] = await db.query(`
+            SELECT taxName, taxPercentage 
+            FROM service_taxes 
+            WHERE status = '1'
+        `);
+
+        const serviceTaxRate = taxRow ? parseFloat(taxRow.taxPercentage) : 0;
+        const serviceTaxName = taxRow ? taxRow.taxName : null;
+
+        // =======================
+        // 3️⃣ Fetch specific cart OR all carts
+        // =======================
+        const [cartRows] = await db.query(
+            `SELECT 
+                sc.cart_id,
+                sc.service_id,
+                sc.package_id,
+                p.packageName,
+                p.service_type_id,
+                sc.user_id,
+                sc.vendor_id,
+                sc.bookingStatus,
+                sc.notes,
+                sc.bookingMedia,
+                sc.created_at,
+                sc.bookingDate,
+                sc.bookingTime,
+                sc.user_promo_code_id
+             FROM service_cart sc
+             LEFT JOIN packages p ON sc.package_id = p.package_id
+             WHERE sc.user_id = ? ${cart_id ? 'AND sc.cart_id = ?' : ''}
+             ORDER BY sc.created_at DESC`,
+            cart_id ? [user_id, cart_id] : [user_id]
+        );
+
+        if (cart_id && cartRows.length === 0) {
+            return res.status(400).json({ message: "Cart not found or doesn't belong to user" });
+        }
+
+        const allCarts = [];
+        const promos = [];
+
+        for (const cart of cartRows) {
+            const { cart_id } = cart;
+
+            // ---- Sub-Packages ----
+            const [subPackages] = await db.query(
+                `SELECT 
+                    cpi.cart_package_items_id,
+                    cpi.sub_package_id,
+                    pi.itemName,
+                    pi.itemMedia,
+                    cpi.price,
+                    cpi.quantity,
+                    pi.timeRequired
+                 FROM cart_package_items cpi
+                 LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+                 WHERE cpi.cart_id = ?`,
+                [cart_id]
+            );
+
+            // ---- Addons ----
+            const [addons] = await db.query(
+                `SELECT ca.sub_package_id, a.addonName, ca.price
+                 FROM cart_addons ca
+                 JOIN package_addons a ON ca.addon_id = a.addon_id
+                 WHERE ca.cart_id = ?`,
+                [cart_id]
+            );
+
+            // ---- Preferences ----
+            const [preferences] = await db.query(
+                `SELECT cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
+                 FROM cart_preferences cp
+                 JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+                 WHERE cp.cart_id = ?`,
+                [cart_id]
+            );
+
+            // ---- Consents ----
+            const [consents] = await db.query(
+                `SELECT cc.cart_consent_id, cc.sub_package_id, c.question, cc.answer
+                 FROM cart_consents cc
+                 JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+                 WHERE cc.cart_id = ?`,
+                [cart_id]
+            );
+
+            // ---- Grouping logic ----
+            const addonsBySub = {};
+            addons.forEach(a => {
+                if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
+                addonsBySub[a.sub_package_id].push(a);
+            });
+
+            const prefsBySub = {};
+            preferences.forEach(p => {
+                if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
+                prefsBySub[p.sub_package_id].push({
+                    cart_preference_id: p.cart_preference_id,
+                    preferenceValue: p.preferenceValue,
+                    price: p.preferencePrice || 0
+                });
+            });
+
+            const consentsBySub = {};
+            consents.forEach(c => {
+                if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
+                consentsBySub[c.sub_package_id].push({
+                    consent_id: c.cart_consent_id,
+                    consentText: c.question,
+                    answer: c.answer
+                });
+            });
+
+            // ---- Build Sub-Packages ----
+            const subPackagesStructured = subPackages.map(sub => {
+                const subAddons = addonsBySub[sub.sub_package_id] || [];
+                const subPrefs = prefsBySub[sub.sub_package_id] || [];
+                const subConsents = consentsBySub[sub.sub_package_id] || [];
+
+                const subTotal =
+                    (parseFloat(sub.price) || 0) * (parseInt(sub.quantity) || 1) +
+                    subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) +
+                    subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+
+                return {
+                    ...sub,
+                    addons: subAddons,
+                    preferences: subPrefs,
+                    consents: subConsents,
+                    total: subTotal
+                };
+            });
+
+            // ---- Totals ----
+            let totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
+            const taxAmount = (totalAmount * serviceTaxRate) / 100;
+            const afterTax = totalAmount + taxAmount;
+
+            // ---- Promo ----
+            let discountedTotal = afterTax;
+            let promoDiscount = 0;
+            let promoDetails = null;
+
+            if (cart.user_promo_code_id) {
+                const [userPromoRows] = await db.query(
+                    `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+                    [user_id, cart.user_promo_code_id]
+                );
+
+                if (userPromoRows.length) {
+                    const promo = userPromoRows[0];
+                    if (promo.promo_id) {
+                        const [adminPromo] = await db.query(
+                            `SELECT * FROM promo_codes WHERE promo_id = ?`,
+                            [promo.promo_id]
+                        );
+
+                        if (adminPromo.length) {
+                            const discountValue = parseFloat(adminPromo[0].discountValue || 0);
+                            const discountType = adminPromo[0].discount_type || 'percentage';
+                            discountedTotal =
+                                discountType === 'fixed'
+                                    ? Math.max(0, afterTax - discountValue)
+                                    : afterTax - (afterTax * discountValue / 100);
+
+                            promoDiscount = afterTax - discountedTotal;
+                            promoDetails = { ...adminPromo[0], source_type: 'admin', code: promo.code };
+                        }
+                    }
+                }
+
+                if (!promoDetails) {
+                    const [systemPromoRows] = await db.query(
+                        `SELECT sc.*, st.discount_type, st.discountValue 
+                         FROM system_promo_codes sc
+                         JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
+                         WHERE sc.system_promo_code_id = ? LIMIT 1`,
+                        [cart.user_promo_code_id]
+                    );
+
+                    if (systemPromoRows.length) {
+                        const sysPromo = systemPromoRows[0];
+                        const discountValue = parseFloat(sysPromo.discountValue || 0);
+                        const discountType = sysPromo.discount_type || 'percentage';
+                        discountedTotal =
+                            discountType === 'fixed'
+                                ? Math.max(0, afterTax - discountValue)
+                                : afterTax - (afterTax * discountValue / 100);
+
+                        promoDiscount = afterTax - discountedTotal;
+                        promoDetails = { ...sysPromo, source_type: 'system' };
+                    }
+                }
+
+                if (promoDetails) promos.push(promoDetails);
+            }
+
+            // ---- Finalize ----
+            allCarts.push({
+                ...cart,
+                packages: [{ sub_packages: subPackagesStructured }],
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                afterTax: parseFloat(afterTax.toFixed(2)),
+                tax: {
+                    taxName: serviceTaxName,
+                    taxPercentage: serviceTaxRate,
+                    taxAmount: parseFloat(taxAmount.toFixed(2))
+                },
+                promoDiscount: parseFloat(promoDiscount.toFixed(2)),
+                finalTotal: parseFloat(discountedTotal.toFixed(2))
+            });
+        }
+
+        // =======================
+        // 4️⃣ Response
+        // =======================
+        res.status(200).json({
+            message: cart_id
+                ? "Single cart fetched successfully"
+                : "User profile and carts fetched successfully",
+            user: userData,
+            carts: allCarts,
+            promos
+        });
+
+    } catch (err) {
+        console.error("Error fetching profile + cart:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
 
 
 
@@ -660,5 +925,6 @@ module.exports = {
     deleteBooking,
     getPackagesByServiceType,
     getPackageDetailsById,
-    changeUserPassword
+    changeUserPassword,
+    getUserProfileWithCart
 }

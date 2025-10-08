@@ -722,8 +722,6 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { cart_id } = req.params;
