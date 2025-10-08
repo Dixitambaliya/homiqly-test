@@ -201,7 +201,6 @@ const loginVendor = asyncHandler(async (req, res) => {
     if (!email || !password) {
         return res.status(400).json({ error: "All fields are required" });
     }
-    console.log(email, password);
     
     try {
         let vendorDetails = null;
@@ -229,7 +228,6 @@ const loginVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        console.log(vendorDetails);
         
         if (!vendorDetails) {
             return res.status(401).json({ error: "Invalid credentials" });
@@ -239,8 +237,6 @@ const loginVendor = asyncHandler(async (req, res) => {
             "SELECT password, is_authenticated, role FROM vendors WHERE vendor_id = ?",
             [vendorDetails.vendor_id]
         );
-
-        console.log(vendorAuthResult);
         
 
         if (vendorAuthResult.length === 0) {

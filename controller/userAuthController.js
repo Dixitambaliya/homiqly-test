@@ -363,9 +363,6 @@ const googleLogin = asyncHandler(async (req, res) => {
         let welcomeCode = null;
         try {
             welcomeCode = await assignWelcomeCode(user_id, email);
-            console.log(user_id);
-
-            console.log(welcomeCode);
 
         } catch (err) {
             console.error("❌ Auto-assign welcome code error:", err.message);
