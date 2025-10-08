@@ -27,11 +27,6 @@ const employeeAuthQueries = {
         WHERE employee_id = ?
     `,
 
-    createEmployeeSession: `
-        INSERT INTO employee_sessions (employee_id, ip_address, user_agent)
-        VALUES (?, ?, ?)
-    `,
-
     updateEmployeeSession: `
         UPDATE employee_sessions 
         SET logout_time = NOW(), is_active = FALSE

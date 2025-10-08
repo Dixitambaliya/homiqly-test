@@ -54,11 +54,6 @@ const loginEmployee = asyncHandler(async (req, res) => {
             await db.query(employeeAuthQueries.updateEmployeeLastLogin, [null, employee.employee_id]);
         }
 
-        // Create session record
-        const userAgent = req.headers['user-agent'] || '';
-        const ipAddress = req.ip || req.connection.remoteAddress || '';
-        await db.query(employeeAuthQueries.createEmployeeSession, [employee.employee_id, ipAddress, userAgent]);
-
         // Generate JWT token
         const token = jwt.sign(
             {
