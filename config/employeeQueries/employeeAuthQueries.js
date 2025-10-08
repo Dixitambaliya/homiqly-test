@@ -23,7 +23,7 @@ const employeeAuthQueries = {
 
     updateEmployeeLastLogin: `
         UPDATE company_employees 
-        SET last_login = NOW(), fcmToken = ?
+        SET fcmToken = ?
         WHERE employee_id = ?
     `,
 
