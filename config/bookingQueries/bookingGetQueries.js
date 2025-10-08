@@ -2,8 +2,18 @@ const bookingGetQueries = {
 
     getVendorBookings: `
   SELECT
-    sb.*,
-    s.serviceName,
+    sb.booking_id, 
+    sb.bookingDate, 
+    sb.bookingTime, 
+    sb.bookingStatus, 
+    sb.notes, 
+    sb.bookingMedia, 
+    sb.package_id,
+    sb.assigned_employee_id,
+    sb.payment_status, 
+    sb.start_time,
+    sb.end_time,
+    s.service_id,
     p.amount AS payment_amount,
     p.currency AS payment_currency,
     u.user_id,

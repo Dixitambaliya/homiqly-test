@@ -255,10 +255,16 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             const bookingId = booking.booking_id;
             const rawAmount = Number(booking.payment_amount) || 0;
 
-            // 4️⃣ Calculate platform fee and net amount
-            booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
-            booking.net_amount = parseFloat((rawAmount - booking.platform_fee).toFixed(2));
-            booking.payment_amount = booking.net_amount;
+            // ✅ Just calculate and adjust payment amount internally
+            const platformFeeAmount = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
+            const netAmount = parseFloat((rawAmount - platformFeeAmount).toFixed(2));
+
+            // Keep payment_amount as netAmount (vendor receives this)
+            booking.payment_amount = netAmount;
+
+            // ❌ Don't attach platform_fee or net_amount to the response
+            delete booking.platform_fee;
+            delete booking.net_amount;
 
             // 5️⃣ Fetch sub-packages, addons, preferences, consents
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
@@ -365,11 +371,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 10️⃣ Cleanup old fields & remove nulls
+            // 🔟 Cleanup extra fields & nulls
             ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(k => delete booking[k]);
             Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
         }
 
+        // ✅ Final response
         res.status(200).json({
             message: "Vendor bookings fetched successfully",
             bookings
