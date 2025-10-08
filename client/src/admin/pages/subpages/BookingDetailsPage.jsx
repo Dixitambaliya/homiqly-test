@@ -15,9 +15,7 @@ import PaymentBadge from "../../../shared/components/PaymentBadge";
 /**
  * Helper utilities to normalise booking object fields from different API shapes.
  */
-
 const getField = (obj, ...keys) => {
-  // return first defined key from obj (supports nested via dot path)
   for (const k of keys) {
     if (typeof k === "string") {
       if (k.includes(".")) {
@@ -47,33 +45,33 @@ const safeFloat = (v) => {
 };
 
 const computePackageTotals = (pkg) => {
-  // total price: sum of items' price * quantity + addons price * quantity
   let price = 0;
   if (Array.isArray(pkg.items)) {
     for (const it of pkg.items) {
-      const p = safeFloat(it.price);
-      const q = safeFloat(it.quantity) || 1;
+      const p = safeFloat(getField(it, "price"));
+      const q = safeFloat(getField(it, "quantity")) || 1;
       price += p * q;
     }
   }
   if (Array.isArray(pkg.addons)) {
     for (const ad of pkg.addons) {
-      const p = safeFloat(ad.price);
-      const q = safeFloat(ad.quantity) || 1;
+      const p = safeFloat(getField(ad, "price"));
+      const q = safeFloat(getField(ad, "quantity")) || 1;
       price += p * q;
     }
   }
 
-  // total time: try to combine item.timeRequired and addon.addonTime into a readable string
   const timeParts = [];
   if (Array.isArray(pkg.items)) {
     for (const it of pkg.items) {
-      if (it.timeRequired) timeParts.push(it.timeRequired);
+      const t = getField(it, "timeRequired", "time_required", "duration");
+      if (t) timeParts.push(t);
     }
   }
   if (Array.isArray(pkg.addons)) {
     for (const ad of pkg.addons) {
-      if (ad.addonTime) timeParts.push(ad.addonTime);
+      const at = getField(ad, "addonTime", "time");
+      if (at) timeParts.push(at);
     }
   }
   const totalTime = timeParts.length ? timeParts.join(" • ") : undefined;
@@ -84,6 +82,8 @@ const computePackageTotals = (pkg) => {
   };
 };
 
+// Aggregate preferences/addons/consents from multiple package shapes.
+// Also accept mis-typed "concents" from some API versions.
 const aggregateFromPackages = (packages = []) => {
   const prefs = [];
   const addons = [];
@@ -91,9 +91,11 @@ const aggregateFromPackages = (packages = []) => {
   for (const p of packages) {
     if (Array.isArray(p.preferences)) prefs.push(...p.preferences);
     if (Array.isArray(p.addons)) addons.push(...p.addons);
-    // accept both "censents", "consents" (typo from API)
-    // if (Array.isArray(p.censents)) consents.push(...p.censents);
+
+    // many APIs name consents differently: consents, concents (typo), censents etc.
     if (Array.isArray(p.consents)) consents.push(...p.consents);
+    else if (Array.isArray(p.concents)) consents.push(...p.concents);
+    else if (Array.isArray(p.censents)) consents.push(...p.censents);
   }
   return { prefs, addons, consents };
 };
@@ -114,10 +116,8 @@ const BookingDetailsPage = () => {
   const fetchBooking = async () => {
     setLoading(true);
     try {
-      // original endpoint: getbookings -> then find by id
       const res = await api.get("/api/admin/getbookings");
       const bookings = res?.data?.bookings || [];
-      // booking objects sometimes use booking_id or id etc. Try to match both.
       const found = bookings.find(
         (b) =>
           Number(getField(b, "booking_id", "id", "bookingId")) ===
@@ -135,7 +135,6 @@ const BookingDetailsPage = () => {
 
   useEffect(() => {
     const fetchEligibleVendors = async () => {
-      // fetch only if booking exists and vendor not set
       const vendorName =
         getField(booking || {}, "vendorName", "vendor_name") || null;
       if (booking && !vendorName) {
@@ -193,7 +192,7 @@ const BookingDetailsPage = () => {
     );
   }
 
-  // normalize main fields with fallbacks
+  // normalized fields
   const bookingIdVal =
     getField(booking, "booking_id", "id", "bookingId") || booking.bookingId;
   const bookingDate = getField(booking, "bookingDate", "booking_date", "date");
@@ -207,7 +206,6 @@ const BookingDetailsPage = () => {
     "media"
   );
 
-  // user fields (support variations)
   const userName =
     getField(booking, "userName", "user_name", "customerName") ||
     getField(booking, "user_name");
@@ -231,7 +229,6 @@ const BookingDetailsPage = () => {
     "postalCode"
   );
 
-  // service fields
   const serviceName =
     getField(booking, "serviceName", "service_name") ||
     getField(booking, "service", "serviceTitle");
@@ -250,19 +247,16 @@ const BookingDetailsPage = () => {
     "serviceMedia"
   );
 
-  // packages - many APIs return packages array; ensure array
   const packages = Array.isArray(getField(booking, "packages"))
     ? getField(booking, "packages")
     : [];
 
-  // compute aggregated prefs / addons / consents
   const {
     prefs: aggregatedPackagePreferences,
     addons: pkgAddons,
     consents,
   } = aggregateFromPackages(packages);
 
-  // booking-level addons/preferences (some shapes have top-level booking.addons/preferences)
   const bookingLevelAddons = Array.isArray(getField(booking, "addons"))
     ? getField(booking, "addons")
     : [];
@@ -272,14 +266,12 @@ const BookingDetailsPage = () => {
     ? getField(booking, "preferences")
     : [];
 
-  // merge preferences & addons (package-level + booking-level)
   const allPreferences = [
     ...bookingLevelPreferences,
     ...aggregatedPackagePreferences,
   ];
   const allAddons = [...bookingLevelAddons, ...pkgAddons];
 
-  // payment fields
   const paymentStatus = getField(
     booking,
     "payment_status",
@@ -297,7 +289,6 @@ const BookingDetailsPage = () => {
     "payment_id"
   );
 
-  // vendor fields
   const vendorName =
     getField(booking, "vendorName", "vendor_name") ||
     getField(booking, "vendor", "assignedVendorName");
@@ -323,90 +314,147 @@ const BookingDetailsPage = () => {
         ]}
       />
 
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">
-          Booking #{bookingIdVal}
-        </h2>
-        <StatusBadge status={bookingStatus} />
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">{`Booking #${bookingIdVal}`}</h2>
+          <p className="text-sm text-gray-500 mt-1">{serviceName || "—"}</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <StatusBadge status={bookingStatus} />
+          <div className="text-sm text-gray-500">{paymentStatus}</div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* LEFT SECTION */}
+        {/* LEFT */}
         <div className="col-span-3 space-y-6">
-          {/* Service Info */}
-          <div className="flex flex-col lg:flex-col gap-6">
-            {/* Left: Service Info */}
-            <div className="w-full  bg-white rounded-xl shadow-sm border p-6 space-y-2">
-              <h4 className="text-sm font-semibold text-gray-500 mb-1">
-                Service Info
-              </h4>
-              <div className="flex items-center gap-4">
-                {serviceTypeMedia && (
+          {/* Service card */}
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6 md:p-8">
+            <div className="flex gap-5 items-start">
+              <div className="flex-shrink-0 w-28 h-28 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                {serviceTypeMedia ? (
                   <img
                     src={serviceTypeMedia}
-                    alt="Service Type"
-                    className="w-28 h-28 object-cover rounded-lg border"
+                    alt={serviceName}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) =>
+                      (e.currentTarget.src = "/placeholder-rect.png")
+                    }
                   />
+                ) : (
+                  <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-sm text-gray-400">
+                    No Image
+                  </div>
                 )}
-                <div className="flex flex-col gap-1">
-                  <p className="text-lg font-medium text-gray-900">
-                    {serviceName || "—"}
-                  </p>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  {serviceName}
+                </h3>
+
+                <div className="mt-2 flex flex-wrap items-center gap-3">
                   {serviceCategory && (
-                    <p className="text-sm text-gray-500">{serviceCategory}</p>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-xs text-gray-600">
+                      {serviceCategory}
+                    </span>
                   )}
                   {serviceTypeName && (
-                    <p className="text-sm text-gray-500">{serviceTypeName}</p>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-xs text-gray-600">
+                      {serviceTypeName}
+                    </span>
                   )}
+                  <span className="ml-auto text-xs text-gray-400">Service</span>
                 </div>
+
+                <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                  {serviceName
+                    ? `Details for the "${serviceName}" booking — all package and item information is below.`
+                    : "Service information not available."}
+                </p>
               </div>
             </div>
+          </section>
 
-            {/* Packages + items */}
-            <div className="w-full space-y-4 p-6 bg-white rounded-xl shadow-sm border">
-              {packages.length === 0 ? (
+          {/* Packages */}
+          <section className="space-y-4">
+            {packages.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
                 <p className="text-sm text-gray-500">No packages selected.</p>
-              ) : (
-                packages.map((pkg) => {
-                  const pkgId = getField(pkg, "package_id", "id", "packageId");
-                  const packageMedia = getField(
-                    pkg,
-                    "packageMedia",
-                    "package_media",
-                    "media"
-                  );
-                  const packageName =
-                    getField(pkg, "packageName", "package_name", "name") ||
-                    getField(pkg, "packageTitle");
-                  const totals = computePackageTotals(pkg);
+              </div>
+            ) : (
+              packages.map((pkg) => {
+                const pkgId = getField(pkg, "package_id", "id", "packageId");
+                const packageMedia = getField(
+                  pkg,
+                  "packageMedia",
+                  "package_media",
+                  "media"
+                );
+                const packageName =
+                  getField(pkg, "packageName", "package_name", "name") ||
+                  getField(pkg, "packageTitle") ||
+                  "Package";
+                const totals = computePackageTotals(pkg);
 
-                  return (
-                    <div
-                      key={pkgId || packageName}
-                      className="bg-white rounded-xl shadow-sm space-y-3 p-4"
-                    >
-                      <div className="flex items-center gap-4">
-                        {packageMedia && (
+                return (
+                  <article
+                    key={pkgId || packageName}
+                    className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-5 md:p-6 hover:shadow-md transition-shadow"
+                  >
+                    {/* package header */}
+                    <div className="flex items-start gap-4 md:gap-6">
+                      <div className="flex-shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                        {packageMedia ? (
                           <img
                             src={packageMedia}
                             alt={packageName}
-                            className="w-20 h-20 object-cover rounded-lg border"
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) =>
+                              (e.currentTarget.src = "/placeholder-rect.png")
+                            }
                           />
+                        ) : (
+                          <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-sm text-gray-400">
+                            No Image
+                          </div>
                         )}
-                        <div>
-                          <h4 className="text-base font-semibold text-gray-800">
-                            {packageName}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {totals.totalTime ? `${totals.totalTime} • ` : ""}$
-                            {totals.totalPrice}
-                          </p>
-                        </div>
                       </div>
 
-                      {/* Items */}
-                      {Array.isArray(pkg.items) &&
-                        pkg.items.map((item) => {
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-4">
+                          <h4 className="text-base md:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                            {packageName}
+                          </h4>
+
+                          <div className="ml-auto flex items-center gap-2">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-sm font-medium text-gray-700 dark:text-gray-200">
+                              ${totals.totalPrice}
+                            </span>
+                            {totals.totalTime && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-xs text-gray-600">
+                                {totals.totalTime}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                          Package ID:{" "}
+                          <span className="text-xs text-gray-400">
+                            #{pkgId}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* items grid */}
+                    {Array.isArray(pkg.items) && pkg.items.length > 0 && (
+                      <ul className="mt-5 space-y-4">
+                        {pkg.items.map((item) => {
                           const itemId = getField(
                             item,
                             "item_id",
@@ -421,236 +469,534 @@ const BookingDetailsPage = () => {
                           );
                           const itemName =
                             getField(item, "itemName", "item_name") ||
-                            getField(item, "name");
+                            getField(item, "name") ||
+                            "Item";
                           const itemQuantity = getField(item, "quantity") || 1;
-                          const itemTime = getField(
-                            item,
-                            "timeRequired",
-                            "time_required",
-                            "duration"
-                          );
+                          const itemTime =
+                            getField(
+                              item,
+                              "timeRequired",
+                              "time_required",
+                              "duration"
+                            ) || "";
                           const itemPrice = getField(item, "price") || 0;
 
                           return (
-                            <div
+                            <li
                               key={itemId || itemName}
-                              className="flex gap-4 border-t pt-2 items-start"
+                              className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"
                             >
-                              {itemMedia && (
-                                <img
-                                  src={itemMedia}
-                                  alt={itemName}
-                                  className="w-14 h-14 object-cover rounded border"
-                                />
-                              )}
-                              <div>
-                                <p className="text-sm font-medium text-gray-800">
-                                  {itemName} ({itemQuantity}x)
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {itemTime ? `${itemTime} • ` : ""}$
-                                  {parseFloat(itemPrice || 0).toFixed(2)}
-                                </p>
+                              {/* image */}
+                              <div className="md:col-span-2">
+                                <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                                  {itemMedia ? (
+                                    <img
+                                      src={itemMedia}
+                                      alt={itemName}
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                      onError={(e) =>
+                                        (e.currentTarget.src =
+                                          "/placeholder-square.png")
+                                      }
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-400">
+                                      No Image
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+
+                              {/* main content */}
+                              <div className="md:col-span-7 min-w-0">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="min-w-0">
+                                    <p className="text-sm md:text-base font-medium text-gray-900 dark:text-gray-100 truncate">
+                                      {itemName}
+                                      <span className="ml-2 text-xs text-gray-500">
+                                        ×{itemQuantity}
+                                      </span>
+                                    </p>
+                                    <p className="mt-1 text-xs md:text-sm text-gray-500">
+                                      {itemTime ? `${itemTime} • ` : ""}$
+                                      {parseFloat(itemPrice || 0).toFixed(2)}
+                                    </p>
+                                  </div>
+
+                                  <div className="hidden md:flex md:flex-col md:items-end md:justify-between md:col-span-3">
+                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                      ${parseFloat(itemPrice || 0).toFixed(2)}
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      {itemTime}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* grouped meta cards: addons, preferences, consents */}
+                                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  {/* Addons */}
+                                  {Array.isArray(item.addons) &&
+                                    item.addons.length > 0 && (
+                                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-100 dark:border-slate-700 text-xs text-gray-700 dark:text-gray-300">
+                                        <div className="font-semibold text-xs mb-2">
+                                          Addons
+                                        </div>
+                                        <ul className="space-y-1">
+                                          {item.addons.map((ad) => (
+                                            <li
+                                              key={getField(
+                                                ad,
+                                                "addon_id",
+                                                "id",
+                                                "name"
+                                              )}
+                                              className="flex justify-between"
+                                            >
+                                              <span className="truncate">
+                                                {getField(
+                                                  ad,
+                                                  "addonName",
+                                                  "name"
+                                                )}
+                                              </span>
+                                              <span className="text-xs text-gray-500">{`$${parseFloat(
+                                                getField(ad, "price") || 0
+                                              ).toFixed(2)}`}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+
+                                  {/* Preferences */}
+                                  {Array.isArray(item.preferences) &&
+                                    item.preferences.length > 0 && (
+                                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-100 dark:border-slate-700 text-xs text-gray-700 dark:text-gray-300">
+                                        <div className="font-semibold text-xs mb-2">
+                                          Preferences
+                                        </div>
+                                        <ul className="space-y-1">
+                                          {item.preferences.map((pf) => (
+                                            <li
+                                              key={getField(
+                                                pf,
+                                                "preference_id",
+                                                "id",
+                                                "preferenceValue"
+                                              )}
+                                              className="flex justify-between"
+                                            >
+                                              <span className="truncate">
+                                                {getField(
+                                                  pf,
+                                                  "preferenceValue",
+                                                  "value",
+                                                  "preference"
+                                                ) || "—"}
+                                              </span>
+                                              {getField(
+                                                pf,
+                                                "preferencePrice"
+                                              ) && (
+                                                <span className="text-xs text-gray-500">{`$${parseFloat(
+                                                  getField(
+                                                    pf,
+                                                    "preferencePrice"
+                                                  ) || 0
+                                                ).toFixed(2)}`}</span>
+                                              )}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+
+                                  {/* Consents */}
+                                  {Array.isArray(item.consents) &&
+                                    item.consents.length > 0 && (
+                                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-100 dark:border-slate-700 text-xs text-gray-700 dark:text-gray-300">
+                                        <div className="font-semibold text-xs mb-2">
+                                          Consents
+                                        </div>
+                                        <ul className="space-y-1">
+                                          {item.consents.map((c) => (
+                                            <li
+                                              key={getField(
+                                                c,
+                                                "consent_id",
+                                                "id",
+                                                "question"
+                                              )}
+                                            >
+                                              <div className="text-xs text-gray-800 dark:text-gray-100">
+                                                {getField(
+                                                  c,
+                                                  "question",
+                                                  "consentText",
+                                                  "q"
+                                                )}
+                                              </div>
+                                              {getField(c, "answer", "a") && (
+                                                <div className="text-xs text-gray-500">
+                                                  Answer:{" "}
+                                                  {getField(c, "answer", "a")}
+                                                </div>
+                                              )}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+
+                              {/* mobile/meta column */}
+                              <div className="md:col-span-3 flex items-center justify-between md:hidden mt-2">
+                                <div className="text-sm font-semibold">
+                                  ${parseFloat(itemPrice || 0).toFixed(2)}
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {itemTime}
+                                </div>
+                              </div>
+                            </li>
                           );
                         })}
+                      </ul>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </section>
 
-                      {/* Package-level addons (if any) */}
-                      {Array.isArray(pkg.addons) && pkg.addons.length > 0 && (
-                        <div className="mt-2 border-t pt-2">
-                          <h5 className="text-sm font-medium text-gray-700">
-                            Addons
-                          </h5>
-                          <div className="space-y-2 mt-2">
-                            {pkg.addons.map((ad) => (
-                              <div
-                                key={
-                                  getField(ad, "addon_id", "id") ||
-                                  getField(ad, "addonName", ad.addonName)
-                                }
-                                className="flex justify-between items-center"
-                              >
-                                <div>
-                                  <p className="text-sm text-gray-800">
-                                    {getField(ad, "addonName", "name")}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    {getField(ad, "addonTime", "time")}
-                                  </p>
-                                </div>
-                                <p className="text-sm text-gray-800">
-                                  $
-                                  {parseFloat(
-                                    getField(ad, "price") || 0
-                                  ).toFixed(2)}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Booking-level addons (if any) */}
-            {/* {allAddons.length > 0 && (
-              <div className="w-full space-y-4 p-6 bg-white rounded-xl shadow-sm border">
-                <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                  Addons
-                </h4>
-                {allAddons.map((pkg) => (
-                  <div
-                    key={
-                      getField(pkg, "addon_id", "id") ||
-                      getField(pkg, "addonName", pkg.addonName)
-                    }
-                    className="bg-white rounded-xl shadow-sm space-y-3 p-3"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <h4 className="text-base font-semibold text-gray-800">
-                          {getField(pkg, "addonName", "name")}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {getField(pkg, "addonTime", "time")} • $
-                          {parseFloat(getField(pkg, "price") || 0).toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )} */}
-          </div>
-
-          {/* Notes */}
+          {/* Booking-level Notes/Preferences/Consents/Media */}
           {notes && (
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+              <h4 className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300">
                 Notes
               </h4>
-              <p className="text-sm text-gray-800">{notes}</p>
-            </div>
+              <p className="mt-2 text-sm text-gray-800 dark:text-gray-100">
+                {notes}
+              </p>
+            </section>
           )}
 
-          {/* Preferences */}
-          {allPreferences?.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Preferences
-              </h4>
-              <ul className="list-disc list-inside text-sm text-gray-800">
-                {allPreferences.map((pref) => (
-                  <li key={getField(pref, "preference_id", "id")}>
-                    {getField(pref, "preferenceValue", "value", "preference")}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* --- Preferences & Consents (Minimals.cc style) --- */}
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+            {/* Preferences Card */}
+            {allPreferences?.length > 0 && (
+              <section
+                aria-labelledby="prefs-heading"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-5 md:p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <h4
+                    id="prefs-heading"
+                    className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    Preferences
+                  </h4>
+                  <span className="text-xs text-gray-400">
+                    {allPreferences.length} selected
+                  </span>
+                </div>
 
-          {/* Consents */}
-          {consents?.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Consents
-              </h4>
-              <ul className="list-disc list-inside text-sm text-gray-800">
-                {consents.map((c) => (
-                  <li key={getField(c, "consent_id", "consentId", "id")}>
-                    <strong>{getField(c, "question", "q")}: </strong>
-                    {getField(c, "answer", "a")}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                <div className="mt-4 space-y-3">
+                  {allPreferences.map((pref, idx) => {
+                    const label =
+                      getField(
+                        pref,
+                        "preferenceValue",
+                        "value",
+                        "preference"
+                      ) || "—";
+                    const price = getField(pref, "preferencePrice", "price");
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm text-gray-900 dark:text-gray-100 truncate">
+                            {label}
+                          </div>
+                          {/* optional small meta */}
+                          {getField(pref, "note") && (
+                            <div className="text-xs text-gray-400 mt-1 truncate">
+                              {getField(pref, "note")}
+                            </div>
+                          )}
+                        </div>
 
-          {/* Booking Media */}
+                        <div className="flex items-center gap-2">
+                          {price != null && price !== "" ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-slate-700">
+                              ${parseFloat(price || 0).toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs text-gray-400">
+                              Free
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Consents Card */}
+            {consents?.length > 0 && (
+              <section
+                aria-labelledby="consents-heading"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-5 md:p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <h4
+                    id="consents-heading"
+                    className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    Consents
+                  </h4>
+                  <span className="text-xs text-gray-400">
+                    {consents.length} items
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {consents.map((c, idx) => {
+                    const question =
+                      getField(c, "question", "consentText", "q") || "Consent";
+                    const answer = getField(c, "answer", "a");
+                    const isAnswered =
+                      answer !== undefined &&
+                      answer !== null &&
+                      String(answer).trim() !== "";
+
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {question}
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-300">
+                              {isAnswered ? (
+                                <span className="truncate">
+                                  {String(answer)}
+                                </span>
+                              ) : (
+                                <span className="italic text-xs text-gray-400">
+                                  No answer provided
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex-shrink-0">
+                            {/* status pill */}
+                            {isAnswered ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                                Answered
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                                Pending
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* optional: show consent id or meta */}
+                        {getField(c, "consent_id", "id") && (
+                          <div className="mt-2 text-xs text-gray-400">
+                            ID: {getField(c, "consent_id", "id")}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </div>
+          {/* --- end Preferences & Consents (Minimals style) --- */}
+
           {bookingMedia && (
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+              <h4 className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300">
                 Attached Media
               </h4>
-              <img
-                src={bookingMedia}
-                alt="Booking Media"
-                className="w-full max-w-sm rounded-lg border"
-              />
-            </div>
+              <div className="mt-3">
+                <a
+                  href={bookingMedia}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  View attachment
+                </a>
+              </div>
+            </section>
           )}
         </div>
 
-        {/* RIGHT SECTION */}
-        <div className="col-span-2 space-y-6">
-          {/* Customer Info */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h4 className="text-sm font-semibold text-gray-500 mb-2">
-              Customer
-            </h4>
-            <p className="flex items-center text-sm text-gray-800">
-              <FiUser className="mr-2" />
-              {userName || "—"}
-            </p>
-            {userEmail && <p className="text-sm text-gray-500">{userEmail}</p>}
-            {userPhone && <p className="text-sm text-gray-500">{userPhone}</p>}
-            {userAddress && (
-              <p className="flex items-center text-sm text-gray-500 mt-1">
-                <FiMapPin className="mr-2" />
-                {userAddress}
-                {userState && `, ${userState}`}
-                {userPostalCode && ` - ${userPostalCode}`}
-              </p>
-            )}
-          </div>
+        {/* RIGHT */}
+        <aside className="col-span-2 space-y-6">
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                {/* show small avatar from userProfileImage if present */}
+                {getField(booking, "userProfileImage", "user_profile_image") ? (
+                  <img
+                    src={getField(
+                      booking,
+                      "userProfileImage",
+                      "user_profile_image"
+                    )}
+                    alt={userName}
+                    className="w-14 h-14 rounded-full object-cover border"
+                    loading="lazy"
+                    onError={(e) =>
+                      (e.currentTarget.src = "/avatar-placeholder.png")
+                    }
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+                    N/A
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  {userName || "—"}
+                </h4>
+                {userEmail && (
+                  <a
+                    href={`mailto:${userEmail}`}
+                    className="text-xs text-gray-500 block truncate"
+                  >
+                    {userEmail}
+                  </a>
+                )}
+                {userPhone && (
+                  <a
+                    href={`tel:${userPhone}`}
+                    className="text-xs text-gray-500 block truncate"
+                  >
+                    {userPhone}
+                  </a>
+                )}
+                {userAddress && (
+                  <p className="mt-3 text-xs text-gray-500 flex items-start gap-2">
+                    <FiMapPin className="text-gray-400 mt-0.5" />
+                    <span className="truncate">
+                      {userAddress}
+                      {userState ? `, ${userState}` : ""}
+                      {userPostalCode ? ` • ${userPostalCode}` : ""}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
 
-          {/* Schedule */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h4 className="text-sm font-semibold text-gray-500 mb-2">
-              Schedule
-            </h4>
-            <p className="flex items-center text-sm text-gray-800">
-              <FiCalendar className="mr-2" />
-              {bookingDate ? formatDate(bookingDate) : "—"}
-            </p>
-            <p className="flex items-center text-sm text-gray-800 mt-1">
-              <FiClock className="mr-2" />
-              {bookingTime ? formatTime(bookingTime) : "—"}
-            </p>
-          </div>
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <h4 className="text-sm font-medium text-gray-600">Schedule</h4>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-gray-900">
+                <FiCalendar className="text-gray-400" />
+                <span>{bookingDate ? formatDate(bookingDate) : "—"}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-900">
+                <FiClock className="text-gray-400" />
+                <span>{bookingTime ? formatTime(bookingTime) : "—"}</span>
+              </div>
+              {getField(booking, "start_time") &&
+                getField(booking, "end_time") && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    Session: {formatDate(getField(booking, "start_time"))}{" "}
+                    {formatTime(getField(booking, "start_time"))} —{" "}
+                    {formatTime(getField(booking, "end_time"))}
+                  </div>
+                )}
+            </div>
+          </section>
 
-          {/* Payment */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h4 className="text-sm font-semibold text-gray-500 mb-2">
-              Payment Info
-            </h4>
-            <PaymentBadge status={paymentStatus} />
-            <p className="text-sm text-gray-800 mt-2">
-              ${parseFloat(paymentAmount || 0).toFixed(2)}{" "}
-              {paymentCurrency?.toUpperCase()}
-            </p>
-            {paymentIntentId && (
-              <p className="text-xs text-gray-400 mt-1">
-                Payment ID: {paymentIntentId}
-              </p>
-            )}
-          </div>
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h4 className="text-sm font-medium text-gray-600">Payment</h4>
+                <div className="mt-2 flex items-center gap-3">
+                  <PaymentBadge status={paymentStatus} />
+                  <span className="text-xs text-gray-400 capitalize">
+                    {paymentStatus || "—"}
+                  </span>
+                </div>
+              </div>
 
-          {/* Vendor Info or Assignment */}
-          <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
-            <h4 className="text-sm font-semibold text-gray-500 mb-2">Vendor</h4>
+              <div className="text-right">
+                <div className="text-lg font-semibold text-gray-900">
+                  ${parseFloat(paymentAmount || 0).toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {(paymentCurrency || "").toUpperCase()}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-gray-100" />
+
+            <div className="mt-3 text-sm text-gray-600">
+              {getField(booking, "platform_fee") != null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Platform fee</span>
+                  <span className="font-medium">
+                    $
+                    {parseFloat(getField(booking, "platform_fee") || 0).toFixed(
+                      2
+                    )}
+                  </span>
+                </div>
+              )}
+              {getField(booking, "net_amount") != null && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-gray-500">Net amount</span>
+                  <span className="font-medium">
+                    $
+                    {parseFloat(getField(booking, "net_amount") || 0).toFixed(
+                      2
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {paymentIntentId && (
+                <div className="mt-3 text-xs text-gray-400 break-all">
+                  <span className="font-medium text-gray-700">Payment ID:</span>{" "}
+                  <span className="ml-1">{paymentIntentId}</span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <h4 className="text-sm font-medium text-gray-600">Vendor</h4>
             {vendorName ? (
-              <div className="space-y-1">
-                <p className="text-sm text-gray-800 font-medium">
+              <div className="mt-3 space-y-1">
+                <p className="text-sm text-gray-900 font-medium">
                   {vendorName} {vendorType ? `(${vendorType})` : ""}
                 </p>
                 {vendorContactPerson && (
                   <p className="text-sm text-gray-500">
-                    Contact Person: {vendorContactPerson}
+                    Contact: {vendorContactPerson}
                   </p>
                 )}
                 {vendorEmail && (
@@ -661,16 +1007,16 @@ const BookingDetailsPage = () => {
                 )}
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="mt-3 space-y-3">
                 <select
                   className="border px-3 py-2 rounded w-full"
                   value={selectedVendorId}
                   onChange={(e) => setSelectedVendorId(e.target.value)}
                 >
-                  <option value="">Select Vendor</option>
-                  {eligibleVendors.map((vendor) => (
-                    <option key={vendor.vendor_id} value={vendor.vendor_id}>
-                      {vendor.vendorName} ({vendor.vendorType})
+                  <option value="">Select vendor</option>
+                  {eligibleVendors.map((v) => (
+                    <option key={v.vendor_id} value={v.vendor_id}>
+                      {v.vendorName} ({v.vendorType})
                     </option>
                   ))}
                 </select>
@@ -679,12 +1025,24 @@ const BookingDetailsPage = () => {
                   isLoading={loading}
                   className="w-full"
                 >
-                  Assign Vendor
+                  Assign vendor
                 </Button>
               </div>
             )}
-          </div>
-        </div>
+          </section>
+
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="space-y-3">
+              <Button
+                variant="outline"
+                onClick={() => window.history.back()}
+                className="w-full py-3 rounded-lg"
+              >
+                Back
+              </Button>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );
