@@ -214,6 +214,7 @@ const employeeLogin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const assignBookingToEmployee = asyncHandler(async (req, res) => {
     const { booking_id, employee_id } = req.body;
 
@@ -271,6 +272,7 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
             [employee_id, vendor_id, booking_id]
         );
 
+        // ✅ Send booking notification (external service)
         try {
             sendBookingAssignedNotification(employee_id, booking_id);
         } catch (err) {
@@ -287,21 +289,26 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         );
         employeeName = employeeNameRow[0]?.name || employeeName;
 
-        // 6️⃣ Insert notification for user
-        const notificationMessage = `Hi! ${employeeName} (Employee ID: ${employee_id}) has been assigned to your booking (#${booking_id}).`;
+        // 6️⃣ Insert notifications with try-catch
+        try {
+            // Notification for user
+            const userNotificationMessage = `Hi! ${employeeName} (Employee ID: ${employee_id}) has been assigned to your booking (#${booking_id}).`;
+            await connection.query(
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+                 VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                ['users', user_id, 'Employee Assigned', userNotificationMessage]
+            );
 
-        await connection.query(
-            `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
-             VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-            ['users', user_id, 'Employee Assigned', notificationMessage]
-        );
-
-        // 7️⃣ Insert notification for employee
-        await connection.query(
-            `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
-             VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-            ['employee', employee_id, 'Booking Assigned', `Hi ${employeeName}, you have been assigned to booking ID: ${booking_id}.`]
-        );
+            // Notification for employee
+            const employeeNotificationMessage = `Hi ${employeeName}, you have been assigned to booking ID: ${booking_id}.`;
+            await connection.query(
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+                 VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                ['employee', employee_id, 'Booking Assigned', employeeNotificationMessage]
+            );
+        } catch (notifErr) {
+            console.error("⚠️ Failed to insert notifications:", notifErr.message);
+        }
 
         connection.release();
 
@@ -316,6 +323,8 @@ const assignBookingToEmployee = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 
 const getEmployeesWithPackages = asyncHandler(async (req, res) => {
