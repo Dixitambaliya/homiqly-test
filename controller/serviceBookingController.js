@@ -1135,7 +1135,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         const [vendors] = await db.query(sql, params);
 
         if (!vendors.length) {
-            return res.status(404).json({
+            return res.status(200).json({
                 message: "No vendors found for the given criteria"
             });
         }
