@@ -338,7 +338,7 @@ const getBookings = asyncHandler(async (req, res) => {
                         items: [],
                         addons: [],
                         preferences: [],
-                        censents: []
+                        concents: []
                     };
                     booking.packages.push(pkg);
                 }
@@ -371,8 +371,8 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
                 // ===== concent form =====
-                if (row.consent_id && !pkg.censents.find(p => p.consent_id === row.consent_id)) {
-                    pkg.censents.push({
+                if (row.consent_id && !pkg.concents.find(p => p.consent_id === row.consent_id)) {
+                    pkg.concents.push({
                         consent_id: row.consent_id,
                         question: row.question,
                         answer: row.answer,
