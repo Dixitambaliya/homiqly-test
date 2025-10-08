@@ -1,11 +1,15 @@
 const userAuthQueries = {
   userInsert: `INSERT INTO users (firstName, lastName, email, phone, profileImage, fcmToken) VALUES (?, ?, ?, ?, ?, ?)`,
 
-  userInsert1 : `INSERT INTO users (firstName, lastName, email, phone) VALUES (?, ?, ?, ?)`,
+  userInsert1: `INSERT INTO users (firstName, lastName, email, phone) VALUES (?, ?, ?, ?)`,
 
   userMailCheck: 'SELECT * FROM users WHERE email = ?',
 
-  userSetPassword: `UPDATE users SET password = ? WHERE email = ? AND (password IS NULL OR password = '')`,
+  userSetPassword: `UPDATE users 
+                  SET password = ? 
+                  WHERE email = ? 
+                    AND (password IS NULL OR TRIM(password) = '')
+`,
 
   userLogin: `SELECT * FROM users WHERE email = ?`,
 

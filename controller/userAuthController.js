@@ -95,7 +95,6 @@ const verifyCode = asyncHandler(async (req, res) => {
     res.status(200).json({ message: "Code verified. You can now set your password." });
 });
 
-
 const setPassword = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
@@ -104,21 +103,32 @@ const setPassword = asyncHandler(async (req, res) => {
     }
 
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await db.query(userAuthQueries.userSetPassword, [
-            hashedPassword,
-            email,
-        ]);
+        // 1️⃣ Check if user exists
+        const [rows] = await db.query(
+            "SELECT password FROM users WHERE email = ?",
+            [email]
+        );
 
-        if (result.affectedRows === 0) {
-            return res
-                .status(404)
-                .json({ error: "User not found or already has a password." });
+        if (!rows.length) {
+            return res.status(404).json({ error: "User not found." });
         }
 
-        res
-            .status(200)
-            .json({ message: "Password set successfully. You can now log in." });
+        // 2️⃣ Check if password already set
+        const existingPassword = rows[0].password;
+        if (existingPassword && existingPassword.trim() !== '') {
+            return res.status(400).json({ error: "User already has a password." });
+        }
+
+        // 3️⃣ Hash new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 4️⃣ Update password
+        await db.query(
+            "UPDATE users SET password = ? WHERE email = ?",
+            [hashedPassword, email]
+        );
+
+        res.status(200).json({ message: "Password set successfully. You can now log in." });
     } catch (err) {
         console.error("Set Password Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
@@ -322,7 +332,7 @@ const googleLogin = asyncHandler(async (req, res) => {
                 given_name,
                 family_name,
                 email,
-                "",        // phone
+                null,        // phone
                 picture,
                 fcmToken
             ]);
@@ -351,9 +361,6 @@ const googleLogin = asyncHandler(async (req, res) => {
         let welcomeCode = null;
         try {
             welcomeCode = await assignWelcomeCode(user_id, email);
-            console.log(user_id);
-
-            console.log(welcomeCode);
 
         } catch (err) {
             console.error("❌ Auto-assign welcome code error:", err.message);

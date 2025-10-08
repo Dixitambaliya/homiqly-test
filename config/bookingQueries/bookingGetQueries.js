@@ -1,20 +1,27 @@
 const bookingGetQueries = {
 
     getVendorBookings: `
-   SELECT
-    sb.*,
-    s.serviceName,
+  SELECT
+    sb.booking_id, 
+    sb.bookingDate, 
+    sb.bookingTime, 
+    sb.bookingStatus, 
+    sb.notes, 
+    sb.bookingMedia, 
     sb.package_id,
-    sb.payment_status AS payment_status,
-    p.amount AS payment_amount,  
+    sb.assigned_employee_id,
+    sb.payment_status, 
+    sb.start_time,
+    sb.end_time,
+    s.service_id,
+    s.serviceName,
+    p.amount AS payment_amount,
     p.currency AS payment_currency,
+    u.user_id,
     CONCAT(u.firstName, ' ', u.lastName) AS userName,
     u.profileImage AS userProfileImage,
     u.email AS userEmail,
     u.phone AS userPhone,
-    u.address AS userAddress,
-    u.state AS userState,
-    u.postalcode AS userPostalCode,
     e.employee_id AS assignedEmployeeId,
     e.first_name AS employeeFirstName,
     e.last_name AS employeeLastName,
@@ -22,77 +29,87 @@ const bookingGetQueries = {
     e.phone AS employeePhone
 FROM service_booking sb
 LEFT JOIN services s ON sb.service_id = s.service_id
-LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
 LEFT JOIN users u ON sb.user_id = u.user_id
 LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
 WHERE sb.vendor_id = ?
-ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+ORDER BY sb.bookingDate DESC, sb.bookingTime DESC;
 `,
 
 
     getVendorIdForBooking: `
-    SELECT 
-    vendorType 
-    FROM vendors 
-    WHERE 
-    vendor_id = ?
+SELECT 
+vendorType 
+FROM vendors 
+WHERE vendor_id = ?;
+
 `,
 
     getPlateFormFee: `
-    SELECT 
+SELECT 
     platform_fee_percentage 
-    FROM platform_settings 
-    WHERE vendor_type = ?
-        ORDER BY id 
-    DESC LIMIT 1
+FROM platform_settings 
+WHERE vendor_type = ?
+ORDER BY id DESC
+LIMIT 1;
+
 `,
 
     // Fetch addons applied to packages/items
     getBookedAddons: `
-    SELECT
-        sba.sub_package_id,
-        sba.addon_id,
-        a.addonName,
-        a.addonMedia,
-        sba.price,
-        sba.quantity
-    FROM service_booking_addons sba
-    LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
-    WHERE sba.booking_id = ?
+SELECT
+    sba.sub_package_id,
+    sba.addon_id,
+    a.addonName,
+    a.addonMedia,
+    sba.price,
+    sba.quantity
+FROM service_booking_addons sba
+JOIN package_addons a ON sba.addon_id = a.addon_id
+WHERE sba.booking_id = ?;
+
 `,
 
     getBookedSubPackages: `
     SELECT
-        sbsp.sub_package_id AS item_id,
+        sbsp.sub_package_id,
+        pi.package_id,
+        p.packageName,
+        p.packageMedia,
         pi.itemName,
         pi.itemMedia,
+        pi.timeRequired,
         sbsp.quantity,
-        pi.timeRequired
+        sbsp.price
     FROM service_booking_sub_packages sbsp
-    LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-    WHERE sbsp.booking_id = ?
+    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+    JOIN packages p ON pi.package_id = p.package_id
+    WHERE sbsp.booking_id = ?;
+
 `,
 
     getBoookedPrefrences: `
-    SELECT
-        sp.sub_package_id,
-        sp.preference_id,
-        bp.preferenceValue,
-        bp.preferencePrice
-    FROM service_booking_preferences sp
-    LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-    WHERE sp.booking_id = ?
+SELECT
+    sp.sub_package_id,
+    sp.preference_id,
+    bp.preferenceValue,
+    bp.preferencePrice
+FROM service_booking_preferences sp
+JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+WHERE sp.booking_id = ?;
+
 `,
 
     getBoookedConsents: `
-               SELECT 
-                    c.consent_id,
-                    c.question,
-                    sbc.answer,
-                    sbc.sub_package_id
-                FROM service_booking_consents sbc
-                LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
-                WHERE sbc.booking_id = ?
+        SELECT
+            sbc.sub_package_id,
+            c.consent_id,
+            c.question,
+            sbc.answer
+        FROM service_booking_consents sbc
+        LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+        WHERE sbc.booking_id = ?;
+
     `,
 
     userGetBooking: `
