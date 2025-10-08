@@ -16,6 +16,7 @@ const EditEmployeesModal = ({
     last_name: "",
     phone: "",
     email: "",
+    password: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,6 +70,7 @@ const EditEmployeesModal = ({
       payload.append("last_name", formData.last_name ?? "");
       payload.append("phone", formData.phone ?? "");
       payload.append("email", formData.email ?? "");
+      payload.append("password", formData.password ?? "")
 
       await api.put(`/api/vendor/employee/${id}`, payload, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -139,6 +141,17 @@ const EditEmployeesModal = ({
               onChange={handleChange}
               placeholder="Email"
               className="w-full border rounded px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Password</label>
+            <input
+              type="password"
+              name="password"
+             value={formData.password}
+             onChange={handleChange}
+             placeholder="******"
+             className="w-full border rounded px-3 py-2"
             />
           </div>
 

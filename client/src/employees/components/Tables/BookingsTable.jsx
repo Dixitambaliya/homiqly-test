@@ -5,6 +5,7 @@ import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import { useNavigate } from "react-router-dom";
+import PaymentBadge from "../../../shared/components/PaymentBadge";
 
 const BookingsTable = ({
   bookings,
@@ -63,7 +64,7 @@ const BookingsTable = ({
     {
       title: "Payment",
       key: "payment_status",
-      render: (row) => <StatusBadge status={row.bookingStatus} />,
+      render: (row) => <PaymentBadge status={row.payment_status} />,
     },
     {
       title: "Status",
