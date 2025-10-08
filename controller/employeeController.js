@@ -574,7 +574,7 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
         const [[employeeRow]] = await db.query(`
             SELECT vendor_id FROM company_employees WHERE employee_id = ?
         `, [employee_id]);
-        const vendor_id = employeeRow?.vendor_id;
+        // const vendor_id = employeeRow?.vendor_id;
 
         // // 2️⃣ Get vendor type and latest platform fee
         // const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
