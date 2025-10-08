@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import api from "../../../lib/axiosConfig";
 import { Button } from "../../../shared/components/Button";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import { FormInput } from "../../../shared/components/Form";
 
 const EditEmployeesModal = ({
   isOpen,
@@ -70,7 +71,7 @@ const EditEmployeesModal = ({
       payload.append("last_name", formData.last_name ?? "");
       payload.append("phone", formData.phone ?? "");
       payload.append("email", formData.email ?? "");
-      payload.append("password", formData.password ?? "")
+      payload.append("password", formData.password ?? "");
 
       await api.put(`/api/vendor/employee/${id}`, payload, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -95,63 +96,58 @@ const EditEmployeesModal = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">First name</label>
-            <input
+            <FormInput
               type="text"
               name="first_name"
               value={formData.first_name}
               onChange={handleChange}
               placeholder="First Name"
-              className="w-full border rounded px-3 py-2"
               required
+              label={`First name`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Last name</label>
-            <input
+            <FormInput
               type="text"
               name="last_name"
               value={formData.last_name}
               onChange={handleChange}
               placeholder="Last Name"
-              className="w-full border rounded px-3 py-2"
               required
+              label={`Last name`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Phone</label>
-            <input
+            <FormInput
               type="text"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
               placeholder="Phone"
-              className="w-full border rounded px-3 py-2"
+              label={`Phone`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
-            <input
+            <FormInput
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="Email"
-              className="w-full border rounded px-3 py-2"
+              label={`Email`}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
-            <input
+            <FormInput
               type="password"
               name="password"
-             value={formData.password}
-             onChange={handleChange}
-             placeholder="******"
-             className="w-full border rounded px-3 py-2"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="******"
+              label={`Password`}
             />
           </div>
 

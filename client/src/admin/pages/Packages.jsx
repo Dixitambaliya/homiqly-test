@@ -182,7 +182,7 @@ const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
     <li className="bg-white rounded-lg border p-4 shadow-sm">
       <div className="flex gap-4">
         <div className="w-36 h-24 rounded-md overflow-hidden border bg-gray-100 flex-shrink-0">
-          {/* <img
+          <img
             src={
               safeSrc(sub.item_media) ||
               "https://via.placeholder.com/160?text=Item"
@@ -193,7 +193,7 @@ const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
             width="160"
             height="160"
             className="w-full h-full object-cover rounded-md bg-gray-100"
-          /> */}
+          />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -657,10 +657,10 @@ export default function Packages() {
                               >
                                 <div className="flex items-center justify-between p-4">
                                   <div className="flex items-center gap-4 min-w-0">
-                                    <img
+                                    {/* <img
                                       className="w-14 h-14 flex-shrink-0 rounded-md"
                                       src={pkg.packageMedia}
-                                    ></img>
+                                    ></img> */}
                                     {/* <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
                                       <img
                                         src={

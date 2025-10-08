@@ -150,9 +150,9 @@ const Bookings = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4">
+    <div className="space-y-6 max-w-7xl mx-auto ">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Booking Management</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Vendor Booking Management</h2>
         <div className="flex space-x-2">
           <FormSelect
             name="filter"
