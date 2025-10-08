@@ -615,12 +615,12 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
 
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
-            const rawAmount = Number(booking.payment_amount) || 0;
+            // const rawAmount = Number(booking.payment_amount) || 0;
 
-            // 4️⃣ Calculate platform fee & net amount
-            booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
-            booking.net_amount = parseFloat((rawAmount - booking.platform_fee).toFixed(2));
-            booking.payment_amount = booking.net_amount;
+            // // 4️⃣ Calculate platform fee & net amount
+            // booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
+            // booking.net_amount = parseFloat((rawAmount - booking.platform_fee).toFixed(2));
+            // booking.payment_amount = booking.net_amount;
 
             // 5️⃣ Fetch sub-packages/items, addons, preferences, consents
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
