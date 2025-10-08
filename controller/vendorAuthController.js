@@ -201,7 +201,8 @@ const loginVendor = asyncHandler(async (req, res) => {
     if (!email || !password) {
         return res.status(400).json({ error: "All fields are required" });
     }
-
+    console.log(email, password);
+    
     try {
         let vendorDetails = null;
         let vendorType = null;

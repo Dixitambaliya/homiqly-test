@@ -248,7 +248,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-        // 3️⃣ Fetch vendor bookings (raw payment amounts)
+        // 3️⃣ Fetch vendor bookings
         const [bookings] = await db.query(bookingGetQueries.getVendorBookings, [vendor_id]);
 
         for (const booking of bookings) {
@@ -256,123 +256,134 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             const rawAmount = Number(booking.payment_amount) || 0;
 
             // 4️⃣ Calculate platform fee and net amount
-            booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2)); // amount deducted by platform
+            booking.platform_fee = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
             booking.net_amount = parseFloat((rawAmount - booking.platform_fee).toFixed(2));
-
             booking.payment_amount = booking.net_amount;
-            // 5️⃣ Fetch sub-packages/items, addons, preferences, consents
-            const [packageItems] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
+
+            // 5️⃣ Fetch sub-packages, addons, preferences, consents
+            const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
             const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
             const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
 
-            // Group consents by sub_package_id
-            const consentsGroupedByItem = {};
-            bookingConsents.forEach(consent => {
-                const itemId = consent.sub_package_id;
-                if (!consentsGroupedByItem[itemId]) consentsGroupedByItem[itemId] = [];
-                consentsGroupedByItem[itemId].push({
-                    consent_id: consent.consent_id,
-                    consentText: consent.question,
-                    answer: consent.answer
+            // 6️⃣ Group addons, preferences, consents by sub_package_id
+            const addonsByItem = {};
+            bookingAddons.forEach(a => {
+                if (!addonsByItem[a.sub_package_id]) addonsByItem[a.sub_package_id] = [];
+                const { sub_package_id, ...rest } = a;
+                addonsByItem[sub_package_id].push(rest);
+            });
+
+            const prefsByItem = {};
+            bookingPreferences.forEach(p => {
+                if (!prefsByItem[p.sub_package_id]) prefsByItem[p.sub_package_id] = [];
+                const { sub_package_id, ...rest } = p;
+                prefsByItem[sub_package_id].push(rest);
+            });
+
+            const consentsByItem = {};
+            bookingConsents.forEach(c => {
+                if (!consentsByItem[c.sub_package_id]) consentsByItem[c.sub_package_id] = [];
+                consentsByItem[c.sub_package_id].push({
+                    consent_id: c.consent_id,
+                    consentText: c.question,
+                    answer: c.answer
                 });
             });
 
-            // Group addons by sub_package_id
-            const addonsByItem = {};
-            bookingAddons.forEach(addon => {
-                const itemId = addon.sub_package_id;
-                if (!addonsByItem[itemId]) addonsByItem[itemId] = [];
-                const { sub_package_id, ...rest } = addon;
-                addonsByItem[itemId].push(rest);
-            });
+            // 7️⃣ Group sub-packages by package_id
+            const groupedByPackage = subPackages.reduce((acc, sp) => {
+                const packageId = sp.package_id;
 
-            // Group preferences by sub_package_id
-            const prefsByItem = {};
-            bookingPreferences.forEach(pref => {
-                const itemId = pref.sub_package_id;
-                if (!prefsByItem[itemId]) prefsByItem[itemId] = [];
-                const { sub_package_id, ...rest } = pref;
-                prefsByItem[itemId].push(rest);
-            });
+                if (!acc[packageId]) {
+                    acc[packageId] = {
+                        package_id: packageId,
+                        packageName: sp.packageName,
+                        packageMedia: sp.packageMedia,
+                        items: []
+                    };
+                }
 
-            // Attach sub_packages with addons, preferences, consents
-            booking.sub_packages = packageItems.map(item => {
-                const { item_id, package_id, ...rest } = item;
-                return {
-                    ...rest,
-                    ...(addonsByItem[item_id] ? { addons: addonsByItem[item_id] } : {}),
-                    ...(prefsByItem[item_id] ? { preferences: prefsByItem[item_id] } : {}),
-                    ...(consentsGroupedByItem[item_id] ? { consents: consentsGroupedByItem[item_id] } : {})
-                };
-            });
+                // Attach corresponding addons, preferences, consents
+                const addons = addonsByItem[sp.sub_package_id] || [];
+                const preferences = prefsByItem[sp.sub_package_id] || [];
+                const consents = consentsByItem[sp.sub_package_id] || [];
 
-            // Attach promo code if exists
+                acc[packageId].items.push({
+                    sub_package_id: sp.sub_package_id,
+                    itemName: sp.itemName,
+                    itemMedia: sp.itemMedia,
+                    timeRequired: sp.timeRequired,
+                    quantity: sp.quantity,
+                    ...(addons.length && { addons }),
+                    ...(preferences.length && { preferences }),
+                    ...(consents.length && { consents })
+                });
+
+                return acc;
+            }, {});
+
+            booking.sub_packages = Object.values(groupedByPackage);
+
+            // 8️⃣ Attach promo code if exists
             if (booking.user_promo_code_id) {
                 let promo = null;
 
-                // Try user promo code first
                 const [[userPromo]] = await db.query(`
                     SELECT upc.user_promo_code_id AS promo_id,
                            pc.code AS promoCode,
                            pc.discountValue,
-                           pc.minSpend,
-                           upc.usedCount AS usage_count,
-                           upc.maxUse
+                           pc.minSpend
                     FROM user_promo_codes upc
                     LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
                     WHERE upc.user_promo_code_id = ?
                 `, [booking.user_promo_code_id]);
 
-                if (userPromo) {
-                    promo = { ...userPromo };
-                } else {
+                if (userPromo) promo = userPromo;
+                else {
                     const [[systemPromo]] = await db.query(`
                         SELECT spc.system_promo_code_id AS promo_id,
                                spct.code AS promoCode,
                                spct.discountValue
                         FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
+                        LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id
                         WHERE spc.system_promo_code_id = ?
                     `, [booking.user_promo_code_id]);
-
-                    if (systemPromo) promo = { ...systemPromo };
+                    if (systemPromo) promo = systemPromo;
                 }
 
                 if (promo) booking.promo = promo;
             }
 
-            // Employee info
+            // 9️⃣ Employee info
             if (booking.assignedEmployeeId) {
                 booking.assignedEmployee = {
                     employee_id: booking.assignedEmployeeId,
                     name: `${booking.employeeFirstName} ${booking.employeeLastName}`,
                     email: booking.employeeEmail,
-                    phone: booking.employeePhone,
+                    phone: booking.employeePhone
                 };
             }
 
-            // Cleanup old fields
-            ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(key => delete booking[key]);
-
-            // Remove null values
-            Object.keys(booking).forEach(key => {
-                if (booking[key] === null) delete booking[key];
-            });
+            // 10️⃣ Cleanup old fields & remove nulls
+            ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(k => delete booking[k]);
+            Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
         }
 
         res.status(200).json({
             message: "Vendor bookings fetched successfully",
-            bookings,
+            bookings
         });
+
     } catch (error) {
         console.error("Error fetching vendor bookings:", error);
         res.status(500).json({
             message: "Internal server error",
-            error: error.message,
+            error: error.message
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
