@@ -14,6 +14,7 @@ const bookingGetQueries = {
     sb.start_time,
     sb.end_time,
     s.service_id,
+    s.serviceName,
     p.amount AS payment_amount,
     p.currency AS payment_currency,
     u.user_id,
