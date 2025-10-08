@@ -41,12 +41,20 @@ const updateServiceTax = asyncHandler(async (req, res) => {
 
 // Delete a service tax
 const deleteServiceTax = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const { service_taxes_id } = req.params;
 
-    await db.query("DELETE FROM service_taxes WHERE service_taxes_id = ?", [id]);
+    const [result] = await db.query(
+        "DELETE FROM service_taxes WHERE service_taxes_id = ?",
+        [service_taxes_id]
+    );
+
+    if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Service tax not found" });
+    }
 
     res.json({ message: "Service tax deleted" });
 });
+
 
 module.exports = {
     createServiceTax,
