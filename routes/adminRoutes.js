@@ -20,7 +20,9 @@ const { getVendor,
     editEmployeeProfileByAdmin,
     deleteEmployeeProfileByAdmin,
     getPackageList,
-    getPackageDetails
+    getPackageDetails,
+    getAdminCreatedPackages
+
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -42,6 +44,7 @@ router.get("/getallemployees", authenticationToken, getAllEmployeesForAdmin)
 router.get("/getpackagelist", authenticationToken, getPackageList)
 router.get("/getpackagedetails/:package_id", authenticationToken, getPackageDetails)
 
+router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
 
 router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequests)
 router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
