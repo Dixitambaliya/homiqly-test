@@ -576,12 +576,12 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
         `, [employee_id]);
         const vendor_id = employeeRow?.vendor_id;
 
-        // 2️⃣ Get vendor type and latest platform fee
-        const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
-        const vendorType = vendorRow?.vendorType || null;
+        // // 2️⃣ Get vendor type and latest platform fee
+        // const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
+        // const vendorType = vendorRow?.vendorType || null;
 
-        const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
-        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+        // const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
+        // const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
         // 3️⃣ Fetch employee bookings
         const [bookings] = await db.query(`
@@ -636,7 +636,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                     addon_id: a.addon_id,
                     addonName: a.addonName,
                     addonMedia: a.addonMedia,
-                    price: a.price,
                     quantity: a.quantity
                 });
             });
@@ -646,8 +645,7 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 if (!prefsByItem[p.sub_package_id]) prefsByItem[p.sub_package_id] = [];
                 prefsByItem[p.sub_package_id].push({
                     preference_id: p.preference_id,
-                    preferenceValue: p.preferenceValue,
-                    preferencePrice: p.preferencePrice
+                    preferenceValue: p.preferenceValue
                 });
             });
 
@@ -695,37 +693,37 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
 
             booking.subPackages = Object.values(groupedByPackage);
 
-            // 8️⃣ Attach promo code if exists
-            if (booking.user_promo_code_id) {
-                let promo = null;
+            // // 8️⃣ Attach promo code if exists
+            // if (booking.user_promo_code_id) {
+            //     let promo = null;
 
-                const [[userPromo]] = await db.query(`
-                    SELECT upc.user_promo_code_id AS promo_id,
-                           pc.code AS promoCode,
-                           pc.discountValue,
-                           pc.minSpend
-                    FROM user_promo_codes upc
-                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-                    WHERE upc.user_promo_code_id = ?
-                `, [booking.user_promo_code_id]);
+            //     const [[userPromo]] = await db.query(`
+            //         SELECT upc.user_promo_code_id AS promo_id,
+            //                pc.code AS promoCode,
+            //                pc.discountValue,
+            //                pc.minSpend
+            //         FROM user_promo_codes upc
+            //         LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+            //         WHERE upc.user_promo_code_id = ?
+            //     `, [booking.user_promo_code_id]);
 
-                if (userPromo) {
-                    promo = userPromo;
-                } else {
-                    const [[systemPromo]] = await db.query(`
-                        SELECT spc.system_promo_code_id AS promo_id,
-                               spct.code AS promoCode,
-                               spct.discountValue
-                        FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
-                        WHERE spc.system_promo_code_id = ?
-                    `, [booking.user_promo_code_id]);
+            //     if (userPromo) {
+            //         promo = userPromo;
+            //     } else {
+            //         const [[systemPromo]] = await db.query(`
+            //             SELECT spc.system_promo_code_id AS promo_id,
+            //                    spct.code AS promoCode,
+            //                    spct.discountValue
+            //             FROM system_promo_codes spc
+            //             LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
+            //             WHERE spc.system_promo_code_id = ?
+            //         `, [booking.user_promo_code_id]);
 
-                    if (systemPromo) promo = systemPromo;
-                }
+            //         if (systemPromo) promo = systemPromo;
+            //     }
 
-                if (promo) booking.promo = promo;
-            }
+            //     if (promo) booking.promo = promo;
+            // }
 
             // 9️⃣ Remove null fields
             Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
