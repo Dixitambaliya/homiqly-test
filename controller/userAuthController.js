@@ -95,7 +95,6 @@ const verifyCode = asyncHandler(async (req, res) => {
     res.status(200).json({ message: "Code verified. You can now set your password." });
 });
 
-
 const setPassword = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
@@ -135,7 +134,6 @@ const setPassword = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
-
 
 // User Login
 const loginUser = asyncHandler(async (req, res) => {

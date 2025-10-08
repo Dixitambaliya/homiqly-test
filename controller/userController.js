@@ -1,6 +1,7 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
 const userGetQueries = require("../config/userQueries/userGetQueries")
+const bcrypt = require ("bcryptjs")
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
@@ -602,6 +603,45 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
     }
 });
 
+const changeUserPassword = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { newPassword, confirmPassword } = req.body;
+
+    if (!user_id) {
+        return res.status(401).json({ message: "Unauthorized: Missing user_id" });
+    }
+
+    if (!newPassword || !confirmPassword) {
+        return res.status(400).json({ message: "Both newPassword and confirmPassword are required" });
+    }
+
+    if (newPassword !== confirmPassword) {
+        return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    try {
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update user password
+        const [result] = await db.query(
+            `UPDATE users SET password = ? WHERE user_id = ?`,
+            [hashedPassword, user_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(400).json({ message: "Failed to update password" });
+        }
+
+        res.status(200).json({ message: "Password changed successfully" });
+
+    } catch (err) {
+        console.error("Error changing user password:", err);
+        res.status(500).json({ message: "Internal server error", details: err.message });
+    }
+});
+
 
 
 
@@ -619,5 +659,6 @@ module.exports = {
     getPackagesDetails,
     deleteBooking,
     getPackagesByServiceType,
-    getPackageDetailsById
+    getPackageDetailsById,
+    changeUserPassword
 }

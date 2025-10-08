@@ -337,7 +337,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   });
 });
 
-
 // ✅ stripeWebhook.js
 exports.stripeWebhook = asyncHandler(async (req, res) => {
   let event;
@@ -605,9 +604,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
   })(); // end background task
 });
-
-
-
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;
