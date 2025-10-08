@@ -13,9 +13,10 @@ const { getServiceCategories,
     getPackagesByServiceTypeId,
     getPackagesDetails,
     deleteBooking,
-    // getVendorPackagesByServiceTypeId,
+    changeUserPassword,
     getPackagesByServiceType,
-    getPackageDetailsById
+    getPackageDetailsById,
+    getUserProfileWithCart
 } = require("../controller/userController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -30,11 +31,11 @@ router.get("/getdata", authenticationToken, getUserData)
 router.delete("/deletebookings/:booking_id", authenticationToken, deleteBooking)
 router.get("/getpackagedetails/:service_type_id", getPackagesDetails)
 router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
-// router.get("/services/:service_type_id/getpackages", getVendorPackagesByServiceTypeId)
-
+router.get("/getdatawithcart/:cart_id", authenticationToken, getUserProfileWithCart)
 router.get("/services/:service_type_id/getpackageimages", getPackagesByServiceType)
 router.get("/services/:package_id/getpackagedetails", getPackageDetailsById)
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
 router.put("/insertdata", authenticationToken, addUserData)
+router.put("/changepassword", authenticationToken, changeUserPassword)
 
 module.exports = router

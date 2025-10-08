@@ -23,13 +23,8 @@ const employeeAuthQueries = {
 
     updateEmployeeLastLogin: `
         UPDATE company_employees 
-        SET last_login = NOW(), fcmToken = ?
+        SET fcmToken = ?
         WHERE employee_id = ?
-    `,
-
-    createEmployeeSession: `
-        INSERT INTO employee_sessions (employee_id, ip_address, user_agent)
-        VALUES (?, ?, ?)
     `,
 
     updateEmployeeSession: `

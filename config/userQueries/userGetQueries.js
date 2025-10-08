@@ -11,6 +11,7 @@ const userGetQueries = {
                     profileImage,
                     phone,
                     flatNumber,
+                    is_approved,
                     parkingInstruction,
                     postalCode AS postalcode,
                     address,

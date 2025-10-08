@@ -123,6 +123,7 @@ const vendorGetQueries = {
         -- Package Info
         pkg.package_id,
         pkg.packageName,
+        pkg.packageMedia,
 
         -- Payment Info (apply platform fee)
         CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS totalPrice,
@@ -133,25 +134,12 @@ const vendorGetQueries = {
 
     JOIN users u ON sb.user_id = u.user_id
     JOIN vendors v ON sb.vendor_id = v.vendor_id
+    LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+    LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+    LEFT JOIN packages pkg ON pkg.package_id = sb.package_id
+    LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
 
-    LEFT JOIN individual_details idet 
-        ON v.vendor_id = idet.vendor_id 
-        AND v.vendorType = 'individual'
-    LEFT JOIN company_details cdet 
-        ON v.vendor_id = cdet.vendor_id 
-        AND v.vendorType = 'company'
-
-    LEFT JOIN service_booking_packages sbp 
-        ON sbp.booking_id = sb.booking_id
-    LEFT JOIN packages pkg 
-        ON pkg.package_id = sbp.package_id
-
-    -- 🔹 Join payments to pull amount & currency
-    LEFT JOIN payments p 
-        ON p.payment_intent_id = sb.payment_intent_id
-
-    WHERE sb.vendor_id = ? 
-      AND sb.payment_intent_id IS NOT NULL
+    WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
 
     ORDER BY sb.created_at DESC
 `,

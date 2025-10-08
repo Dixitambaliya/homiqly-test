@@ -5,7 +5,6 @@ const vendorAuthQueries = require("../config/vendorQueries/vendorAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
-const Mail = require("nodemailer/lib/mailer");
 const { sendVendorRegistrationNotification } = require("./adminNotification");
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -228,8 +227,7 @@ const loginVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        console.log(vendorDetails);
-        
+
         if (!vendorDetails) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
@@ -239,8 +237,6 @@ const loginVendor = asyncHandler(async (req, res) => {
             [vendorDetails.vendor_id]
         );
 
-        console.log(vendorAuthResult);
-        
 
         if (vendorAuthResult.length === 0) {
             return res.status(401).json({ error: "Invalid credentials" });

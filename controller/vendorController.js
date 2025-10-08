@@ -2,6 +2,7 @@ const { db } = require("../config/db");
 const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
 const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
 const nodemailer = require("nodemailer");
+const bcrypt = require("bcryptjs")
 const asyncHandler = require("express-async-handler");
 const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries")
 
@@ -1171,9 +1172,8 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
 
 const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id; // company/vendor admin id
-    const { employee_id } = req.params
-
-    const { first_name, last_name, phone, email } = req.body;
+    const { employee_id } = req.params;
+    const { first_name, last_name, phone, email, password } = req.body;
 
     if (!vendorId) {
         return res.status(401).json({ message: "Unauthorized: vendor_id missing" });
@@ -1187,7 +1187,7 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
     try {
         // Step 1: Fetch employee and check if belongs to this vendor/company
         const [existingRows] = await db.query(
-            `SELECT first_name, last_name, phone, email, profile_image 
+            `SELECT first_name, last_name, phone, email, profile_image, password 
              FROM company_employees 
              WHERE employee_id = ? AND vendor_id = ?`,
             [employee_id, vendorId]
@@ -1206,12 +1206,27 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
         const updatedEmail = email || existing.email;
         const updatedProfileImage = newProfileImage || existing.profile_image;
 
+        let updatedPassword = existing.password;
+        if (password && password.trim() !== "") {
+            const salt = await bcrypt.genSalt(10);
+            updatedPassword = await bcrypt.hash(password, salt);
+        }
+
         // Step 3: Update employee record
         const [result] = await db.query(
             `UPDATE company_employees
-             SET first_name = ?, last_name = ?, phone = ?, email = ?, profile_image = ?
+             SET first_name = ?, last_name = ?, phone = ?, email = ?, password = ?, profile_image = ?
              WHERE employee_id = ? AND vendor_id = ?`,
-            [updatedFirstName, updatedLastName, updatedPhone, updatedEmail, updatedProfileImage, employee_id, vendorId]
+            [
+                updatedFirstName,
+                updatedLastName,
+                updatedPhone,
+                updatedEmail,
+                updatedPassword,
+                updatedProfileImage,
+                employee_id,
+                vendorId
+            ]
         );
 
         if (result.affectedRows === 0) {
@@ -1224,7 +1239,6 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 });
-
 
 module.exports = {
     getVendorAssignedPackages,

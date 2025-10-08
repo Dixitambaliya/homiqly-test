@@ -130,7 +130,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   // ✅ Fetch cart details
   const [cartRows] = await db.query(
-    `SELECT sc.*, sc.user_promo_code_id, p.packageName
+    `SELECT sc.*, p.packageName
      FROM service_cart sc
      LEFT JOIN packages p ON sc.package_id = p.package_id
      WHERE sc.cart_id = ?`,
@@ -175,33 +175,73 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   // ✅ Fetch promo if exists
   let appliedPromo = null;
+
   if (cart.user_promo_code_id) {
-    const [[userPromo]] = await db.query(
-      `SELECT upc.*, pc.discountValue, pc.minSpend, pc.start_date, pc.end_date
-       FROM user_promo_codes upc
-       LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-       WHERE upc.user_promo_code_id = ? AND upc.user_id = ?`,
-      [cart.user_promo_code_id, cart.user_id]
+
+    const [userPromoRows] = await db.query(
+      `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+      [cart.user_id, cart.user_promo_code_id]
     );
 
-    if (userPromo) {
-      if (userPromo.usedCount < userPromo.maxUse) {
-        if (userPromo.source_type === "admin") {
-          if ((!userPromo.start_date || new Date(userPromo.start_date) <= new Date()) &&
-            (!userPromo.end_date || new Date(userPromo.end_date) >= new Date())) {
-            appliedPromo = userPromo;
-          }
-        } else if (userPromo.source_type === "system") {
-          // ✅ Get full details from system_promo_codes
-          const [systemPromoRows] = await db.query(
-            `SELECT * FROM system_promo_codes WHERE code = ? AND user_id = ? LIMIT 1`,
-            [userPromo.code, cart.user_id]
-          );
-          if (systemPromoRows.length) appliedPromo = systemPromoRows[0];
+    if (userPromoRows.length) {
+      const promo = userPromoRows[0];
+
+      // ✅ Admin-assigned promo
+      if (promo.source_type === "admin" && promo.promo_id) {
+        const [adminPromoRows] = await db.query(
+          `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
+          [promo.promo_id]
+        );
+
+        if (adminPromoRows.length) {
+          appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
         }
+      }
+
+      // ✅ System promo (linked via template)
+      if (!appliedPromo && promo.source_type === "system") {
+        const [systemPromoRows] = await db.query(
+          `SELECT sc.*, 
+                st.discount_type, 
+                st.discountValue, 
+                st.minSpend, 
+                st.maxUse, 
+                st.code
+           FROM system_promo_codes sc
+           JOIN system_promo_code_templates st 
+             ON sc.template_id = st.system_promo_code_template_id
+          WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+          [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
+        );
+
+        if (systemPromoRows.length) {
+          appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+        }
+      }
+    } else {
+      // ✅ Fallback — Direct system promo without user_promo_codes entry
+      const [systemPromoRows] = await db.query(
+        `SELECT sc.*, 
+              st.discount_type, 
+              st.discountValue, 
+              st.minSpend, 
+              st.maxUse, 
+              st.code
+         FROM system_promo_codes sc
+         JOIN system_promo_code_templates st 
+           ON sc.template_id = st.system_promo_code_template_id
+        WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+        [cart.user_promo_code_id, cart.user_id]
+      );
+
+      if (systemPromoRows.length) {
+        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+      } else {
+        console.log("🚫 No matching promo found in system_promo_codes either");
       }
     }
   }
+
 
   // ✅ Calculate subtotal including sub-packages, addons, preferences
   let subtotal = 0;
@@ -226,20 +266,29 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
   });
 
-  // ✅ Apply percentage discount
-  let discount = 0;
+  // ✅ Apply discount (percentage or fixed)
+  let discountAmount = 0;
   let totalAmount = subtotal;
 
   if (appliedPromo && (!appliedPromo.minSpend || subtotal >= appliedPromo.minSpend)) {
-    discount = parseFloat(appliedPromo.discountValue || 0); // percentage
-    totalAmount = subtotal * (1 - discount / 100);
+    const discountValue = parseFloat(appliedPromo.discountValue || 0);
+    const discountType = appliedPromo.discount_type || "percentage";
+
+    if (discountType === "fixed") {
+      discountAmount = discountValue;
+      totalAmount = Math.max(0, subtotal - discountValue);
+    } else {
+      discountAmount = subtotal * (discountValue / 100);
+      totalAmount = subtotal - discountAmount;
+    }
+
     metadata.promo_code = appliedPromo.code;
     metadata.user_promo_code_id = appliedPromo.user_promo_code_id || null;
     metadata.promo_source = appliedPromo.source_type || "system";
+    metadata.discount = discountAmount.toFixed(2);
   }
 
   metadata.subtotal = subtotal;
-  metadata.discount = discount;
   metadata.totalAmount = totalAmount.toFixed(2);
 
   if (totalAmount <= 0) return res.status(400).json({ error: "Total amount must be greater than 0" });
@@ -251,7 +300,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   );
 
   let paymentIntent;
-
   if (existingPayment.length > 0) {
     // Update existing PaymentIntent
     paymentIntent = await stripe.paymentIntents.update(existingPayment[0].payment_intent_id, {
@@ -289,9 +337,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   });
 });
 
-
 // ✅ stripeWebhook.js
-
 exports.stripeWebhook = asyncHandler(async (req, res) => {
   let event;
 
@@ -387,7 +433,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           cart.vendor_id,
           cart.notes,
           cart.bookingMedia,
-          "pending",
+          0,
           "pending",
           paymentIntentId,
           user_promo_code_id || null
@@ -452,38 +498,43 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
       // ✅ Promo usage tracking
       if (user_promo_code_id) {
-        // check if promo exists in user_promo_codes
+        // Check if it's an admin/user-assigned code
         const [[userPromo]] = await connection.query(
           `SELECT user_promo_code_id, promo_id, source_type FROM user_promo_codes WHERE user_promo_code_id = ?`,
           [user_promo_code_id]
         );
 
         if (userPromo) {
-          // user/admin assigned code
+          // Admin code
           await connection.query(
             `UPDATE user_promo_codes 
-             SET usedCount = usedCount + 1 
-             WHERE user_promo_code_id = ? AND usedCount < maxUse`,
+       SET usedCount = usedCount + 1 
+       WHERE user_promo_code_id = ? AND usedCount < maxUse`,
             [user_promo_code_id]
           );
           console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
         } else {
-          // check system promo codes
+          // System code
           const [[systemPromo]] = await connection.query(
-            `SELECT system_promo_code_id FROM system_promo_codes WHERE system_promo_code_id = ?`,
+            `SELECT spc.system_promo_code_id, spt.maxUse
+            FROM system_promo_codes spc
+            JOIN system_promo_code_templates spt ON spc.template_id = spt.system_promo_code_template_id
+            WHERE spc.system_promo_code_id = ?`,
             [user_promo_code_id]
           );
+
           if (systemPromo) {
             await connection.query(
-              `UPDATE system_promo_codes 
-               SET usage_count = usage_count + 1 
-               WHERE system_promo_code_id = ? AND usage_count < maxUse`,
-              [user_promo_code_id]
+              `UPDATE system_promo_codes
+         SET usage_count = usage_count + 1
+         WHERE system_promo_code_id = ? AND usage_count < ?`,
+              [user_promo_code_id, systemPromo.maxUse]
             );
             console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
           }
         }
       }
+
 
       // ✅ Capture payment
       await stripe.paymentIntents.capture(paymentIntentId);
@@ -495,7 +546,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         [paymentIntentId]
       );
       await connection.query(
-        `UPDATE service_booking SET payment_status = 'completed', bookingStatus = 'confirmed' WHERE booking_id = ?`,
+        `UPDATE service_booking SET payment_status = 'completed', bookingStatus = 1 WHERE booking_id = ?`,
         [booking_id]
       );
 
@@ -553,9 +604,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
   })(); // end background task
 });
-
-
-
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;

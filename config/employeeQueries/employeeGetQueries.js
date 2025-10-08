@@ -30,7 +30,17 @@ const employeeGetQueries = {
 
     getemployeeBookings:
         ` SELECT
-                sb.*,
+                sb.booking_id, 
+                sb.bookingDate, 
+                sb.bookingTime, 
+                sb.bookingStatus, 
+                sb.notes, 
+                sb.bookingMedia, 
+                sb.package_id,
+                sb.assigned_employee_id,
+                sb.payment_status, 
+                sb.start_time,
+                sb.end_time,
                 s.serviceName,
                 p.status AS payment_status,
                 p.currency AS payment_currency,

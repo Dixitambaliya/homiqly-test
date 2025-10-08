@@ -239,7 +239,9 @@ const getBookings = asyncHandler(async (req, res) => {
                 p.amount AS payment_amount,
                 p.currency AS payment_currency,
 
-                pkg.package_id,
+                sb.package_id,
+                pkg.packageName,
+                pkg.packageMedia,
                 pi.item_id,
                 pi.itemName,
                 pi.itemMedia,
@@ -270,8 +272,7 @@ const getBookings = asyncHandler(async (req, res) => {
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
 
-            LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-            LEFT JOIN packages pkg ON sbp.package_id = pkg.package_id
+            LEFT JOIN packages pkg ON sb.package_id = pkg.package_id
 
             LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
             LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
@@ -332,10 +333,12 @@ const getBookings = asyncHandler(async (req, res) => {
                 if (!pkg) {
                     pkg = {
                         package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
                         items: [],
                         addons: [],
-                        preferences:[],
-                        censents:[]
+                        preferences: [],
+                        concents: []
                     };
                     booking.packages.push(pkg);
                 }
@@ -368,8 +371,8 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
                 // ===== concent form =====
-                if (row.consent_id && !pkg.censents.find(p => p.consent_id === row.consent_id)) {
-                    pkg.censents.push({
+                if (row.consent_id && !pkg.concents.find(p => p.consent_id === row.consent_id)) {
+                    pkg.concents.push({
                         consent_id: row.consent_id,
                         question: row.question,
                         answer: row.answer,
@@ -580,160 +583,166 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-const getAdminCreatedPackages = asyncHandler(async (req, res) => {
+const getPackageList = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT
-                sc.service_categories_id AS service_category_id,
-                sc.serviceCategory AS service_category_name,
-                s.service_id,
-                s.serviceName AS service_name,
-                s.serviceFilter,
+            SELECT 
                 p.package_id,
-                p.packageName,
-                p.packageMedia,
+                -- Show packageName if exists, otherwise show serviceName
+                CASE 
+                    WHEN (p.packageName IS NULL OR p.packageName = '') 
+                    THEN s.serviceName
+                    ELSE p.packageName
+                END AS packageName,
+                
+                -- Show packageMedia if exists, otherwise show serviceImage
+                CASE 
+                    WHEN (p.packageMedia IS NULL OR p.packageMedia = '') 
+                    THEN s.serviceImage
+                    ELSE p.packageMedia
+                END AS packageMedia,
+                
                 st.service_type_id,
-                pi.item_id AS sub_package_id,
-                pi.itemName AS item_name,
-                pi.description AS sub_description,
-                pi.price AS sub_price,
-                pi.timeRequired AS sub_time_required,
-                pi.itemMedia AS item_media,
-                pa.addon_id,
-                pa.addonName AS addon_name,
-                pa.addonDescription AS addon_description,
-                pa.addonPrice AS addon_price,
-                pa.addonTime AS addon_time_required,
-                pcf.consent_id,
-                pcf.question AS consent_question,
-                pcf.is_required AS consent_is_required,
-                bp.preference_id,
-                bp.preferenceValue,
-                bp.preferencePrice,
-                bp.is_required AS preference_is_required,
-                bp.preferenceGroup
-            FROM services s
+                s.service_id,
+                sc.serviceCategory AS service_category_name
+            FROM packages p
+            JOIN service_type st ON p.service_type_id = st.service_type_id
+            JOIN services s ON st.service_id = s.service_id
             JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
-            LEFT JOIN service_type st ON st.service_id = s.service_id
-            LEFT JOIN packages p ON p.service_type_id = st.service_type_id
-            LEFT JOIN package_items pi ON pi.package_id = p.package_id
-            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
-            LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
-            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
-            WHERE p.package_id IS NOT NULL
-            ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
+            ORDER BY p.package_id DESC
         `);
 
-        const servicesMap = new Map();
+        res.json({
+            message: "Packages list fetched successfully",
+            packages: rows
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching packages", error: error.message });
+    }
+});
+
+const getPackageDetails = asyncHandler(async (req, res) => {
+    const { package_id } = req.params;
+
+    try {
+        const [rows] = await db.query(`
+      SELECT
+        p.package_id,
+        p.packageName,
+        p.packageMedia,
+        pi.item_id AS sub_package_id,
+        pi.itemName AS item_name,
+        pi.description AS sub_description,
+        pi.price AS sub_price,
+        pi.timeRequired AS sub_time_required,
+        pi.itemMedia AS item_media,
+        pa.addon_id,
+        pa.addonName AS addon_name,
+        pa.addonDescription AS addon_description,
+        pa.addonPrice AS addon_price,
+        pa.addonTime AS addon_time_required,
+        pcf.consent_id,
+        pcf.question AS consent_question,
+        pcf.is_required AS consent_is_required,
+        bp.preference_id,
+        bp.preferenceValue,
+        bp.preferencePrice,
+        bp.is_required AS preference_is_required,
+        bp.preferenceGroup
+      FROM packages p
+      LEFT JOIN package_items pi ON pi.package_id = p.package_id
+      LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+      LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
+      LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+      WHERE p.package_id = ?
+    `, [package_id]);
+
+        if (!rows.length) {
+            return res.status(404).json({ message: "Package not found" });
+        }
+
+        // Map package → subpackages → addons, preferences, consent forms
+        const pkg = {
+            package_id: rows[0].package_id,
+            packageName: rows[0].packageName,
+            packageMedia: rows[0].packageMedia,
+            sub_packages: new Map()
+        };
 
         for (const row of rows) {
-            if (!servicesMap.has(row.service_id)) {
-                servicesMap.set(row.service_id, {
-                    service_category_id: row.service_category_id,
-                    service_category_name: row.service_category_name,
-                    service_id: row.service_id,
-                    service_name: row.service_name,
-                    service_filter: row.serviceFilter,
-                    packages: new Map()
-                });
-            }
-            const service = servicesMap.get(row.service_id);
-
-            if (row.package_id) {
-                if (!service.packages.has(row.package_id)) {
-                    service.packages.set(row.package_id, {
-                        package_id: row.package_id,
-                        packageName: row.packageName,
-                        packageMedia: row.packageMedia,
-                        service_type_id: row.service_type_id,
-                        sub_packages: new Map()
+            if (row.sub_package_id) {
+                if (!pkg.sub_packages.has(row.sub_package_id)) {
+                    pkg.sub_packages.set(row.sub_package_id, {
+                        sub_package_id: row.sub_package_id,
+                        item_name: row.item_name,
+                        description: row.sub_description,
+                        price: row.sub_price,
+                        time_required: row.sub_time_required,
+                        item_media: row.item_media,
+                        addons: [],
+                        preferences: {},
+                        consentForm: []
                     });
                 }
-                const pkg = service.packages.get(row.package_id);
+                const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                // Sub-packages
-                if (row.sub_package_id) {
-                    if (!pkg.sub_packages.has(row.sub_package_id)) {
-                        pkg.sub_packages.set(row.sub_package_id, {
-                            sub_package_id: row.sub_package_id,
-                            item_name: row.item_name,
-                            description: row.sub_description,
-                            price: row.sub_price,
-                            time_required: row.sub_time_required,
-                            item_media: row.item_media,
-                            addons: [],
-                            preferences: {},   // grouped by preferenceGroup with group-level is_required
-                            consentForm: []
+                // Preferences grouped by preferenceGroup
+                if (row.preference_id != null) {
+                    const groupKey = row.preferenceGroup;
+                    if (!sp.preferences[groupKey]) {
+                        sp.preferences[groupKey] = {
+                            is_required: row.preference_is_required,
+                            items: []
+                        };
+                    }
+                    if (!sp.preferences[groupKey].items.some(p => p.preference_id === row.preference_id)) {
+                        sp.preferences[groupKey].items.push({
+                            preference_id: row.preference_id,
+                            preference_value: row.preferenceValue,
+                            preference_price: row.preferencePrice
                         });
                     }
-                    const sp = pkg.sub_packages.get(row.sub_package_id);
+                }
 
-                    // Preferences grouped by preferenceGroup
-                    if (row.preference_id != null) {
-                        const groupKey = row.preferenceGroup;
+                // Addons
+                if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+                    sp.addons.push({
+                        addon_id: row.addon_id,
+                        addon_name: row.addon_name,
+                        description: row.addon_description,
+                        price: row.addon_price,
+                        time_required: row.addon_time_required
+                    });
+                }
 
-                        // Initialize group if not exists
-                        if (!sp.preferences[groupKey]) {
-                            sp.preferences[groupKey] = {
-                                is_required: row.preference_is_required, // group-level
-                                items: []
-                            };
-                        }
-
-                        // Add preference under group
-                        if (!sp.preferences[groupKey].items.some(p => p.preference_id === row.preference_id)) {
-                            sp.preferences[groupKey].items.push({
-                                preference_id: row.preference_id,
-                                preference_value: row.preferenceValue,
-                                preference_price: row.preferencePrice
-                            });
-                        }
-                    }
-
-                    // Addons
-                    if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
-                        sp.addons.push({
-                            addon_id: row.addon_id,
-                            addon_name: row.addon_name,
-                            description: row.addon_description,
-                            price: row.addon_price,
-                            time_required: row.addon_time_required
-                        });
-                    }
-
-                    // Consent forms
-                    if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
-                        sp.consentForm.push({
-                            consent_id: row.consent_id,
-                            question: row.consent_question,
-                            is_required: row.consent_is_required
-                        });
-                    }
+                // Consent forms
+                if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
+                    sp.consentForm.push({
+                        consent_id: row.consent_id,
+                        question: row.consent_question,
+                        is_required: row.consent_is_required
+                    });
                 }
             }
         }
 
-        const result = Array.from(servicesMap.values()).map(s => ({
-            ...s,
-            packages: Array.from(s.packages.values()).map(p => ({
-                ...p,
-                sub_packages: Array.from(p.sub_packages.values())
-            }))
-        }));
+        // Convert Map to array
+        const result = {
+            ...pkg,
+            sub_packages: Array.from(pkg.sub_packages.values())
+        };
 
         res.status(200).json({
-            message: "Admin packages fetched successfully",
-            result
+            message: "Package details fetched successfully",
+            package: result
         });
+
     } catch (error) {
-        console.error("Error fetching admin-created packages:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+        console.error("Error fetching package details:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-    
+
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -1145,61 +1154,62 @@ const getAllPayments = asyncHandler(async (req, res) => {
     try {
         const [payments] = await db.query(`
       SELECT
-          p.payment_id,
-          p.payment_intent_id,
-          p.amount,
-          p.currency,
-          p.created_at,
-          p.status,
+    p.payment_id,
+    p.payment_intent_id,
+    p.amount,
+    p.currency,
+    p.created_at,
+    p.status,
 
-          -- User Info
-          u.user_id,
-          u.firstname AS user_firstname,
-          u.lastname AS user_lastname,
-          u.email AS user_email,
-          u.phone AS user_phone,
+    -- User Info
+    u.user_id,
+    u.firstname AS user_firstname,
+    u.lastname AS user_lastname,
+    u.email AS user_email,
+    u.phone AS user_phone,
 
-          -- Vendor Info
-          v.vendor_id,
-          v.vendorType,
+    -- Vendor Info
+    v.vendor_id,
+    v.vendorType,
 
-          -- Individual Vendor Info
-          idet.name AS individual_name,
-          idet.phone AS individual_phone,
-          idet.email AS individual_email,
-          idet.profileImage AS individual_profile_image,
+    -- Individual Vendor Info
+    idet.name AS individual_name,
+    idet.phone AS individual_phone,
+    idet.email AS individual_email,
+    idet.profileImage AS individual_profile_image,
 
-          -- Company Vendor Info
-          cdet.companyName,
-          cdet.contactPerson,
-          cdet.companyEmail AS email,
-          cdet.companyPhone AS phone,
-          cdet.profileImage AS company_profile_image,
+    -- Company Vendor Info
+    cdet.companyName,
+    cdet.contactPerson,
+    cdet.companyEmail AS email,
+    cdet.companyPhone AS phone,
+    cdet.profileImage AS company_profile_image,
 
-          -- Package Info
-          pkg.package_id
+    -- Package Info
+    pkg.package_id,
+    pkg.packageName,
+    pkg.packageMedia
 
-      FROM payments p
-      JOIN users u ON p.user_id = u.user_id
-      JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-      JOIN vendors v ON sb.vendor_id = v.vendor_id
-      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-      JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-      JOIN packages pkg ON pkg.package_id = sbp.package_id
+FROM payments p
+JOIN users u ON p.user_id = u.user_id
+LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+JOIN packages pkg ON pkg.package_id = sb.package_id
+ORDER BY p.created_at DESC;
 
-      ORDER BY p.created_at DESC
     `);
 
         const enhancedPayments = await Promise.all(
             payments.map(async (payment, index) => {
-                console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
-                console.log(`👉 Payment ID: ${payment.payment_id}`);
-                console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
+                // console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
+                // console.log(`👉 Payment ID: ${payment.payment_id}`);
+                // console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
 
                 try {
                     const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id);
-                    console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
+                    // console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
 
                     const charges = await stripe.charges.list({
                         payment_intent: payment.payment_intent_id,
@@ -1207,16 +1217,16 @@ const getAllPayments = asyncHandler(async (req, res) => {
                     });
                     const charge = charges.data?.[0];
 
-                    if (!charge) {
-                        console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
-                    } else {
-                        console.log(`✅ Retrieved Charge ID: ${charge.id}`);
-                        console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
-                        console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
-                        console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
-                        console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
-                        console.log(`🕒 Paid At (raw): ${charge.created}`);
-                    }
+                    // if (!charge) {
+                    //     console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
+                    // } else {
+                    //     console.log(`✅ Retrieved Charge ID: ${charge.id}`);
+                    //     console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
+                    //     console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
+                    //     console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
+                    //     console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
+                    //     console.log(`🕒 Paid At (raw): ${charge.created}`);
+                    // }
 
                     const stripeMetadata = {
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
@@ -1719,6 +1729,160 @@ const deleteEmployeeProfileByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+const getAdminCreatedPackages = asyncHandler(async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+                SELECT
+                    sc.service_categories_id AS service_category_id,
+                    sc.serviceCategory AS service_category_name,
+                    s.service_id,
+                    s.serviceName AS service_name,
+                    s.serviceFilter,
+                    p.package_id,
+                    p.packageName,
+                    p.packageMedia,
+                    st.service_type_id,
+                    pi.item_id AS sub_package_id,
+                    pi.itemName AS item_name,
+                    pi.description AS sub_description,
+                    pi.price AS sub_price,
+                    pi.timeRequired AS sub_time_required,
+                    pi.itemMedia AS item_media,
+                    pa.addon_id,
+                    pa.addonName AS addon_name,
+                    pa.addonDescription AS addon_description,
+                    pa.addonPrice AS addon_price,
+                    pa.addonTime AS addon_time_required,
+                    pcf.consent_id,
+                    pcf.question AS consent_question,
+                    pcf.is_required AS consent_is_required,
+                    bp.preference_id,
+                    bp.preferenceValue,
+                    bp.preferencePrice,
+                    bp.is_required AS preference_is_required,
+                    bp.preferenceGroup
+                FROM services s
+                JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+                LEFT JOIN service_type st ON st.service_id = s.service_id
+                LEFT JOIN packages p ON p.service_type_id = st.service_type_id
+                LEFT JOIN package_items pi ON pi.package_id = p.package_id
+                LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+                LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
+                LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+                WHERE p.package_id IS NOT NULL
+                ORDER BY s.service_id DESC, p.package_id, pi.item_id, bp.preferenceGroup
+            `);
+
+        const servicesMap = new Map();
+
+        for (const row of rows) {
+            if (!servicesMap.has(row.service_id)) {
+                servicesMap.set(row.service_id, {
+                    service_category_id: row.service_category_id,
+                    service_category_name: row.service_category_name,
+                    service_id: row.service_id,
+                    service_name: row.service_name,
+                    service_filter: row.serviceFilter,
+                    packages: new Map()
+                });
+            }
+            const service = servicesMap.get(row.service_id);
+
+            if (row.package_id) {
+                if (!service.packages.has(row.package_id)) {
+                    service.packages.set(row.package_id, {
+                        package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
+                        service_type_id: row.service_type_id,
+                        sub_packages: new Map()
+                    });
+                }
+                const pkg = service.packages.get(row.package_id);
+
+                // Sub-packages
+                if (row.sub_package_id) {
+                    if (!pkg.sub_packages.has(row.sub_package_id)) {
+                        pkg.sub_packages.set(row.sub_package_id, {
+                            sub_package_id: row.sub_package_id,
+                            item_name: row.item_name,
+                            description: row.sub_description,
+                            price: row.sub_price,
+                            time_required: row.sub_time_required,
+                            item_media: row.item_media,
+                            addons: [],
+                            preferences: {},   // grouped by preferenceGroup with group-level is_required
+                            consentForm: []
+                        });
+                    }
+                    const sp = pkg.sub_packages.get(row.sub_package_id);
+
+                    // Preferences grouped by preferenceGroup
+                    if (row.preference_id != null) {
+                        const groupKey = row.preferenceGroup;
+
+                        // Initialize group if not exists
+                        if (!sp.preferences[groupKey]) {
+                            sp.preferences[groupKey] = {
+                                is_required: row.preference_is_required, // group-level
+                                items: []
+                            };
+                        }
+
+                        // Add preference under group
+                        if (!sp.preferences[groupKey].items.some(p => p.preference_id === row.preference_id)) {
+                            sp.preferences[groupKey].items.push({
+                                preference_id: row.preference_id,
+                                preference_value: row.preferenceValue,
+                                preference_price: row.preferencePrice
+                            });
+                        }
+                    }
+
+                    // Addons
+                    if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+                        sp.addons.push({
+                            addon_id: row.addon_id,
+                            addon_name: row.addon_name,
+                            description: row.addon_description,
+                            price: row.addon_price,
+                            time_required: row.addon_time_required
+                        });
+                    }
+
+                    // Consent forms
+                    if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
+                        sp.consentForm.push({
+                            consent_id: row.consent_id,
+                            question: row.consent_question,
+                            is_required: row.consent_is_required
+                        });
+                    }
+                }
+            }
+        }
+
+        const result = Array.from(servicesMap.values()).map(s => ({
+            ...s,
+            packages: Array.from(s.packages.values()).map(p => ({
+                ...p,
+                sub_packages: Array.from(p.sub_packages.values())
+            }))
+        }));
+
+        res.status(200).json({
+            message: "Admin packages fetched successfully",
+            result
+        });
+    } catch (error) {
+        console.error("Error fetching admin-created packages:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
+
 module.exports = {
     getVendor,
     getAllServiceType,
@@ -1726,7 +1890,6 @@ module.exports = {
     updateUserByAdmin,
     getBookings,
     createPackageByAdmin,
-    getAdminCreatedPackages,
     assignPackageToVendor,
     editPackageByAdmin,
     deletePackageByAdmin,
@@ -1740,5 +1903,8 @@ module.exports = {
     removeVendorPackageByAdmin,
     deleteUserByAdmin,
     editEmployeeProfileByAdmin,
-    deleteEmployeeProfileByAdmin
+    deleteEmployeeProfileByAdmin,
+    getPackageList,
+    getPackageDetails,
+    getAdminCreatedPackages
 };

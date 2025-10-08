@@ -30,6 +30,24 @@ const getAdminNotifications = asyncHandler(async (req, res) => {
     });
 });
 
+const getAdminNotificationsCount = asyncHandler(async (req, res) => {
+    const { userType } = req.params;
+
+    if (!userType || !["users", "vendors", "admin"].includes(userType)) {
+        return res.status(400).json({ message: "Invalid or missing 'userType' parameter" });
+    }
+
+    const [[{ count }]] = await db.query(
+        `SELECT COUNT(*) AS count 
+         FROM notifications 
+         WHERE user_type = ? AND is_read = 0`,
+        [userType]
+    );
+
+    return res.status(200).json({ count });
+});
+
+
 const getUserNotifications = asyncHandler(async (req, res) => {
     const { user_id } = req.user;
 
@@ -139,5 +157,6 @@ module.exports = {
     getUserNotifications,
     getVendorNotifications,
     getEmployeeNotifications,
-    readNotification
+    readNotification,
+    getAdminNotificationsCount
 };
