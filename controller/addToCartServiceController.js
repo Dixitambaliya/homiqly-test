@@ -458,7 +458,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                 ...cart,
                 packages: [{ sub_packages: subPackagesStructured }],
                 totalAmount,
-                discountedTotal    
+                discountedTotal
             });
         }
 
@@ -478,6 +478,16 @@ const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
+        // 🔹 Fetch the active service tax (if any)
+        const [[taxRow]] = await db.query(`
+            SELECT taxName, taxPercentage 
+            FROM service_taxes 
+            WHERE status = '1'
+        `);
+
+        const serviceTaxRate = taxRow ? parseFloat(taxRow.taxPercentage) : 0;
+        const serviceTaxName = taxRow ? taxRow.taxName : null;
+
         const [cartRows] = await db.query(
             `SELECT 
                 sc.cart_id,
@@ -601,11 +611,16 @@ const getUserCart = asyncHandler(async (req, res) => {
                 };
             });
 
-            // Cart-level total
+            // Cart subtotal
             let totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
 
-            // Apply promo if exists
-            let discountedTotal = totalAmount;
+            // 🔹 Apply service tax
+            const taxAmount = (totalAmount * serviceTaxRate) / 100;
+            const afterTax = totalAmount + taxAmount;
+
+            // Apply promo/discount on afterTax
+            let discountedTotal = afterTax;
+            let promoDiscount = 0;
             let promoDetails = null;
 
             if (cart.user_promo_code_id) {
@@ -629,8 +644,10 @@ const getUserCart = asyncHandler(async (req, res) => {
 
                             discountedTotal =
                                 discountType === 'fixed'
-                                    ? Math.max(0, totalAmount - discountValue)
-                                    : totalAmount - (totalAmount * discountValue / 100);
+                                    ? Math.max(0, afterTax - discountValue)
+                                    : afterTax - (afterTax * discountValue / 100);
+
+                            promoDiscount = afterTax - discountedTotal;
 
                             promoDetails = {
                                 user_promo_code_id: promo.user_promo_code_id,
@@ -663,8 +680,10 @@ const getUserCart = asyncHandler(async (req, res) => {
 
                         discountedTotal =
                             discountType === 'fixed'
-                                ? Math.max(0, totalAmount - discountValue)
-                                : totalAmount - (totalAmount * discountValue / 100);
+                                ? Math.max(0, afterTax - discountValue)
+                                : afterTax - (afterTax * discountValue / 100);
+
+                        promoDiscount = afterTax - discountedTotal;
 
                         promoDetails = {
                             ...sysPromo,
@@ -676,20 +695,34 @@ const getUserCart = asyncHandler(async (req, res) => {
                 if (promoDetails) promos.push(promoDetails);
             }
 
+            const finalTotal = parseFloat(discountedTotal.toFixed(2));
+
             allCarts.push({
                 ...cart,
                 packages: [{ sub_packages: subPackagesStructured }],
-                totalAmount,
-                discountedTotal
+                totalAmount: parseFloat(totalAmount.toFixed(2)),   // subtotal
+                afterTax: parseFloat(afterTax.toFixed(2)),         // subtotal + tax
+                tax: {
+                    taxName: serviceTaxName,
+                    taxPercentage: serviceTaxRate,
+                    taxAmount: parseFloat(taxAmount.toFixed(2))
+                },
+                promoDiscount: parseFloat(promoDiscount.toFixed(2)), // discount amount
+                finalTotal
             });
         }
 
-        res.status(200).json({ message: "Cart retrieved successfully", carts: allCarts, promos });
+        res.status(200).json({
+            message: "Cart retrieved successfully",
+            carts: allCarts
+        });
     } catch (error) {
         console.error("Error retrieving cart:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
 
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
