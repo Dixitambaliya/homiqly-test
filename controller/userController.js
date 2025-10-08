@@ -254,7 +254,6 @@ const updateUserData = asyncHandler(async (req, res) => {
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
-
     const { firstName, lastName, phone, parkingInstruction, address, state, postalcode, flatNumber } = req.body;
 
     try {

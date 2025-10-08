@@ -334,7 +334,7 @@ const googleLogin = asyncHandler(async (req, res) => {
                 given_name,
                 family_name,
                 email,
-                "",        // phone
+                null,        // phone
                 picture,
                 fcmToken
             ]);

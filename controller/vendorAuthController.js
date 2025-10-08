@@ -5,7 +5,6 @@ const vendorAuthQueries = require("../config/vendorQueries/vendorAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
-const Mail = require("nodemailer/lib/mailer");
 const { sendVendorRegistrationNotification } = require("./adminNotification");
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -201,7 +200,7 @@ const loginVendor = asyncHandler(async (req, res) => {
     if (!email || !password) {
         return res.status(400).json({ error: "All fields are required" });
     }
-    
+
     try {
         let vendorDetails = null;
         let vendorType = null;
@@ -228,7 +227,7 @@ const loginVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        
+
         if (!vendorDetails) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
@@ -237,7 +236,7 @@ const loginVendor = asyncHandler(async (req, res) => {
             "SELECT password, is_authenticated, role FROM vendors WHERE vendor_id = ?",
             [vendorDetails.vendor_id]
         );
-        
+
 
         if (vendorAuthResult.length === 0) {
             return res.status(401).json({ error: "Invalid credentials" });
