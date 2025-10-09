@@ -1247,8 +1247,6 @@ ORDER BY p.created_at DESC;
                         paymentIntentId: charge?.payment_intent || "N/A",
                     };
 
-                    console.log(`✅ Final Stripe Metadata:`, stripeMetadata);
-
                     return {
                         ...payment,
                         ...stripeMetadata,
