@@ -264,7 +264,7 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
                 {
                     filename: 'homiqly.webp',
                     path: logoPath,
-                    cid: cidName,
+                    cid: cidLogo,
                     contentDisposition: "inline"
                 }
             ]
