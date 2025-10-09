@@ -42,7 +42,6 @@ const employeeGetQueries = {
                 sb.end_time,
                 s.serviceName,
                 p.status AS payment_status,
-                p.currency AS payment_currency,
                 CONCAT(u.firstName,' ', u.lastName) AS userName,
                 u.profileImage AS userProfileImage,
                 u.email AS userEmail,

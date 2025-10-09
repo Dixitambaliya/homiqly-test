@@ -595,8 +595,6 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 sb.start_time,
                 sb.end_time,
                 s.serviceName,
-                p.amount AS payment_amount,
-                p.currency AS payment_currency,
                 u.user_id,
                 CONCAT(u.firstName,' ', u.lastName) AS userName,
                 u.profileImage AS userProfileImage,
