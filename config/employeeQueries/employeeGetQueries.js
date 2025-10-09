@@ -50,7 +50,9 @@ const employeeGetQueries = {
                 u.phone AS userPhone,
                 u.address AS userAddress,
                 u.state AS userState,
-                u.postalcode AS userPostalCode
+                u.postalcode AS userPostalCode,
+                u.flatNumber AS userFlatNumber,
+                u.parkingInstruction AS userParkingInstructions
             FROM service_booking sb
             LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN service_booking_types sbt ON sb.booking_id = sbt.booking_id
