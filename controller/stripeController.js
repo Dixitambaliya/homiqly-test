@@ -608,7 +608,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 });
 
 
-
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;
   if (!paymentIntentId) return res.status(400).json({ message: "Missing paymentIntentId" });

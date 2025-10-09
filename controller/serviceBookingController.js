@@ -407,7 +407,8 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
                 IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage,
                 p.payment_intent_id,
-                p.amount AS paymentAmount
+                p.amount AS paymentAmount,
+                p.receipt_url
             FROM service_booking sb
             LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
