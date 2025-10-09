@@ -161,9 +161,121 @@ async function sendBookingEmail(user_id, bookingDetails) {
     }
 }
 
+async function sendVendorBookingEmail(vendor_id, bookingDetails) {
+    try {
+        // 🔍 Fetch vendor info dynamically based on type
+        const [[vendor]] = await db.query(
+            `
+  SELECT 
+        v.vendor_id,
+        v.vendorType,
+        CASE 
+          WHEN v.vendorType = 'individual' THEN id.name
+          WHEN v.vendorType = 'company' THEN cd.companyName
+          ELSE 'Unknown Vendor'
+        END AS name,
+        CASE 
+          WHEN v.vendorType = 'individual' THEN id.email
+          WHEN v.vendorType = 'company' THEN cd.companyEmail
+          ELSE NULL
+        END AS email
+    FROM vendors v
+    LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id
+    LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id
+    WHERE v.vendor_id = ? 
+    LIMIT 1
+  `,
+            [vendor_id]
+        );
+
+        if (!vendor || !vendor.email) {
+            console.warn(`⚠️ No vendor found or missing email for vendor_id ${vendor_id}, skipping vendor email.`);
+            return;
+        }
+
+
+        const {
+            booking_id,
+            userName,
+            userEmail,
+            userPhone,
+            bookingDate,
+            bookingTime,
+            packageName,
+            sub_packages,
+            addons,
+            preferences,
+            consents
+        } = bookingDetails;
+
+        // ---------- Load logo ----------
+        const logoPath = path.resolve("config/media/homiqly.png");
+        const cidLogo = "homiqlyLogo";
+
+        // ---------- Email HTML ----------
+        const htmlBody = `
+        <div style="font-family:Arial,sans-serif;padding:20px;max-width:650px;margin:auto;background:#f9f9f9;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.1);color:#333;">
+          <div style="text-align:center;margin-bottom:30px;">
+            <img src="cid:${cidLogo}" alt="Homiqly Logo" style="width:200px;height:auto;display:block;margin:0 auto;"/>
+          </div>
+
+          <h2 style="text-align:center;color:#2c3e50;">New Booking Assigned</h2>
+          <p style="font-size:16px;text-align:center;">
+            Hi <strong>${vendor.name}</strong>, you’ve received a new booking (<strong>#${booking_id}</strong>).
+          </p>
+
+          <!-- Booking Info -->
+          <div style="background:#fff;padding:20px;border-radius:10px;margin:20px 0;border:1px solid #e0e0e0;">
+            <h3 style="color:#2c3e50;border-bottom:1px solid #e0e0e0;padding-bottom:8px;">Booking Details</h3>
+            <ul style="list-style:none;padding-left:0;line-height:1.8;font-size:15px;">
+              <li><strong>Date:</strong> ${bookingDate}</li>
+              <li><strong>Time:</strong> ${bookingTime}</li>
+              <li><strong>Package:</strong> ${packageName || "N/A"}</li>
+              <li><strong>Sub-Packages:</strong> ${sub_packages || "None"}</li>
+              <li><strong>Addons:</strong> ${addons || "None"}</li>
+              <li><strong>Preferences:</strong> ${preferences || "None"}</li>
+              <li><strong>Consents:</strong> ${consents || "None"}</li>
+            </ul>
+          </div>
+
+          <!-- Customer Info -->
+          <div style="background:#fff;padding:20px;border-radius:10px;margin:20px 0;border:1px solid #e0e0e0;">
+            <h3 style="color:#2c3e50;border-bottom:1px solid #e0e0e0;padding-bottom:8px;">Customer Details</h3>
+            <ul style="list-style:none;padding-left:0;line-height:1.8;font-size:15px;">
+              <li><strong>Name:</strong> ${userName || "N/A"}</li>
+              <li><strong>Email:</strong> ${userEmail || "N/A"}</li>
+              <li><strong>Phone:</strong> ${userPhone || "N/A"}</li>
+            </ul>
+          </div>
+
+          <p style="text-align:center;font-size:14px;color:#555;margin-top:30px;">
+            Please prepare accordingly. Thank you for partnering with <strong>Homiqly</strong>!
+          </p>
+        </div>
+        `;
+
+        // ---------- Send email ----------
+        await transporter.sendMail({
+            from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+            to: vendor.email,
+            subject: `New Booking Assigned #${booking_id}`,
+            html: htmlBody,
+            attachments: [
+                {
+                    filename: 'homiqly.webp',
+                    path: logoPath,
+                    cid: cidName,
+                    contentDisposition: "inline"
+                }
+            ]
+        });
+
+        console.log(`📧 Booking email sent to vendor ${vendor.email}`);
+    } catch (err) {
+        console.error("❌ Failed to send vendor booking email:", err.message);
+    }
+}
 
 
 
-
-
-module.exports = { sendBookingEmail };
+module.exports = { sendBookingEmail, sendVendorBookingEmail };

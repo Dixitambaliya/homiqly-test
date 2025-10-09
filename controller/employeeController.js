@@ -625,10 +625,10 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
             // booking.payment_amount = booking.net_amount;
 
             // 5️⃣ Fetch sub-packages/items, addons, preferences, consents
-            const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
-            const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
-            const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
-            const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
+            const [subPackages] = await db.query(employeeGetQueries.getemployeeBookingSubPackages, [bookingId]);
+            const [bookingAddons] = await db.query(employeeGetQueries.getemployeeBookingAddons, [bookingId]);
+            const [bookingPreferences] = await db.query(employeeGetQueries.getemployeeBookingPrefrences, [bookingId]);
+            const [bookingConsents] = await db.query(employeeGetQueries.getemployeeConcentForm, [bookingId]);
 
             // 6️⃣ Group addons, preferences, consents by sub_package_id
             const addonsByItem = {};
@@ -981,7 +981,6 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
                     itemMedia: sp.itemMedia,
                     timeRequired: sp.timeRequired,
                     quantity: sp.quantity,
-                    price: sp.price,
                     addons: addonsBySubPackage[sp.sub_package_id] || [],
                     preferences: preferencesBySubPackage[sp.sub_package_id] || [],
                     consents: consentsBySubPackage[sp.sub_package_id] || []

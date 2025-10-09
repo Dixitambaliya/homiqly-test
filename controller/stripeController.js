@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
 const nodemailer = require("nodemailer");
-const { sendBookingEmail } = require("../config/mailer")
+const { sendBookingEmail, sendVendorBookingEmail } = require("../config/mailer")
 
 // 1. Vendor creates Stripe account
 exports.createStripeAccount = asyncHandler(async (req, res) => {
@@ -553,46 +553,75 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         if (receiptUrl && paymentIntentId) {
           console.log("🧾 Captured receipt from Stripe webhook:", receiptUrl);
 
-          // Update payment & booking
+          // ✅ Update payment & booking tables
           await connection.query(
             `UPDATE payments 
-             SET receipt_url = ?, status = 'completed' 
-             WHERE payment_intent_id = ?`,
+            SET receipt_url = ?, status = 'completed' 
+            WHERE payment_intent_id = ?`,
             [receiptUrl, paymentIntentId]
           );
 
           await connection.query(
             `UPDATE service_booking 
-             SET payment_status = 'completed', bookingStatus = 1 
-             WHERE payment_intent_id = ?`,
+            SET payment_status = 'completed', bookingStatus = 1 
+            WHERE payment_intent_id = ?`,
             [paymentIntentId]
           );
 
-          // Send booking email with receipt URL
+          // ✅ Fetch full booking details for email
           const [[bookingDetails]] = await connection.query(
-            `SELECT sb.*, pk.packageName,
-                    GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
-                    GROUP_CONCAT(DISTINCT a.addonName) AS addons,
-                    GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
-                    GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents
-             FROM service_booking sb
-             LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
-             LEFT JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
-             LEFT JOIN packages pk ON sp.package_id = pk.package_id
-             LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
-             LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
-             LEFT JOIN service_booking_preferences sbpr ON sb.booking_id = sbpr.booking_id
-             LEFT JOIN booking_preferences pref ON sbpr.preference_id = pref.preference_id
-             LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
-             LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
-             WHERE sb.payment_intent_id = ?`,
+            `SELECT sb.*, 
+              pk.packageName,
+              CONCAT(u.firstName, ' ', u.lastName) AS userName,
+              u.email AS userEmail,
+              u.phone AS userPhone,
+              GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
+              GROUP_CONCAT(DISTINCT a.addonName) AS addons,
+              GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
+              GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents
+       FROM service_booking sb
+       LEFT JOIN users u ON sb.user_id = u.user_id
+       LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
+       LEFT JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
+       LEFT JOIN packages pk ON sp.package_id = pk.package_id
+       LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
+       LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
+       LEFT JOIN service_booking_preferences sbpr ON sb.booking_id = sbpr.booking_id
+       LEFT JOIN booking_preferences pref ON sbpr.preference_id = pref.preference_id
+       LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
+       LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+       WHERE sb.payment_intent_id = ?`,
             [paymentIntentId]
           );
 
           if (bookingDetails) {
-            sendBookingEmail(bookingDetails.user_id, { ...bookingDetails, receiptUrl })
-              .then(() => console.log("📧 Booking email sent with receipt"))
-              .catch(err => console.error("❌ Email send failed:", err.message));
+            // ✅ Send emails independently and safely
+            try {
+              await Promise.allSettled([
+                (async () => {
+                  try {
+                    await sendBookingEmail(bookingDetails.user_id, { ...bookingDetails, receiptUrl });
+                    console.log("📧 Booking email sent to user");
+                  } catch (err) {
+                    console.error("❌ Failed to send user booking email:", err.message);
+                  }
+                })(),
+                (async () => {
+                  if (bookingDetails.vendor_id) {
+                    try {
+                      await sendVendorBookingEmail(bookingDetails.vendor_id, { ...bookingDetails, receiptUrl });
+                      console.log("📧 Vendor booking email sent");
+                    } catch (err) {
+                      console.error("❌ Failed to send vendor booking email:", err.message);
+                    }
+                  } else {
+                    console.warn("⚠️ No vendor_id found in booking, skipping vendor email.");
+                  }
+                })()
+              ]);
+            } catch (err) {
+              console.error("⚠️ Email sending error (non-fatal):", err.message);
+            }
           }
         }
       }
