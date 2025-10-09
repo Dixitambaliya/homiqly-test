@@ -11,20 +11,21 @@ import { Button } from "../../../shared/components/Button";
 import axios from "axios";
 import { toast } from "react-toastify";
 import RatingModal from "../../../employees/components/Modals/RatingModal";
+import { Mail, MapPin, Phone, User as UserIcon } from "lucide-react";
+
+// Version: v2 — expands addons / preferences / consents so vendors see them clearly
 
 const BookingDetailsPage = () => {
   const { bookingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
-  // If route forwarded booking via state, keep it — otherwise null and we'll fetch.
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [loading, setLoading] = useState(false);
   const [vendorType, setVendorType] = useState(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
 
   useEffect(() => {
-    // Get vendor type from localStorage
     const vendorData = localStorage.getItem("vendorData");
     if (vendorData) {
       try {
@@ -40,26 +41,15 @@ const BookingDetailsPage = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("vendorToken");
-      // changed to the vendor assigned service endpoint you mentioned: adjust path if your backend differs
       const res = await api.get("/api/booking/vendorassignedservices", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      // res.data.bookings is the array per the example you provided
       const bookingsArray = res?.data?.bookings || [];
-
       const found = bookingsArray.find(
         (b) => Number(b.booking_id) === Number(bookingId)
       );
-
-      if (found) {
-        setBooking(found);
-      } else {
-        // If booking wasn't found in response, optionally try to fetch a single booking endpoint
-        console.warn("Booking not found in vendorassignedservice response");
-      }
+      if (found) setBooking(found);
+      else console.warn("Booking not found in vendorassignedservice response");
     } catch (error) {
       console.error("Failed to fetch booking:", error);
       toast.error("Failed to load booking details");
@@ -68,13 +58,10 @@ const BookingDetailsPage = () => {
     }
   };
 
-  // fetch when we don't already have booking data (or when bookingId changes)
   useEffect(() => {
-    if (!booking) {
+    if (!booking) fetchBooking();
+    else {
       fetchBooking();
-    } else {
-      // If we have a booking passed in state, still refresh it lightly (optional).
-      // fetchBooking();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
@@ -95,11 +82,9 @@ const BookingDetailsPage = () => {
         setBooking((prev) =>
           prev ? { ...prev, bookingStatus: status } : prev
         );
-        await fetchBooking(); // refresh with latest data
+        await fetchBooking();
       }
-      if (status === 4) {
-        setShowRatingModal(true);
-      }
+      if (status === 4) setShowRatingModal(true);
     } catch (error) {
       console.error("Error updating booking status:", error);
       toast.error(
@@ -116,13 +101,12 @@ const BookingDetailsPage = () => {
     );
   }
 
-  // helpers to safely access nested arrays
   const subPackages = booking.sub_packages || booking.subPackages || [];
   const customerProfileImg =
     booking.userProfileImage || booking.user_profile_image;
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 py-6">
       <Breadcrumb
         links={[
           { label: "Dashboard", to: "/vendor/dashboard" },
@@ -130,505 +114,488 @@ const BookingDetailsPage = () => {
           { label: `Booking #${booking.booking_id}` },
         ]}
       />
-      <div className="px-4 space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Booking #{booking.booking_id}
-          </h2>
-          <StatusBadge status={booking.bookingStatus} />
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Section */}
-          <div className="col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-1">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Service Info
-              </h4>
-              <p className="text-lg font-medium text-gray-900">
-                {booking.serviceName || booking.service_name || "N/A"}
-              </p>
-              <p className="text-sm text-gray-500">
-                {booking.serviceCategory || booking.service_category || ""}
-              </p>
-              <p className="text-sm text-gray-500">
-                {booking.serviceTypeName || booking.service_type_name || ""}
-              </p>
-            </div>
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <section className="bg-white rounded-lg border p-4 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                {customerProfileImg ? (
+                  <img
+                    src={customerProfileImg}
+                    alt={booking.userName || "Customer"}
+                    className="w-14 h-14 rounded-md object-cover border"
+                    loading="lazy"
+                    onError={(e) =>
+                      (e.currentTarget.src = "/avatar-placeholder.png")
+                    }
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-md bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+                    N/A
+                  </div>
+                )}
+              </div>
 
-            {/* Render sub_packages (replacement for old packages) */}
-            {/* --- Enhanced Minimal UI for subPackages (replace your current block) --- */}
-            {subPackages.map((pkg) => (
-              <article
-                key={
-                  pkg.package_id ||
-                  pkg.sub_package_id ||
-                  `${pkg.packageName}-${Math.random()}`
-                }
-                className="bg-white  rounded-2xl shadow-sm border border-gray-100  p-6 md:p-8 space-y-4"
-                aria-labelledby={`pkg-${pkg.package_id}`}
-              >
-                <div className="flex items-start gap-4 md:gap-6">
-                  {/* image */}
-                  <div className="flex-shrink-0">
-                    {pkg.packageMedia ? (
-                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden border border-gray-100 ">
-                        <img
-                          src={pkg.packageMedia}
-                          alt={pkg.packageName || "Package"}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.src = "/placeholder-rect.png";
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gray-50  flex items-center justify-center text-xs text-gray-400">
-                        No Image
-                      </div>
-                    )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1 className="text-lg font-semibold text-gray-900 truncate">
+                      {booking.userName || booking.user_name || "N/A"}
+                    </h1>
+                    <p className="text-sm text-gray-500 truncate">
+                      {booking.userAddress || "No address provided"}
+                    </p>
                   </div>
 
-                  {/* title & meta */}
-                  <div className="flex-1 min-w-0">
-                    <h4
-                      id={`pkg-${pkg.package_id}`}
-                      className="text-lg md:text-xl font-semibold text-gray-900  truncate"
-                    >
-                      {pkg.packageName || "Package"}
-                    </h4>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm md:text-sm">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-50  border border-gray-100  text-gray-600 ">
-                        <span className="font-medium">
-                          ${pkg.totalPrice ?? booking.payment_amount ?? "N/A"}
-                        </span>
-                        <span className="text-xs text-gray-400">total</span>
-                      </div>
-
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-50  border border-gray-100  text-gray-600 ">
-                        <span className="font-medium">
-                          {pkg.totalTime ?? "—"}
-                        </span>
-                        <span className="text-xs text-gray-400">duration</span>
-                      </div>
-
-                      {/* optional package meta */}
-                      {pkg.package_id && (
-                        <div className="ml-auto text-xs text-gray-400 hidden md:inline">{`#${pkg.package_id}`}</div>
-                      )}
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500">
+                      Booking #{booking.booking_id}
+                    </div>
+                    <div className="mt-1">
+                      <StatusBadge status={booking.bookingStatus} />
                     </div>
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className="border-t border-gray-100 " />
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div className="flex items-center gap-2 truncate">
+                    <FiCalendar />
+                    <span>{formatDate(booking.bookingDate)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 truncate">
+                    <FiClock />
+                    <span>{formatTime(booking.bookingTime)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 truncate">
+                    <Phone size={14} />
+                    <a
+                      href={`tel:${booking.userPhone}`}
+                      className="truncate hover:underline"
+                    >
+                      {booking.userPhone || "No phone"}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2 truncate">
+                    <Mail size={14} />
+                    <a
+                      href={`mailto:${booking.userEmail}`}
+                      className="truncate hover:underline"
+                    >
+                      {booking.userEmail || "No email"}
+                    </a>
+                  </div>
+                </div>
 
-                {/* Items list */}
-                {pkg.items?.length > 0 ? (
-                  <ul className="space-y-4">
-                    {pkg.items.map((item) => (
-                      <li
-                        key={
-                          item.sub_package_id ?? item.item_id ?? item.itemName
+                {booking.userParkingInstructions && (
+                  <p className="mt-3 text-sm text-gray-700">
+                    Parking:{" "}
+                    <span className="font-medium">
+                      {booking.userParkingInstructions}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 border-t pt-3 flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="py-2"
+              >
+                Back
+              </Button>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  booking.userAddress || ""
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block"
+              >
+                <Button variant="ghost" className="py-2">
+                  Open Map
+                </Button>
+              </a>
+
+              {booking.assignedEmployee?.name && (
+                <div className="ml-auto text-sm text-gray-600">
+                  Assigned: {booking.assignedEmployee?.name || "—"}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            {subPackages.map((pkg) => (
+              <div
+                key={pkg.package_id || pkg.sub_package_id}
+                className="bg-white rounded-lg border p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="w-20 h-20 rounded-md flex-shrink-0 overflow-hidden border">
+                    {pkg.packageMedia ? (
+                      <img
+                        src={pkg.packageMedia}
+                        alt={pkg.packageName}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) =>
+                          (e.currentTarget.src = "/placeholder-rect.png")
                         }
-                        className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"
-                      >
-                        {/* item image */}
-                        <div className="md:col-span-2">
-                          {item.itemMedia ? (
-                            <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-gray-100 ">
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                        No Image
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex gap-3">
+                      <h4 className="text-md font-semibold text-gray-900 ">
+                        {pkg.packageName || "Package"}
+                      </h4>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {pkg.items?.length || 0} item(s) {pkg.totalTime || ""}
+                      </div>
+                    </div>
+                    <div className="">
+                      <div className="text-right">
+                        <div className="text-sm font-semibold">
+                          ${pkg.totalPrice ?? booking.payment_amount ?? "N/A"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  {pkg.items?.map((item) => (
+                    <div
+                      key={item.sub_package_id || item.itemName}
+                      className="mt-3 bg-gray-50 border rounded p-3 text-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-12 h-12 overflow-hidden rounded bg-white border">
+                            {item.itemMedia ? (
                               <img
                                 src={item.itemMedia}
-                                alt={item.itemName || "Item"}
+                                alt={item.itemName}
                                 className="w-full h-full object-cover"
                                 loading="lazy"
-                                onError={(e) => {
-                                  e.currentTarget.src =
-                                    "/placeholder-square.png";
-                                }}
+                                onError={(e) =>
+                                  (e.currentTarget.src =
+                                    "/placeholder-square.png")
+                                }
                               />
-                            </div>
-                          ) : (
-                            <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg bg-gray-50  flex items-center justify-center text-xs text-gray-400">
-                              No Image
-                            </div>
-                          )}
-                        </div>
-
-                        {/* item main */}
-                        <div className="md:col-span-7 min-w-0">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900  truncate">
-                                {item.itemName || item.item_name || "Item"}
-                                {item.quantity ? (
-                                  <span className="ml-2 text-xs text-gray-500">
-                                    ×{item.quantity}
-                                  </span>
-                                ) : null}
-                              </p>
-                              <p className="mt-1 text-xs text-gray-500">
-                                {/* {item.timeRequired || item.time_required || ""} */}
-                                {item.price ? (
-                                  <span className="ml-2">• ${item.price}</span>
-                                ) : null}
-                              </p>
-                            </div>
-
-                            {/* item price chip (mobile hides) */}
-                            <div className="hidden md:flex md:items-center md:gap-2">
-                              {item.price && (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-50  border border-gray-100  text-gray-700 ">
-                                  ${item.price}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* addons / preferences / consents: stacked cards */}
-                          <div className="mt-3 space-y-2">
-                            {item.addons?.length > 0 && (
-                              <div className="bg-gray-50  border border-gray-100  rounded-lg p-3">
-                                <div className="flex items-center justify-between">
-                                  <h5 className="text-xs font-semibold text-gray-700 ">
-                                    Addons
-                                  </h5>
-                                </div>
-                                <ul className="mt-2 text-xs text-gray-600  space-y-1 list-disc list-inside">
-                                  {item.addons.map((addon) => (
-                                    <li
-                                      key={addon.addon_id || addon.addonName}
-                                      className="flex items-center justify-between"
-                                    >
-                                      <span className="truncate">
-                                        {addon.addonName}
-                                      </span>
-                                      <span className="ml-2 text-xs text-gray-500">
-                                        {addon.price ? `$${addon.price}` : ""}
-                                        {addon.quantity
-                                          ? ` ×${addon.quantity}`
-                                          : ""}
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {item.preferences?.length > 0 && (
-                              <div className="bg-gray-50  border border-gray-100  rounded-lg p-3">
-                                <h5 className="text-xs font-semibold text-gray-700 ">
-                                  Preferences
-                                </h5>
-                                <ul className="mt-2 text-xs text-gray-600  space-y-1 list-disc list-inside">
-                                  {item.preferences.map((pref) => (
-                                    <li
-                                      key={
-                                        pref.preference_id ||
-                                        pref.preferenceValue
-                                      }
-                                      className="flex items-center justify-between"
-                                    >
-                                      <span className="truncate">
-                                        {pref.preferenceValue}
-                                      </span>
-                                      {pref.preferencePrice ? (
-                                        <span className="ml-2 text-xs text-gray-500">
-                                          ${pref.preferencePrice}
-                                        </span>
-                                      ) : null}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {item.consents?.length > 0 && (
-                              <div className="bg-gray-50  border border-gray-100  rounded-lg p-3">
-                                <h5 className="text-xs font-semibold text-gray-700 ">
-                                  Consents
-                                </h5>
-                                <ul className="mt-2 text-xs text-gray-600  space-y-1 list-disc list-inside">
-                                  {item.consents.map((c) => (
-                                    <li key={c.consent_id || c.consentText}>
-                                      <span className="truncate">
-                                        {c.consentText}
-                                      </span>
-                                      {c.answer != null ? (
-                                        <span className="ml-2 text-xs text-gray-500">
-                                          — {c.answer}
-                                        </span>
-                                      ) : null}
-                                    </li>
-                                  ))}
-                                </ul>
+                            ) : (
+                              <div className="w-full h-full bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                No Image
                               </div>
                             )}
                           </div>
-                        </div>
 
-                        {/* Right column: compact price & meta */}
-                        <div className="md:col-span-3 flex flex-col items-end gap-2">
-                          <div className="text-right">
-                            {item.price && (
-                              <div className="text-sm font-semibold text-gray-900 ">
-                                ${item.price}
-                              </div>
-                            )}
-                            <div className="text-xs text-gray-400 mt-1">
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 truncate">
+                              {item.itemName || item.item_name}
+                            </div>
+                            <div className="text-xs text-gray-500">
                               {item.timeRequired || item.time_required || ""}
                             </div>
                           </div>
+                        </div>
 
-                          {/* subtle actions placeholder (keeps UI extension-ready) */}
-                          <div className="mt-auto">
-                            {/* keep the space for future controls — currently nothing to avoid changing logic */}
-                            <div className="w-full h-0" />
+                        <div className="text-right text-sm text-gray-700">
+                          <div>${item.price ?? "0.00"}</div>
+                          <div className="text-xs text-gray-400">
+                            Qty: {item.quantity ?? 1}
                           </div>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    No items included in this package.
-                  </p>
-                )}
-              </article>
-            ))}
-            {/* --- end enhanced block --- */}
+                      </div>
 
-            {/* Notes */}
+                      {/* Expanded details: addons, preferences, consents */}
+                      <div className="mt-3 space-y-2">
+                        {item.addons?.length > 0 && (
+                          <div className="bg-white border rounded p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-semibold text-gray-700">
+                                Addons
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {item.addons.length}
+                              </div>
+                            </div>
+                            <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                              {item.addons.map((addon) => (
+                                <li
+                                  key={addon.addon_id || addon.addonName}
+                                  className="flex items-center justify-between"
+                                >
+                                  <div className="min-w-0 truncate">
+                                    {addon.addonName}
+                                    {addon.addonMedia ? (
+                                      <span className="ml-2 text-gray-400">
+                                        {" "}
+                                        (media)
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {addon.quantity
+                                      ? `×${addon.quantity} `
+                                      : ""}
+                                    {addon.price ? `$${addon.price}` : ""}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {item.preferences?.length > 0 && (
+                          <div className="bg-white border rounded p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-semibold text-gray-700">
+                                Preferences
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {item.preferences.length}
+                              </div>
+                            </div>
+                            <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                              {item.preferences.map((pref) => (
+                                <li
+                                  key={
+                                    pref.preference_id || pref.preferenceValue
+                                  }
+                                  className="flex items-center justify-between"
+                                >
+                                  <div className="min-w-0 truncate">
+                                    {pref.preferenceValue}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {pref.preferencePrice
+                                      ? `$${pref.preferencePrice}`
+                                      : ""}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {item.consents?.length > 0 && (
+                          <div className="bg-white border rounded p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-semibold text-gray-700">
+                                Consents
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {item.consents.length}
+                              </div>
+                            </div>
+                            <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                              {item.consents.map((c) => (
+                                <li
+                                  key={c.consent_id || c.consentText}
+                                  className="flex items-start justify-between"
+                                >
+                                  <div className="min-w-0 ">
+                                    {c.consentText}{" "}
+                                    <span className="font-semibold">
+                                      {" "}
+                                      {c.answer != null ? `— ${c.answer}` : ""}
+                                    </span>
+                                  </div>
+                                  {/* <div className="ml-2 text-xs text-gray-500">
+                                    </div> */}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
             {booking.notes && (
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                  Notes
-                </h4>
-                <p className="text-sm text-gray-800">{booking.notes}</p>
+              <div className="bg-white rounded-lg border p-4 shadow-sm">
+                <h4 className="text-sm font-semibold text-gray-700">Notes</h4>
+                <p className="mt-2 text-sm text-gray-800">{booking.notes}</p>
               </div>
             )}
 
-            {/* Booking-level preferences (if present) */}
             {booking.preferences?.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                  Preferences
+              <div className="bg-white rounded-lg border p-4 shadow-sm">
+                <h4 className="text-sm font-semibold text-gray-700">
+                  Booking Preferences
                 </h4>
-                <ul className="list-disc list-inside text-sm text-gray-800">
-                  {booking.preferences.map((pref) => (
-                    <li key={pref.preference_id || pref.preferenceValue}>
-                      {pref.preferenceValue}
+                <ul className="mt-2 list-disc list-inside text-sm text-gray-800">
+                  {booking.preferences.map((p) => (
+                    <li key={p.preference_id || p.preferenceValue}>
+                      {p.preferenceValue}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* booking media */}
             {booking.bookingMedia && (
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h4 className="text-sm font-semibold text-gray-500 mb-2">
+              <div className="bg-white rounded-lg border p-4 shadow-sm">
+                <h4 className="text-sm font-semibold text-gray-700">
                   Attached Media
                 </h4>
                 <img
                   src={booking.bookingMedia}
                   alt="Attached media"
-                  className="max-w-full rounded"
+                  className="mt-2 max-w-full rounded"
                 />
               </div>
             )}
-          </div>
+          </section>
+        </div>
 
-          {/* Right Section */}
-          <div className="space-y-6">
-            {/* Customer Card */}
-            <section
-              aria-labelledby="customer-info"
-              className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6"
-            >
-              <div className="flex items-start gap-4">
-                {/* Avatar */}
-                <div className="flex-shrink-0">
-                  {customerProfileImg ? (
-                    <img
-                      src={customerProfileImg}
-                      alt={booking.userName || "Customer"}
-                      className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-gray-100 "
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.src = "/avatar-placeholder.png";
-                      }}
-                    />
-                  ) : (
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gray-50  flex items-center justify-center text-sm text-gray-400">
-                      N/A
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <h3
-                    id="customer-info"
-                    className="text-sm md:text-base font-semibold text-gray-900  truncate"
-                  >
-                    {booking.userName || booking.user_name || "N/A"}
-                  </h3>
-
-                  <div className="mt-1 flex flex-col gap-1">
-                    <a
-                      href={`mailto:${booking.userEmail || ""}`}
-                      className="text-xs md:text-sm text-gray-500  hover:underline truncate"
-                    >
-                      {booking.userEmail || "No email"}
-                    </a>
-                    <a
-                      href={
-                        booking.userPhone ? `tel:${booking.userPhone}` : "#"
-                      }
-                      className="text-xs md:text-sm text-gray-500  truncate"
-                    >
-                      {booking.userPhone || "No phone"}
-                    </a>
-
-                    {booking.userAddress && (
-                      <p className="mt-2 text-xs md:text-sm text-gray-500  flex items-start gap-2">
-                        <span className="sr-only">Address:</span>
-                        <FiMapPin className="mt-0.5 text-gray-400" />
-                        <span className="truncate">
-                          {booking.userAddress}
-                          {booking.userState ? `, ${booking.userState}` : ""}
-                          {booking.userPostalCode
-                            ? ` • ${booking.userPostalCode}`
-                            : ""}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Schedule Card */}
-            <section
-              aria-labelledby="schedule-info"
-              className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6"
-            >
+        <aside className="space-y-4">
+          <div className="bg-white rounded-lg border p-4 shadow-sm">
+            <h4 className="text-sm font-semibold text-gray-700">Schedule</h4>
+            <div className="mt-3 text-sm text-gray-900">
               <div className="flex items-center justify-between">
-                <div>
-                  <h4
-                    id="schedule-info"
-                    className="text-sm font-medium text-gray-600 "
-                  >
-                    Schedule
-                  </h4>
-                  <div className="mt-2 flex flex-col md:flex-row md:items-center md:gap-4">
-                    <div className="flex items-center gap-2">
-                      <FiCalendar className="text-gray-400" />
-                      <span className="text-sm text-gray-800 ">
-                        {formatDate(booking.bookingDate)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 md:mt-0">
-                      <FiClock className="text-gray-400" />
-                      <span className="text-sm text-gray-800 ">
-                        {formatTime(booking.bookingTime)}
-                      </span>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <FiCalendar />
+                  {formatDate(booking.bookingDate)}
                 </div>
-
-                {/* small created at or status meta (optional) */}
-                <div className="text-right hidden md:block">
-                  <span className="text-xs text-gray-400">
-                    {booking.bookingStatus
-                      ? `Status: ${booking.bookingStatus}`
-                      : ""}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <FiClock />
+                  {formatTime(booking.bookingTime)}
                 </div>
               </div>
-            </section>
 
-            {/* Payment Card */}
-            <section
-              aria-labelledby="payment-info"
-              className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h4
-                    id="payment-info"
-                    className="text-sm font-medium text-gray-600 "
-                  >
-                    Payment Info
-                  </h4>
+              <div className="mt-3">
+                <div className="text-xs text-gray-500">Start</div>
+                <div className="text-sm text-gray-900">
+                  {booking.start_time
+                    ? new Date(booking.start_time).toLocaleString()
+                    : "—"}
+                </div>
+              </div>
 
-                  <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3">
+                <div className="text-xs text-gray-500">Payment</div>
+                <div className="mt-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <PaymentBadge status={booking.payment_status} />
-                    <span className="text-xs text-gray-400  capitalize">
-                      {booking.payment_status || "—"}
+                    <span className="text-sm text-gray-700 capitalize">
+                      {booking.payment_status}
                     </span>
                   </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-lg md:text-2xl font-semibold text-gray-900 ">
+                  <div className="text-sm font-semibold">
                     ${booking.payment_amount ?? booking.net_amount ?? "0.00"}
-                  </div>
-                  <div className="text-xs text-gray-400 ">
-                    {(booking.payment_currency || "").toUpperCase()}
                   </div>
                 </div>
               </div>
-            </section>
+            </div>
+          </div>
 
-            {/* Action Buttons Card */}
-            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6">
-              {/* Keep actions exactly as they are — only style/layout updated */}
+          <div className="bg-white rounded-lg border p-4 shadow-sm">
+            <h4 className="text-sm font-semibold text-gray-700">Actions</h4>
+            <div className="mt-3 space-y-3">
               {vendorType === "individual" ? (
-                <div className="space-y-3">
+                <>
                   <Button
                     variant="primary"
                     onClick={() => handleUpdateBookingStatus(3)}
                     disabled={booking.bookingStatus !== 1}
-                    className="w-full py-3 rounded-lg"
+                    className="w-full py-3 rounded-md"
                   >
-                    Start
+                    Start Service
                   </Button>
 
                   <Button
                     variant="success"
                     onClick={() => handleUpdateBookingStatus(4)}
                     disabled={booking.bookingStatus !== 3}
-                    className="w-full py-3 rounded-lg"
+                    className="w-full py-3 rounded-md"
                   >
-                    Complete
+                    Complete Service
                   </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate(-1)}
-                    className="w-full py-3 rounded-lg"
-                  >
-                    Back
-                  </Button>
-                </div>
+                </>
               ) : (
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-600">
                   No direct actions available for your vendor type.
                 </div>
               )}
 
-              <RatingModal
-                isOpen={showRatingModal}
-                onClose={() => setShowRatingModal(false)}
-                bookingId={booking.booking_id}
-              />
-            </section>
+              <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="w-full py-2"
+              >
+                Back
+              </Button>
+            </div>
+
+            <div className="mt-4 border-t pt-3 flex flex-col gap-2">
+              <a
+                href={`tel:${booking.userPhone}`}
+                className="flex items-center gap-2 text-sm hover:underline"
+              >
+                <Phone size={16} /> Call
+              </a>
+              <a
+                href={`mailto:${booking.userEmail}`}
+                className="flex items-center gap-2 text-sm hover:underline"
+              >
+                <Mail size={16} /> Email
+              </a>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  booking.userAddress || ""
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 text-sm hover:underline"
+              >
+                <MapPin size={16} /> Map
+              </a>
+            </div>
           </div>
-        </div>
+
+          {booking.assignedEmployee && (
+            <div className="bg-white rounded-lg border p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-gray-700">
+                Assigned To
+              </h4>
+              <div className="mt-3 text-sm text-gray-900">
+                <div className="font-medium">
+                  {booking.assignedEmployee.name}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {booking.assignedEmployee.email}
+                </div>
+                <div className="mt-2">
+                  <a
+                    href={`tel:${booking.assignedEmployee.phone}`}
+                    className="text-sm hover:underline"
+                  >
+                    {booking.assignedEmployee.phone}
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
+
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        bookingId={booking.booking_id}
+      />
     </div>
   );
 };

@@ -10,11 +10,6 @@ import FormSelect from "../../../shared/components/Form/FormSelect";
 
 /**
  * AdminPromoManager (JSX)
- *
- * - Adds a source_type dropdown ("admin" | "system")
- * - Adds a discount_type dropdown ("percentage" | "fixed")
- * - If source_type === "system", hide and clear start_date, end_date, requiredBookings
- * - Includes both source_type and discount_type in submitted payload
  */
 export default function AdminPromoManager() {
   const [promos, setPromos] = useState([]);
@@ -27,7 +22,6 @@ export default function AdminPromoManager() {
   const [form, setForm] = useState({
     code: "",
     discount_value: "",
-    // NEW: discount_type - default to "percentage"
     discount_type: "percentage",
     requiredBookings: 0,
     description: "",
@@ -35,11 +29,9 @@ export default function AdminPromoManager() {
     maxUse: 1,
     start_date: "",
     end_date: "",
-    // default to "admin" so fields visible on create
     source_type: "admin",
   });
 
-  // AUTO-GENERATE CODE toggle state
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
 
@@ -61,12 +53,10 @@ export default function AdminPromoManager() {
     }
   }
 
-  // fetch current enable value
   async function fetchAutoStatus() {
     try {
       setAutoLoading(true);
       const res = await axios.get("/api/getstatuscode");
-      // expecting { enable: 0 | 1 }
       const val = res?.data?.enable;
       setAutoEnabled(Number(val) === 1);
     } catch (err) {
@@ -77,14 +67,11 @@ export default function AdminPromoManager() {
     }
   }
 
-  // toggle function
   async function toggleAutoEnable() {
     const newValue = !autoEnabled;
-    // optimistic UI
     setAutoEnabled(newValue);
     setAutoLoading(true);
     try {
-      // API expects { enable: 0 | 1 }
       const payload = { enable: newValue ? 1 : 0 };
       const res = await axios.patch("/api/changautogeneratecode", payload);
       toast.success(
@@ -93,7 +80,6 @@ export default function AdminPromoManager() {
       );
     } catch (err) {
       console.error("toggleAutoEnable:", err);
-      // revert UI
       setAutoEnabled(!newValue);
       const message = err?.response?.data?.message || "Failed to update";
       toast.error(message);
@@ -108,7 +94,7 @@ export default function AdminPromoManager() {
     setForm({
       code: "",
       discount_value: "",
-      discount_type: "percentage", // default
+      discount_type: "percentage",
       minSpend: 0,
       maxUse: 1,
       start_date: "",
@@ -147,8 +133,32 @@ export default function AdminPromoManager() {
     setModalOpen(false);
   }
 
-  function handleChange(e) {
-    const { name, value } = e.target;
+  /**
+   * Flexible handleChange
+   * - Accepts native events (e.target.name & e.target.value)
+   * - Accepts object like { name, value }
+   * - Accepts (name, value) signature
+   */
+  function handleChange(eOrName, maybeValue) {
+    let name, value;
+
+    // native event
+    if (eOrName && eOrName.target) {
+      name = eOrName.target.name;
+      value = eOrName.target.value;
+    }
+    // object with name/value
+    else if (eOrName && typeof eOrName === "object" && "name" in eOrName) {
+      name = eOrName.name;
+      value = eOrName.value;
+    }
+    // (name, value)
+    else if (typeof eOrName === "string") {
+      name = eOrName;
+      value = maybeValue;
+    } else {
+      return;
+    }
 
     // if switching to 'system' we clear the fields that should be hidden
     if (name === "source_type") {
@@ -172,7 +182,7 @@ export default function AdminPromoManager() {
   async function handleSubmit(e) {
     e?.preventDefault();
     if (!form.code) return toast.error("Code is required");
-    // convert discount_value to number
+
     const discountValueNum =
       form.discount_value === ""
         ? 0
@@ -185,7 +195,6 @@ export default function AdminPromoManager() {
     try {
       const payload = {
         code: form.code,
-        // send number, not string
         discount_value: discountValueNum,
         discount_type: form.discount_type || "percentage",
         minSpend: Number(form.minSpend),
@@ -235,17 +244,14 @@ export default function AdminPromoManager() {
         return;
       }
 
-      // Build payload with source_type — prefer promo's source_type, fallback to current form value, then 'admin'
       const payload = {
         source_type: p?.source_type ?? form?.source_type ?? "admin",
       };
 
-      // axios.delete accepts request body via the `data` config property
       const res = await axios.delete(`/api/deletecode/${id}`, {
         data: payload,
       });
 
-      // Optionally log response
       console.log("delete response:", res?.status, res?.data);
 
       toast.success(res?.data?.message || "Promo code deleted successfully");
@@ -282,7 +288,7 @@ export default function AdminPromoManager() {
               + Add Promo
             </Button>
           </div>
-          {/* Auto-generate toggle */}
+
           <div className="flex items-center gap-2">
             <label className="text-sm">Auto-assign welcome code</label>
             <button
@@ -310,7 +316,6 @@ export default function AdminPromoManager() {
           </div>
         </div>
 
-        {/* Reusable PromosTable component */}
         <PromosTable
           promos={filtered}
           isLoading={loading}
@@ -318,7 +323,6 @@ export default function AdminPromoManager() {
           onDelete={handleDelete}
         />
 
-        {/* Modal - using your Modal component */}
         <Modal
           size="lg"
           isOpen={modalOpen}
@@ -326,39 +330,23 @@ export default function AdminPromoManager() {
           title={isEditing ? "View / Edit Promo" : "Create Promo"}
         >
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
-            {/* Add source_type dropdown and discount_type dropdown here */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Source
-                </label>
-                <select
+                <FormSelect
                   name="source_type"
+                  label="Source Type"
                   value={form.source_type}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="system">System</option>
-                </select>
+                  options={[
+                    { label: "Admin", value: "admin" },
+                    { label: "System", value: "system" },
+                  ]}
+                />
               </div>
 
-              {/* <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discount Type
-                </label>
-                <select
-                  name="discount_type"
-                  value={form.discount_type}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </select>
-              </div> */}
               <div>
                 <FormSelect
+                  name="discount_type"
                   label="Discount Type?"
                   value={form.discount_type}
                   onChange={handleChange}
@@ -407,7 +395,6 @@ export default function AdminPromoManager() {
                 placeholder="Max Uses"
                 label="Max Uses"
               />
-              {/* If source_type === 'admin' show start/end and requiredBookings */}
               {form.source_type === "admin" ? (
                 <>
                   <FormInput
@@ -435,7 +422,6 @@ export default function AdminPromoManager() {
               )}
             </div>
 
-            {/* Required Bookings and Description */}
             <div className="grid grid-cols-1 gap-4">
               {form.source_type === "admin" && (
                 <FormInput

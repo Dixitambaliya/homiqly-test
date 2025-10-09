@@ -17,6 +17,9 @@ import RatingModal from "../../components/Modals/RatingModal";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
 import PaymentBadge from "../../../shared/components/PaymentBadge";
 
+// NOTE: UI rework only. All existing functionality (fetching, status updates, rating modal)
+// preserved. This layout focuses on quick access for employees in the field.
+
 export default function BookingDetailsPage() {
   const { bookingId } = useParams();
   const location = useLocation();
@@ -85,20 +88,20 @@ export default function BookingDetailsPage() {
 
   if (loading || !booking) {
     return (
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="rounded-2xl bg-white  border border-gray-100  shadow-sm p-6">
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-6 bg-gray-200  rounded w-1/3" />
-            <div className="h-4 bg-gray-200  rounded w-1/4" />
+            <div className="h-6 bg-gray-200 rounded w-1/3" />
+            <div className="h-4 bg-gray-200 rounded w-1/4" />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-              <div className="h-48 bg-gray-100  rounded" />
+              <div className="h-48 bg-gray-100 rounded" />
               <div className="col-span-2 space-y-2">
-                <div className="h-6 bg-gray-100  rounded" />
-                <div className="h-6 bg-gray-100  rounded" />
+                <div className="h-6 bg-gray-100 rounded" />
+                <div className="h-6 bg-gray-100 rounded" />
               </div>
               <div className="col-span-2 space-y-2">
-                <div className="h-10 bg-gray-100  rounded" />
-                <div className="h-10 bg-gray-100  rounded" />
+                <div className="h-10 bg-gray-100 rounded" />
+                <div className="h-10 bg-gray-100 rounded" />
               </div>
             </div>
           </div>
@@ -107,14 +110,17 @@ export default function BookingDetailsPage() {
     );
   }
 
-  // helpers
+  // helpers — support both subPackages and sub_packages shapes
   const subPackages =
     booking.subPackages || booking.sub_packages || booking.packages || [];
   const customerProfileImg =
     booking.userProfileImage || booking.user_profile_image || null;
 
+  // Utility to render question/answer; if answer is null, show placeholder so employee knows it wasn't answered
+  const renderAnswer = (ans) => (ans == null ? "—" : String(ans));
+
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 py-6">
       <Breadcrumb
         links={[
           { label: "Dashboard", to: "/employees" },
@@ -123,481 +129,485 @@ export default function BookingDetailsPage() {
         ]}
       />
 
-      <div className="px-4 space-y-6 py-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 ">
-              Booking #{booking.booking_id}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {booking.serviceName || booking.service_name}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={booking.bookingStatus} />
-            <div className="text-sm text-gray-500">
-              {booking.payment_status}
-            </div>
-          </div>
-        </div>
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Primary column: summary + packages */}
+        <main className="lg:col-span-2 space-y-4">
+          {/* Top Summary Card - actionable at a glance */}
+          <section className="bg-white rounded-lg border p-4 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                {customerProfileImg ? (
+                  <img
+                    src={customerProfileImg}
+                    alt={booking.userName || "Customer"}
+                    className="w-16 h-16 rounded-md object-cover border"
+                    loading="lazy"
+                    onError={(e) =>
+                      (e.currentTarget.src = "/avatar-placeholder.png")
+                    }
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-md bg-gray-50 flex items-center justify-center text-sm text-gray-400">
+                    N/A
+                  </div>
+                )}
+              </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left: main details (3/5) */}
-          <div className="col-span-3 space-y-6">
-            {/* Service Card */}
-            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-              <h3 className="text-sm font-medium text-gray-600 ">
-                Service Info
-              </h3>
-              <div className="mt-3">
-                <h4 className="text-lg font-semibold text-gray-900 ">
-                  {booking.serviceName}
-                </h4>
-                <div className="mt-1 text-sm text-gray-500">
-                  {booking.serviceCategory || booking.service_category}{" "}
-                  {booking.serviceTypeName
-                    ? `• ${booking.serviceTypeName}`
-                    : ""}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900 truncate">
+                      {booking.userName}
+                    </h2>
+                    <div className="text-sm text-gray-500 truncate">
+                      {booking.userAddress}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500">
+                      Booking #{booking.booking_id}
+                    </div>
+                    <div className="mt-2">
+                      <StatusBadge status={booking.bookingStatus} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <FiCalendar />
+                    {formatDate(booking.bookingDate)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FiClock />
+                    {formatTime(booking.bookingTime)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FiPhone />{" "}
+                    <a
+                      href={`tel:${booking.userPhone}`}
+                      className="hover:underline"
+                    >
+                      {booking.userPhone}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FiMail />{" "}
+                    <a
+                      href={`mailto:${booking.userEmail}`}
+                      className="hover:underline"
+                    >
+                      {booking.userEmail}
+                    </a>
+                  </div>
+                </div>
+
+                {booking.userParkingInstructions && (
+                  <p className="mt-3 text-sm text-gray-700">
+                    Parking:{" "}
+                    <span className="font-medium">
+                      {booking.userParkingInstructions}
+                    </span>
+                  </p>
+                )}
+
+                <div className="mt-4 flex items-center gap-2">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      booking.userAddress || ""
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block"
+                  >
+                    <Button variant="ghost" className="py-2">
+                      Open Map
+                    </Button>
+                  </a>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(-1)}
+                    className="py-2"
+                  >
+                    Back
+                  </Button>
                 </div>
               </div>
-            </section>
+            </div>
+          </section>
 
-            {/* Packages */}
-            {subPackages.map((pkg) => (
-              <article
-                key={pkg.package_id ?? pkg.sub_package_id ?? Math.random()}
-                className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6"
-              >
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-100 ">
-                    {pkg.packageMedia ? (
-                      <img
-                        src={pkg.packageMedia}
-                        alt={pkg.packageName || "Package"}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) =>
-                          (e.currentTarget.src = "/placeholder-rect.png")
-                        }
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-50  flex items-center justify-center text-xs text-gray-400">
-                        No Image
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-base font-semibold text-gray-900 ">
-                          {pkg.packageName}
-                        </h4>
-                        <div className="mt-1 text-sm text-gray-500">
-                          Total: $
-                          {pkg.totalPrice ?? booking.payment_amount ?? "N/A"} •
-                          Duration: {pkg.totalTime ?? "—"}
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-400">
-                        #{pkg.package_id}
-                      </div>
-                    </div>
-
-                    {/* Items */}
-                    {pkg.items?.length > 0 ? (
-                      <ul className="mt-4 space-y-3">
-                        {pkg.items.map((item) => (
-                          <li
-                            key={
-                              item.sub_package_id ??
-                              item.item_id ??
-                              item.itemName
-                            }
-                            className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"
-                          >
-                            <div className="md:col-span-2">
-                              <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-100 ">
-                                {item.itemMedia ? (
-                                  <img
-                                    src={item.itemMedia}
-                                    alt={item.itemName || "Item"}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                    onError={(e) =>
-                                      (e.currentTarget.src =
-                                        "/placeholder-square.png")
-                                    }
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gray-50  flex items-center justify-center text-xs text-gray-400">
-                                    No Image
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="md:col-span-7 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium text-gray-900  truncate">
-                                    {item.itemName}
-                                    {item.quantity ? (
-                                      <span className="ml-2 text-xs text-gray-500">
-                                        ×{item.quantity}
-                                      </span>
-                                    ) : null}
-                                  </p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {item.timeRequired}{" "}
-                                    {item.price ? `• $${item.price}` : ""}
-                                  </p>
-                                </div>
-                                <div className="hidden md:block text-right">
-                                  {item.price && (
-                                    <div className="text-sm font-semibold text-gray-900 ">
-                                      ${item.price}
-                                    </div>
-                                  )}
-                                  <div className="text-xs text-gray-400">
-                                    {item.timeRequired}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* addons/preferences/consents */}
-                              <div className="mt-3 space-y-2">
-                                {item.addons?.length > 0 && (
-                                  <div className="bg-gray-50  border border-gray-100  rounded-lg p-3 text-xs text-gray-700 ">
-                                    <div className="font-medium text-sm mb-1">
-                                      Addons
-                                    </div>
-                                    <ul className="list-inside list-disc space-y-1">
-                                      {item.addons.map((ad) => (
-                                        <li
-                                          key={ad.addon_id ?? ad.addonName}
-                                          className="flex justify-between"
-                                        >
-                                          <span className="truncate">
-                                            {ad.addonName}
-                                          </span>
-                                          <span className="ml-2 text-xs text-gray-500">
-                                            {ad.price ? `$${ad.price}` : ""}
-                                            {ad.quantity
-                                              ? ` ×${ad.quantity}`
-                                              : ""}
-                                          </span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-
-                                {item.preferences?.length > 0 && (
-                                  <div className="bg-gray-50  border border-gray-100  rounded-lg p-3 text-xs text-gray-700 ">
-                                    <div className="font-medium text-sm mb-1">
-                                      Preferences
-                                    </div>
-                                    <ul className="list-inside list-disc space-y-1">
-                                      {item.preferences.map((pf) => (
-                                        <li
-                                          key={
-                                            pf.preference_id ??
-                                            pf.preferenceValue
-                                          }
-                                          className="flex justify-between"
-                                        >
-                                          <span className="truncate">
-                                            {pf.preferenceValue}
-                                          </span>
-                                          {pf.preferencePrice ? (
-                                            <span className="ml-2 text-xs text-gray-500">
-                                              ${pf.preferencePrice}
-                                            </span>
-                                          ) : null}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-
-                                {item.consents?.length > 0 && (
-                                  <div className="bg-gray-50  border border-gray-100  rounded-lg p-3 text-xs text-gray-700 ">
-                                    <div className="font-medium text-sm mb-1">
-                                      Consents
-                                    </div>
-                                    <ul className="list-inside list-disc space-y-1">
-                                      {item.consents.map((c) => (
-                                        <li
-                                          key={c.consent_id ?? c.consentText}
-                                          className="truncate"
-                                        >
-                                          {c.consentText}{" "}
-                                          {c.answer != null ? (
-                                            <span className="text-xs text-gray-500">
-                                              — {c.answer}
-                                            </span>
-                                          ) : null}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            {/* right meta for small screens */}
-                            <div className="md:col-span-3 flex md:hidden items-center justify-between">
-                              <div className="text-sm font-semibold">
-                                ${item.price}
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                {item.timeRequired}
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-3 text-sm text-gray-500">
-                        No items in this package.
-                      </p>
-                    )}
-                  </div>
+          {/* Service summary compact card */}
+          <section className="bg-white rounded-lg border p-4 shadow-sm">
+            <h3 className="text-sm font-medium text-gray-600">Service</h3>
+            <div className="mt-2 flex items-center justify-between">
+              <div>
+                <div className="text-md font-semibold text-gray-900">
+                  {booking.serviceName}
                 </div>
-              </article>
-            ))}
-
-            {/* Notes */}
-            {booking.notes && (
-              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 ">Notes</h4>
-                <p className="mt-2 text-sm text-gray-800 ">{booking.notes}</p>
-              </section>
-            )}
-
-            {/* Preferences */}
-            {booking.preferences?.length > 0 && (
-              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 ">
-                  Preferences
-                </h4>
-                <ul className="mt-3 text-sm text-gray-800  list-disc list-inside">
-                  {booking.preferences.map((pref) => (
-                    <li key={pref.preference_id ?? pref.preferenceValue}>
-                      {pref.preferenceValue}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {/* Media */}
-            {booking.bookingMedia && (
-              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 ">
-                  Attached Media
-                </h4>
-                <div className="mt-3">
-                  <a
-                    href={booking.bookingMedia}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    View attachment
-                  </a>
+                <div className="text-xs text-gray-500">
+                  {booking.serviceCategory || booking.service_category}
                 </div>
-              </section>
-            )}
-          </div>
+              </div>
+              <div className="text-right">
+                <PaymentBadge status={booking.payment_status} />
+                <div className="text-sm font-semibold mt-1">
+                  ${booking.payment_amount ?? "N/A"}
+                </div>
+              </div>
+            </div>
+          </section>
 
-          {/* Right: meta & actions (2/5) */}
-          <aside className="col-span-2 space-y-6">
-            {/* Customer Card */}
-            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  {customerProfileImg ? (
+          {/* Packages list — each package becomes a clear card with items and full details (no IDs displayed) */}
+          {subPackages.map((pkg, pkgIndex) => (
+            <section
+              key={`pkg-${pkgIndex}`}
+              className="bg-white rounded-lg border p-4 shadow-sm"
+            >
+              <div className="flex gap-4">
+                <div className="w-20 h-20 rounded-md overflow-hidden border flex-shrink-0">
+                  {pkg.packageMedia ? (
                     <img
-                      src={customerProfileImg}
-                      alt={booking.userName}
-                      className="w-14 h-14 rounded-full object-cover border border-gray-100 "
+                      src={pkg.packageMedia}
+                      alt={pkg.packageName}
+                      className="w-full h-full object-cover"
                       loading="lazy"
                       onError={(e) =>
-                        (e.currentTarget.src = "/avatar-placeholder.png")
+                        (e.currentTarget.src = "/placeholder-rect.png")
                       }
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-full bg-gray-50  flex items-center justify-center text-sm text-gray-400">
-                      N/A
+                    <div className="w-full h-full bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                      No Image
                     </div>
                   )}
                 </div>
-                <div className="min-w-0">
-                  <h4 className="text-sm font-semibold text-gray-900  truncate">
-                    {booking.userName}
-                  </h4>
-                  <a
-                    href={`mailto:${booking.userEmail}`}
-                    className="text-xs text-gray-500 block truncate"
-                  >
-                    {booking.userEmail}
-                  </a>
-                  <a
-                    href={`tel:${booking.userPhone}`}
-                    className="text-xs text-gray-500 block truncate"
-                  >
-                    {booking.userPhone}
-                  </a>
 
-                  {booking.userAddress && (
-                    <p className="mt-3 text-xs text-gray-500 flex items-start gap-2">
-                      <FiMapPin className="text-gray-400 mt-0.5" />
-                      <span className="truncate">
-                        {booking.userAddress}
-                        {booking.userState ? `, ${booking.userState}` : ""}
-                        {booking.userPostalCode
-                          ? ` • ${booking.userPostalCode}`
-                          : ""}
-                      </span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            {/* Schedule */}
-            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-              <h4 className="text-sm font-medium text-gray-600 ">Schedule</h4>
-              <div className="mt-3 flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-sm text-gray-900 ">
-                  <FiCalendar className="text-gray-400" />
-                  <span>{formatDate(booking.bookingDate)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-900 ">
-                  <FiClock className="text-gray-400" />
-                  <span>{formatTime(booking.bookingTime)}</span>
-                </div>
-
-                {booking.start_time && booking.end_time && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    Session: {formatDate(booking.start_time)}{" "}
-                    {formatTime(booking.start_time)} —{" "}
-                    {formatTime(booking.end_time)}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* Payment */}
-            {/* <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-600 ">
-                    Payment
-                  </h4>
-                  <div className="mt-2 flex items-center gap-2">
-                    <PaymentBadge status={booking.payment_status} />
-                    <span className="text-xs text-gray-400 capitalize">
-                      {booking.payment_status}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-lg font-semibold text-gray-900 ">
-                    ${booking.payment_amount ?? booking.net_amount ?? "0.00"}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {(booking.payment_currency || "").toUpperCase()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 border-t border-gray-100 " />
-
-              <div className="mt-3 text-sm text-gray-600 ">
-                {booking.platform_fee != null && (
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Platform fee</span>
-                    <span className="font-medium">${booking.platform_fee}</span>
+                    <div>
+                      <h4 className="text-md font-semibold text-gray-900">
+                        {pkg.packageName}
+                      </h4>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {pkg.items?.length ?? 0} item(s) •{" "}
+                        {pkg.totalTime ?? "—"}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold">
+                        ${pkg.totalPrice ?? booking.payment_amount ?? "N/A"}
+                      </div>
+                      <div className="text-xs text-gray-400">total</div>
+                    </div>
                   </div>
-                )}
-                {booking.net_amount != null && (
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-gray-500">Net amount</span>
-                    <span className="font-medium">${booking.net_amount}</span>
-                  </div>
-                )}
 
-                {booking.payment_intent_id && (
-                  <div className="mt-3 text-xs text-gray-400 break-all">
-                    <span className="font-medium text-gray-700 ">
-                      Payment ID:
-                    </span>{" "}
-                    <span className="ml-1">{booking.payment_intent_id}</span>
-                  </div>
-                )}
-              </div>
-            </section> */}
+                  {/* items */}
+                  <div className="mt-3 space-y-3">
+                    {pkg.items?.map((item, itemIndex) => (
+                      <div
+                        key={`item-${pkgIndex}-${itemIndex}`}
+                        className="bg-gray-50 border rounded p-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-14 h-14 overflow-hidden rounded bg-white border flex-shrink-0">
+                            {item.itemMedia ? (
+                              <img
+                                src={item.itemMedia}
+                                alt={item.itemName}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) =>
+                                  (e.currentTarget.src =
+                                    "/placeholder-square.png")
+                                }
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                                No Image
+                              </div>
+                            )}
+                          </div>
 
-            {/* Assigned Employee */}
-            {booking.assignedEmployee && (
-              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 ">
-                  Assigned Employee
-                </h4>
-                <div className="mt-3 text-sm text-gray-900 ">
-                  <div>{booking.assignedEmployee.name}</div>
-                  <div className="text-xs text-gray-500">
-                    {booking.assignedEmployee.email}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {booking.assignedEmployee.phone}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-900 truncate">
+                                  {item.itemName}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {item.timeRequired ??
+                                    item.time_required ??
+                                    ""}
+                                </div>
+                              </div>
+
+                              <div className="text-right text-sm text-gray-700">
+                                <div>${item.price ?? "N/A"}</div>
+                                <div className="text-xs text-gray-400">
+                                  Qty: {item.quantity ?? 1}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Full details for addons / preferences / consents — rendered clearly and without IDs */}
+                            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-700">
+                              {/* Addons column */}
+                              <div className="col-span-1">
+                                <div className="text-xs font-semibold text-gray-700 mb-2">
+                                  Addons
+                                </div>
+                                {item.addons?.length > 0 ? (
+                                  <ul className="space-y-2">
+                                    {item.addons.map((ad, adIdx) => (
+                                      <li
+                                        key={`ad-${adIdx}`}
+                                        className="flex items-start justify-between"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="truncate font-medium">
+                                            {ad.addonName}
+                                          </div>
+                                          {ad.addonMedia && (
+                                            <div className="text-xs text-gray-400 truncate">
+                                              Media attached
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="ml-2 text-xs text-gray-500">
+                                          {ad.quantity ? `×${ad.quantity}` : ""}
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div className="text-xs text-gray-400">
+                                    No addons
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Preferences column */}
+                              <div className="col-span-1">
+                                <div className="text-xs font-semibold text-gray-700 mb-2">
+                                  Preferences
+                                </div>
+                                {item.preferences?.length > 0 ? (
+                                  <ul className="space-y-2">
+                                    {item.preferences.map((pf, pfIdx) => (
+                                      <li
+                                        key={`pf-${pfIdx}`}
+                                        className="flex items-start justify-between"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="truncate">
+                                            {pf.preferenceValue}
+                                          </div>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div className="text-xs text-gray-400">
+                                    No preferences
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Consents column */}
+                              <div className="col-span-1">
+                                <div className="text-xs font-semibold text-gray-700 mb-2">
+                                  Consents
+                                </div>
+                                {item.consents?.length > 0 ? (
+                                  <ul className="space-y-2">
+                                    {item.consents.map((c, cIdx) => (
+                                      <li key={`c-${cIdx}`} className="">
+                                        <div className="text-sm font-medium truncate">
+                                          {c.consentText}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          Answer: {renderAnswer(c.answer)}
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div className="text-xs text-gray-400">
+                                    No consents
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </section>
-            )}
-
-            {/* Actions */}
-            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
-              <div className="space-y-3">
-                <Button
-                  variant="primary"
-                  onClick={() => handleUpdateBookingStatus(3)}
-                  disabled={booking.bookingStatus !== 1}
-                  className="w-full py-3 rounded-lg"
-                >
-                  Start
-                </Button>
-
-                <Button
-                  variant="success"
-                  onClick={() => handleUpdateBookingStatus(4)}
-                  disabled={booking.bookingStatus !== 3}
-                  className="w-full py-3 rounded-lg"
-                >
-                  Complete
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(-1)}
-                  className="w-full py-3 rounded-lg"
-                >
-                  Back
-                </Button>
               </div>
             </section>
-          </aside>
-        </div>
+          ))}
 
-        <RatingModal
-          isOpen={showRatingModal}
-          onClose={() => setShowRatingModal(false)}
-          bookingId={booking.booking_id}
-        />
+          {/* Notes and booking-level preferences */}
+          {booking.notes && (
+            <section className="bg-white rounded-lg border p-4 shadow-sm">
+              <h4 className="text-sm font-medium text-gray-600">Notes</h4>
+              <p className="mt-2 text-sm text-gray-800">{booking.notes}</p>
+            </section>
+          )}
+
+          {booking.preferences?.length > 0 && (
+            <section className="bg-white rounded-lg border p-4 shadow-sm">
+              <h4 className="text-sm font-medium text-gray-600">
+                Booking Preferences
+              </h4>
+              <ul className="mt-2 list-disc list-inside text-sm text-gray-800">
+                {booking.preferences.map((p, idx) => (
+                  <li key={`bp-${idx}`}>{p.preferenceValue}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {booking.bookingMedia && (
+            <section className="bg-white rounded-lg border p-4 shadow-sm">
+              <h4 className="text-sm font-medium text-gray-600">
+                Attached Media
+              </h4>
+              <div className="mt-2">
+                <a
+                  href={booking.bookingMedia}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  View attachment
+                </a>
+              </div>
+            </section>
+          )}
+        </main>
+
+        {/* Right column: quick actions, schedule, assigned employee */}
+        <aside className="space-y-4">
+          <section className="bg-white rounded-lg border p-4 shadow-sm">
+            <h4 className="text-sm font-medium text-gray-600">Schedule</h4>
+            <div className="mt-3 text-sm text-gray-900">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FiCalendar />
+                  {formatDate(booking.bookingDate)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <FiClock />
+                  {formatTime(booking.bookingTime)}
+                </div>
+              </div>
+
+              {booking.start_time && booking.end_time && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Session: {formatDate(booking.start_time)}{" "}
+                  {formatTime(booking.start_time)} —{" "}
+                  {formatTime(booking.end_time)}
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <PaymentBadge status={booking.payment_status} />
+                  <span className="text-sm text-gray-700 capitalize">
+                    {booking.payment_status}
+                  </span>
+                </div>
+                <div className="text-sm font-semibold">
+                  ${booking.payment_amount ?? "N/A"}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {booking.assignedEmployee && (
+            <section className="bg-white rounded-lg border p-4 shadow-sm">
+              <h4 className="text-sm font-medium text-gray-600">Assigned To</h4>
+              <div className="mt-3 text-sm text-gray-900">
+                <div className="font-medium">
+                  {booking.assignedEmployee.name}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {booking.assignedEmployee.email}
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  {booking.assignedEmployee.phone}
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="bg-white rounded-lg border p-4 shadow-sm">
+            <h4 className="text-sm font-medium text-gray-600">Actions</h4>
+            <div className="mt-3 space-y-3">
+              <Button
+                variant="primary"
+                onClick={() => handleUpdateBookingStatus(3)}
+                disabled={booking.bookingStatus !== 1}
+                className="w-full py-3 rounded-md"
+              >
+                Start Service
+              </Button>
+
+              <Button
+                variant="success"
+                onClick={() => handleUpdateBookingStatus(4)}
+                disabled={booking.bookingStatus !== 3}
+                className="w-full py-3 rounded-md"
+              >
+                Complete Service
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="w-full py-2"
+              >
+                Back
+              </Button>
+            </div>
+
+            <div className="mt-4 border-t pt-3 flex flex-col gap-2">
+              <a
+                href={`tel:${booking.userPhone}`}
+                className="flex items-center gap-2 text-sm hover:underline"
+              >
+                <FiPhone /> Call
+              </a>
+              <a
+                href={`mailto:${booking.userEmail}`}
+                className="flex items-center gap-2 text-sm hover:underline"
+              >
+                <FiMail /> Email
+              </a>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  booking.userAddress || ""
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 text-sm hover:underline"
+              >
+                <FiMapPin /> Map
+              </a>
+            </div>
+          </section>
+        </aside>
       </div>
+
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        bookingId={booking.booking_id}
+      />
     </div>
   );
 }
