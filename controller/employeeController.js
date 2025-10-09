@@ -604,7 +604,11 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 CONCAT(u.firstName,' ', u.lastName) AS userName,
                 u.profileImage AS userProfileImage,
                 u.email AS userEmail,
-                u.phone AS userPhone
+                u.phone AS userPhone,
+                u.address AS userAddress,
+                u.flatNumber AS userFlatNumber,
+                u.parkingInstruction AS userParkingInstructions,
+                u.postalcode AS userPostalcode
             FROM service_booking sb
             LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
