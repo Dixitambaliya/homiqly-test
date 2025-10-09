@@ -21,7 +21,7 @@ const sendOtp = asyncHandler(async (req, res) => {
 
         // Send OTP via SMS
         await client.messages.create({
-            body: `Your OTP is: ${otp}. It expires in 5 minutes.`,
+            body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
             from: process.env.TWILIO_PHONE_NUMBER, // Your Canadian Twilio number
             to: phone
         });
