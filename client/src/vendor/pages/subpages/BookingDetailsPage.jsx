@@ -446,7 +446,7 @@ const BookingDetailsPage = () => {
             {/* Customer Card */}
             <section
               aria-labelledby="customer-info"
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-4 md:p-6"
+              className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6"
             >
               <div className="flex items-start gap-4">
                 {/* Avatar */}
@@ -455,14 +455,14 @@ const BookingDetailsPage = () => {
                     <img
                       src={customerProfileImg}
                       alt={booking.userName || "Customer"}
-                      className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-gray-100 dark:border-slate-800"
+                      className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-gray-100 "
                       loading="lazy"
                       onError={(e) => {
                         e.currentTarget.src = "/avatar-placeholder.png";
                       }}
                     />
                   ) : (
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-sm text-gray-400">
+                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gray-50  flex items-center justify-center text-sm text-gray-400">
                       N/A
                     </div>
                   )}
@@ -471,7 +471,7 @@ const BookingDetailsPage = () => {
                 <div className="min-w-0 flex-1">
                   <h3
                     id="customer-info"
-                    className="text-sm md:text-base font-semibold text-gray-900 dark:text-gray-100 truncate"
+                    className="text-sm md:text-base font-semibold text-gray-900  truncate"
                   >
                     {booking.userName || booking.user_name || "N/A"}
                   </h3>
@@ -479,7 +479,7 @@ const BookingDetailsPage = () => {
                   <div className="mt-1 flex flex-col gap-1">
                     <a
                       href={`mailto:${booking.userEmail || ""}`}
-                      className="text-xs md:text-sm text-gray-500 dark:text-gray-300 hover:underline truncate"
+                      className="text-xs md:text-sm text-gray-500  hover:underline truncate"
                     >
                       {booking.userEmail || "No email"}
                     </a>
@@ -487,13 +487,13 @@ const BookingDetailsPage = () => {
                       href={
                         booking.userPhone ? `tel:${booking.userPhone}` : "#"
                       }
-                      className="text-xs md:text-sm text-gray-500 dark:text-gray-300 truncate"
+                      className="text-xs md:text-sm text-gray-500  truncate"
                     >
                       {booking.userPhone || "No phone"}
                     </a>
 
                     {booking.userAddress && (
-                      <p className="mt-2 text-xs md:text-sm text-gray-500 dark:text-gray-300 flex items-start gap-2">
+                      <p className="mt-2 text-xs md:text-sm text-gray-500  flex items-start gap-2">
                         <span className="sr-only">Address:</span>
                         <FiMapPin className="mt-0.5 text-gray-400" />
                         <span className="truncate">
@@ -513,26 +513,26 @@ const BookingDetailsPage = () => {
             {/* Schedule Card */}
             <section
               aria-labelledby="schedule-info"
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-4 md:p-6"
+              className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6"
             >
               <div className="flex items-center justify-between">
                 <div>
                   <h4
                     id="schedule-info"
-                    className="text-sm font-medium text-gray-600 dark:text-gray-300"
+                    className="text-sm font-medium text-gray-600 "
                   >
                     Schedule
                   </h4>
                   <div className="mt-2 flex flex-col md:flex-row md:items-center md:gap-4">
                     <div className="flex items-center gap-2">
                       <FiCalendar className="text-gray-400" />
-                      <span className="text-sm text-gray-800 dark:text-gray-100">
+                      <span className="text-sm text-gray-800 ">
                         {formatDate(booking.bookingDate)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-2 md:mt-0">
                       <FiClock className="text-gray-400" />
-                      <span className="text-sm text-gray-800 dark:text-gray-100">
+                      <span className="text-sm text-gray-800 ">
                         {formatTime(booking.bookingTime)}
                       </span>
                     </div>
@@ -553,30 +553,30 @@ const BookingDetailsPage = () => {
             {/* Payment Card */}
             <section
               aria-labelledby="payment-info"
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-4 md:p-6"
+              className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h4
                     id="payment-info"
-                    className="text-sm font-medium text-gray-600 dark:text-gray-300"
+                    className="text-sm font-medium text-gray-600 "
                   >
                     Payment Info
                   </h4>
 
                   <div className="mt-3 flex items-center gap-3">
                     <PaymentBadge status={booking.payment_status} />
-                    <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                    <span className="text-xs text-gray-400  capitalize">
                       {booking.payment_status || "—"}
                     </span>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-lg md:text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                  <div className="text-lg md:text-2xl font-semibold text-gray-900 ">
                     ${booking.payment_amount ?? booking.net_amount ?? "0.00"}
                   </div>
-                  <div className="text-xs text-gray-400 dark:text-gray-500">
+                  <div className="text-xs text-gray-400 ">
                     {(booking.payment_currency || "").toUpperCase()}
                   </div>
                 </div>
@@ -584,7 +584,7 @@ const BookingDetailsPage = () => {
             </section>
 
             {/* Action Buttons Card */}
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-4 md:p-6">
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-4 md:p-6">
               {/* Keep actions exactly as they are — only style/layout updated */}
               {vendorType === "individual" ? (
                 <div className="space-y-3">

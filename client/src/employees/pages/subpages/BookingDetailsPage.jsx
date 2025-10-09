@@ -86,19 +86,19 @@ export default function BookingDetailsPage() {
   if (loading || !booking) {
     return (
       <div className="max-w-7xl mx-auto p-6">
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+        <div className="rounded-2xl bg-white  border border-gray-100  shadow-sm p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-6 bg-gray-200 dark:bg-slate-800 rounded w-1/3" />
-            <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-1/4" />
+            <div className="h-6 bg-gray-200  rounded w-1/3" />
+            <div className="h-4 bg-gray-200  rounded w-1/4" />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-              <div className="h-48 bg-gray-100 dark:bg-slate-800 rounded" />
+              <div className="h-48 bg-gray-100  rounded" />
               <div className="col-span-2 space-y-2">
-                <div className="h-6 bg-gray-100 dark:bg-slate-800 rounded" />
-                <div className="h-6 bg-gray-100 dark:bg-slate-800 rounded" />
+                <div className="h-6 bg-gray-100  rounded" />
+                <div className="h-6 bg-gray-100  rounded" />
               </div>
               <div className="col-span-2 space-y-2">
-                <div className="h-10 bg-gray-100 dark:bg-slate-800 rounded" />
-                <div className="h-10 bg-gray-100 dark:bg-slate-800 rounded" />
+                <div className="h-10 bg-gray-100  rounded" />
+                <div className="h-10 bg-gray-100  rounded" />
               </div>
             </div>
           </div>
@@ -126,7 +126,7 @@ export default function BookingDetailsPage() {
       <div className="px-4 space-y-6 py-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h2 className="text-2xl font-bold text-gray-900 ">
               Booking #{booking.booking_id}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -145,12 +145,12 @@ export default function BookingDetailsPage() {
           {/* Left: main details (3/5) */}
           <div className="col-span-3 space-y-6">
             {/* Service Card */}
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+              <h3 className="text-sm font-medium text-gray-600 ">
                 Service Info
               </h3>
               <div className="mt-3">
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <h4 className="text-lg font-semibold text-gray-900 ">
                   {booking.serviceName}
                 </h4>
                 <div className="mt-1 text-sm text-gray-500">
@@ -166,10 +166,10 @@ export default function BookingDetailsPage() {
             {subPackages.map((pkg) => (
               <article
                 key={pkg.package_id ?? pkg.sub_package_id ?? Math.random()}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6"
+                className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6"
               >
                 <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                  <div className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-100 ">
                     {pkg.packageMedia ? (
                       <img
                         src={pkg.packageMedia}
@@ -181,7 +181,7 @@ export default function BookingDetailsPage() {
                         }
                       />
                     ) : (
-                      <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-400">
+                      <div className="w-full h-full bg-gray-50  flex items-center justify-center text-xs text-gray-400">
                         No Image
                       </div>
                     )}
@@ -190,7 +190,7 @@ export default function BookingDetailsPage() {
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                        <h4 className="text-base font-semibold text-gray-900 ">
                           {pkg.packageName}
                         </h4>
                         <div className="mt-1 text-sm text-gray-500">
@@ -217,7 +217,7 @@ export default function BookingDetailsPage() {
                             className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"
                           >
                             <div className="md:col-span-2">
-                              <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                              <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-100 ">
                                 {item.itemMedia ? (
                                   <img
                                     src={item.itemMedia}
@@ -230,7 +230,7 @@ export default function BookingDetailsPage() {
                                     }
                                   />
                                 ) : (
-                                  <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-400">
+                                  <div className="w-full h-full bg-gray-50  flex items-center justify-center text-xs text-gray-400">
                                     No Image
                                   </div>
                                 )}
@@ -240,7 +240,7 @@ export default function BookingDetailsPage() {
                             <div className="md:col-span-7 min-w-0">
                               <div className="flex items-center justify-between">
                                 <div className="min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                  <p className="text-sm font-medium text-gray-900  truncate">
                                     {item.itemName}
                                     {item.quantity ? (
                                       <span className="ml-2 text-xs text-gray-500">
@@ -255,7 +255,7 @@ export default function BookingDetailsPage() {
                                 </div>
                                 <div className="hidden md:block text-right">
                                   {item.price && (
-                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    <div className="text-sm font-semibold text-gray-900 ">
                                       ${item.price}
                                     </div>
                                   )}
@@ -268,7 +268,7 @@ export default function BookingDetailsPage() {
                               {/* addons/preferences/consents */}
                               <div className="mt-3 space-y-2">
                                 {item.addons?.length > 0 && (
-                                  <div className="bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3 text-xs text-gray-700 dark:text-gray-300">
+                                  <div className="bg-gray-50  border border-gray-100  rounded-lg p-3 text-xs text-gray-700 ">
                                     <div className="font-medium text-sm mb-1">
                                       Addons
                                     </div>
@@ -294,7 +294,7 @@ export default function BookingDetailsPage() {
                                 )}
 
                                 {item.preferences?.length > 0 && (
-                                  <div className="bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3 text-xs text-gray-700 dark:text-gray-300">
+                                  <div className="bg-gray-50  border border-gray-100  rounded-lg p-3 text-xs text-gray-700 ">
                                     <div className="font-medium text-sm mb-1">
                                       Preferences
                                     </div>
@@ -322,7 +322,7 @@ export default function BookingDetailsPage() {
                                 )}
 
                                 {item.consents?.length > 0 && (
-                                  <div className="bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3 text-xs text-gray-700 dark:text-gray-300">
+                                  <div className="bg-gray-50  border border-gray-100  rounded-lg p-3 text-xs text-gray-700 ">
                                     <div className="font-medium text-sm mb-1">
                                       Consents
                                     </div>
@@ -369,23 +369,19 @@ export default function BookingDetailsPage() {
 
             {/* Notes */}
             {booking.notes && (
-              <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                  Notes
-                </h4>
-                <p className="mt-2 text-sm text-gray-800 dark:text-gray-100">
-                  {booking.notes}
-                </p>
+              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+                <h4 className="text-sm font-medium text-gray-600 ">Notes</h4>
+                <p className="mt-2 text-sm text-gray-800 ">{booking.notes}</p>
               </section>
             )}
 
             {/* Preferences */}
             {booking.preferences?.length > 0 && (
-              <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+                <h4 className="text-sm font-medium text-gray-600 ">
                   Preferences
                 </h4>
-                <ul className="mt-3 text-sm text-gray-800 dark:text-gray-100 list-disc list-inside">
+                <ul className="mt-3 text-sm text-gray-800  list-disc list-inside">
                   {booking.preferences.map((pref) => (
                     <li key={pref.preference_id ?? pref.preferenceValue}>
                       {pref.preferenceValue}
@@ -397,8 +393,8 @@ export default function BookingDetailsPage() {
 
             {/* Media */}
             {booking.bookingMedia && (
-              <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+                <h4 className="text-sm font-medium text-gray-600 ">
                   Attached Media
                 </h4>
                 <div className="mt-3">
@@ -418,27 +414,27 @@ export default function BookingDetailsPage() {
           {/* Right: meta & actions (2/5) */}
           <aside className="col-span-2 space-y-6">
             {/* Customer Card */}
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   {customerProfileImg ? (
                     <img
                       src={customerProfileImg}
                       alt={booking.userName}
-                      className="w-14 h-14 rounded-full object-cover border border-gray-100 dark:border-slate-800"
+                      className="w-14 h-14 rounded-full object-cover border border-gray-100 "
                       loading="lazy"
                       onError={(e) =>
                         (e.currentTarget.src = "/avatar-placeholder.png")
                       }
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-sm text-gray-400">
+                    <div className="w-14 h-14 rounded-full bg-gray-50  flex items-center justify-center text-sm text-gray-400">
                       N/A
                     </div>
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  <h4 className="text-sm font-semibold text-gray-900  truncate">
                     {booking.userName}
                   </h4>
                   <a
@@ -471,16 +467,14 @@ export default function BookingDetailsPage() {
             </section>
 
             {/* Schedule */}
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-              <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                Schedule
-              </h4>
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+              <h4 className="text-sm font-medium text-gray-600 ">Schedule</h4>
               <div className="mt-3 flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
+                <div className="flex items-center gap-2 text-sm text-gray-900 ">
                   <FiCalendar className="text-gray-400" />
                   <span>{formatDate(booking.bookingDate)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
+                <div className="flex items-center gap-2 text-sm text-gray-900 ">
                   <FiClock className="text-gray-400" />
                   <span>{formatTime(booking.bookingTime)}</span>
                 </div>
@@ -496,10 +490,10 @@ export default function BookingDetailsPage() {
             </section>
 
             {/* Payment */}
-            {/* <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+            {/* <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  <h4 className="text-sm font-medium text-gray-600 ">
                     Payment
                   </h4>
                   <div className="mt-2 flex items-center gap-2">
@@ -511,7 +505,7 @@ export default function BookingDetailsPage() {
                 </div>
 
                 <div className="text-right">
-                  <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  <div className="text-lg font-semibold text-gray-900 ">
                     ${booking.payment_amount ?? booking.net_amount ?? "0.00"}
                   </div>
                   <div className="text-xs text-gray-400">
@@ -520,9 +514,9 @@ export default function BookingDetailsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-gray-100 dark:border-slate-800" />
+              <div className="mt-4 border-t border-gray-100 " />
 
-              <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+              <div className="mt-3 text-sm text-gray-600 ">
                 {booking.platform_fee != null && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Platform fee</span>
@@ -538,7 +532,7 @@ export default function BookingDetailsPage() {
 
                 {booking.payment_intent_id && (
                   <div className="mt-3 text-xs text-gray-400 break-all">
-                    <span className="font-medium text-gray-700 dark:text-gray-200">
+                    <span className="font-medium text-gray-700 ">
                       Payment ID:
                     </span>{" "}
                     <span className="ml-1">{booking.payment_intent_id}</span>
@@ -549,11 +543,11 @@ export default function BookingDetailsPage() {
 
             {/* Assigned Employee */}
             {booking.assignedEmployee && (
-              <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+                <h4 className="text-sm font-medium text-gray-600 ">
                   Assigned Employee
                 </h4>
-                <div className="mt-3 text-sm text-gray-900 dark:text-gray-100">
+                <div className="mt-3 text-sm text-gray-900 ">
                   <div>{booking.assignedEmployee.name}</div>
                   <div className="text-xs text-gray-500">
                     {booking.assignedEmployee.email}
@@ -566,7 +560,7 @@ export default function BookingDetailsPage() {
             )}
 
             {/* Actions */}
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
               <div className="space-y-3">
                 <Button
                   variant="primary"

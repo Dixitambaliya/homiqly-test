@@ -5,7 +5,8 @@ import { formatDateForApi } from "../../../shared/utils/dateUtils";
 import FormInput from "../../../shared/components/Form/FormInput";
 import { Button, IconButton } from "../../../shared/components/Button";
 import Modal from "../../../shared/components/Modal/Modal";
-import { Edit2, Trash2 } from "lucide-react";
+import PromosTable from "../../components/Tables/PromosTable";
+import FormSelect from "../../../shared/components/Form/FormSelect";
 
 /**
  * AdminPromoManager (JSX)
@@ -266,7 +267,7 @@ export default function AdminPromoManager() {
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
+      <div className="">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">Promotions Manager</h1>
 
@@ -309,88 +310,13 @@ export default function AdminPromoManager() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y ">
-              <thead>
-                <tr className="text-left text-xs  bg-gray-50 uppercase">
-                  <th className="px-4 py-3">Code</th>
-                  <th className="px-4 py-3">Discount</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Min Spend</th>
-                  <th className="px-4 py-3">Max Uses</th>
-                  <th className="px-4 py-3">Start</th>
-                  <th className="px-4 py-3">End</th>
-                  <th className="px-4 py-3">Required Bookings</th>
-                  <th className="px-4 py-3">Description</th>
-                  <th className="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {loading ? (
-                  <tr>
-                    <td colSpan={10} className="p-8 text-center text-slate-500">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="p-8 text-center text-slate-500">
-                      No promo codes found
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((p) => (
-                    <tr
-                      key={p.promo_id || p.id}
-                      className="hover:bg-slate-50 text-sm"
-                    >
-                      <td className="px-4 py-3 ">{p.code}</td>
-                      <td className="px-4 py-3">
-                        {p.discountValue ?? p.discount_value ?? "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {p.discount_type ?? p.discountType ?? "-"}
-                      </td>
-                      <td className="px-4 py-3">{p.minSpend ?? "-"}</td>
-                      <td className="px-4 py-3">{p.maxUse ?? "-"}</td>
-                      <td className="px-4 py-3">
-                        {p.start_date
-                          ? new Date(p.start_date).toLocaleString()
-                          : "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {p.end_date
-                          ? new Date(p.end_date).toLocaleString()
-                          : "-"}
-                      </td>
-                      <td className="px-4 py-3">{p.requiredBookings ?? 0}</td>
-                      <td className="px-4 py-3">
-                        {p.description ? p.description : "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <IconButton
-                            icon={<Edit2 className="w-4 h-4" />}
-                            variant="ghost"
-                            onClick={() => openEditModal(p)}
-                          />
-                          <IconButton
-                            icon={<Trash2 className="w-4 h-4" />}
-                            variant="lightDanger"
-                            onClick={() => handleDelete(p)}
-                          >
-                            Delete
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Reusable PromosTable component */}
+        <PromosTable
+          promos={filtered}
+          isLoading={loading}
+          onEdit={openEditModal}
+          onDelete={handleDelete}
+        />
 
         {/* Modal - using your Modal component */}
         <Modal
@@ -417,7 +343,7 @@ export default function AdminPromoManager() {
                 </select>
               </div>
 
-              <div>
+              {/* <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Discount Type
                 </label>
@@ -430,6 +356,18 @@ export default function AdminPromoManager() {
                   <option value="percentage">Percentage</option>
                   <option value="fixed">Fixed</option>
                 </select>
+              </div> */}
+              <div>
+                <FormSelect
+                  label="Discount Type?"
+                  value={form.discount_type}
+                  onChange={handleChange}
+                  options={[
+                    { label: "Percentage", value: "percentage" },
+                    { label: "Fixed", value: "fixed" },
+                  ]}
+                  placeholder="Select option"
+                />
               </div>
 
               <FormInput

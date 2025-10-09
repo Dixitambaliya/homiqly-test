@@ -305,7 +305,7 @@ const BookingDetailsPage = () => {
     getField(booking, "vendorId");
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <Breadcrumb
         links={[
           { label: "Dashboard", to: "/admin/dashboard" },
@@ -330,9 +330,9 @@ const BookingDetailsPage = () => {
         {/* LEFT */}
         <div className="col-span-3 space-y-6">
           {/* Service card */}
-          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6 md:p-8">
+          <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6 md:p-8">
             <div className="flex gap-5 items-start">
-              <div className="flex-shrink-0 w-28 h-28 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+              <div className="flex-shrink-0 w-28 h-28 rounded-lg overflow-hidden border border-gray-100 ">
                 {serviceTypeMedia ? (
                   <img
                     src={serviceTypeMedia}
@@ -344,32 +344,32 @@ const BookingDetailsPage = () => {
                     }
                   />
                 ) : (
-                  <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-sm text-gray-400">
+                  <div className="w-full h-full bg-gray-50  flex items-center justify-center text-sm text-gray-400">
                     No Image
                   </div>
                 )}
               </div>
 
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
+                <h3 className="text-lg md:text-xl font-semibold text-gray-900  truncate">
                   {serviceName}
                 </h3>
 
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   {serviceCategory && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-xs text-gray-600">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50  border border-gray-100  text-xs text-gray-600">
                       {serviceCategory}
                     </span>
                   )}
                   {serviceTypeName && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-xs text-gray-600">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50  border border-gray-100  text-xs text-gray-600">
                       {serviceTypeName}
                     </span>
                   )}
                   <span className="ml-auto text-xs text-gray-400">Service</span>
                 </div>
 
-                <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                <p className="mt-3 text-sm text-gray-600 ">
                   {serviceName
                     ? `Details for the "${serviceName}" booking — all package and item information is below.`
                     : "Service information not available."}
@@ -381,7 +381,7 @@ const BookingDetailsPage = () => {
           {/* Packages */}
           <section className="space-y-4">
             {packages.length === 0 ? (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
+              <div className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
                 <p className="text-sm text-gray-500">No packages selected.</p>
               </div>
             ) : (
@@ -402,11 +402,11 @@ const BookingDetailsPage = () => {
                 return (
                   <article
                     key={pkgId || packageName}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-5 md:p-6 hover:shadow-md transition-shadow"
+                    className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-5 md:p-6 hover:shadow-md transition-shadow"
                   >
                     {/* package header */}
                     <div className="flex items-start gap-4 md:gap-6">
-                      <div className="flex-shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                      <div className="flex-shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden border border-gray-100 ">
                         {packageMedia ? (
                           <img
                             src={packageMedia}
@@ -418,7 +418,7 @@ const BookingDetailsPage = () => {
                             }
                           />
                         ) : (
-                          <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-sm text-gray-400">
+                          <div className="w-full h-full bg-gray-50  flex items-center justify-center text-sm text-gray-400">
                             No Image
                           </div>
                         )}
@@ -426,23 +426,23 @@ const BookingDetailsPage = () => {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-4">
-                          <h4 className="text-base md:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                          <h4 className="text-base md:text-lg font-semibold text-gray-900  truncate">
                             {packageName}
                           </h4>
 
                           <div className="ml-auto flex items-center gap-2">
-                            <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-sm font-medium text-gray-700 dark:text-gray-200">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50  border border-gray-100  text-sm font-medium text-gray-700 ">
                               ${totals.totalPrice}
                             </span>
                             {totals.totalTime && (
-                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-xs text-gray-600">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-50  border border-gray-100  text-xs text-gray-600">
                                 {totals.totalTime}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                        <div className="mt-2 text-sm text-gray-600 ">
                           Package ID:{" "}
                           <span className="text-xs text-gray-400">
                             #{pkgId}
@@ -488,7 +488,7 @@ const BookingDetailsPage = () => {
                             >
                               {/* image */}
                               <div className="md:col-span-2">
-                                <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-gray-100 dark:border-slate-800">
+                                <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-gray-100 ">
                                   {itemMedia ? (
                                     <img
                                       src={itemMedia}
@@ -501,7 +501,7 @@ const BookingDetailsPage = () => {
                                       }
                                     />
                                   ) : (
-                                    <div className="w-full h-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-400">
+                                    <div className="w-full h-full bg-gray-50  flex items-center justify-center text-xs text-gray-400">
                                       No Image
                                     </div>
                                   )}
@@ -512,7 +512,7 @@ const BookingDetailsPage = () => {
                               <div className="md:col-span-7 min-w-0">
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="min-w-0">
-                                    <p className="text-sm md:text-base font-medium text-gray-900 dark:text-gray-100 truncate">
+                                    <p className="text-sm md:text-base font-medium text-gray-900  truncate">
                                       {itemName}
                                       <span className="ml-2 text-xs text-gray-500">
                                         ×{itemQuantity}
@@ -525,7 +525,7 @@ const BookingDetailsPage = () => {
                                   </div>
 
                                   <div className="hidden md:flex md:flex-col md:items-end md:justify-between md:col-span-3">
-                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    <div className="text-sm font-semibold text-gray-900 ">
                                       ${parseFloat(itemPrice || 0).toFixed(2)}
                                     </div>
                                     <div className="text-xs text-gray-400 mt-1">
@@ -539,7 +539,7 @@ const BookingDetailsPage = () => {
                                   {/* Addons */}
                                   {Array.isArray(item.addons) &&
                                     item.addons.length > 0 && (
-                                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-100 dark:border-slate-700 text-xs text-gray-700 dark:text-gray-300">
+                                      <div className="bg-gray-50  rounded-lg p-3 border border-gray-100  text-xs text-gray-700 ">
                                         <div className="font-semibold text-xs mb-2">
                                           Addons
                                         </div>
@@ -573,7 +573,7 @@ const BookingDetailsPage = () => {
                                   {/* Preferences */}
                                   {Array.isArray(item.preferences) &&
                                     item.preferences.length > 0 && (
-                                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-100 dark:border-slate-700 text-xs text-gray-700 dark:text-gray-300">
+                                      <div className="bg-gray-50  rounded-lg p-3 border border-gray-100  text-xs text-gray-700 ">
                                         <div className="font-semibold text-xs mb-2">
                                           Preferences
                                         </div>
@@ -616,7 +616,7 @@ const BookingDetailsPage = () => {
                                   {/* Consents */}
                                   {Array.isArray(item.consents) &&
                                     item.consents.length > 0 && (
-                                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-100 dark:border-slate-700 text-xs text-gray-700 dark:text-gray-300">
+                                      <div className="bg-gray-50  rounded-lg p-3 border border-gray-100  text-xs text-gray-700 ">
                                         <div className="font-semibold text-xs mb-2">
                                           Consents
                                         </div>
@@ -630,7 +630,7 @@ const BookingDetailsPage = () => {
                                                 "question"
                                               )}
                                             >
-                                              <div className="text-xs text-gray-800 dark:text-gray-100">
+                                              <div className="text-xs text-gray-800 ">
                                                 {getField(
                                                   c,
                                                   "question",
@@ -674,13 +674,11 @@ const BookingDetailsPage = () => {
 
           {/* Booking-level Notes/Preferences/Consents/Media */}
           {notes && (
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-              <h4 className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300">
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+              <h4 className="text-sm md:text-base font-medium text-gray-700 ">
                 Notes
               </h4>
-              <p className="mt-2 text-sm text-gray-800 dark:text-gray-100">
-                {notes}
-              </p>
+              <p className="mt-2 text-sm text-gray-800 ">{notes}</p>
             </section>
           )}
 
@@ -690,12 +688,12 @@ const BookingDetailsPage = () => {
             {allPreferences?.length > 0 && (
               <section
                 aria-labelledby="prefs-heading"
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-5 md:p-6"
+                className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-5 md:p-6"
               >
                 <div className="flex items-center justify-between">
                   <h4
                     id="prefs-heading"
-                    className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300"
+                    className="text-sm md:text-base font-medium text-gray-700 "
                   >
                     Preferences
                   </h4>
@@ -717,10 +715,10 @@ const BookingDetailsPage = () => {
                     return (
                       <div
                         key={idx}
-                        className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3"
+                        className="flex items-start justify-between gap-3 bg-gray-50  border border-gray-100  rounded-lg p-3"
                       >
                         <div className="min-w-0">
-                          <div className="text-sm text-gray-900 dark:text-gray-100 truncate">
+                          <div className="text-sm text-gray-900  truncate">
                             {label}
                           </div>
                           {/* optional small meta */}
@@ -733,7 +731,7 @@ const BookingDetailsPage = () => {
 
                         <div className="flex items-center gap-2">
                           {price != null && price !== "" ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-slate-700">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100  text-gray-700  border border-gray-100 ">
                               ${parseFloat(price || 0).toFixed(2)}
                             </span>
                           ) : (
@@ -753,12 +751,12 @@ const BookingDetailsPage = () => {
             {consents?.length > 0 && (
               <section
                 aria-labelledby="consents-heading"
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-5 md:p-6"
+                className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-5 md:p-6"
               >
                 <div className="flex items-center justify-between">
                   <h4
                     id="consents-heading"
-                    className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300"
+                    className="text-sm md:text-base font-medium text-gray-700 "
                   >
                     Consents
                   </h4>
@@ -780,14 +778,14 @@ const BookingDetailsPage = () => {
                     return (
                       <div
                         key={idx}
-                        className="bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg p-3"
+                        className="bg-gray-50  border border-gray-100  rounded-lg p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <div className="text-sm font-medium text-gray-900 ">
                               {question}
                             </div>
-                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-300">
+                            <div className="mt-1 text-xs text-gray-500 ">
                               {isAnswered ? (
                                 <span className="truncate">
                                   {String(answer)}
@@ -830,11 +828,19 @@ const BookingDetailsPage = () => {
           {/* --- end Preferences & Consents (Minimals style) --- */}
 
           {bookingMedia && (
-            <section className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
-              <h4 className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300">
+            <section className="bg-white  rounded-2xl border border-gray-100  shadow-sm p-6">
+              <h4 className="text-sm md:text-base font-medium text-gray-700 ">
                 Attached Media
               </h4>
               <div className="mt-3">
+                <img
+                  src={bookingMedia}
+                  alt="Attached media"
+                  loading="lazy"
+                  onError={() => setImgError(true)}
+                  className="w-full h-full max-h-[360px] object-cover"
+                  style={{ display: "block" }}
+                ></img>
                 <a
                   href={bookingMedia}
                   target="_blank"
