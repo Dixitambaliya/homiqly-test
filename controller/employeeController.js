@@ -885,7 +885,8 @@ const updateBookingStatusByEmployee = asyncHandler(async (req, res) => {
         } else if (status === 4) {
             notifTitle = "Service Completed";
             notifBody = `Employee has completed your service for booking #${booking_id}. Please take a moment to rate your experience.`;
-            ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating?booking_id=${booking_id}`;
+            // ratingLink = `https://homiqly-h81s.vercel.app/Profile/history`;
+            ratingLink = `http://localhost:3000/Profile/history`;
         }
 
         // ✅ Always insert the same number of columns
