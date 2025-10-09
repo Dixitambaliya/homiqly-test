@@ -173,11 +173,10 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     [cart_id]
   );
 
-  // ✅ Fetch promo if exists
+  // ✅ Fetch promo if exists (kept exactly as your original logic)
   let appliedPromo = null;
 
   if (cart.user_promo_code_id) {
-
     const [userPromoRows] = await db.query(
       `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
       [cart.user_id, cart.user_promo_code_id]
@@ -219,7 +218,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         }
       }
     } else {
-      // ✅ Fallback — Direct system promo without user_promo_codes entry
       const [systemPromoRows] = await db.query(
         `SELECT sc.*, 
               st.discount_type, 
@@ -236,14 +234,11 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
       if (systemPromoRows.length) {
         appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-      } else {
-        console.log("🚫 No matching promo found in system_promo_codes either");
       }
     }
   }
 
-
-  // ✅ Calculate subtotal including sub-packages, addons, preferences
+  // ✅ Calculate subtotal
   let subtotal = 0;
   const metadata = { cart_id };
 
@@ -266,7 +261,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
   });
 
-  // ✅ Apply discount (percentage or fixed)
+  // ✅ Apply discount
   let discountAmount = 0;
   let totalAmount = subtotal;
 
@@ -300,20 +295,44 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   );
 
   let paymentIntent;
+
   if (existingPayment.length > 0) {
-    // Update existing PaymentIntent
-    paymentIntent = await stripe.paymentIntents.update(existingPayment[0].payment_intent_id, {
-      amount: Math.round(totalAmount * 100),
-      metadata,
-    });
+    try {
+      // 🔹 Retrieve existing PaymentIntent from Stripe
+      const existingPI = await stripe.paymentIntents.retrieve(existingPayment[0].payment_intent_id);
 
-    await db.query(
-      `UPDATE payments SET amount = ?, currency = 'cad' WHERE payment_intent_id = ?`,
-      [totalAmount, paymentIntent.id]
-    );
+      // 🔹 Only update if status allows it
+      if (["requires_payment_method", "requires_confirmation", "requires_action"].includes(existingPI.status)) {
+        paymentIntent = await stripe.paymentIntents.update(existingPI.id, {
+          amount: Math.round(totalAmount * 100),
+          metadata,
+        });
 
+        await db.query(
+          `UPDATE payments SET amount = ?, currency = 'cad' WHERE payment_intent_id = ?`,
+          [totalAmount, paymentIntent.id]
+        );
+      } else {
+        // 🔹 Cannot update (e.g., requires_capture) → create new PaymentIntent
+        paymentIntent = await stripe.paymentIntents.create({
+          amount: Math.round(totalAmount * 100),
+          currency: "cad",
+          payment_method_types: ["card"],
+          capture_method: "manual",
+          metadata,
+        });
+
+        await db.query(
+          `UPDATE payments SET payment_intent_id = ?, amount = ?, currency = 'cad' WHERE cart_id = ?`,
+          [paymentIntent.id, totalAmount, cart_id]
+        );
+      }
+    } catch (err) {
+      console.error("Stripe retrieve/update failed:", err.message);
+      return res.status(500).json({ error: "Stripe PaymentIntent update failed" });
+    }
   } else {
-    // Create new PaymentIntent
+    // 🆕 Create PaymentIntent
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -336,6 +355,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     paymentIntentId: paymentIntent.id,
   });
 });
+
 
 exports.stripeWebhook = asyncHandler(async (req, res) => {
   let event;
