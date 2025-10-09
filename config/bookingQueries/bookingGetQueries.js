@@ -101,7 +101,6 @@ SELECT
 FROM service_booking_preferences sp
 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
 WHERE sp.booking_id = ?;
-
 `,
 
     getBoookedConsents: `

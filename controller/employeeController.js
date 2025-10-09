@@ -2,14 +2,11 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const employeeGetQueries = require('../config/employeeQueries/employeeGetQueries');
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
-
 const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { sendEmployeeCreationNotification,
-    sendBookingAssignedNotification
-} = require("./adminNotification");
+const { sendEmployeeCreationNotification, sendBookingAssignedNotification } = require("./adminNotification");
 
 const createEmployee = asyncHandler(async (req, res) => {
     const { first_name, last_name, email, phone } = req.body;
@@ -916,73 +913,91 @@ const getEmployeeBookingHistory = asyncHandler(async (req, res) => {
     const employee_id = req.user.employee_id;
 
     try {
+        // 1️⃣ Fetch bookings assigned to the employee
         const [bookings] = await db.query(employeeGetQueries.getemployeeBookings, [employee_id]);
 
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
 
-            // Packages
-            const [bookingPackages] = await db.query(employeeGetQueries.getemployeeBookingPackages, [bookingId]);
+            // 2️⃣ Fetch sub-packages (each sub-package will have a package_id)
+            const [subPackages] = await db.query(employeeGetQueries.getemployeeBookingSubPackages, [bookingId]);
 
-            // Package Items
-            const [packageItems] = await db.query(employeeGetQueries.getemployeeBookingSubPackages, [bookingId]);
-
-            // Addons
+            // 3️⃣ Fetch addons
             const [bookingAddons] = await db.query(employeeGetQueries.getemployeeBookingAddons, [bookingId]);
 
-            // Preferences
+            // 4️⃣ Fetch preferences
             const [bookingPreferences] = await db.query(employeeGetQueries.getemployeeBookingPrefrences, [bookingId]);
 
-            // Consents
+            // 5️⃣ Fetch consents
             const [bookingConsents] = await db.query(employeeGetQueries.getemployeeConcentForm, [bookingId]);
 
-            // Group consents by package_id
-            const consentsGroupedByPackage = {};
-            bookingConsents.forEach(consent => {
-                const pkgId = consent.package_id || 'no_package';
-                if (!consentsGroupedByPackage[pkgId]) consentsGroupedByPackage[pkgId] = [];
-                consentsGroupedByPackage[pkgId].push({
-                    consent_id: consent.consent_id,
-                    consentText: consent.question,
-                    answer: consent.answer
+            // 6️⃣ Group addons, preferences, consents by sub_package_id
+            const addonsBySubPackage = {};
+            bookingAddons.forEach(a => {
+                if (!addonsBySubPackage[a.sub_package_id]) addonsBySubPackage[a.sub_package_id] = [];
+                addonsBySubPackage[a.sub_package_id].push({
+                    addon_id: a.addon_id,
+                    addonName: a.addonName,
+                    addonMedia: a.addonMedia,
+                    quantity: a.quantity
                 });
             });
 
-            // Merge everything into packages
-            booking.packages = bookingPackages.map(pkg => {
-                const items = packageItems
-                    .filter(item => item.package_id === pkg.package_id)
-                    .map(({ package_id, ...rest }) => rest);
-                const addons = bookingAddons
-                    .filter(addon => addon.package_id === pkg.package_id)
-                    .map(({ package_id, ...rest }) => rest);
-                const preferences = bookingPreferences
-                    .map(({ package_id, ...rest }) => rest);
-                const consents = consentsGroupedByPackage[pkg.package_id] || [];
-
-                return {
-                    ...pkg,
-                    items,
-                    addons,
-                    preferences,
-                    consents
-                };
+            const preferencesBySubPackage = {};
+            bookingPreferences.forEach(p => {
+                if (!preferencesBySubPackage[p.sub_package_id]) preferencesBySubPackage[p.sub_package_id] = [];
+                preferencesBySubPackage[p.sub_package_id].push({
+                    preference_id: p.preference_id,
+                    preferenceValue: p.preferenceValue
+                });
             });
 
-            // Remove top-level arrays
-            delete booking.package_items;
-            delete booking.addons;
-            delete booking.preferences;
-            delete booking.consents;
-
-            // Remove null/empty fields
-            Object.keys(booking).forEach(key => {
-                if (booking[key] === null) delete booking[key];
+            const consentsBySubPackage = {};
+            bookingConsents.forEach(c => {
+                if (!consentsBySubPackage[c.sub_package_id]) consentsBySubPackage[c.sub_package_id] = [];
+                consentsBySubPackage[c.sub_package_id].push({
+                    consent_id: c.consent_id,
+                    consentText: c.question,
+                    answer: c.answer
+                });
             });
+
+            // 7️⃣ Group sub-packages by package_id
+            const packagesMap = {};
+            subPackages.forEach(sp => {
+                if (!packagesMap[sp.package_id]) {
+                    packagesMap[sp.package_id] = {
+                        package_id: sp.package_id,
+                        packageName: sp.packageName,
+                        packageMedia: sp.packageMedia,
+                        items: []
+                    };
+                }
+
+                packagesMap[sp.package_id].items.push({
+                    sub_package_id: sp.sub_package_id,
+                    itemName: sp.itemName,
+                    itemMedia: sp.itemMedia,
+                    timeRequired: sp.timeRequired,
+                    quantity: sp.quantity,
+                    price: sp.price,
+                    addons: addonsBySubPackage[sp.sub_package_id] || [],
+                    preferences: preferencesBySubPackage[sp.sub_package_id] || [],
+                    consents: consentsBySubPackage[sp.sub_package_id] || []
+                });
+            });
+
+            booking.packages = Object.values(packagesMap);
+
+            // 8️⃣ Remove null fields at booking level
+            Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
+
+            // 9️⃣ Optional: remove subPackages if you don't want duplicates
+            delete booking.subPackages;
         }
 
         res.status(200).json({
-            message: "Completed bookings fetched successfully",
+            message: "Employee booking history fetched successfully",
             bookings
         });
 
