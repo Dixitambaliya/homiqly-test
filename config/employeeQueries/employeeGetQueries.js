@@ -11,7 +11,6 @@ const employeeGetQueries = {
         e.email,
         e.is_active,
         e.created_at AS employee_created_at,
-
         cd.dob,
         cd.profileImage,
         cd.companyName,

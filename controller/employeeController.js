@@ -605,7 +605,8 @@ const getEmployeeBookings = asyncHandler(async (req, res) => {
                 u.address AS userAddress,
                 u.flatNumber AS userFlatNumber,
                 u.parkingInstruction AS userParkingInstructions,
-                u.postalcode AS userPostalcode
+                u.postalcode AS userPostalcode,
+                u.state AS userState
             FROM service_booking sb
             LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
