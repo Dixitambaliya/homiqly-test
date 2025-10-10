@@ -186,7 +186,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     if (userPromoRows.length) {
       const promo = userPromoRows[0];
 
-      // ✅ Admin-assigned promo
       if (promo.source_type === "admin" && promo.promo_id) {
         const [adminPromoRows] = await db.query(
           `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
@@ -198,7 +197,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         }
       }
 
-      // ✅ System promo (linked via template)
       if (!appliedPromo && promo.source_type === "system") {
         const [systemPromoRows] = await db.query(
           `SELECT sc.*, 
@@ -219,7 +217,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         }
       }
     } else {
-      // ✅ Fallback — Direct system promo without user_promo_codes entry
       const [systemPromoRows] = await db.query(
         `SELECT sc.*, 
               st.discount_type, 
@@ -241,7 +238,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       }
     }
   }
-
 
   // ✅ Calculate subtotal including sub-packages, addons, preferences
   let subtotal = 0;
@@ -300,20 +296,16 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   );
 
   let paymentIntent;
+
   if (existingPayment.length > 0) {
-    // Update existing PaymentIntent
-    paymentIntent = await stripe.paymentIntents.update(existingPayment[0].payment_intent_id, {
-      amount: Math.round(totalAmount * 100),
-      metadata,
-    });
+    try {
+      // ⚡ Cancel old PaymentIntent if it exists
+      await stripe.paymentIntents.cancel(existingPayment[0].payment_intent_id);
+    } catch (err) {
+      console.warn("⚠️ Failed to cancel old PaymentIntent:", err.message);
+    }
 
-    await db.query(
-      `UPDATE payments SET amount = ?, currency = 'cad' WHERE payment_intent_id = ?`,
-      [totalAmount, paymentIntent.id]
-    );
-
-  } else {
-    // Create new PaymentIntent
+    // ⚡ Create new PaymentIntent
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -322,6 +314,25 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
+    // ✅ Update DB with new PaymentIntent
+    await db.query(
+      `UPDATE payments 
+       SET payment_intent_id = ?, amount = ?, currency = 'cad', status = 'pending' 
+       WHERE cart_id = ?`,
+      [paymentIntent.id, totalAmount, cart_id]
+    );
+
+  } else {
+    // ⚡ Create new PaymentIntent
+    paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(totalAmount * 100),
+      currency: "cad",
+      payment_method_types: ["card"],
+      capture_method: "manual",
+      metadata,
+    });
+
+    // ✅ Insert into DB
     await db.query(
       `INSERT INTO payments (user_id, payment_intent_id, cart_id, amount, currency, status)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -500,20 +511,48 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
 
-        // ✅ Promo usage
+        // ✅ Promo usage (for both user & system promo codes)
         if (user_promo_code_id) {
+          // 1️⃣ Check if promo exists in user_promo_codes
           const [[userPromo]] = await connection.query(
-            `SELECT user_promo_code_id FROM user_promo_codes WHERE user_promo_code_id = ?`,
+            `SELECT user_promo_code_id 
+            FROM user_promo_codes 
+            WHERE user_promo_code_id = ?`,
             [user_promo_code_id]
           );
+
+          // 2️⃣ Check if promo exists in system_promo_codes
+          const [[systemPromo]] = await connection.query(
+            `SELECT system_promo_code_id 
+            FROM system_promo_codes 
+            WHERE system_promo_code_id = ?`,
+            [user_promo_code_id]
+          );
+
+          // 3️⃣ Update accordingly
           if (userPromo) {
             await connection.query(
-              `UPDATE user_promo_codes SET usedCount = usedCount + 1 
-               WHERE user_promo_code_id = ? AND usedCount < maxUse`,
+              `UPDATE user_promo_codes 
+              SET usage_count = usage_count + 1 
+              WHERE user_promo_code_id = ? 
+                AND usedCount < maxUse`,
               [user_promo_code_id]
             );
+            console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
+          } else if (systemPromo) {
+            await connection.query(
+              `UPDATE system_promo_codes 
+              SET usedCount = usedCount + 1 
+              WHERE system_promo_code_id = ? 
+                AND usedCount < maxUse`,
+              [user_promo_code_id]
+            );
+            console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
+          } else {
+            console.warn(`⚠️ Promo ID ${user_promo_code_id} not found in either promo table.`);
           }
         }
+
 
         // ✅ Capture payment
         await stripe.paymentIntents.capture(paymentIntentId);
@@ -561,56 +600,135 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [paymentIntentId]
           );
 
-          // Fetch booking details
-          const [[bookingDetails]] = await connection.query(
+          // 1️⃣ Fetch booking details + packages + nested data
+          const [[booking]] = await connection.query(
             `SELECT 
-              sb.*, 
-              pk.packageName,
-              CONCAT(u.firstName, ' ', u.lastName) AS userName,
+              sb.booking_id,
+              sb.user_id,
+              sb.vendor_id,
+              sb.bookingDate,
+              sb.bookingTime,
+              sb.notes,
+              sb.payment_intent_id,
+              u.firstName AS userFirstName,
+              u.lastName AS userLastName,
               u.email AS userEmail,
               u.phone AS userPhone,
-              GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
-              GROUP_CONCAT(DISTINCT a.addonName) AS addons,
-              GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
-              GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents,
 
-              -- 🧠 Fetch promo code from correct source
-              COALESCE(
-                  pc.code,             -- From user promo chain
-                  spt.code          -- From system promo chain
-              ) AS promo_code,
+              COALESCE(pc.code, spt.code) AS promo_code,
+              COALESCE(pc.discountValue, spt.discountValue) AS promo_discount,
+              sb.user_promo_code_id
 
-              -- 🧮 Fetch promo discount (if available)
-              COALESCE(
-                  pc.discountValue, 
-                  spt.discountValue
-              ) AS promo_discount
-
-          FROM service_booking sb
-          LEFT JOIN users u ON sb.user_id = u.user_id
-          LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
-          LEFT JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
-          LEFT JOIN packages pk ON sp.package_id = pk.package_id
-          LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
-          LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
-          LEFT JOIN service_booking_preferences sbpr ON sb.booking_id = sbpr.booking_id
-          LEFT JOIN booking_preferences pref ON sbpr.preference_id = pref.preference_id
-          LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
-          LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
-
-          LEFT JOIN user_promo_codes upc ON sb.user_promo_code_id = upc.user_promo_code_id
-          LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-
-          LEFT JOIN system_promo_codes spc ON sb.user_promo_code_id = spc.system_promo_code_id
-          LEFT JOIN system_promo_code_templates spt ON spc.system_promo_code_id = spt.system_promo_code_template_id
-
-          WHERE sb.payment_intent_id = ?`,
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN user_promo_codes upc ON sb.user_promo_code_id = upc.user_promo_code_id
+            LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+            LEFT JOIN system_promo_codes spc ON sb.user_promo_code_id = spc.system_promo_code_id
+            LEFT JOIN system_promo_code_templates spt ON spc.system_promo_code_id = spt.system_promo_code_template_id
+            WHERE sb.payment_intent_id = ?`,
             [paymentIntentId]
           );
-          
+
+          if (!booking) {
+            console.warn("⚠️ No booking found for paymentIntentId", paymentIntentId);
+            return;
+          }
+
+          // 2️⃣ Fetch packages for this booking
+          const [packages] = await connection.query(
+            `SELECT 
+              pk.package_id,
+              pk.packageName,
+              sp.item_id AS sub_package_id,
+              sp.itemName,
+              sp.timeRequired,
+              sbsp.price AS sub_package_price,
+              sbsp.quantity
+          FROM service_booking_sub_packages sbsp
+          JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
+          JOIN packages pk ON sp.package_id = pk.package_id
+          WHERE sbsp.booking_id = ?`,
+            [booking.booking_id]
+          );
+
+          // 3️⃣ Fetch addons, preferences, consents per booking item
+          const [addons] = await connection.query(
+            `SELECT sba.sub_package_id, a.addon_id, a.addonName, sba.price
+            FROM service_booking_addons sba
+            JOIN package_addons a ON sba.addon_id = a.addon_id
+            WHERE sba.booking_id = ?`,
+            [booking.booking_id]
+          );
+
+          const [preferences] = await connection.query(
+            `SELECT sbpr.sub_package_id, pref.preference_id, pref.preferenceValue, pref.preferencePrice
+            FROM service_booking_preferences sbpr
+            JOIN booking_preferences pref ON sbpr.preference_id = pref.preference_id
+            WHERE sbpr.booking_id = ?`,
+            [booking.booking_id]
+          );
+
+          const [consents] = await connection.query(
+            `SELECT sbc.sub_package_id, c.consent_id, c.question, sbc.answer
+            FROM service_booking_consents sbc
+            JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+            WHERE sbc.booking_id = ?`,
+            [booking.booking_id]
+          );
+
+          // 4️⃣ Build nested package structure
+          const packageMap = {};
+
+          packages.forEach(pkg => {
+            if (!packageMap[pkg.package_id]) {
+              packageMap[pkg.package_id] = {
+                package_id: pkg.package_id,
+                packageName: pkg.packageName,
+                sub_packages: []
+              };
+            }
+
+            packageMap[pkg.package_id].sub_packages.push({
+              sub_package_id: pkg.sub_package_id,
+              itemName: pkg.itemName,
+              timeRequired: pkg.timeRequired,
+              price: pkg.sub_package_price,
+              quantity: pkg.quantity,
+              addons: [],
+              preferences: [],
+              consents: []
+            });
+          });
+
+          // Attach addons, preferences, consents to correct sub-packages
+          Object.values(packageMap).forEach(pkg => {
+            pkg.sub_packages.forEach(sub => {
+              sub.addons = addons.filter(a => a.sub_package_id === sub.sub_package_id);
+              sub.preferences = preferences.filter(p => p.sub_package_id === sub.sub_package_id);
+              sub.consents = consents.filter(c => c.sub_package_id === sub.sub_package_id);
+            });
+          });
+
+          // 5️⃣ Final booking object ready for email
+          const bookingDetails = {
+            booking_id: booking.booking_id,
+            user_id: booking.user_id,
+            vendor_id: booking.vendor_id,
+            bookingDate: booking.bookingDate,
+            bookingTime: booking.bookingTime,
+            notes: booking.notes,
+            payment_intent_id: booking.payment_intent_id,
+            userName: `${booking.userFirstName} ${booking.userLastName}`,
+            userEmail: booking.userEmail,
+            userPhone: booking.userPhone,
+            promo_code: booking.promo_code,
+            promo_discount: booking.promo_discount,
+            packages: Object.values(packageMap)
+          };
+
           // ✅ Send emails
           if (bookingDetails) {
-            await sendBookingEmail(bookingDetails.user_id, { ...bookingDetails, receiptUrl });
+            await sendBookingEmail(booking.user_id, { ...bookingDetails, receiptUrl });
             console.log("📧 Booking email sent with receipt");
 
             if (bookingDetails.vendor_id) {

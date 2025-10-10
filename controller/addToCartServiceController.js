@@ -769,25 +769,26 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
     }
 });
 
-const getCartByPackageId = asyncHandler(async (req, res) => {
+const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { package_id } = req.params;
+    const { service_type_id } = req.params;
 
-    if (!package_id) {
-        return res.status(400).json({ message: "package_id is required" });
+    if (!service_type_id) {
+        return res.status(400).json({ message: "service_type_id is required" });
     }
 
     try {
-        // 1️⃣ Fetch cart row(s) for the user and package
+        // 1️⃣ Fetch cart row(s) for the user and service_type_id
         const [cartRows] = await db.query(
-            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.package_id, sc.bookingStatus, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime, sc.user_promo_code_id
+            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.service_type_id, sc.package_id,
+                    sc.bookingStatus, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime, sc.user_promo_code_id
              FROM service_cart sc
-             WHERE sc.user_id = ? AND sc.package_id = ?`,
-            [user_id, package_id]
+             WHERE sc.user_id = ? AND sc.service_type_id = ?`,
+            [user_id, service_type_id]
         );
 
         if (!cartRows.length) {
-            return res.status(200).json({ message: "No cart found for this package" });
+            return res.status(200).json({ message: "No cart found for this service type" });
         }
 
         const cart = cartRows[0];
@@ -958,10 +959,11 @@ const getCartByPackageId = asyncHandler(async (req, res) => {
             promo: promoDetails || null
         });
     } catch (err) {
-        console.error("Get cart by package error:", err);
+        console.error("Get cart by service type error:", err);
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
+
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
@@ -1052,7 +1054,7 @@ module.exports = {
     deleteCartItem,
     updateCartDetails,
     getCartDetails,
-    getCartByPackageId,
+    getCartByServiceTypeId,
     deleteCartSubPackage,
     getAdminInquiries
 };

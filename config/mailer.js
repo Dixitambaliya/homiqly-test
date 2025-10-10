@@ -13,10 +13,13 @@ const transporter = nodemailer.createTransport({
 
 async function sendBookingEmail(user_id, bookingDetails) {
     try {
+        console.log("📌 Starting sendBookingEmail...");
+        console.log("Booking details received:", JSON.stringify(bookingDetails, null, 2));
+
         const [[user]] = await db.query(
             `SELECT CONCAT(firstName, ' ', lastName) AS name, email 
-             FROM users 
-             WHERE user_id = ? LIMIT 1`,
+       FROM users 
+       WHERE user_id = ? LIMIT 1`,
             [user_id]
         );
 
@@ -24,16 +27,13 @@ async function sendBookingEmail(user_id, bookingDetails) {
             console.warn(`⚠️ No user found for user_id ${user_id}, skipping email.`);
             return;
         }
+        console.log(`✅ User found: ${user.name} <${user.email}>`);
 
         const {
             booking_id,
             bookingDate,
             bookingTime,
-            packageName,
-            sub_packages,
-            addons,
-            preferences,
-            consents,
+            packages = [],
             promo_code,
             promo_discount,
             receiptUrl
@@ -42,129 +42,98 @@ async function sendBookingEmail(user_id, bookingDetails) {
         const pngPath = path.resolve("config/media/homiqly.webp");
         const cidName = "homiqlyLogo";
 
-        const htmlBody = `
-        <div style="
-            font-family: 'Helvetica', Arial, sans-serif;
-            background-color: #f4f6f8;
-            padding: 30px 0;
-        ">
-            <div style="
-                max-width: 700px;
-                margin: auto;
-                background-color: #ffffff;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            ">
-                <!-- Header with logo -->
-                <div style="background-color: #4CAF50; padding: 20px; text-align: center;">
-                    <img src="cid:${cidName}" alt="Homiqly Logo" style="width: 160px; height: auto; display: block; margin: auto;" />
-                    <h1 style="color: #ffffff; font-size: 24px; margin: 15px 0 0;">Booking Confirmed!</h1>
-                </div>
+        // 🧾 Create dynamic HTML for all packages
+        const packagesHtml = packages.map(pkg => {
+            const subPackagesHtml = pkg.sub_packages.map(sub => {
+                const addonsHtml = sub.addons?.length
+                    ? sub.addons.map(a => `<li>${a.addonName} <span style="color:#555;">(₹${a.price})</span></li>`).join("")
+                    : "<li>None</li>";
 
-                <!-- Greeting -->
-                <div style="padding: 25px 30px; text-align: center;">
-                    <p style="font-size: 16px; color: #333;">Hi <strong>${user.name}</strong>,</p>
-                    <p style="font-size: 16px; color: #333;">
-                        Your booking <strong>#${booking_id}</strong> has been successfully confirmed. Here are the details:
-                    </p>
-                </div>
+                const prefsHtml = sub.preferences?.length
+                    ? sub.preferences.map(p => `<li>${p.preferenceValue} <span style="color:#555;">(₹${p.preferencePrice})</span></li>`).join("")
+                    : "<li>None</li>";
 
-                <!-- Booking Details Card -->
-                <div style="
-                    background-color: #f9f9f9;
-                    margin: 0 30px 30px;
-                    border-radius: 10px;
-                    padding: 20px;
-                    border: 1px solid #e0e0e0;
-                ">
-                    <h2 style="font-size: 18px; color: #2c3e50; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 15px;">Booking Details</h2>
-                    <table style="width: 100%; font-size: 15px; color: #333; line-height: 1.6; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Date:</strong></td>
-                            <td style="padding: 6px 0;">${bookingDate}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Time:</strong></td>
-                            <td style="padding: 6px 0;">${bookingTime}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Package:</strong></td>
-                            <td style="padding: 6px 0;">${packageName || "N/A"}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Sub-Packages:</strong></td>
-                            <td style="padding: 6px 0;">${sub_packages || "None"}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Addons:</strong></td>
-                            <td style="padding: 6px 0;">${addons || "None"}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Preferences:</strong></td>
-                            <td style="padding: 6px 0;">${preferences || "None"}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Consents:</strong></td>
-                            <td style="padding: 6px 0;">${consents || "None"}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Promo Code:</strong></td>
-                            <td style="padding: 6px 0;">${promo_code || "None"}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 0;"><strong>Promo Code:</strong></td>
-                            <td style="padding: 6px 0;">${promo_discount || "None"}</td>
-                        </tr>
-                    </table>
-                </div>
+                const consentsHtml = sub.consents?.length
+                    ? sub.consents.map(c => `<li>${c.question}: <strong>${c.answer}</strong></li>`).join("")
+                    : "<li>None</li>";
 
-                <!-- Receipt Button -->
-                ${receiptUrl ? `
-                <div style="text-align: center; padding-bottom: 30px;">
-                    <a href="${receiptUrl}" style="
-                        background-color: #4CAF50;
-                        color: white;
-                        text-decoration: none;
-                        padding: 14px 28px;
-                        font-size: 16px;
-                        font-weight: 600;
-                        border-radius: 8px;
-                        display: inline-block;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                    ">View Payment Receipt</a>
-                </div>` : ""}
-
-                <!-- Footer -->
-                <div style="text-align: center; font-size: 13px; color: #777; padding: 15px 30px 30px;">
-                    <p>Thank you for choosing Homiqly! We look forward to serving you.</p>
-                    <p>— The Homiqly Team</p>
-                </div>
-            </div>
-        </div>
+                return `
+          <div style="padding:12px 15px; margin:10px 0; background:#fafafa; border-radius:8px; border:1px solid #eee;">
+            <p style="margin:0 0 8px;"><strong>${sub.itemName}</strong> (${sub.timeRequired})</p>
+            <table style="width:100%; font-size:14px; color:#333;">
+              <tr><td style="width:150px;"><strong>Price:</strong></td><td>₹${sub.price}</td></tr>
+              <tr><td><strong>Addons:</strong></td><td><ul>${addonsHtml}</ul></td></tr>
+              <tr><td><strong>Preferences:</strong></td><td><ul>${prefsHtml}</ul></td></tr>
+              <tr><td><strong>Consents:</strong></td><td><ul>${consentsHtml}</ul></td></tr>
+            </table>
+          </div>
         `;
+            }).join("");
 
-        // ---------- Send email ----------
+            return `
+        <div style="margin-bottom:25px;">
+          <h3 style="color:#2c3e50; border-bottom:2px solid #4CAF50; padding-bottom:5px;">${pkg.packageName}</h3>
+          ${subPackagesHtml}
+        </div>
+      `;
+        }).join("");
+
+        // 📄 Build the full email HTML
+        const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+          
+          <div style="background:#4CAF50; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Booking Confirmed!</h1>
+          </div>
+
+          <div style="padding:25px 30px;">
+            <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
+            <p style="font-size:15px; color:#555;">Your booking <strong>#${booking_id}</strong> has been successfully confirmed. Below are your details:</p>
+
+            <table style="width:100%; margin-top:15px; border-collapse:collapse; font-size:15px;">
+              <tr><td style="padding:5px 0;"><strong>Date:</strong></td><td>${new Date(bookingDate).toLocaleDateString()}</td></tr>
+              <tr><td style="padding:5px 0;"><strong>Time:</strong></td><td>${bookingTime}</td></tr>
+              <tr><td style="padding:5px 0;"><strong>Promo Code:</strong></td><td>${promo_code || "None"}</td></tr>
+              <tr><td style="padding:5px 0;"><strong>Promo Discount:</strong></td><td>₹${promo_discount || 0}</td></tr>
+            </table>
+
+            <h2 style="margin-top:25px; font-size:18px; color:#2c3e50;">Your Packages</h2>
+            ${packagesHtml || "<p>No packages found.</p>"}
+
+            ${receiptUrl ? `
+              <div style="text-align:center; margin:30px 0 10px;">
+                <a href="${receiptUrl}" style="background:#4CAF50; color:#fff; text-decoration:none; padding:12px 24px; font-size:16px; font-weight:600; border-radius:8px;">View Payment Receipt</a>
+              </div>` : ""}
+          </div>
+
+          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
+            <p style="margin:4px 0;">Thank you for choosing Homiqly!</p>
+            <p style="margin:4px 0;">— The Homiqly Team</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+        console.log("📌 Sending email to:", user.email);
         await transporter.sendMail({
             from: `"Homiqly" <${process.env.EMAIL_USER}>`,
             to: user.email,
             subject: `Booking Confirmation #${booking_id}`,
             html: htmlBody,
             attachments: [
-                {
-                    filename: 'homiqly.webp',
-                    path: pngPath,
-                    cid: cidName,
-                    contentDisposition: "inline"
-                }
+                { filename: 'homiqly.webp', path: pngPath, cid: cidName, contentDisposition: "inline" }
             ]
         });
 
         console.log(`📧 Booking confirmation email sent to ${user.email}`);
     } catch (err) {
-        console.error("❌ Failed to send booking email:", err.message);
+        console.error("❌ Failed to send booking email:", err);
     }
 }
+
+
 
 async function sendVendorBookingEmail(vendor_id, bookingDetails) {
     try {
