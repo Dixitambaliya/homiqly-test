@@ -27,30 +27,31 @@ const addToCartService = asyncHandler(async (req, res) => {
     try {
         const createdOrUpdatedCarts = [];
 
+        // ✅ Check if a cart already exists for this service_type_id
+        const [existingCartForType] = await connection.query(
+            `SELECT cart_id FROM service_cart 
+             WHERE user_id = ? AND service_id = ? AND service_type_id = ? AND bookingStatus = 0 
+             LIMIT 1`,
+            [user_id, service_id, service_type_id]
+        );
+
+        let cart_id = existingCartForType.length ? existingCartForType[0].cart_id : null;
+
+        // ✅ Create new cart only if no existing one for this service_type_id
+        if (!cart_id) {
+            const [insertCart] = await connection.query(
+                `INSERT INTO service_cart (user_id, service_id, service_type_id, bookingStatus)
+                 VALUES (?, ?, ?, 0)`,
+                [user_id, service_id, service_type_id]
+            );
+            cart_id = insertCart.insertId;
+        }
+
+        // ✅ Now handle packages under this one cart
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages, addons } = pkg;
 
-            // ✅ Check if cart exists for this user, service, service_type, and package
-            const [existingCart] = await connection.query(
-                `SELECT cart_id FROM service_cart 
-                 WHERE user_id = ? AND service_id = ? AND service_type_id = ? 
-                   AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
-                [user_id, service_id, service_type_id, package_id]
-            );
-
-            let cart_id = existingCart.length ? existingCart[0].cart_id : null;
-
-            // ✅ Create new cart if not exists
-            if (!cart_id) {
-                const [insertCart] = await connection.query(
-                    `INSERT INTO service_cart (user_id, service_id, service_type_id, package_id, bookingStatus)
-                     VALUES (?, ?, ?, ?, 0)`,
-                    [user_id, service_id, service_type_id, package_id]
-                );
-                cart_id = insertCart.insertId;
-            }
-
-            // ✅ Fetch existing linked data
+            // Fetch existing linked data
             const [existingItems] = await connection.query(
                 "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
             );
@@ -74,7 +75,7 @@ const addToCartService = asyncHandler(async (req, res) => {
             const existingConsentMap = {};
             existingConsents.forEach(c => existingConsentMap[`${c.sub_package_id}_${c.consent_id}`] = true);
 
-            // ✅ INSERT or UPDATE sub-packages
+            // ✅ INSERT or UPDATE sub-packages (for all packages under this one cart)
             if (Array.isArray(sub_packages)) {
                 for (const item of sub_packages) {
                     const sub_package_id = item.sub_package_id;
@@ -130,9 +131,9 @@ const addToCartService = asyncHandler(async (req, res) => {
                     }
                 }
             }
-
-            createdOrUpdatedCarts.push({ cart_id });
         }
+
+        createdOrUpdatedCarts.push({ cart_id });
 
         await connection.commit();
         connection.release();
@@ -144,7 +145,6 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
-
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
@@ -484,7 +484,6 @@ const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        // 🔹 Fetch the active service tax (if any)
         const [[taxRow]] = await db.query(`
             SELECT taxName, taxPercentage 
             FROM service_taxes 
@@ -494,32 +493,13 @@ const getUserCart = asyncHandler(async (req, res) => {
         const serviceTaxRate = taxRow ? parseFloat(taxRow.taxPercentage) : 0;
         const serviceTaxName = taxRow ? taxRow.taxName : null;
 
+        // Fetch carts (one per service_type_id)
         const [cartRows] = await db.query(
-            `SELECT 
-                sc.cart_id,
-                sc.service_id,
-                sc.package_id,
-                p.packageName,
-                p.service_type_id,
-                sc.user_id,
-                sc.vendor_id,
-                sc.bookingStatus,
-                sc.notes,
-                sc.bookingMedia,
-                sc.created_at,
-                sc.bookingDate,
-                sc.bookingTime,
-                sc.user_promo_code_id
-            FROM service_cart sc
-            LEFT JOIN packages p ON sc.package_id = p.package_id
-            WHERE sc.user_id = ?
-            ORDER BY sc.created_at DESC`,
+            `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC`,
             [user_id]
         );
 
-        if (!cartRows.length) {
-            return res.status(200).json({ message: "Cart is empty", carts: [], promos: [] });
-        }
+        if (!cartRows.length) return res.status(200).json({ message: "Cart is empty", carts: [], promos: [] });
 
         const allCarts = [];
         const promos = [];
@@ -527,174 +507,167 @@ const getUserCart = asyncHandler(async (req, res) => {
         for (const cart of cartRows) {
             const { cart_id } = cart;
 
-            // Fetch sub-packages
-            const [subPackages] = await db.query(
-                `SELECT 
-                    cpi.cart_package_items_id,
-                    cpi.sub_package_id,
-                    pi.itemName,
-                    pi.itemMedia,
-                    cpi.price,
-                    cpi.quantity,
-                    pi.timeRequired
-                 FROM cart_package_items cpi
-                 LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
-                 WHERE cpi.cart_id = ?`,
+            // Get all package_ids in this cart
+            const [packageRows] = await db.query(
+                `SELECT DISTINCT package_id FROM cart_package_items WHERE cart_id = ?`,
                 [cart_id]
             );
 
-            // Fetch addons
-            const [addons] = await db.query(
-                `SELECT ca.sub_package_id, a.addonName, ca.price
-                 FROM cart_addons ca
-                 JOIN package_addons a ON ca.addon_id = a.addon_id
-                 WHERE ca.cart_id = ?`,
-                [cart_id]
-            );
+            const structuredPackages = [];
 
-            // Fetch preferences
-            const [preferences] = await db.query(
-                `SELECT cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
-                 FROM cart_preferences cp
-                 JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-                 WHERE cp.cart_id = ?`,
-                [cart_id]
-            );
+            for (const pkg of packageRows) {
+                const { package_id } = pkg;
 
-            // Fetch consents
-            const [consents] = await db.query(
-                `SELECT cc.cart_consent_id, cc.sub_package_id, c.question, cc.answer
-                 FROM cart_consents cc
-                 JOIN package_consent_forms c ON cc.consent_id = c.consent_id
-                 WHERE cc.cart_id = ?`,
-                [cart_id]
-            );
+                // Sub-packages for this package
+                const [subPackages] = await db.query(
+                    `SELECT cpi.cart_package_items_id, cpi.cart_id, cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, cpi.created_at,
+                            pi.itemName, pi.itemMedia, pi.timeRequired
+                     FROM cart_package_items cpi
+                     LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+                     WHERE cpi.cart_id = ? AND cpi.package_id = ?`,
+                    [cart_id, package_id]
+                );
 
-            // Group addons/preferences/consents by sub_package_id
-            const addonsBySub = {};
-            addons.forEach(a => {
-                if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
-                addonsBySub[a.sub_package_id].push(a);
-            });
+                const subPackageIds = subPackages.map(sp => sp.sub_package_id);
+                if (!subPackageIds.length) continue;
 
-            const prefsBySub = {};
-            preferences.forEach(p => {
-                if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
-                prefsBySub[p.sub_package_id].push({
-                    cart_preference_id: p.cart_preference_id,
-                    preferenceValue: p.preferenceValue,
-                    price: p.preferencePrice || 0
+                // Addons for this package's sub-packages
+                const [addons] = await db.query(
+                    `SELECT ca.cart_id, ca.sub_package_id, ca.addon_id, ca.price, ca.created_at, a.addonName
+                     FROM cart_addons ca
+                     JOIN package_addons a ON ca.addon_id = a.addon_id
+                     WHERE ca.cart_id = ? AND ca.sub_package_id IN (?)`,
+                    [cart_id, subPackageIds]
+                );
+
+                // Preferences for this package's sub-packages
+                const [preferences] = await db.query(
+                    `SELECT cp.cart_preference_id, cp.cart_id, cp.preference_id, cp.created_at, cp.sub_package_id,
+                            bp.preferenceValue, bp.preferencePrice
+                     FROM cart_preferences cp
+                     JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+                     WHERE cp.cart_id = ? AND cp.sub_package_id IN (?)`,
+                    [cart_id, subPackageIds]
+                );
+
+                // Consents for this package's sub-packages
+                const [consents] = await db.query(
+                    `SELECT cc.cart_consent_id, cc.cart_id, cc.consent_id, cc.created_at, cc.sub_package_id, cc.answer,
+                            c.question AS consentText
+                     FROM cart_consents cc
+                     JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+                     WHERE cc.cart_id = ? AND cc.sub_package_id IN (?)`,
+                    [cart_id, subPackageIds]
+                );
+
+                // Map by sub_package_id
+                const addonsBySub = {};
+                addons.forEach(a => {
+                    if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
+                    addonsBySub[a.sub_package_id].push({
+                        addon_id: a.addon_id,
+                        addonName: a.addonName,
+                        price: parseFloat(a.price) || 0,
+                        created_at: a.created_at
+                    });
                 });
-            });
 
-            const consentsBySub = {};
-            consents.forEach(c => {
-                if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
-                consentsBySub[c.sub_package_id].push({
-                    consent_id: c.cart_consent_id,
-                    consentText: c.question,
-                    answer: c.answer
+                const prefsBySub = {};
+                preferences.forEach(p => {
+                    if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
+                    prefsBySub[p.sub_package_id].push({
+                        cart_preference_id: p.cart_preference_id,
+                        preference_id: p.preference_id,
+                        preferenceValue: p.preferenceValue,
+                        price: parseFloat(p.preferencePrice) || 0,
+                        created_at: p.created_at
+                    });
                 });
-            });
 
-            // Attach child arrays and calculate sub-package total
-            const subPackagesStructured = subPackages.map(sub => {
-                const subAddons = addonsBySub[sub.sub_package_id] || [];
-                const subPrefs = prefsBySub[sub.sub_package_id] || [];
-                const subConsents = consentsBySub[sub.sub_package_id] || [];
+                const consentsBySub = {};
+                consents.forEach(c => {
+                    if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
+                    consentsBySub[c.sub_package_id].push({
+                        consent_id: c.cart_consent_id,
+                        consentText: c.consentText,
+                        answer: c.answer,
+                        created_at: c.created_at
+                    });
+                });
 
-                const subTotal =
-                    (parseFloat(sub.price) || 0) * (parseInt(sub.quantity) || 1) +
-                    subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) +
-                    subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
-
-                return {
+                // Attach child arrays and calculate totals
+                const subPackagesStructured = subPackages.map(sub => ({
                     ...sub,
-                    addons: subAddons,
-                    preferences: subPrefs,
-                    consents: subConsents,
-                    total: subTotal
-                };
-            });
+                    addons: addonsBySub[sub.sub_package_id] || [],
+                    preferences: prefsBySub[sub.sub_package_id] || [],
+                    consents: consentsBySub[sub.sub_package_id] || [],
+                    total:
+                        (parseFloat(sub.price) || 0) * (parseInt(sub.quantity) || 1) +
+                        (addonsBySub[sub.sub_package_id] || []).reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) +
+                        (prefsBySub[sub.sub_package_id] || []).reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0)
+                }));
 
-            // Cart subtotal
-            let totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
+                structuredPackages.push({
+                    package_id,
+                    sub_packages: subPackagesStructured
+                });
+            }
 
-            // 🔹 Apply service tax
+            // Calculate totals for cart
+            let totalAmount = structuredPackages.reduce((sumPkg, pkg) => {
+                return sumPkg + pkg.sub_packages.reduce((sumSub, sp) => sumSub + sp.total, 0);
+            }, 0);
+
             const taxAmount = (totalAmount * serviceTaxRate) / 100;
             const afterTax = totalAmount + taxAmount;
 
-            // Apply promo/discount on afterTax
+            // Promo/discount calculation
             let discountedTotal = afterTax;
             let promoDiscount = 0;
             let promoDetails = null;
 
             if (cart.user_promo_code_id) {
-                // Check admin promo
+                // Admin promo
                 const [userPromoRows] = await db.query(
                     `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                     [user_id, cart.user_promo_code_id]
                 );
-
                 if (userPromoRows.length) {
                     const promo = userPromoRows[0];
                     if (promo.promo_id) {
-                        const [adminPromo] = await db.query(
-                            `SELECT * FROM promo_codes WHERE promo_id = ?`,
-                            [promo.promo_id]
-                        );
-
+                        const [adminPromo] = await db.query(`SELECT * FROM promo_codes WHERE promo_id = ?`, [promo.promo_id]);
                         if (adminPromo.length) {
                             const discountValue = parseFloat(adminPromo[0].discountValue || 0);
                             const discountType = adminPromo[0].discount_type || 'percentage';
-
                             discountedTotal =
                                 discountType === 'fixed'
                                     ? Math.max(0, afterTax - discountValue)
                                     : afterTax - (afterTax * discountValue / 100);
-
                             promoDiscount = afterTax - discountedTotal;
-
-                            promoDetails = {
-                                user_promo_code_id: promo.user_promo_code_id,
-                                source_type: 'admin',
-                                ...adminPromo[0],
-                                code: promo.code,
-                                usedCount: promo.usedCount,
-                                maxUse: promo.maxUse
-                            };
+                            promoDetails = { user_promo_code_id: promo.user_promo_code_id, source_type: 'admin', ...adminPromo[0], code: promo.code };
                         }
                     }
                 }
 
-                // Check system promo if no admin promo applied
+                // System promo if no admin promo applied
                 if (!promoDetails) {
                     const [systemPromoRows] = await db.query(
-                        `SELECT sc.*, 
-                         st.discount_type, 
-                         st.discountValue 
+                        `SELECT sc.*, st.discount_type, st.discountValue 
                          FROM system_promo_codes sc
                          JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
                          WHERE sc.system_promo_code_id = ? LIMIT 1`,
                         [cart.user_promo_code_id]
                     );
-
                     if (systemPromoRows.length) {
                         const sysPromo = systemPromoRows[0];
                         const discountValue = parseFloat(sysPromo.discountValue || 0);
                         const discountType = sysPromo.discount_type || 'percentage';
-
                         discountedTotal =
                             discountType === 'fixed'
                                 ? Math.max(0, afterTax - discountValue)
                                 : afterTax - (afterTax * discountValue / 100);
-
                         promoDiscount = afterTax - discountedTotal;
-
-                        promoDetails = {
-                            ...sysPromo,
-                            source_type: 'system'
-                        };
+                        promoDetails = { ...sysPromo, source_type: 'system' };
                     }
                 }
 
@@ -705,23 +678,16 @@ const getUserCart = asyncHandler(async (req, res) => {
 
             allCarts.push({
                 ...cart,
-                packages: [{ sub_packages: subPackagesStructured }],
-                totalAmount: parseFloat(totalAmount.toFixed(2)),   // subtotal
-                afterTax: parseFloat(afterTax.toFixed(2)),         // subtotal + tax
-                tax: {
-                    taxName: serviceTaxName,
-                    taxPercentage: serviceTaxRate,
-                    taxAmount: parseFloat(taxAmount.toFixed(2))
-                },
-                promoDiscount: parseFloat(promoDiscount.toFixed(2)), // discount amount
+                packages: structuredPackages,
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                afterTax: parseFloat(afterTax.toFixed(2)),
+                tax: { taxName: serviceTaxName, taxPercentage: serviceTaxRate, taxAmount: parseFloat(taxAmount.toFixed(2)) },
+                promoDiscount: parseFloat(promoDiscount.toFixed(2)),
                 finalTotal
             });
         }
 
-        res.status(200).json({
-            message: "Cart retrieved successfully",
-            carts: allCarts
-        });
+        res.status(200).json({ message: "Cart retrieved successfully", carts: allCarts, promos });
     } catch (error) {
         console.error("Error retrieving cart:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });

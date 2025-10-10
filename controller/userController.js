@@ -350,7 +350,7 @@ const getPackagesDetails = asyncHandler(async (req, res) => {
         const [rows] = await db.query(`
             SELECT
                 p.package_id,
-
+                p.service_type_id,
                 IFNULL((
                     SELECT ROUND(AVG(r.rating), 1)
                     FROM ratings r
