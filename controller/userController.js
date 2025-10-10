@@ -530,6 +530,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
             packageMedia: rows[0].packageMedia || null,
+            service_type_id: rows[0].service_type_id || null,
             sub_packages: []
         };
 
