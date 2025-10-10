@@ -27,7 +27,6 @@ const Vendors = () => {
     try {
       setLoading(true);
       const response = await axios.get("/api/admin/getvendors");
-      console.log("fetch vendor", response.data.data);
       setVendors(response.data.data || []);
       setLoading(false);
     } catch (error) {

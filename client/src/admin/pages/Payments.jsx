@@ -5,9 +5,10 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import { formatCurrency } from "../../shared/utils/formatUtils";
 import { Button } from "../../shared/components/Button";
-import FormSelect from "../../shared/components/Form/FormSelect";
 import PaymentsTable from "../components/Tables/PaymentsTable";
 import { useNavigate } from "react-router-dom";
+import { FormInput, FormSelect } from "../../shared/components/Form";
+import { Search } from "lucide-react";
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -84,7 +85,9 @@ const Payments = () => {
     if (filter !== "all" && payment.vendorType !== filter) return false;
 
     if (dateRange.startDate && dateRange.endDate) {
-      const paymentDate = new Date(payment.created_at || payment.createdAt || payment.date);
+      const paymentDate = new Date(
+        payment.created_at || payment.createdAt || payment.date
+      );
       const startDate = new Date(dateRange.startDate);
       const endDate = new Date(dateRange.endDate);
       endDate.setHours(23, 59, 59, 999);
@@ -110,21 +113,37 @@ const Payments = () => {
     const rows = filteredPayments.map((payment) => [
       payment.payment_id,
       `${payment.user_firstname || ""} ${payment.user_lastname || ""}`.trim(),
-      payment.individual_name || payment.company_name || payment.vendor_name || "",
+      payment.individual_name ||
+        payment.company_name ||
+        payment.vendor_name ||
+        "",
       payment.packageName || payment.package_name || payment.productName || "",
       payment.amount,
       (payment.currency || "").toUpperCase(),
-      new Date(payment.created_at || payment.createdAt || payment.date).toLocaleDateString(),
+      new Date(
+        payment.created_at || payment.createdAt || payment.date
+      ).toLocaleDateString(),
     ]);
-    const csvContent = [headers.join(","), ...rows.map((row) => row.map(cell => {
-      // escape commas and quotes in cells
-      if (cell === null || cell === undefined) return "";
-      const cellStr = String(cell);
-      if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
-        return `"${cellStr.replace(/"/g, '""')}"`;
-      }
-      return cellStr;
-    }).join(","))].join("\n");
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row
+          .map((cell) => {
+            // escape commas and quotes in cells
+            if (cell === null || cell === undefined) return "";
+            const cellStr = String(cell);
+            if (
+              cellStr.includes(",") ||
+              cellStr.includes('"') ||
+              cellStr.includes("\n")
+            ) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          })
+          .join(",")
+      ),
+    ].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -169,105 +188,92 @@ const Payments = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          <div className="flex items-center">
-            <FiFilter className="mr-2 text-gray-500" />
-            <h3 className="text-sm font-medium text-gray-700">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          {/* Search (bigger on md) */}
+          <div className="md:col-span-2">
+            <FormInput
+              icon={<Search className="w-4 h-4" />}
+              label="Search"
+              type="text"
+              placeholder="Search by Payment ID, user or vendor"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+              aria-label="Search payments"
+            />
           </div>
 
-          <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full md:w-auto">
-            {/* Search */}
-            <div className="flex-1 md:flex-none md:w-64">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Search
-              </label>
-              <input
-                type="text"
-                placeholder="Search by Payment ID, user or vendor"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
-              />
-            </div>
+          {/* Vendor Type */}
+          <div className="md:col-span-1">
+            <FormSelect
+              label="Vendor Type"
+              id="status-filter"
+              value={filter}
+              onChange={handleFilterChange}
+              options={[
+                { value: "all", label: "All" },
+                { value: "individual", label: "Individual" },
+                { value: "company", label: "Company" },
+              ]}
+              className="w-full"
+              aria-label="Filter by vendor type"
+            />
+          </div>
 
-            {/* Vendor Type */}
-            <div>
-              <label
-                htmlFor="status-filter"
-                className="block text-xs font-medium text-gray-500 mb-1"
-              >
-                Vendor Type
-              </label>
-              <select
-                id="status-filter"
-                value={filter}
-                onChange={handleFilterChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
-              >
-                <option value="all">All</option>
-                <option value="individual">Individual</option>
-                <option value="company">Company</option>
-              </select>
-            </div>
+          {/* Start Date */}
+          <div className="md:col-span-1">
+            <FormInput
+              label="Start Date"
+              type="date"
+              id="start-date"
+              name="startDate"
+              value={dateRange.startDate}
+              onChange={handleDateChange}
+              className="w-full"
+              aria-label="Start date"
+            />
+          </div>
 
-            {/* Start Date */}
-            <div>
-              <label
-                htmlFor="start-date"
-                className="block text-xs font-medium text-gray-500 mb-1"
-              >
-                Start Date
-              </label>
-              <input
-                type="date"
-                id="start-date"
-                name="startDate"
-                value={dateRange.startDate}
-                onChange={handleDateChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
-              />
-            </div>
+          {/* End Date */}
+          <div className="md:col-span-1">
+            <FormInput
+              type="date"
+              label="End Date"
+              id="end-date"
+              name="endDate"
+              value={dateRange.endDate}
+              onChange={handleDateChange}
+              className="w-full"
+              aria-label="End date"
+            />
+          </div>
 
-            {/* End Date */}
-            <div>
-              <label
-                htmlFor="end-date"
-                className="block text-xs font-medium text-gray-500 mb-1"
-              >
-                End Date
-              </label>
-              <input
-                type="date"
-                id="end-date"
-                name="endDate"
-                value={dateRange.endDate}
-                onChange={handleDateChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
-              />
-            </div>
+          {/* Actions */}
+          <div className="md:col-span-1 flex justify-start md:justify-end space-x-2">
+            <Button
+              variant="ghost"
+              className="px-3 py-2"
+              onClick={() => {
+                setFilter("all");
+                setDateRange({ startDate: "", endDate: "" });
+              }}
+              aria-label="Clear filters"
+            >
+              Clear Filters
+            </Button>
 
-            <div className="flex items-end space-x-2">
-              <Button
-                onClick={() => {
-                  setFilter("all");
-                  setDateRange({ startDate: "", endDate: "" });
-                }}
-                variant="ghost"
-              >
-                Clear Filters
-              </Button>
-
-              <Button
-                onClick={() => {
-                  setSearchTerm("");
-                  setFilter("all");
-                  setDateRange({ startDate: "", endDate: "" });
-                }}
-                variant="outline"
-              >
-                Reset All
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="px-3 py-2"
+              onClick={() => {
+                setSearchTerm("");
+                setFilter("all");
+                setDateRange({ startDate: "", endDate: "" });
+              }}
+              aria-label="Reset all"
+            >
+              Reset All
+            </Button>
           </div>
         </div>
       </div>

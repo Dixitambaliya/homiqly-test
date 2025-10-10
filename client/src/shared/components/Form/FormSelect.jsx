@@ -152,7 +152,7 @@ const FormSelect = ({
           aria-labelledby={id || name}
           onClick={toggleOpen}
           disabled={disabled}
-          className={`w-full text-left text-sm py-2 pr-3 outline-none bg-transparent flex items-center gap-2 ${
+          className={`w-full text-left text-sm py-1.5 pr-3 outline-none bg-transparent flex items-center gap-2 ${
             icon ? "pl-2" : "px-3"
           } ${disabled ? "text-gray-400 bg-gray-50" : "text-gray-900"}`}
         >
@@ -217,7 +217,7 @@ const FormSelect = ({
                       aria-selected={active}
                       className={`cursor-pointer select-none px-4 py-2 text-sm flex items-center gap-3 ${
                         active
-                          ? "bg-sky-50 text-sky-700 font-medium"
+                          ? "bg-green-50 text-green-700 font-medium"
                           : "text-gray-800"
                       } ${highlighted ? "bg-gray-100" : ""} hover:bg-gray-100`}
                       onMouseEnter={() => setHighlightIndex(idx)}
@@ -226,7 +226,7 @@ const FormSelect = ({
                     >
                       <span className="truncate">{opt.label}</span>
                       {active && (
-                        <span className="ml-auto text-xs text-sky-700 font-semibold">
+                        <span className="ml-auto text-xs text-green-700 font-semibold">
                           Selected
                         </span>
                       )}

@@ -3,6 +3,7 @@ import axios from "axios";
 import { FiStar, FiUser, FiCalendar } from "react-icons/fi";
 import { formatDate } from "../../shared/utils/dateUtils";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { FormSelect } from "../../shared/components/Form";
 
 const PackageRating = () => {
   const [packages, setPackages] = useState([]);
@@ -72,19 +73,21 @@ const PackageRating = () => {
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Package Ratings</h2>
 
       {/* Dropdown */}
-      <div className="mb-6">
-        <select
+      <div className="mb-6 w-full md:w-64">
+        <FormSelect
+          label="Select Package"
+          name="selectedPackageId"
           value={selectedPackageId}
           onChange={handlePackageChange}
-          className="px-4 py-2 border rounded-md"
-        >
-          <option value="">Select a Package</option>
-          {packages.map((pkg) => (
-            <option key={pkg.package_id} value={pkg.package_id}>
-              {pkg.packageName}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "Select a Package" },
+            ...packages.map((pkg) => ({
+              value: pkg.package_id,
+              label: pkg.packageName,
+            })),
+          ]}
+          className="w-full"
+        />
       </div>
 
       {loading ? (

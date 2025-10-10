@@ -9,6 +9,8 @@ import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
 import { useNavigate } from "react-router-dom";
 import Button from "../../shared/components/Button/Button";
 import BookingsTable from "../components/Tables/BookingsTable";
+import { FormInput, FormSelect } from "../../shared/components/Form";
+import { Search } from "lucide-react";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -106,7 +108,9 @@ const Bookings = () => {
 
     // Date range filter
     if (dateRange.startDate && dateRange.endDate) {
-      const bookingDate = new Date(booking.bookingDate || booking.date || booking.createdAt);
+      const bookingDate = new Date(
+        booking.bookingDate || booking.date || booking.createdAt
+      );
       const start = new Date(dateRange.startDate);
       const end = new Date(dateRange.endDate);
       end.setHours(23, 59, 59, 999);
@@ -132,7 +136,9 @@ const Bookings = () => {
       if (response.status === 200) {
         setBookings((prev) =>
           prev.map((b) =>
-            b.booking_id === bookingId || b.bookingId === bookingId || b.id === bookingId
+            b.booking_id === bookingId ||
+            b.bookingId === bookingId ||
+            b.id === bookingId
               ? { ...b, bookingStatus: status }
               : b
           )
@@ -166,7 +172,9 @@ const Bookings = () => {
   return (
     <div className="mx-auto max-w-7xl">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Admin Booking Management</h2>
+        <h2 className="text-2xl font-bold text-gray-800">
+          Admin Booking Management
+        </h2>
         <Button
           onClick={fetchBookings}
           variant="lightInherit"
@@ -178,80 +186,99 @@ const Bookings = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          <h3 className="text-sm font-medium text-gray-700">Filters</h3>
-          <div className="flex flex-col md:flex-row md:space-x-4 w-full md:w-auto">
-            <div className="flex-1 md:flex-none md:w-48">
-              <label className="text-xs block text-gray-500">Search</label>
-              <input
-                type="text"
-                placeholder="Search by ID, customer name or service"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="border px-3 py-2 rounded text-sm w-full"
-              />
-            </div>
+      <div className="mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          {/* Search (bigger on md) */}
+          <div className="md:col-span-2">
+            <FormInput
+              icon={<Search className="w-4 h-4" />}
+              id="search"
+              label="Search"
+              type="text"
+              placeholder="Search by ID, customer name or service"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Search bookings"
+            />
+          </div>
 
-            <div>
-              <label className="text-xs block text-gray-500">Status</label>
-              <select
-                value={filter}
-                onChange={handleFilterChange}
-                className="border px-3 py-2 rounded text-sm"
-              >
-                <option value="all">All</option>
-                <option value="0">Pending</option>
-                <option value="1">Approved</option>
-                <option value="2">Cancelled</option>
-              </select>
-            </div>
+          {/* Status */}
+          <div className="md:col-span-1">
+            <FormSelect
+              label="Status"
+              id="status"
+              value={filter}
+              onChange={handleFilterChange}
+              options={[
+                { value: "all", label: "All" },
+                {
+                  value: "0",
+                  label: "pending",
+                },
+                {
+                  value: "1",
+                  label: "Approved",
+                },
+                {
+                  value: "2",
+                  label: "Cancelled",
+                },
+              ]}
+            />
+          </div>
 
-            <div>
-              <label className="text-xs block text-gray-500">Start Date</label>
-              <input
-                type="date"
-                name="startDate"
-                value={dateRange.startDate}
-                onChange={handleDateChange}
-                className="border px-3 py-2 rounded text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs block text-gray-500">End Date</label>
-              <input
-                type="date"
-                name="endDate"
-                value={dateRange.endDate}
-                onChange={handleDateChange}
-                className="border px-3 py-2 rounded text-sm"
-              />
-            </div>
+          {/* Start Date */}
+          <div className="md:col-span-1">
+            <FormInput
+              id="startDate"
+              label="Start Date"
+              type="date"
+              name="startDate"
+              value={dateRange.startDate}
+              onChange={handleDateChange}
+              aria-label="Start date"
+            />
+          </div>
 
-            <div className="flex items-end space-x-2">
-              <Button
-                variant="ghost"
-                className="mt-4 md:mt-4"
-                onClick={() => {
-                  setFilter("all");
-                  setDateRange({ startDate: "", endDate: "" });
-                }}
-              >
-                Clear
-              </Button>
+          {/* End Date */}
+          <div className="md:col-span-1">
+            <FormInput
+              id="endDate"
+              label="End Date"
+              type="date"
+              name="endDate"
+              value={dateRange.endDate}
+              onChange={handleDateChange}
+              aria-label="End date"
+            />
+          </div>
 
-              <Button
-                variant="outline"
-                className="mt-4 md:mt-4"
-                onClick={() => {
-                  setSearchTerm("");
-                  setFilter("all");
-                  setDateRange({ startDate: "", endDate: "" });
-                }}
-              >
-                Reset All
-              </Button>
-            </div>
+          {/* Actions */}
+          <div className="md:col-span-1 flex justify-start md:justify-end space-x-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="px-3 py-2"
+              onClick={() => {
+                setFilter("all");
+                setDateRange({ startDate: "", endDate: "" });
+              }}
+            >
+              Clear
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="px-3 py-2"
+              onClick={() => {
+                setSearchTerm("");
+                setFilter("all");
+                setDateRange({ startDate: "", endDate: "" });
+              }}
+            >
+              Reset All
+            </Button>
           </div>
         </div>
       </div>
@@ -261,9 +288,14 @@ const Bookings = () => {
         bookings={filteredBookings}
         isLoading={loading}
         onViewBooking={(booking) =>
-          navigate(`/admin/bookings/${booking.booking_id || booking.id || booking.bookingId}`, {
-            state: { booking },
-          })
+          navigate(
+            `/admin/bookings/${
+              booking.booking_id || booking.id || booking.bookingId
+            }`,
+            {
+              state: { booking },
+            }
+          )
         }
         onApprove={(bookingId) => handleUpdateStatus(bookingId, 1)}
         onReject={(bookingId) => handleUpdateStatus(bookingId, 2)}

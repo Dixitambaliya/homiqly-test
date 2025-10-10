@@ -376,8 +376,6 @@ const Services = () => {
   };
 
   const editCategory = (category) => {
-    // category from API likely has fields:
-    // serviceCategoryId, serviceCategory (name), subCategoryTypes: [{ subcategoryId, subCategory }]
     const name = category.serviceCategory || category.categoryName || "";
     const subTypes = Array.isArray(category.subCategoryTypes)
       ? category.subCategoryTypes.map((s) =>
@@ -413,13 +411,7 @@ const Services = () => {
     );
   }
 
-  // react-select options from existing subcategories
-  const subOptions = buildSubCategoryOptions();
-
-  // react-select value for adding/editing
-  const categorySelectValue = (categoryFormData.subCategories || []).map(
-    (s) => ({ value: s, label: s })
-  );
+ 
 
   return (
     <div>

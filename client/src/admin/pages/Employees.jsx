@@ -6,6 +6,7 @@ import EmployeesTable from "../components/Tables/EmployeesTable";
 import EmployeeDetailsModal from "../components/Modals/EmployeeDetailsModal"; // <-- modal has edit built-in
 import { FiSearch } from "react-icons/fi";
 import FormInput from "../../shared/components/Form/FormInput";
+import { FormSelect } from "../../shared/components/Form";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
@@ -13,8 +14,6 @@ const Employees = () => {
   const [error, setError] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-
-  // New: filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
 
@@ -51,9 +50,7 @@ const Employees = () => {
     setSelectedEmployee(null);
   };
 
-  // Called by EmployeeDetailsModal after a successful edit
   const handleUpdatedEmployee = (updatedEmployee) => {
-    // normalize id key
     const updatedId = updatedEmployee.employee_id ?? updatedEmployee.id;
     setEmployees((prev) =>
       prev.map((e) => {
@@ -79,7 +76,6 @@ const Employees = () => {
     try {
       const token = localStorage.getItem("adminToken");
       const id = employee.employee_id ?? employee.id;
-      // endpoint based on your screenshots: /api/admin/delete-employee/:id
       const resp = await axios.delete(`/api/admin/delete-employee/${id}`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : undefined,
@@ -156,35 +152,40 @@ const Employees = () => {
     );
   }
 
+  const companyOptionsList = companyOptions.map((c) => ({
+    value: c,
+    label: c === "all" ? "All Companies" : c,
+  }));
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">
           Employee Management
         </h2>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          <FormInput
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name or email..."
-            icon={<FiSearch />}
-            className=" w-full sm:w-80"
-          />
+        <div className="flex w-full md:w-auto items-stretch gap-3">
+          <div className="flex-1 min-w-0">
+            <FormInput
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email..."
+              icon={<FiSearch />}
+              className="w-full"
+              aria-label="Search employees"
+            />
+          </div>
 
-          <select
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            className="py-2 px-3 border rounded-lg text-sm bg-white focus:outline-none"
-          >
-            {companyOptions.map((c) => (
-              <option key={c} value={c}>
-                {c === "all" ? "All Companies" : c}
-              </option>
-            ))}
-          </select>
+          {/* Company select - fixed width on md+; full width below */}
+          <div className="w-full md:w-56">
+            <FormSelect
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              options={companyOptionsList}
+              aria-label="Filter by company"
+            />
+          </div>
         </div>
       </div>
 

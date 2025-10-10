@@ -124,7 +124,6 @@ const ApplyServiceModal = ({ isOpen, onClose, vendor, refresh }) => {
 
   // allPackages: packages belonging to the selected service (array)
   const allPackages = selectedServiceObj?.packages || [];
-  console.log(allPackages);
 
   // NEW: build sub-package options across ALL packages of the selected service.
   // Each option includes package_id so we can infer package on submit.
