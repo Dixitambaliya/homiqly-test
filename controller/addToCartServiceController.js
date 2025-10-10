@@ -5,9 +5,12 @@ const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { service_id, packages, preferences, consents } = req.body;
+    const { service_id, service_type_id, packages, preferences, consents } = req.body;
 
-    if (!service_id) return res.status(400).json({ message: "service_id is required" });
+    if (!service_id)
+        return res.status(400).json({ message: "service_id is required" });
+    if (!service_type_id)
+        return res.status(400).json({ message: "service_type_id is required" });
 
     let parsedPackages = [];
     try {
@@ -25,27 +28,29 @@ const addToCartService = asyncHandler(async (req, res) => {
         const createdOrUpdatedCarts = [];
 
         for (const pkg of parsedPackages) {
-            const { package_id, sub_packages, addons } = pkg; // only addons here
-            // preferences & consents come from root-level body
+            const { package_id, sub_packages, addons } = pkg;
 
-            // ✅ Check if cart exists
+            // ✅ Check if cart exists for this user, service, service_type, and package
             const [existingCart] = await connection.query(
                 `SELECT cart_id FROM service_cart 
-                 WHERE user_id = ? AND service_id = ? AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
-                [user_id, service_id, package_id]
+                 WHERE user_id = ? AND service_id = ? AND service_type_id = ? 
+                   AND package_id = ? AND bookingStatus = 0 LIMIT 1`,
+                [user_id, service_id, service_type_id, package_id]
             );
 
             let cart_id = existingCart.length ? existingCart[0].cart_id : null;
 
+            // ✅ Create new cart if not exists
             if (!cart_id) {
                 const [insertCart] = await connection.query(
-                    `INSERT INTO service_cart (user_id, service_id, package_id, bookingStatus) VALUES (?, ?, ?, 0)`,
-                    [user_id, service_id, package_id]
+                    `INSERT INTO service_cart (user_id, service_id, service_type_id, package_id, bookingStatus)
+                     VALUES (?, ?, ?, ?, 0)`,
+                    [user_id, service_id, service_type_id, package_id]
                 );
                 cart_id = insertCart.insertId;
             }
 
-            // ✅ Fetch existing data
+            // ✅ Fetch existing linked data
             const [existingItems] = await connection.query(
                 "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
             );
@@ -88,7 +93,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                         );
                     }
 
-                    // ✅ Addons (from pkg.addons)
+                    // ✅ Addons
                     if (Array.isArray(addons)) {
                         for (const addon of addons) {
                             if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
@@ -100,7 +105,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // ✅ Preferences (from root-level)
+                    // ✅ Preferences
                     if (Array.isArray(preferences)) {
                         for (const pref of preferences) {
                             if (!existingPrefMap[`${sub_package_id}_${pref.preference_id}`]) {
@@ -112,7 +117,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // ✅ Consents (from root-level)
+                    // ✅ Consents
                     if (Array.isArray(consents)) {
                         for (const consent of consents) {
                             if (!existingConsentMap[`${sub_package_id}_${consent.consent_id}`]) {
@@ -139,6 +144,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

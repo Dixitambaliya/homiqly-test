@@ -131,7 +131,6 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { booking_id, package_id, rating, review } = req.body;
 
-    console.log(user_id);
 
     if (!booking_id || !package_id || !rating) {
         return res.status(400).json({ message: "Booking ID, Package ID, and rating are required" });

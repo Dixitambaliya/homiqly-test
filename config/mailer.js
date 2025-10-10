@@ -35,6 +35,7 @@ async function sendBookingEmail(user_id, bookingDetails) {
             preferences,
             consents,
             promo_code,
+            promo_discount,
             receiptUrl
         } = bookingDetails;
 
@@ -110,6 +111,10 @@ async function sendBookingEmail(user_id, bookingDetails) {
                         <tr>
                             <td style="padding: 6px 0;"><strong>Promo Code:</strong></td>
                             <td style="padding: 6px 0;">${promo_code || "None"}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 0;"><strong>Promo Code:</strong></td>
+                            <td style="padding: 6px 0;">${promo_discount || "None"}</td>
                         </tr>
                     </table>
                 </div>
@@ -209,7 +214,7 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
         } = bookingDetails;
 
         // ---------- Load logo ----------
-        const logoPath = path.resolve("config/media/homiqly.png");
+        const logoPath = path.resolve("config/media/homiqly.webp");
         const cidLogo = "homiqlyLogo";
 
         // ---------- Email HTML ----------

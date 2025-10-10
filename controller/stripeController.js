@@ -563,30 +563,51 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
           // Fetch booking details
           const [[bookingDetails]] = await connection.query(
-            `SELECT sb.*, 
-                    pk.packageName,
-                    CONCAT(u.firstName, ' ', u.lastName) AS userName,
-                    u.email AS userEmail,
-                    u.phone AS userPhone,
-                    GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
-                    GROUP_CONCAT(DISTINCT a.addonName) AS addons,
-                    GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
-                    GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents
-             FROM service_booking sb
-             LEFT JOIN users u ON sb.user_id = u.user_id
-             LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
-             LEFT JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
-             LEFT JOIN packages pk ON sp.package_id = pk.package_id
-             LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
-             LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
-             LEFT JOIN service_booking_preferences sbpr ON sb.booking_id = sbpr.booking_id
-             LEFT JOIN booking_preferences pref ON sbpr.preference_id = pref.preference_id
-             LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
-             LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
-             WHERE sb.payment_intent_id = ?`,
+            `SELECT 
+              sb.*, 
+              pk.packageName,
+              CONCAT(u.firstName, ' ', u.lastName) AS userName,
+              u.email AS userEmail,
+              u.phone AS userPhone,
+              GROUP_CONCAT(DISTINCT sp.itemName) AS sub_packages,
+              GROUP_CONCAT(DISTINCT a.addonName) AS addons,
+              GROUP_CONCAT(DISTINCT pref.preferenceValue) AS preferences,
+              GROUP_CONCAT(DISTINCT CONCAT(c.question, ': ', sbc.answer) SEPARATOR ', ') AS consents,
+
+              -- 🧠 Fetch promo code from correct source
+              COALESCE(
+                  pc.code,             -- From user promo chain
+                  spt.code          -- From system promo chain
+              ) AS promo_code,
+
+              -- 🧮 Fetch promo discount (if available)
+              COALESCE(
+                  pc.discountValue, 
+                  spt.discountValue
+              ) AS promo_discount
+
+          FROM service_booking sb
+          LEFT JOIN users u ON sb.user_id = u.user_id
+          LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
+          LEFT JOIN package_items sp ON sbsp.sub_package_id = sp.item_id
+          LEFT JOIN packages pk ON sp.package_id = pk.package_id
+          LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
+          LEFT JOIN package_addons a ON sba.addon_id = a.addon_id
+          LEFT JOIN service_booking_preferences sbpr ON sb.booking_id = sbpr.booking_id
+          LEFT JOIN booking_preferences pref ON sbpr.preference_id = pref.preference_id
+          LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
+          LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+
+          LEFT JOIN user_promo_codes upc ON sb.user_promo_code_id = upc.user_promo_code_id
+          LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+
+          LEFT JOIN system_promo_codes spc ON sb.user_promo_code_id = spc.system_promo_code_id
+          LEFT JOIN system_promo_code_templates spt ON spc.system_promo_code_id = spt.system_promo_code_template_id
+
+          WHERE sb.payment_intent_id = ?`,
             [paymentIntentId]
           );
-
+          
           // ✅ Send emails
           if (bookingDetails) {
             await sendBookingEmail(bookingDetails.user_id, { ...bookingDetails, receiptUrl });
@@ -607,7 +628,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       try {
         await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
         await connection.query(
-          `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ?`,
+          `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ? `,
           [paymentIntentId]
         );
       } catch (cancelErr) {
