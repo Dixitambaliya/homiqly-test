@@ -310,7 +310,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 spct.discountValue AS userDiscountValue
             FROM system_promo_codes spc
             LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
-            WHERE user_id = ?`, 
+            WHERE user_id = ?`,
             [user_id]
         );
 
