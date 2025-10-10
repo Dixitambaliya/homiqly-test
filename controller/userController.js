@@ -491,6 +491,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 p.package_id,
                 p.packageName,
                 p.packageMedia,
+                p.service_type_id,
                 pi.item_id AS sub_package_id,
                 pi.itemName AS item_name,
                 pi.description AS sub_description,
