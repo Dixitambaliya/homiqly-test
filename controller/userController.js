@@ -396,6 +396,7 @@ const getPackagesDetails = asyncHandler(async (req, res) => {
 
         const data = rows.map(row => ({
             package_id: row.package_id,
+            service_type_id: row.service_type_id,
             averageRating: row.averageRating,
             totalReviews: row.totalReviews,
             sub_packages: JSON.parse(row.sub_packages || '[]'),
