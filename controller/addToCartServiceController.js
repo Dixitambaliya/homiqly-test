@@ -964,7 +964,6 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
 

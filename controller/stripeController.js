@@ -512,44 +512,56 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         }
 
         // ✅ Promo usage (for both user & system promo codes)
+        // ✅ Promo usage logic
         if (user_promo_code_id) {
-          // 1️⃣ Check if promo exists in user_promo_codes
+          // 1️⃣ Try finding in user promo chain
           const [[userPromo]] = await connection.query(
-            `SELECT user_promo_code_id 
-            FROM user_promo_codes 
-            WHERE user_promo_code_id = ?`,
+            `SELECT upc.user_promo_code_id, upc.usedCount, pc.maxUse
+              FROM user_promo_codes upc
+              JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+              WHERE upc.user_promo_code_id = ?`,
             [user_promo_code_id]
           );
 
-          // 2️⃣ Check if promo exists in system_promo_codes
+          // 2️⃣ Try finding in system promo chain
           const [[systemPromo]] = await connection.query(
-            `SELECT system_promo_code_id 
-            FROM system_promo_codes 
-            WHERE system_promo_code_id = ?`,
+            `SELECT 
+              spc.system_promo_code_id, 
+              spc.usage_count, 
+              spt.maxUse
+              FROM system_promo_codes spc
+              JOIN system_promo_code_templates spt ON spc.template_id = spt.system_promo_code_template_id
+              WHERE spc.system_promo_code_id = ?`,
             [user_promo_code_id]
           );
 
           // 3️⃣ Update accordingly
           if (userPromo) {
-            await connection.query(
-              `UPDATE user_promo_codes 
-              SET usage_count = usage_count + 1 
-              WHERE user_promo_code_id = ? 
-                AND usedCount < maxUse`,
-              [user_promo_code_id]
-            );
-            console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
+            if (userPromo.usedCount < userPromo.maxUse) {
+              await connection.query(
+                `UPDATE user_promo_codes 
+                  SET usedCount = usedCount + 1 
+                  WHERE user_promo_code_id = ?`,
+                [user_promo_code_id]
+              );
+              console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
+            } else {
+              console.warn(`⚠️ user_promo_code_id ${user_promo_code_id} reached its max usage (${userPromo.maxUse})`);
+            }
           } else if (systemPromo) {
-            await connection.query(
-              `UPDATE system_promo_codes 
-              SET usedCount = usedCount + 1 
-              WHERE system_promo_code_id = ? 
-                AND usedCount < maxUse`,
-              [user_promo_code_id]
-            );
-            console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
+            if (systemPromo.usage_count < systemPromo.maxUse) {
+              await connection.query(
+                `UPDATE system_promo_codes 
+                  SET usage_count = usage_count + 1 
+                  WHERE system_promo_code_id = ?`,
+                [user_promo_code_id]
+              );
+              console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
+            } else {
+              console.warn(`⚠️ system_promo_code_id ${user_promo_code_id} reached its max usage (${systemPromo.maxUse})`);
+            }
           } else {
-            console.warn(`⚠️ Promo ID ${user_promo_code_id} not found in either promo table.`);
+            console.warn(`⚠️ No matching promo found for user_promo_code_id ${user_promo_code_id}`);
           }
         }
 
