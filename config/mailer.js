@@ -13,8 +13,6 @@ const transporter = nodemailer.createTransport({
 
 async function sendBookingEmail(user_id, bookingDetails) {
     try {
-        console.log("📌 Starting sendBookingEmail...");
-        console.log("Booking details received:", JSON.stringify(bookingDetails, null, 2));
 
         const [[user]] = await db.query(
             `SELECT CONCAT(firstName, ' ', lastName) AS name, email 
@@ -27,7 +25,6 @@ async function sendBookingEmail(user_id, bookingDetails) {
             console.warn(`⚠️ No user found for user_id ${user_id}, skipping email.`);
             return;
         }
-        console.log(`✅ User found: ${user.name} <${user.email}>`);
 
         const {
             booking_id,
@@ -115,8 +112,7 @@ async function sendBookingEmail(user_id, bookingDetails) {
         </div>
       </div>
     `;
-
-        console.log("📌 Sending email to:", user.email);
+    
         await transporter.sendMail({
             from: `"Homiqly" <${process.env.EMAIL_USER}>`,
             to: user.email,

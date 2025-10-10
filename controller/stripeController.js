@@ -636,7 +636,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             LEFT JOIN user_promo_codes upc ON sb.user_promo_code_id = upc.user_promo_code_id
             LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
             LEFT JOIN system_promo_codes spc ON sb.user_promo_code_id = spc.system_promo_code_id
-            LEFT JOIN system_promo_code_templates spt ON spc.system_promo_code_id = spt.system_promo_code_template_id
+            LEFT JOIN system_promo_code_templates spt ON spc.template_id = spt.system_promo_code_template_id
             WHERE sb.payment_intent_id = ?`,
             [paymentIntentId]
           );

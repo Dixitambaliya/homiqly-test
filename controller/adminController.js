@@ -1305,7 +1305,6 @@ const getAllPackages = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch all vendor package applications with vendor + package + service info
@@ -1387,7 +1386,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
