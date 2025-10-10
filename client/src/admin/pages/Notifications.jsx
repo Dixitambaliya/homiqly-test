@@ -5,6 +5,7 @@ import { FiSend } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import Select from "react-select";
 import Button from "../../shared/components/Button/Button";
+import { FormInput, FormSelect, FormTextarea } from "../../shared/components/Form";
 
 const Notifications = () => {
   const [loading, setLoading] = useState(false);
@@ -14,12 +15,12 @@ const Notifications = () => {
   const [formData, setFormData] = useState({
     user_type: "",
     vendor_type: "",
-    target_type: "all", // 'all' or 'specific'
+    target_type: "all",
     user_ids: [],
     title: "",
     body: "",
     data: {},
-    channel: "notification", // <-- added channel default
+    channel: "notification",
   });
 
   // Load users/vendors/employees based on user_type
@@ -109,7 +110,7 @@ const Notifications = () => {
       title: formData.title,
       body: formData.body,
       data: formData.data,
-      channel: formData.channel, // <-- include channel in payload
+      channel: formData.channel,
     };
 
     if (formData.user_type === "vendor") {
@@ -148,7 +149,7 @@ const Notifications = () => {
       title: "",
       body: "",
       data: {},
-      channel: "notification", // reset to default
+      channel: "notification",
     });
     setUserList([]);
   };
@@ -160,162 +161,136 @@ const Notifications = () => {
       </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Form */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
             Compose Notification
           </h3>
 
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              {/* Recipient Type */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Recipient Type */}
+            <FormSelect
+              label="Recipient Type*"
+              name="user_type"
+              value={formData.user_type}
+              onChange={handleInputChange}
+              required
+              options={[
+                { value: "", label: "Select Recipient Type" },
+                { value: "users", label: "Users" },
+                { value: "vendor", label: "Vendors" },
+                { value: "employees", label: "Employees" },
+                { value: "admin", label: "Admins" },
+              ]}
+            />
+
+            {/* Vendor Type */}
+            {formData.user_type === "vendor" && (
+              <FormSelect
+                label="Vendor Type*"
+                name="vendor_type"
+                value={formData.vendor_type}
+                onChange={handleInputChange}
+                required
+                options={[
+                  { value: "", label: "Select Vendor Type" },
+                  { value: "individual", label: "Individual" },
+                  { value: "company", label: "Company" },
+                ]}
+              />
+            )}
+
+            {/* Target Type */}
+            <FormSelect
+              label="Target*"
+              name="target_type"
+              value={formData.target_type}
+              onChange={handleInputChange}
+              options={[
+                { value: "all", label: "All" },
+                { value: "specific", label: "Specific" },
+              ]}
+            />
+
+            {/* Multi Select for Specific Users */}
+            {formData.target_type === "specific" && (
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Recipient Type*
+                  Select Recipients*
                 </label>
-                <select
-                  name="user_type"
-                  value={formData.user_type}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full border px-3 py-2 rounded"
-                >
-                  <option value="">Select Recipient Type</option>
-                  <option value="users">Users</option>
-                  <option value="vendor">Vendors</option>
-                  <option value="employees">Employees</option>
-                  <option value="admin">Admins</option>
-                </select>
-              </div>
-
-              {/* Vendor Type */}
-              {formData.user_type === "vendor" && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Vendor Type*
-                  </label>
-                  <select
-                    name="vendor_type"
-                    value={formData.vendor_type}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full border px-3 py-2 rounded"
-                  >
-                    <option value="">Select Vendor Type</option>
-                    <option value="individual">Individual</option>
-                    <option value="company">Company</option>
-                  </select>
-                </div>
-              )}
-
-              {/* Target Type */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Target*
-                </label>
-                <select
-                  name="target_type"
-                  value={formData.target_type}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded"
-                >
-                  <option value="all">All</option>
-                  <option value="specific">Specific</option>
-                </select>
-              </div>
-
-              {/* Multi Select for Specific Users */}
-              {formData.target_type === "specific" && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Select Recipients*
-                  </label>
-                  <Select
-                    isMulti
-                    options={userList}
-                    value={userList.filter((user) =>
-                      formData.user_ids.includes(user.value)
-                    )}
-                    onChange={(selectedOptions) => {
-                      const ids = selectedOptions.map((option) => option.value);
-                      setFormData((prev) => ({
-                        ...prev,
-                        user_ids: ids,
-                      }));
-                    }}
-                    isLoading={loading}
-                    placeholder="Search & select recipients"
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                  />
-                </div>
-              )}
-
-              {/* Channel dropdown - ADDED */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Channel*
-                </label>
-                <select
-                  name="channel"
-                  value={formData.channel}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded"
-                >
-                  <option value="notification">Notification</option>
-                  <option value="mail">Mail</option>
-                </select>
-              </div>
-
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Notification Title*
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full border px-3 py-2 rounded"
+                <Select
+                  isMulti
+                  options={userList}
+                  value={userList.filter((user) =>
+                    formData.user_ids.includes(user.value)
+                  )}
+                  onChange={(selectedOptions) => {
+                    const ids = selectedOptions.map((option) => option.value);
+                    setFormData((prev) => ({
+                      ...prev,
+                      user_ids: ids,
+                    }));
+                  }}
+                  isLoading={loading}
+                  placeholder="Search & select recipients"
+                  className="react-select-container"
+                  classNamePrefix="react-select"
                 />
               </div>
+            )}
 
-              {/* Body */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Notification Message*
-                </label>
-                <textarea
-                  name="body"
-                  value={formData.body}
-                  onChange={handleInputChange}
-                  rows="4"
-                  required
-                  className="w-full border px-3 py-2 rounded"
-                ></textarea>
-              </div>
+            {/* Channel dropdown */}
+            <FormSelect
+              label="Channel*"
+              name="channel"
+              value={formData.channel}
+              onChange={handleInputChange}
+              options={[
+                { value: "notification", label: "Notification" },
+                { value: "mail", label: "Mail" },
+              ]}
+            />
 
-              {/* Submit Button */}
-              <div className="flex justify-end">
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <span className="ml-2">Sending...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FiSend className="mr-2" />
-                      Send Notification
-                    </>
-                  )}
-                </Button>
-              </div>
+            {/* Title */}
+            <FormInput
+              label="Notification Title*"
+              name="title"
+              value={formData.title}
+              onChange={handleInputChange}
+              required
+              placeholder="Enter title..."
+            />
+
+            {/* Body */}
+            <FormTextarea
+              label="Notification Message*"
+              name="body"
+              value={formData.body}
+              onChange={handleInputChange}
+              rows={4}
+              required
+              placeholder="Write your message here..."
+            />
+
+            {/* Submit Button */}
+            <div className="flex justify-end pt-3">
+              <Button type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <span className="ml-2">Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <FiSend className="mr-2" />
+                    Send Notification
+                  </>
+                )}
+              </Button>
             </div>
           </form>
         </div>
 
-        {/* Guidelines */}
+        {/* Right: Guidelines */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
             Notification Guidelines
@@ -325,8 +300,8 @@ const Notifications = () => {
             <li>Only use notifications for important updates</li>
             <li>Avoid sending too frequently</li>
             <li>
-              When targeting specific users, recipient list will be fetched from
-              backend.
+              When targeting specific users, the recipient list is fetched from
+              the backend automatically.
             </li>
             <li>
               Vendor type (individual/company) is required only when sending to

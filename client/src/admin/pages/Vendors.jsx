@@ -5,7 +5,7 @@ import { FiRefreshCw } from "react-icons/fi";
 import VendorsTable from "../components/Tables/VendorsTable";
 import VendorDetailsModal from "../components/Modals/VendorDetailsModal";
 import { Button } from "../../shared/components/Button";
-import { FormInput } from "../../shared/components/Form";
+import { FormInput, FormSelect } from "../../shared/components/Form";
 import { Search } from "lucide-react";
 
 const Vendors = () => {
@@ -108,40 +108,49 @@ const Vendors = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Vendor Management</h2>
 
-        <div className="flex items-center space-x-2 w-full max-w-3xl">
-          {/* search fills remaining space */}
+        <div className="flex w-full md:w-auto items-center gap-3">
+          {/* Search: grows to take available space, but can shrink on small screens */}
           <div className="flex-1 min-w-0">
             <FormInput
               icon={<Search />}
               type="text"
-              className="w-full" // ensure input stretches
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search vendor by name or company"
+              placeholder="Search vendor by name, email or company"
+              className="w-full"
+              aria-label="Search vendors"
             />
           </div>
 
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-primary focus:border-primary w-44"
-          >
-            <option value="all">All Vendors</option>
-            <option value="pending">Pending Approval</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
+          {/* Status select: fixed width on md+, full width stacked on small screens */}
+          <div className="w-full sm:w-56">
+            <FormSelect
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              options={[
+                { value: "all", label: "All Vendors" },
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "rejected", label: "Rejected" },
+              ]}
+              aria-label="Filter vendors by status"
+            />
+          </div>
 
-          <Button
-            onClick={fetchVendors}
-            variant="outline"
-            icon={<FiRefreshCw className="mr-2" />}
-          >
-            Refresh
-          </Button>
+          {/* Refresh button: fixed size, consistent spacing */}
+          <div className="flex-shrink-0">
+            <Button
+              onClick={fetchVendors}
+              variant="outline"
+              icon={<FiRefreshCw className="mr-2" />}
+              aria-label="Refresh vendors"
+            >
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 

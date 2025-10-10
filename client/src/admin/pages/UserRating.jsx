@@ -4,6 +4,7 @@ import { FiStar, FiUser, FiCalendar, FiTrash2 } from "react-icons/fi";
 import LoadingSlider from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import IconButton from "../../shared/components/Button/IconButton";
+import { FormInput, FormSelect } from "../../shared/components/Form";
 
 const UserRating = () => {
   const [ratings, setRatings] = useState([]);
@@ -154,32 +155,42 @@ const UserRating = () => {
 
       {/* Review Filters */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b flex flex-col md:flex-row justify-between gap-4 md:items-center">
-          <h3 className="text-lg font-medium text-gray-800">
-            Customer Reviews
-          </h3>
+        <div className="p-4 bg-gray-50 border-b">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h3 className="text-lg font-medium text-gray-800">
+              Customer Reviews
+            </h3>
 
-          <div className="flex gap-2 flex-col md:flex-row">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder="Search by user name..."
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm w-full md:w-64"
-            />
+            <div className="flex w-full md:w-auto items-stretch gap-3">
+              {/* Search - takes remaining space on wide screens, full width on mobile */}
+              <div className="flex-1 min-w-0">
+                <FormInput
+                  type="text"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Search by user name..."
+                  className="w-full"
+                  aria-label="Search reviews by user"
+                />
+              </div>
 
-            <select
-              value={filter}
-              onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-            >
-              <option value="all">All Ratings</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
-            </select>
+              {/* Rating filter - fixed width on md+, full width stacked on mobile */}
+              <div className="w-full sm:w-56">
+                <FormSelect
+                  value={filter}
+                  onChange={handleFilterChange}
+                  options={[
+                    { value: "all", label: "All Ratings" },
+                    { value: "5", label: "5 Stars" },
+                    { value: "4", label: "4 Stars" },
+                    { value: "3", label: "3 Stars" },
+                    { value: "2", label: "2 Stars" },
+                    { value: "1", label: "1 Star" },
+                  ]}
+                  aria-label="Filter reviews by rating"
+                />
+              </div>
+            </div>
           </div>
         </div>
 

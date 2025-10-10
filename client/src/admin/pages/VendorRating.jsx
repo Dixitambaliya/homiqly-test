@@ -11,6 +11,7 @@ import {
 import LoadingSlider from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import IconButton from "../../shared/components/Button/IconButton";
+import { FormSelect, FormInput } from "../../shared/components/Form";
 
 const VendorRating = () => {
   const [ratings, setRatings] = useState([]);
@@ -157,29 +158,44 @@ const VendorRating = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b flex flex-col md:flex-row justify-between gap-4 md:items-center">
-          <h3 className="text-lg font-medium text-gray-800">Vendor Reviews</h3>
+        <div className="p-4 bg-gray-50 border-b">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            {/* Title */}
+            <h3 className="text-lg font-semibold text-gray-800">
+              Vendor Reviews
+            </h3>
 
-          <div className="flex gap-2 flex-col md:flex-row">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder="Search by user or vendor..."
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm w-full md:w-64"
-            />
-            <select
-              value={filter}
-              onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-            >
-              <option value="all">All Ratings</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
-            </select>
+            {/* Filters */}
+            <div className="flex w-full md:w-auto items-stretch gap-3">
+              {/* Search Field */}
+              <div className="flex-1 min-w-0">
+                <FormInput
+                  type="text"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Search by user or vendor..."
+                  className="w-full"
+                  aria-label="Search vendor reviews"
+                />
+              </div>
+
+              {/* Rating Filter */}
+              <div className="w-full sm:w-56">
+                <FormSelect
+                  value={filter}
+                  onChange={(e) => handleFilterChange(e)}
+                  options={[
+                    { value: "all", label: "All Ratings" },
+                    { value: "5", label: "5 Stars" },
+                    { value: "4", label: "4 Stars" },
+                    { value: "3", label: "3 Stars" },
+                    { value: "2", label: "2 Stars" },
+                    { value: "1", label: "1 Star" },
+                  ]}
+                  aria-label="Filter reviews by rating"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -199,8 +215,7 @@ const VendorRating = () => {
                   className="absolute bottom-3 right-3 "
                   title="Delete Rating"
                   icon={<FiTrash2 className="h-5 w-5" />}
-                >
-                </IconButton>
+                ></IconButton>
 
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">

@@ -21,6 +21,7 @@ import { Link } from "react-router-dom";
 import ToggleButton from "../components/ToggleButton";
 import StatusBadge from "../../shared/components/StatusBadge";
 import Calendar from "./Calendar";
+import { FormInput, FormSelect } from "../../shared/components/Form";
 
 // Register ChartJS components
 ChartJS.register(
@@ -127,32 +128,44 @@ const Dashboard = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <ToggleButton />
 
-        <div className="flex space-x-4 mb-6">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="border rounded p-2"
-          >
-            <option value="">All</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="custom">Custom</option>
-          </select>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:space-x-4 space-y-3 sm:space-y-0 mb-6">
+          {/* Filter Type */}
+          <div className="w-full sm:w-48">
+            <FormSelect
+              // label="Filter Type"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              options={[
+                { value: "", label: "All" },
+                { value: "weekly", label: "Weekly" },
+                { value: "monthly", label: "Monthly" },
+                { value: "custom", label: "Custom" },
+              ]}
+            />
+          </div>
 
+          {/* Date Range (only visible for custom) */}
           {filterType === "custom" && (
             <>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border rounded p-2"
-              />
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="border rounded p-2"
-              />
+              <div className="flex-1 min-w-0">
+                <FormInput
+                  type="date"
+                  label="Start Date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <FormInput
+                  type="date"
+                  label="End Date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full"
+                />
+              </div>
             </>
           )}
         </div>

@@ -3,6 +3,7 @@ import axios from "axios";
 import { FiStar, FiUser, FiCalendar } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
+import { FormSelect } from "../../shared/components/Form";
 
 const Ratings = () => {
   const [ratings, setRatings] = useState([]);
@@ -158,18 +159,20 @@ const Ratings = () => {
             Customer Reviews
           </h3>
           <div>
-            <select
+            <FormSelect
               value={filter}
-              onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-primary-light focus:border-primary-light"
-            >
-              <option value="all">All Ratings</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
-            </select>
+              onChange={(e) => handleFilterChange(e)}
+              options={[
+                { value: "all", label: "All Ratings" },
+                { value: "5", label: "5 Stars" },
+                { value: "4", label: "4 Stars" },
+                { value: "3", label: "3 Stars" },
+                { value: "2", label: "2 Stars" },
+                { value: "1", label: "1 Star" },
+              ]}
+              className="w-full sm:w-48"
+              aria-label="Filter by rating"
+            />
           </div>
         </div>
 

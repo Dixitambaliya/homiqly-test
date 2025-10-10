@@ -6,6 +6,8 @@ import { FiDownload, FiFilter, FiEye } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import PaymentsTable from "../components/Tables/PaymentsTable";
+import { Button } from "../../shared/components/Button";
+import { FormInput, FormSelect } from "../../shared/components/Form";
 
 const Payments = () => {
   const [bookings, setBookings] = useState([]);
@@ -111,12 +113,9 @@ const Payments = () => {
     <div className="space-y-6 max-w-7xl mx-auto p-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
-        <button
-          onClick={exportToCSV}
-          className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark flex items-center"
-        >
+        <Button onClick={exportToCSV}>
           <FiDownload className="mr-2" /> Export CSV
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -134,31 +133,38 @@ const Payments = () => {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded shadow">
-        <div className="flex flex-wrap items-center gap-4 mb-4">
-          <select
+      <div className="">
+        <div className="flex justify-between items-center gap-4 mb-4">
+          <FormSelect
             value={filter}
             onChange={handleFilterChange}
-            className="border p-2 rounded"
-          >
-            <option value="all">All</option>
-            <option value="1">Approved</option>
-            <option value="4">Completed</option>
-          </select>
+            options={[
+              {
+                value: "all",
+                label: "All",
+              },
+              {
+                value: "1",
+                label: "Approved",
+              },
+              {
+                value: "4",
+                label: "Completed",
+              },
+            ]}
+          />
 
-          <input
+          <FormInput
             type="date"
             name="startDate"
             value={dateRange.startDate}
             onChange={handleDateChange}
-            className="border p-2 rounded"
           />
-          <input
+          <FormInput
             type="date"
             name="endDate"
             value={dateRange.endDate}
             onChange={handleDateChange}
-            className="border p-2 rounded"
           />
         </div>
 
