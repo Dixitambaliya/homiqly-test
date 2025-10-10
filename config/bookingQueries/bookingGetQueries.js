@@ -22,6 +22,11 @@ const bookingGetQueries = {
     u.profileImage AS userProfileImage,
     u.email AS userEmail,
     u.phone AS userPhone,
+    u.address AS userAddress,
+    u.flatNumber AS userFlatNumber,
+    u.state AS userState,
+    u.parkingInstruction AS userParkingInstructions,
+    u.postalcode AS userPostalcode,
     e.employee_id AS assignedEmployeeId,
     e.first_name AS employeeFirstName,
     e.last_name AS employeeLastName,
@@ -97,7 +102,6 @@ SELECT
 FROM service_booking_preferences sp
 JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
 WHERE sp.booking_id = ?;
-
 `,
 
     getBoookedConsents: `

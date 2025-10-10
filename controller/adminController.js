@@ -1247,8 +1247,6 @@ ORDER BY p.created_at DESC;
                         paymentIntentId: charge?.payment_intent || "N/A",
                     };
 
-                    console.log(`✅ Final Stripe Metadata:`, stripeMetadata);
-
                     return {
                         ...payment,
                         ...stripeMetadata,
@@ -1309,6 +1307,7 @@ const getAllPackages = asyncHandler(async (req, res) => {
 
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
+        // 1️⃣ Fetch all vendor package applications with vendor + package + service info
         const [applications] = await db.query(`
             SELECT
                 vpa.application_id,
@@ -1323,7 +1322,9 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
 
                 s.serviceName,
-                s.serviceImage
+                s.serviceImage,
+                p.packageName,
+                p.packageMedia
             FROM vendor_package_applications vpa
             JOIN vendors v ON vpa.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
@@ -1334,9 +1335,47 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             ORDER BY vpa.applied_at DESC
         `);
 
+        if (!applications.length) {
+            return res.status(200).json({
+                message: "No vendor package requests found",
+                applications: []
+            });
+        }
+
+        // 2️⃣ Extract all package_ids to fetch sub-packages (items) in one query
+        const packageIds = applications.map(a => a.package_id);
+        const [packageItems] = await db.query(
+            `
+            SELECT 
+                pi.item_id,
+                pi.package_id,
+                pi.itemName,
+                pi.price,
+                pi.timeRequired,
+                pi.itemMedia
+            FROM package_items pi
+            WHERE pi.package_id IN (?)
+            `,
+            [packageIds]
+        );
+
+        // 3️⃣ Group sub-packages by package_id
+        const itemsByPackage = {};
+        packageItems.forEach(item => {
+            if (!itemsByPackage[item.package_id]) itemsByPackage[item.package_id] = [];
+            itemsByPackage[item.package_id].push(item);
+        });
+
+        // 4️⃣ Combine everything into structured response
+        const detailedApplications = applications.map(app => ({
+            ...app,
+            subPackages: itemsByPackage[app.package_id] || []
+        }));
+
+        // 5️⃣ Send final response
         res.status(200).json({
-            message: "All vendor package requests fetched successfully",
-            applications
+            message: "All vendor package requests fetched successfully with package details",
+            applications: detailedApplications
         });
 
     } catch (err) {

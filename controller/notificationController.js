@@ -4,7 +4,7 @@ const admin = require('../config/firebaseConfig');
 const notificationGetQueries = require('../config/notificationQueries/notificationGetQueries');
 const nodemailer = require("nodemailer");
 
- 
+
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -28,7 +28,9 @@ const sendNotification = asyncHandler(async (req, res) => {
         switch (user_type) {
             case 'users':
                 tokenQuery = user_ids
-                    ? `SELECT user_id AS id, fcmToken, email FROM users WHERE user_id IN (${user_ids.map(() => '?').join(',')})`
+                    ? `SELECT user_id AS id, fcmToken, email 
+                        FROM users 
+                        WHERE user_id IN (${user_ids.map(() => '?').join(',')})`
                     : `SELECT user_id AS id, fcmToken, email FROM users`;
                 queryParams = user_ids || [];
                 break;
@@ -37,15 +39,45 @@ const sendNotification = asyncHandler(async (req, res) => {
                 if (!vendor_type || !['individual', 'company'].includes(vendor_type)) {
                     return res.status(400).json({ message: "Vendor type must be 'individual' or 'company'" });
                 }
+
+                // ✅ Vendor query joins vendor details based on type
                 tokenQuery = user_ids
-                    ? `SELECT vendor_id AS id, fcmToken, email FROM vendors WHERE vendorType = ? AND vendor_id IN (${user_ids.map(() => '?').join(',')})`
-                    : `SELECT vendor_id AS id, fcmToken, email FROM vendors WHERE vendorType = ?`;
+                    ? ` 
+                    SELECT 
+                    v.vendor_id AS id, 
+                    v.fcmToken, 
+                    CASE 
+                        WHEN v.vendorType = 'individual' THEN idet.email
+                        WHEN v.vendorType = 'company' THEN cdet.companyEmail
+                    END AS email
+                FROM vendors v
+                LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+                LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+                WHERE v.vendorType = ?
+                AND v.vendor_id IN (${user_ids.map(() => '?').join(',')})
+              `
+                    : `
+                SELECT 
+                    v.vendor_id AS id, 
+                    v.fcmToken, 
+                    CASE 
+                    WHEN v.vendorType = 'individual' THEN idet.email
+                        WHEN v.vendorType = 'company' THEN cdet.companyEmail
+                    END AS email
+                FROM vendors v
+                LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+                LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+                WHERE v.vendorType = ?
+              `;
+
                 queryParams = vendor_type ? [vendor_type, ...(user_ids || [])] : [];
                 break;
 
             case 'employees':
                 tokenQuery = user_ids
-                    ? `SELECT employee_id AS id, fcmToken, email FROM company_employees WHERE employee_id IN (${user_ids.map(() => '?').join(',')})`
+                    ? `SELECT employee_id AS id, fcmToken, email 
+               FROM company_employees 
+               WHERE employee_id IN (${user_ids.map(() => '?').join(',')})`
                     : `SELECT employee_id AS id, fcmToken, email FROM company_employees`;
                 queryParams = user_ids || [];
                 break;
@@ -57,6 +89,7 @@ const sendNotification = asyncHandler(async (req, res) => {
             default:
                 return res.status(400).json({ message: "Invalid user type" });
         }
+
 
         const [rows] = await db.query(tokenQuery, queryParams);
 

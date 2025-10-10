@@ -131,7 +131,6 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { booking_id, package_id, rating, review } = req.body;
 
-    console.log(user_id);
 
     if (!booking_id || !package_id || !rating) {
         return res.status(400).json({ message: "Booking ID, Package ID, and rating are required" });
@@ -145,11 +144,10 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
         // ✅ Check if the booking belongs to the user and includes this package
         const [booked] = await db.query(`
             SELECT 1 
-            FROM service_booking_packages sbp
-            JOIN service_booking sb ON sb.booking_id = sbp.booking_id
-            WHERE sb.user_id = ? 
-              AND sb.booking_id = ? 
-              AND sbp.package_id = ?
+            FROM service_booking 
+            WHERE user_id = ? 
+              AND booking_id = ? 
+              AND package_id = ?
         `, [user_id, booking_id, package_id]);
 
         if (booked.length === 0) {

@@ -7,7 +7,7 @@ const {
     deleteCartItem,
     updateCartDetails,
     getCartDetails,
-    getCartByPackageId,
+    getCartByServiceTypeId,
     deleteCartSubPackage,
     getAdminInquiries
 } = require("../controller/addToCartServiceController")
@@ -21,7 +21,9 @@ router.get('/getcart', authenticationToken, getUserCart);
 
 router.get('/getinquiries', authenticationToken, getAdminInquiries);
 
-router.get('/getcartbypackages/:package_id', authenticationToken, getCartByPackageId);
+router.get('/getcartbyservicetypeid/:service_type_id', authenticationToken, getCartByServiceTypeId);
+
+
 router.get('/getcartdetails/:cart_id', authenticationToken, getCartDetails);
 router.patch('/addcartdetails/:cart_id', multiUpload, handleUploads, authenticationToken, updateCartDetails);
 router.delete('/deletecart/:cart_id', authenticationToken, deleteCartItem);

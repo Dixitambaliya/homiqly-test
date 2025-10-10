@@ -14,15 +14,28 @@ const sendOtp = asyncHandler(async (req, res) => {
     if (!phone) return res.status(400).json({ message: "Phone is required" });
 
     try {
+        // 🔎 Check if phone already exists in DB
+        const [[existingUser]] = await db.query(
+            "SELECT user_id FROM users WHERE phone = ?",
+            [phone]
+        );
+
+        if (existingUser) {
+            return res.status(400).json({
+                message: "This phone number is already registered. Please use another number or login."
+            });
+        }
+
+        // 🔢 Generate OTP
         const otp = generateOTP();
 
-        // Create JWT containing phone + OTP (expires in 5 minutes)
+        // 🔐 Create JWT containing phone + OTP (expires in 5 minutes)
         const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: '5m' });
 
-        // Send OTP via SMS
+        // 📩 Send OTP via SMS (Twilio)
         await client.messages.create({
-            body: `Your OTP is: ${otp}. It expires in 5 minutes.`,
-            from: process.env.TWILIO_PHONE_NUMBER, // Your Canadian Twilio number
+            body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
+            from: process.env.TWILIO_PHONE_NUMBER, // Your Twilio number
             to: phone
         });
 
@@ -32,6 +45,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
 });
+
 
 
 // ---- Verify OTP ----

@@ -350,7 +350,7 @@ const getPackagesDetails = asyncHandler(async (req, res) => {
         const [rows] = await db.query(`
             SELECT
                 p.package_id,
-
+                p.service_type_id,
                 IFNULL((
                     SELECT ROUND(AVG(r.rating), 1)
                     FROM ratings r
@@ -396,6 +396,7 @@ const getPackagesDetails = asyncHandler(async (req, res) => {
 
         const data = rows.map(row => ({
             package_id: row.package_id,
+            service_type_id: row.service_type_id,
             averageRating: row.averageRating,
             totalReviews: row.totalReviews,
             sub_packages: JSON.parse(row.sub_packages || '[]'),
@@ -490,6 +491,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 p.package_id,
                 p.packageName,
                 p.packageMedia,
+                p.service_type_id,
                 pi.item_id AS sub_package_id,
                 pi.itemName AS item_name,
                 pi.description AS sub_description,
@@ -528,6 +530,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
             packageMedia: rows[0].packageMedia || null,
+            service_type_id: rows[0].service_type_id || null,
             sub_packages: []
         };
 

@@ -102,7 +102,6 @@ const sendEmployeeCreationNotification = async (vendor_id, employeeName) => {
             "SELECT companyName FROM company_details WHERE vendor_id = ?",
             [vendor_id]
         );
-        console.log(vendor);
 
         const vendorName = vendor?.companyName || "Unknown Vendor";
 
