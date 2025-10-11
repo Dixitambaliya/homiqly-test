@@ -212,20 +212,32 @@ const applyForPayout = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 1️⃣ Check for existing payout requests in progress
+        // 1️⃣ Check if vendor has bank details
+        const [bankDetails] = await db.query(
+            `SELECT * FROM vendor_bank_accounts WHERE vendor_id = ? LIMIT 1`,
+            [vendor_id]
+        );
+
+        if (!bankDetails.length) {
+            return res.status(400).json({
+                message: "Please add your bank details before requesting a payout."
+            });
+        }
+
+        // 2️⃣ Check for existing payout requests in progress
         const [existingRequest] = await db.query(
             `SELECT * FROM vendor_payout_requests 
-             WHERE vendor_id = ? AND status IN ('0')`,
+             WHERE vendor_id = ? AND status = '0'`,
             [vendor_id]
         );
 
         if (existingRequest.length > 0) {
             return res.status(400).json({
-                message: "You already have a payout request in progress"
+                message: "You already have a payout request in progress."
             });
         }
 
-        // 2️⃣ Fetch all pending booking payouts
+        // 3️⃣ Fetch all pending booking payouts
         const [pendingPayouts] = await db.query(
             `SELECT * 
              FROM vendor_payouts 
@@ -235,11 +247,11 @@ const applyForPayout = asyncHandler(async (req, res) => {
 
         if (!pendingPayouts.length) {
             return res.status(400).json({
-                message: "No pending booking payouts available for request"
+                message: "No pending booking payouts available for request."
             });
         }
 
-        // 3️⃣ Calculate total available payout
+        // 4️⃣ Calculate total available payout
         const totalAvailable = pendingPayouts.reduce(
             (sum, row) => sum + parseFloat(row.payout_amount),
             0
@@ -247,11 +259,11 @@ const applyForPayout = asyncHandler(async (req, res) => {
 
         if (requested_amount > totalAvailable) {
             return res.status(400).json({
-                message: `Requested amount (${requested_amount}) exceeds your available balance (${totalAvailable.toFixed(2)})`
+                message: `Requested amount (${requested_amount}) exceeds your available balance (${totalAvailable.toFixed(2)}).`
             });
         }
 
-        // 4️⃣ Lock only the pending payouts
+        // 5️⃣ Lock only the pending payouts
         const payoutIds = pendingPayouts.map(p => p.payout_id);
         await db.query(
             `UPDATE vendor_payouts
@@ -260,7 +272,7 @@ const applyForPayout = asyncHandler(async (req, res) => {
             [payoutIds]
         );
 
-        // 5️⃣ Insert new payout request
+        // 6️⃣ Insert new payout request
         const [insertResult] = await db.query(
             `INSERT INTO vendor_payout_requests (vendor_id, requested_amount)
              VALUES (?, ?)`,
@@ -269,16 +281,16 @@ const applyForPayout = asyncHandler(async (req, res) => {
 
         const payout_request_id = insertResult.insertId;
 
-        // 6️⃣ Link all held payouts to this request
+        // 7️⃣ Link all held payouts to this request
         await db.query(
             `UPDATE vendor_payouts
-             SET payout_id = ?, payout_status = 'hold'
+             SET payout_request_id = ?, payout_status = 'hold'
              WHERE payout_id IN (?)`,
             [payout_request_id, payoutIds]
         );
 
         res.status(200).json({
-            message: "Payout request submitted successfully and pending admin approval",
+            message: "Payout request submitted successfully and pending admin approval.",
             requested_amount,
             totalAvailable,
             payout_request_id
@@ -289,6 +301,7 @@ const applyForPayout = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
