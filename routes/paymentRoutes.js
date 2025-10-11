@@ -21,7 +21,7 @@ router.get("/get-vendors-details", authenticationToken, getAllVendorsBankAccount
 
 router.get("/getallpayout", authenticationToken, getAllPayoutRequests);
 
-router.get("/getvendorstatus", authenticationToken, getVendorPayoutStatus);
+router.get("/getpaymentstatus", authenticationToken, getVendorPayoutStatus);
 
 router.patch("/edit-bank-details", authenticationToken, editBankAccount);
 
