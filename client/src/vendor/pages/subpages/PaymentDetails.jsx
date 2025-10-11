@@ -11,8 +11,6 @@ const PaymentDetails = () => {
   const navigate = useNavigate();
   const [payment, setPayment] = useState(location.state?.payment || null);
 
-  console.log(payment);
-
   useEffect(() => {
     if (!payment) {
       console.warn("Payment not found in state");
@@ -28,9 +26,11 @@ const PaymentDetails = () => {
   }
 
   return (
-    <>
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex justify-between items-center">
+    <div className="max-w-5xl mx-auto p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-3">
+          
           <Breadcrumb
             links={[
               { label: "Dashboard", to: "/vendor" },
@@ -39,95 +39,143 @@ const PaymentDetails = () => {
             ]}
           />
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded shadow">
-          {/* Booking / Payment Info */}
+      {/* Payment Summary Card */}
+      <div className="bg-white shadow-md rounded-2xl p-6 mb-5">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+          Payment Summary
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div>
-            <p className="text-sm text-gray-500 mb-1">Booking ID</p>
-            <p className="text-gray-800 font-medium">#{payment.booking_id}</p>
+            <p className="text-sm text-gray-500">Booking ID</p>
+            <p className="text-gray-900 font-medium">#{payment.booking_id}</p>
           </div>
+
           <div>
-            <p className="text-sm text-gray-500 mb-1">Payment Intent</p>
-            <p className="text-gray-800 font-medium truncate">
-              {payment.payment_intent_id || "Not Created"}
+            <p className="text-sm text-gray-500">Payment Status</p>
+            <span
+              className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                payment.payment_status === "completed"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-yellow-100 text-yellow-700"
+              }`}
+            >
+              {payment.payment_status}
+            </span>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-500">Payout Amount</p>
+            <p className="text-gray-900 font-medium">
+              {formatCurrency(payment.payoutAmount)}{" "}
+              {payment.payment_currency?.toUpperCase()}
             </p>
           </div>
+
           <div>
-            <p className="text-sm text-gray-500 mb-1">Booking Date</p>
-            <p className="text-gray-800 font-medium">
+            <p className="text-sm text-gray-500">Booking Date</p>
+            <p className="text-gray-900 font-medium">
               {formatDate(payment.bookingDate)} at {payment.bookingTime}
             </p>
           </div>
+
           <div>
-            <p className="text-sm text-gray-500 mb-1">Created</p>
-            <p className="text-gray-800 font-medium">
+            <p className="text-sm text-gray-500">Created On</p>
+            <p className="text-gray-900 font-medium">
               {formatDate(payment.created_at)}
             </p>
           </div>
 
-          {/* Package Info */}
-          <div className="md:col-span-2 border-t pt-4">
-            <h4 className="text-lg font-semibold text-gray-700 mb-3">
-              Package Details
-            </h4>
-            <p className="text-gray-900 font-medium">
-              {payment.packageName} - {payment.totalTime}
-            </p>
-            <p className="text-sm text-gray-500 mb-2">
-              Price: {formatCurrency(parseFloat(payment.totalPrice))}
-            </p>
-            {payment.bookingMedia && (
-              <img
-                src={payment.bookingMedia}
-                alt="Package"
-                className="w-40 h-28 object-cover rounded"
-              />
-            )}
+          <div>
+            <p className="text-sm text-gray-500">Service ID</p>
+            <p className="text-gray-900 font-medium">#{payment.service_id}</p>
           </div>
-
-          {/* Vendor Info */}
-          <div className="md:col-span-2 border-t pt-4">
-            <h4 className="text-lg font-semibold text-gray-700 mb-3">
-              Vendor Details
-            </h4>
-            <div className="flex items-center space-x-4">
-              <div>
-                <p className="text-gray-900 font-medium">
-                  {payment.vendor_name} ({payment.vendorType})
-                </p>
-                <p className="text-sm text-gray-500">{payment.vendor_email}</p>
-                <p className="text-sm text-gray-500">{payment.vendor_phone}</p>
-                {payment.contactPerson && (
-                  <p className="text-sm text-gray-500">
-                    Contact Person: {payment.contactPerson}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* User Info */}
-          <div className="md:col-span-2 border-t pt-4">
-            <h4 className="text-lg font-semibold text-gray-700 mb-3">
-              User Details
-            </h4>
-            <p className="text-gray-900 font-medium">{payment.user_name}</p>
-            <p className="text-sm text-gray-500">{payment.user_email}</p>
-            <p className="text-sm text-gray-500">{payment.user_phone}</p>
-          </div>
-
-          {/* Notes */}
-          {payment.notes && (
-            <div className="md:col-span-2 border-t pt-4">
-              <h4 className="text-lg font-semibold text-gray-700 mb-3">
-                Notes
-              </h4>
-              <p className="text-gray-600">{payment.notes}</p>
-            </div>
-          )}
         </div>
       </div>
-    </>
+
+      {/* Package Section */}
+      <div className="bg-white shadow-md rounded-2xl p-6 mb-8">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+          Package Details
+        </h3>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+          <img
+            src={payment.packageMedia || payment.bookingMedia}
+            alt="Package"
+            className="w-48 h-32 object-cover rounded-lg shadow"
+          />
+          <div>
+            <p className="text-gray-900 font-medium text-lg">
+              {payment.packageName}
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              Service ID: #{payment.service_id}
+            </p>
+            <p className="text-sm text-gray-500">
+              Price: {formatCurrency(payment.payoutAmount)}{" "}
+              {payment.payment_currency?.toUpperCase()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* User Section */}
+      <div className="bg-white shadow-md rounded-2xl p-6 mb-8">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+          User Information
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div>
+            <p className="text-sm text-gray-500">Name</p>
+            <p className="text-gray-900 font-medium">{payment.user_name}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Email</p>
+            <p className="text-gray-900 font-medium">{payment.user_email}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Phone</p>
+            <p className="text-gray-900 font-medium">{payment.user_phone}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Vendor Section */}
+      {payment.vendor_name && (
+        <div className="bg-white shadow-md rounded-2xl p-6 mb-8">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">
+            Vendor Information
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-sm text-gray-500">Vendor Name</p>
+              <p className="text-gray-900 font-medium">{payment.vendor_name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Email</p>
+              <p className="text-gray-900 font-medium">
+                {payment.vendor_email}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Phone</p>
+              <p className="text-gray-900 font-medium">
+                {payment.vendor_phone}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Section */}
+      {payment.notes && (
+        <div className="bg-white shadow-md rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">Notes</h3>
+          <p className="text-gray-700">{payment.notes}</p>
+        </div>
+      )}
+    </div>
   );
 };
 

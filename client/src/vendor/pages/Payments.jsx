@@ -16,12 +16,11 @@ const Payments = () => {
   const [filter, setFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [stats, setStats] = useState({
-    total: 0,
-    approved: 0,
-    completed: 0,
+    platformFee: 0,
+    totalBookings: 0,
+    totalPayout: 0,
   });
 
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchBookings();
@@ -32,12 +31,13 @@ const Payments = () => {
       setLoading(true);
       const response = await axios.get("/api/vendor/getpaymenthistory");
       const data = response.data.bookings || [];
+      const stats = response.data || [];
       setBookings(data);
 
       setStats({
-        total: data.length,
-        approved: data.filter((b) => b.bookingStatus === 1).length,
-        completed: data.filter((b) => b.bookingStatus === 4).length,
+        totalPayout: stats.totalPayout,
+        totalBookings: stats.totalBookings,
+        platformFee: stats.platformFee,
       });
 
       setLoading(false);
@@ -71,33 +71,6 @@ const Payments = () => {
     return true;
   });
 
-  const exportToCSV = () => {
-    const headers = ["Booking ID", "Service ID", "Date", "Status"];
-    const rows = filteredBookings.map((b) => [
-      b.booking_id,
-      b.service_id,
-      formatDate(b.bookingDate),
-      b.bookingStatus === 4
-        ? "Completed"
-        : b.bookingStatus === 1
-        ? "Approved"
-        : "Other",
-    ]);
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((r) => r.join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `booking_export_${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
-    link.click();
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -105,6 +78,7 @@ const Payments = () => {
       </div>
     );
   }
+  
   if (error) {
     return <div className="bg-red-100 text-red-600 p-4 rounded">{error}</div>;
   }
@@ -113,23 +87,24 @@ const Payments = () => {
     <div className="space-y-6 max-w-7xl mx-auto p-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
-        <Button onClick={exportToCSV}>
-          <FiDownload className="mr-2" /> Export CSV
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-4 shadow rounded">
+          <p className="text-gray-500 text-sm">Platform Fees</p>
+          <p className="text-xl font-bold text-gray-800">{stats.platformFee}</p>
+        </div>
+        <div className="bg-white p-4 shadow rounded">
           <p className="text-gray-500 text-sm">Total Bookings</p>
-          <p className="text-xl font-bold text-gray-800">{stats.total}</p>
+          <p className="text-xl font-bold text-blue-600">
+            {stats.totalBookings}
+          </p>
         </div>
         <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Approved</p>
-          <p className="text-xl font-bold text-blue-600">{stats.approved}</p>
-        </div>
-        <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Completed</p>
-          <p className="text-xl font-bold text-green-600">{stats.completed}</p>
+          <p className="text-gray-500 text-sm">Total Payout</p>
+          <p className="text-xl font-bold text-green-600">
+            C${stats.totalPayout}
+          </p>
         </div>
       </div>
 
@@ -179,3 +154,34 @@ const Payments = () => {
 };
 
 export default Payments;
+
+// const exportToCSV = () => {
+//   const headers = ["Booking ID", "Service ID", "Date", "Status"];
+//   const rows = filteredBookings.map((b) => [
+//     b.booking_id,
+//     b.service_id,
+//     formatDate(b.bookingDate),
+//     b.bookingStatus === 4
+//       ? "Completed"
+//       : b.bookingStatus === 1
+//       ? "Approved"
+//       : "Other",
+//   ]);
+//   const csvContent = [
+//     headers.join(","),
+//     ...rows.map((r) => r.join(",")),
+//   ].join("\n");
+
+//   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+//   const url = URL.createObjectURL(blob);
+//   const link = document.createElement("a");
+//   link.href = url;
+//   link.download = `booking_export_${
+//     new Date().toISOString().split("T")[0]
+//   }.csv`;
+//   link.click();
+// };
+
+// <Button onClick={exportToCSV}>
+//         <FiDownload className="mr-2" /> Export CSV
+//       </Button>
