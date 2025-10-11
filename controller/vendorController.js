@@ -893,8 +893,6 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -968,12 +966,6 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
-
-
-
-
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -1116,7 +1108,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
