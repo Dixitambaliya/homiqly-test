@@ -9,7 +9,8 @@ const {
     getCartDetails,
     getCartByServiceTypeId,
     deleteCartSubPackage,
-    getAdminInquiries
+    getAdminInquiries,
+    updateCartItemQuantity
 } = require("../controller/addToCartServiceController")
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware")
@@ -22,6 +23,8 @@ router.get('/getcart', authenticationToken, getUserCart);
 router.get('/getinquiries', authenticationToken, getAdminInquiries);
 
 router.get('/getcartbyservicetypeid/:service_type_id', authenticationToken, getCartByServiceTypeId);
+
+router.post('/updatequantity/:cart_package_items_id', authenticationToken, updateCartItemQuantity);
 
 
 router.get('/getcartdetails/:cart_id', authenticationToken, getCartDetails);

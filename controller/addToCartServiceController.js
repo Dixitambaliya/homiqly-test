@@ -118,7 +118,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
     const user_id = req.user.user_id;
@@ -242,6 +241,57 @@ const updateCartDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to update cart", error: err.message });
     }
 });
+
+const updateCartItemQuantity = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+
+    const { cart_package_items_id } = req.params;
+    const { quantity } = req.body;
+
+    if (!cart_package_items_id || quantity == null || quantity < 1) {
+        return res.status(400).json({ message: "Invalid cart_package_items_id or quantity" });
+    }
+
+    try {
+        // 1️⃣ Find the user's cart first (optional safety check)
+        const [[cart]] = await db.query(
+            `SELECT cart_id FROM service_cart WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [user_id]
+        );
+
+        if (!cart) {
+            return res.status(404).json({ message: "Cart not found for this user" });
+        }
+
+        const cart_id = cart.cart_id;
+
+        // 2️⃣ Update the quantity in cart_package_items
+        const [result] = await db.query(
+            `UPDATE cart_package_items 
+             SET quantity = ? 
+             WHERE cart_package_items_id = ? AND cart_id = ?`,
+            [quantity, cart_package_items_id, cart_id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Item not found in cart" });
+        }
+
+        res.status(200).json({
+            message: "Cart item quantity updated successfully",
+            cart_package_items_id,
+            quantity,
+        });
+
+    } catch (err) {
+        console.error("❌ Error updating cart item quantity:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message,
+        });
+    }
+});
+
 
 const getAdminInquiries = asyncHandler(async (req, res) => {
     try {
@@ -769,7 +819,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
 
         // 2️⃣ Fetch sub-packages
         const [subPackages] = await db.query(
-            `SELECT cpi.sub_package_id, pi.itemName, cpi.price, cpi.quantity, pi.timeRequired
+            `SELECT cpi.cart_package_items_id, cpi.sub_package_id, pi.itemName, cpi.price, cpi.quantity, pi.timeRequired
              FROM cart_package_items cpi
              LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
              WHERE cpi.cart_id = ?`,
@@ -1028,5 +1078,6 @@ module.exports = {
     getCartDetails,
     getCartByServiceTypeId,
     deleteCartSubPackage,
-    getAdminInquiries
+    getAdminInquiries,
+    updateCartItemQuantity
 };
