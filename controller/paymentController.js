@@ -1,6 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
+const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
+
 
 const registerBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -201,5 +203,183 @@ const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
 });
 
 
+const applyForPayout = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+    const { requested_amount } = req.body;
 
-module.exports = { registerBankAccount, getBankAccount, editBankAccount, getAllVendorsBankAccounts };
+    if (!requested_amount || requested_amount <= 0) {
+        return res.status(400).json({ message: "Invalid payout amount" });
+    }
+
+    try {
+        // 🔍 Step 1: Check if already has a pending payout
+        const [existing] = await db.query(
+            `SELECT * FROM vendor_payout_requests 
+             WHERE vendor_id = ? AND status IN ('0')`,
+            [vendor_id]
+        );
+        if (existing.length > 0) {
+            return res.status(400).json({
+                message: "You already have a payout request in progress"
+            });
+        }
+
+        // // 🔍 Step 2: Get vendor type
+        // const [[vendorRow]] = await db.query(
+        //     bookingGetQueries.getVendorIdForBooking,
+        //     [vendor_id]
+        // );
+        // const vendorType = vendorRow?.vendorType || null;
+
+        // // 🔍 Step 3: Get platform fee for this vendor type
+        // const [platformSettings] = await db.query(
+        //     bookingGetQueries.getPlateFormFee,
+        //     [vendorType]
+        // );
+        // const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+
+        // 🔍 Step 4: Calculate total payable amount (completed bookings)
+        const [payoutRows] = await db.query(
+            vendorGetQueries.getVendorPayoutHistory,
+            [vendor_id]
+        );
+
+        const totalPayout = payoutRows.reduce((sum, row) => {
+            const amount = row.payoutAmount ? parseFloat(row.payoutAmount) : 0;
+            return sum + amount;
+        }, 0);
+
+        if (totalPayout <= 0) {
+            return res.status(400).json({
+                message: "No completed payments available for payout"
+            });
+        }
+
+        // 🔍 Step 5: Validate requested amount
+        if (requested_amount > totalPayout) {
+            return res.status(400).json({
+                message: `Requested amount (${requested_amount}) exceeds your payable balance (${totalPayout.toFixed(2)})`
+            });
+        }
+
+        // ✅ Step 6: Create payout request
+        await db.query(
+            `INSERT INTO vendor_payout_requests (vendor_id, requested_amount, platform_fee_percentage)
+             VALUES (?, ?, ?)`,
+            [vendor_id, requested_amount, platformFee]
+        );
+
+        res.status(200).json({
+            message: "Payout request submitted successfully and pending admin approval",
+            totalPayable: totalPayout,
+            requested_amount,
+            remainingBalance: (totalPayout - requested_amount).toFixed(2)
+        });
+    } catch (err) {
+        console.error("❌ Error submitting payout request:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
+
+const getVendorPayoutStatus = asyncHandler(async (req, res) => {
+    const vendor_id = req.user.vendor_id;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Vendor ID is required" });
+    }
+
+    try {
+        const [rows] = await db.query(
+            `SELECT 
+                payout_request_id,
+                vendor_id,
+                requested_amount,
+                status,
+                admin_notes,
+                payout_media,
+                created_at,
+                updated_at
+             FROM vendor_payout_requests
+             WHERE vendor_id = ?
+             ORDER BY created_at DESC`,
+            [vendor_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(200).json({
+                message: "No payout requests found",
+                requests: []
+            });
+        }
+
+
+        res.status(200).json({
+            rows
+        });
+    } catch (err) {
+        console.error("❌ Error fetching payout status:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
+const getAllPayoutRequests = asyncHandler(async (req, res) => {
+    const [requests] = await db.query(`
+        SELECT r.*, 
+               COALESCE(idet.name, cdet.companyName) AS vendor_name,
+               v.vendorType,
+               b.*
+        FROM vendor_payout_requests r
+        JOIN vendors v ON r.vendor_id = v.vendor_id
+        LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+        LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+        LEFT JOIN vendor_bank_accounts b ON r.vendor_id = b.vendor_id
+        ORDER BY r.created_at DESC
+    `);
+
+    if (requests.length === 0) {
+        return res.status(404).json({ message: "No payout requests found" });
+    }
+
+    res.status(200).json(requests);
+});
+
+const updatePayoutStatus = asyncHandler(async (req, res) => {
+    const { payout_request_id } = req.params;
+    const { status, admin_notes } = req.body;
+
+    const payoutMedia = req.uploadedFiles?.payoutMedia?.[0]?.url || null;
+
+
+    if (!payout_request_id || !status) {
+        return res.status(400).json({ message: "payout_request_id and status required" });
+    }
+
+    try {
+        await db.query(
+            `UPDATE vendor_payout_requests 
+             SET status = ?, admin_notes = ?, payout_media = ?
+             WHERE payout_request_id = ?`,
+            [status, admin_notes, payoutMedia, payout_request_id]
+        );
+
+        res.status(200).json({ message: `Payout request marked as ${status}` });
+    } catch (err) {
+        console.error("❌ Error updating payout status:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+
+module.exports = {
+    registerBankAccount,
+    getBankAccount,
+    editBankAccount,
+    getAllVendorsBankAccounts,
+    applyForPayout,
+    getAllPayoutRequests,
+    updatePayoutStatus,
+    getVendorPayoutStatus
+};

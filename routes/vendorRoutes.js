@@ -17,7 +17,7 @@ const {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorFullPaymentHistory,
+    getVendorPayoutHistory,
     updateBookingStatusByVendor,
     getVendorDashboardStats,
     removeVendorPackage,
@@ -43,9 +43,9 @@ router.post("/packagerating", authenticationToken, addRatingToPackages)
 router.put("/editservicetype", authenticationToken, editServiceType)
 router.put("/updateprofile", authenticationToken, multiUpload, handleUploads, updateProfileVendor);
 router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
-router.get("/getpaymenthistory", authenticationToken, getVendorFullPaymentHistory)
+router.get("/getpaymenthistory", authenticationToken, getVendorPayoutHistory)
 router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
-router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
+router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)  
 
 router.put("/employee/:employee_id", multiUpload, handleUploads, authenticationToken, editEmployeeProfileByCompany)
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)

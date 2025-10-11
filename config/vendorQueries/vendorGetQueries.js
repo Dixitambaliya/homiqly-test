@@ -93,7 +93,7 @@ const vendorGetQueries = {
             WHERE vendor_id = ?
     `,
 
-  getVendorFullPayment: `
+  getVendorPayoutHistory: `
     SELECT
         sb.booking_id,
         sb.service_id,
@@ -103,7 +103,6 @@ const vendorGetQueries = {
         sb.bookingDate,
         sb.bookingTime,
         sb.bookingStatus,
-        sb.payment_intent_id,
         sb.notes,
         sb.bookingMedia,
         sb.created_at,
@@ -112,13 +111,6 @@ const vendorGetQueries = {
         CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
         u.email AS user_email,
         u.phone AS user_phone,
-        
-        -- Vendor Info
-        v.vendorType,
-        cdet.contactPerson,
-        COALESCE(idet.name, cdet.companyName) AS vendor_name,
-        COALESCE(idet.email, cdet.companyEmail) AS vendor_email,
-        COALESCE(idet.phone, cdet.companyPhone) AS vendor_phone,
 
         -- Package Info
         pkg.package_id,
@@ -126,7 +118,7 @@ const vendorGetQueries = {
         pkg.packageMedia,
 
         -- Payment Info (apply platform fee)
-        CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS totalPrice,
+        CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS payoutAmount,
         p.currency AS payment_currency,
         p.status AS payment_status
 
@@ -139,10 +131,12 @@ const vendorGetQueries = {
     LEFT JOIN packages pkg ON pkg.package_id = sb.package_id
     LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
 
-    WHERE sb.vendor_id = ? AND sb.payment_intent_id IS NOT NULL
-
-    ORDER BY sb.created_at DESC
+    WHERE sb.vendor_id = ? 
+      AND sb.payment_intent_id IS NOT NULL
+      AND sb.bookingStatus = 4  
+    ORDER BY sb.created_at ASC
 `,
+
 
 
   getVendorAssignedPackages: `

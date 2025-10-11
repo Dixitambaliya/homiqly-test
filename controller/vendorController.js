@@ -893,7 +893,8 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
+
+const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     if (!vendor_id) {
@@ -901,46 +902,49 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     }
 
     try {
+        // ✅ Determine vendor type
         const [[vendorRow]] = await db.query(
             bookingGetQueries.getVendorIdForBooking,
             [vendor_id]
         );
         const vendorType = vendorRow?.vendorType || null;
 
-        // ✅ Get latest platform fee for vendorType
+        // ✅ Get platform fee for this vendor type
         const [platformSettings] = await db.query(
             bookingGetQueries.getPlateFormFee,
             [vendorType]
         );
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-        const [bookings] = await db.query(vendorGetQueries.getVendorFullPayment,
+        // ✅ Fetch completed (status=4) bookings for payout
+        const [payoutRows] = await db.query(
+            vendorGetQueries.getVendorPayoutHistory,
             [platformFee, vendor_id]
         );
 
-        const enriched = [];
+        // ✅ Enrich with parsed numbers
+        const enriched = payoutRows.map(row => ({
+            ...row,
+            payoutAmount: row.payoutAmount ? parseFloat(row.payoutAmount) : 0,
+        }));
 
-        for (const booking of bookings) {
-
-            enriched.push({
-                ...booking,
-                totalPrice: booking.totalPrice !== null
-                    ? parseFloat(booking.totalPrice)
-                    : null
-            });
-        }
+        // ✅ Calculate total payable amount
+        const totalPayout = enriched.reduce((sum, b) => sum + (b.payoutAmount || 0), 0);
 
         res.status(200).json({
             vendor_id,
-            total: enriched.length,
+            totalBookings: enriched.length,
+            totalPayout,
+            platformFee,
             bookings: enriched
         });
 
     } catch (err) {
-        console.error("Error fetching vendor history:", err);
+        console.error("❌ Error fetching vendor payout history:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -1255,7 +1259,7 @@ module.exports = {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorFullPaymentHistory,
+    getVendorPayoutHistory,
     updateBookingStatusByVendor,
     getVendorDashboardStats,
     removeVendorPackage,

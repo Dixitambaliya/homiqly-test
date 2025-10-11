@@ -40,6 +40,7 @@ const registerVendor = async (req, res) => {
             companyEmail,
             contactPerson,
             companyPhone,
+            serviceLocation,
             packages = [],
             confirmation,
         } = req.body;
@@ -94,7 +95,7 @@ const registerVendor = async (req, res) => {
         const parsedPackages = packages ? JSON.parse(packages) : [];
 
         for (const pkg of parsedPackages) {
-            const { package_id, serviceLocation, sub_packages = [] } = pkg;
+            const { package_id, sub_packages = [] } = pkg;
 
             // 1. Check if package exists
             const [packageExists] = await db.query(
