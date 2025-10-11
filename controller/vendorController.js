@@ -1029,7 +1029,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         if (status === 4) {
             notificationTitle = "Your service has been completed";
             notificationBody = `Your service for booking ID ${booking_id} has been completed. Please take a moment to rate your experience.`;
-            const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`;
+            const ratingLink = `https://homiqly-h81s.vercel.app/Profile/history`;
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, action_link, is_read, sent_at)
