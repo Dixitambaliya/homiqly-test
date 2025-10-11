@@ -1,7 +1,13 @@
 import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAdminAuth } from "../contexts/AdminAuthContext";
-import { FiHelpCircle, FiMenu, FiStar, FiX } from "react-icons/fi";
+import {
+  FiCheckSquare,
+  FiHelpCircle,
+  FiMenu,
+  FiStar,
+  FiX,
+} from "react-icons/fi";
 import {
   FiHome,
   FiUsers,
@@ -72,11 +78,6 @@ const DashboardLayout = () => {
       icon: <FiUserPlus className="w-5 h-5" />,
     },
     {
-      path: "/admin/payments",
-      name: "Payments",
-      icon: <FiCreditCard className="w-5 h-5" />,
-    },
-    {
       path: "/admin/analytics",
       name: "Analytics",
       icon: <FiBarChart2 className="w-5 h-5" />,
@@ -102,6 +103,21 @@ const DashboardLayout = () => {
         {
           path: "/admin/rating/package",
           name: "Package Ratings",
+        },
+      ],
+    },
+    {
+      path: "/admin/payments",
+      name: "Payments",
+      icon: <FiCheckSquare className="w-5 h-5" />,
+      children: [
+        {
+          path: "/admin/payments/payoutlist",
+          name: "Payouts",
+        },
+        {
+          path: "/admin/payments/history",
+          name: "History",
         },
       ],
     },

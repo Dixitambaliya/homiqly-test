@@ -1,13 +1,11 @@
 // pages/vendor/Payments.jsx
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { FiDownload, FiFilter, FiEye } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import PaymentsTable from "../components/Tables/PaymentsTable";
-import { Button } from "../../shared/components/Button";
 import { FormInput, FormSelect } from "../../shared/components/Form";
+import { Button } from "../../shared/components/Button";
 
 const Payments = () => {
   const [bookings, setBookings] = useState([]);
@@ -16,28 +14,58 @@ const Payments = () => {
   const [filter, setFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [stats, setStats] = useState({
-    platformFee: 0,
+    pendingPayout: 0,
     totalBookings: 0,
     totalPayout: 0,
+    paidPayout: 0,
   });
 
+  // modal state for apply payout
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [requestAmount, setRequestAmount] = useState("");
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyError, setApplyError] = useState(null);
+  const [applySuccess, setApplySuccess] = useState(null);
 
   useEffect(() => {
     fetchBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchBookings = async () => {
     try {
       setLoading(true);
       const response = await axios.get("/api/vendor/getpaymenthistory");
-      const data = response.data.bookings || [];
-      const stats = response.data || [];
-      setBookings(data);
+      const resp = response.data || {};
+      console.log(resp);
+
+      const payouts = Array.isArray(resp.allPayouts) ? resp.allPayouts : [];
+
+      setBookings(
+        payouts.map((p) => ({
+          ...p,
+          bookingDate: p.bookingDate || p.created_at || null,
+          bookingStatus: p.payout_status || p.bookingStatus || null,
+        }))
+      );
 
       setStats({
-        totalPayout: stats.totalPayout,
-        totalBookings: stats.totalBookings,
-        platformFee: stats.platformFee,
+        totalPayout:
+          resp.totalPayout ??
+          payouts.reduce((a, b) => a + (Number(b.payout_amount) || 0), 0),
+        totalBookings: resp.totalBookings ?? payouts.length,
+        pendingPayout:
+          resp.pendingPayout ??
+          resp.pendingPayout ??
+          payouts.reduce(
+            (a, b) =>
+              a +
+              (String(b.payout_status || "").toLowerCase() === "pending"
+                ? Number(b.payout_amount || 0)
+                : 0),
+            0
+          ),
+        paidPayout: resp.paidPayout ?? 0,
       });
 
       setLoading(false);
@@ -57,11 +85,67 @@ const Payments = () => {
     setDateRange((prev) => ({ ...prev, [name]: value }));
   };
 
-  const filteredBookings = bookings.filter((booking) => {
-    if (filter !== "all" && String(booking.bookingStatus) !== filter)
-      return false;
+  const openApplyModal = () => {
+    // default requested amount to the pending payout value (rounded to 2 dec)
+    setRequestAmount(Number(stats.pendingPayout || 0).toFixed(2));
+    setApplyError(null);
+    setApplySuccess(null);
+    setIsModalOpen(true);
+  };
 
-    if (dateRange.startDate && dateRange.endDate) {
+  const closeApplyModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleApplySubmit = async () => {
+    setApplyError(null);
+    setApplySuccess(null);
+
+    const amt = Number(requestAmount);
+    if (!amt || amt <= 0) {
+      setApplyError("Please enter a valid amount greater than 0.");
+      return;
+    }
+
+    // optionally prevent requesting more than pending payout:
+    const pending = Number(stats.pendingPayout || 0);
+    if (amt > pending) {
+      setApplyError("Requested amount cannot be greater than pending payout.");
+      return;
+    }
+
+    try {
+      setApplyLoading(true);
+      const payload = { requested_amount: Math.round(amt) }; // API in screenshot used integer amounts
+      const res = await axios.post("/api/payment/applypayout", payload);
+  
+      setApplySuccess(res.data?.message || "Payout requested successfully.");
+      // refresh the list/stats
+    } catch (err) {
+      console.error("Apply payout error:", err);
+      // try to surface server message
+      const msg =
+        err?.response?.data?.message || "Failed to submit payout request.";
+      setApplyError(msg);
+    } finally {
+      setApplyLoading(false);
+      // keep modal open briefly to show success, then close
+      setTimeout(() => {
+        setIsModalOpen(false);
+      }, 1000);
+      await fetchBookings();
+    }
+  };
+
+  const filteredBookings = bookings.filter((booking) => {
+    if (filter !== "all") {
+      const status = String(
+        booking.payout_status ?? booking.bookingStatus ?? ""
+      ).toLowerCase();
+      if (status !== String(filter).toLowerCase()) return false;
+    }
+
+    if (dateRange.startDate && dateRange.endDate && booking.bookingDate) {
       const date = new Date(booking.bookingDate);
       const start = new Date(dateRange.startDate);
       const end = new Date(dateRange.endDate);
@@ -78,7 +162,7 @@ const Payments = () => {
       </div>
     );
   }
-  
+
   if (error) {
     return <div className="bg-red-100 text-red-600 p-4 rounded">{error}</div>;
   }
@@ -89,10 +173,12 @@ const Payments = () => {
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Platform Fees</p>
-          <p className="text-xl font-bold text-gray-800">{stats.platformFee}</p>
+          <p className="text-gray-500 text-sm">Pending Payout</p>
+          <p className="text-xl font-bold text-gray-800">
+            C${Number(stats.pendingPayout || 0).toFixed(2)}
+          </p>
         </div>
         <div className="bg-white p-4 shadow rounded">
           <p className="text-gray-500 text-sm">Total Bookings</p>
@@ -101,46 +187,58 @@ const Payments = () => {
           </p>
         </div>
         <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Total Payout</p>
-          <p className="text-xl font-bold text-green-600">
-            C${stats.totalPayout}
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-gray-500 text-sm">Total Payout</p>
+              <p className="text-xl font-bold text-green-600">
+                C${Number(stats.totalPayout || 0).toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-4 shadow rounded">
+          <p className="text-gray-500 text-sm">Paid Payout</p>
+          <p className="text-xl font-bold text-blue-600">
+            C${Number(stats.paidPayout || 0).toFixed(2)}
           </p>
         </div>
       </div>
 
-      <div className="">
-        <div className="flex justify-between items-center gap-4 mb-4">
+      <div>
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
           <FormSelect
             value={filter}
+            className="w-"
             onChange={handleFilterChange}
             options={[
-              {
-                value: "all",
-                label: "All",
-              },
-              {
-                value: "1",
-                label: "Approved",
-              },
-              {
-                value: "4",
-                label: "Completed",
-              },
+              { value: "all", label: "All" },
+              { value: "pending", label: "Pending" },
+              { value: "paid", label: "Paid" },
+              { value: "completed", label: "Completed" },
             ]}
           />
 
-          <FormInput
-            type="date"
-            name="startDate"
-            value={dateRange.startDate}
-            onChange={handleDateChange}
-          />
-          <FormInput
-            type="date"
-            name="endDate"
-            value={dateRange.endDate}
-            onChange={handleDateChange}
-          />
+          <div className="flex items-center gap-2">
+            <FormInput
+              type="date"
+              name="startDate"
+              value={dateRange.startDate}
+              onChange={handleDateChange}
+            />
+            <FormInput
+              type="date"
+              name="endDate"
+              value={dateRange.endDate}
+              onChange={handleDateChange}
+            />
+          </div>
+
+          {/* Request payout button */}
+          <div className="ml-4">
+            <Button onClick={openApplyModal} size="sm" variant="primary">
+              Request Payout
+            </Button>
+          </div>
         </div>
 
         <PaymentsTable
@@ -149,39 +247,59 @@ const Payments = () => {
           filteredStatus={filter}
         />
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-3">Request Payout</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Available for withdrawal:{" "}
+              <strong>C${Number(stats.pendingPayout || 0).toFixed(2)}</strong>
+            </p>
+
+            <label className="block text-sm text-gray-600 mb-1">
+              Amount to request
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              disabled
+              value={requestAmount}
+              onChange={(e) => setRequestAmount(e.target.value)}
+              className="w-full border rounded px-3 py-2 mb-3"
+            />
+
+            {applyError && (
+              <div className="text-red-600 text-sm mb-2">{applyError}</div>
+            )}
+            {applySuccess && (
+              <div className="text-green-700 text-sm mb-2">{applySuccess}</div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <Button onClick={closeApplyModal} variant="ghost" size="sm">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApplySubmit}
+                disabled={applyLoading}
+                size="sm"
+                variant="primary"
+              >
+                {applyLoading ? "Submitting..." : "Confirm Request"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default Payments;
-
-// const exportToCSV = () => {
-//   const headers = ["Booking ID", "Service ID", "Date", "Status"];
-//   const rows = filteredBookings.map((b) => [
-//     b.booking_id,
-//     b.service_id,
-//     formatDate(b.bookingDate),
-//     b.bookingStatus === 4
-//       ? "Completed"
-//       : b.bookingStatus === 1
-//       ? "Approved"
-//       : "Other",
-//   ]);
-//   const csvContent = [
-//     headers.join(","),
-//     ...rows.map((r) => r.join(",")),
-//   ].join("\n");
-
-//   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-//   const url = URL.createObjectURL(blob);
-//   const link = document.createElement("a");
-//   link.href = url;
-//   link.download = `booking_export_${
-//     new Date().toISOString().split("T")[0]
-//   }.csv`;
-//   link.click();
-// };
-
-// <Button onClick={exportToCSV}>
-//         <FiDownload className="mr-2" /> Export CSV
-//       </Button>

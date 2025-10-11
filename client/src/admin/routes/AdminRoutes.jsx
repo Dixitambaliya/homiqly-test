@@ -36,6 +36,8 @@ import VendorApplicationDetails from "../pages/subpages/VendorApplicationDetails
 import { Loader, Loader2 } from "lucide-react";
 import AdminPromoManager from "../pages/subpages/AdminPromoManager";
 import PlatformTax from "../pages/subpages/PlatformTax";
+import PayoutList from "../pages/PayoutList";
+import PayoutDetails from "../pages/subpages/PayoutDetails";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -103,8 +105,10 @@ const AdminRoutes = () => {
           path="vendor-applications/:id"
           element={<VendorApplicationDetails />}
         />
-        <Route path="payments" element={<Payments />} />
+        <Route path="payments/history" element={<Payments />} />
         <Route path="payments/:paymentId" element={<PaymentDetails />} />
+        <Route path="payments/payoutlist" element={<PayoutList />} />
+        <Route path="payments/payoutlist/:payoutId" element={<PayoutDetails />} />
         <Route path="analytics" element={<Analytics />} />
         {/* <Route path="rating" element={<UserRating />} /> */}
         <Route path="rating/user" element={<UserRating />} />
