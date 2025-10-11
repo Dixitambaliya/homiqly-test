@@ -913,15 +913,15 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
             return res.status(200).json({
                 vendor_id,
                 totalBookings: 0,
+                totalPayout: 0,
                 pendingPayout: 0,
                 paidPayout: 0,
-                pendingPayments: [],
                 allPayouts: []
             });
         }
 
-        // ✅ Parse numeric values properly and round to 2 decimals
-        const enriched = payoutRows.map(row => ({
+        // ✅ Normalize and parse values
+        const allPayouts = payoutRows.map(row => ({
             ...row,
             gross_amount: parseFloat(parseFloat(row.gross_amount || 0).toFixed(2)),
             payout_amount: parseFloat(parseFloat(row.payout_amount || 0).toFixed(2)),
@@ -931,37 +931,33 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                     : row.payout_status
         }));
 
-        // ✅ Separate pending and paid payouts
-        const pendingPayments = enriched.filter(
-            b => b.payout_status === 0 || b.payout_status === "pending"
+        // ✅ Totals
+        const totalPayout = parseFloat(
+            allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
         );
 
-        const paidPayments = enriched.filter(
-            b => b.payout_status === 3 || b.payout_status === "paid"
-        );
-
-        // ✅ Calculate totals (using payout_amount only — already net)
         const pendingPayout = parseFloat(
-            pendingPayments.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
+            allPayouts
+                .filter(b => b.payout_status === 0 || b.payout_status === "pending")
+                .reduce((sum, b) => sum + b.payout_amount, 0)
+                .toFixed(2)
         );
 
         const paidPayout = parseFloat(
-            paidPayments.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
-        );
-
-        const totalPayout = parseFloat(
-            enriched.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
+            allPayouts
+                .filter(b => b.payout_status === 3 || b.payout_status === "paid")
+                .reduce((sum, b) => sum + b.payout_amount, 0)
+                .toFixed(2)
         );
 
         // ✅ Response
         res.status(200).json({
             vendor_id,
-            totalBookings: enriched.length,
+            totalBookings: allPayouts.length,
             totalPayout,
             pendingPayout,
             paidPayout,
-            pendingPayments,
-            allPayouts: enriched
+            allPayouts
         });
 
     } catch (err) {
@@ -972,6 +968,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 
 

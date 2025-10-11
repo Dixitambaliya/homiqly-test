@@ -100,7 +100,6 @@ const vendorGetQueries = {
     vp.vendor_id,
     vp.user_id,
     vp.package_id,
-    vp.gross_amount,
     vp.platform_fee_percentage,
     vp.payout_amount,
     vp.currency,
