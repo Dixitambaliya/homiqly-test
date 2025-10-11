@@ -94,47 +94,33 @@ const vendorGetQueries = {
     `,
 
   getVendorPayoutHistory: `
-    SELECT
-        sb.booking_id,
-        sb.service_id,
-        sb.vendor_id,
-        sb.assigned_employee_id,
-        sb.user_id,
-        sb.bookingDate,
-        sb.bookingTime,
-        sb.bookingStatus,
-        sb.notes,
-        sb.bookingMedia,
-        sb.created_at,
+   SELECT 
+    vp.payout_id,
+    vp.booking_id,
+    vp.vendor_id,
+    vp.user_id,
+    vp.package_id,
+    vp.gross_amount,
+    vp.platform_fee_percentage,
+    vp.payout_amount,
+    vp.currency,
+    vp.payout_status,
+    vp.created_at,
 
-        -- User Info
-        CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS user_name,
-        u.email AS user_email,
-        u.phone AS user_phone,
+    sb.bookingDate,
+    sb.bookingTime,
+    pkg.packageName,
+    pkg.packageMedia,
+    CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+    u.email AS user_email,
+    u.phone AS user_phone
 
-        -- Package Info
-        pkg.package_id,
-        pkg.packageName,
-        pkg.packageMedia,
-
-        -- Payment Info (apply platform fee)
-        CAST((p.amount * (1 - ? / 100)) AS DECIMAL(10,2)) AS payoutAmount,
-        p.currency AS payment_currency,
-        p.status AS payment_status
-
-    FROM service_booking sb
-
-    JOIN users u ON sb.user_id = u.user_id
-    JOIN vendors v ON sb.vendor_id = v.vendor_id
-    LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-    LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-    LEFT JOIN packages pkg ON pkg.package_id = sb.package_id
-    LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-
-    WHERE sb.vendor_id = ? 
-      AND sb.payment_intent_id IS NOT NULL
-      AND sb.bookingStatus = 4  
-    ORDER BY sb.created_at ASC
+FROM vendor_payouts vp
+JOIN service_booking sb ON vp.booking_id = sb.booking_id
+JOIN users u ON vp.user_id = u.user_id
+LEFT JOIN packages pkg ON pkg.package_id = vp.package_id
+WHERE vp.vendor_id = ?
+ORDER BY vp.created_at DESC;
 `,
 
 

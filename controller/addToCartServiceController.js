@@ -47,86 +47,55 @@ const addToCartService = asyncHandler(async (req, res) => {
             cart_id = insertCart.insertId;
         }
 
-        // ✅ Now handle packages under this one cart
+        // ✅ Handle packages under this one cart
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages, addons } = pkg;
 
-            // Fetch existing linked data
-            const [existingItems] = await connection.query(
-                "SELECT sub_package_id FROM cart_package_items WHERE cart_id = ?", [cart_id]
-            );
-            const existingItemIds = existingItems.map(i => i.sub_package_id);
-
-            const [existingAddons] = await connection.query(
-                "SELECT addon_id, sub_package_id FROM cart_addons WHERE cart_id = ?", [cart_id]
-            );
-            const existingAddonMap = {};
-            existingAddons.forEach(a => existingAddonMap[`${a.sub_package_id}_${a.addon_id}`] = true);
-
-            const [existingPrefs] = await connection.query(
-                "SELECT preference_id, sub_package_id FROM cart_preferences WHERE cart_id = ?", [cart_id]
-            );
-            const existingPrefMap = {};
-            existingPrefs.forEach(p => existingPrefMap[`${p.sub_package_id}_${p.preference_id}`] = true);
-
-            const [existingConsents] = await connection.query(
-                "SELECT consent_id, sub_package_id FROM cart_consents WHERE cart_id = ?", [cart_id]
-            );
-            const existingConsentMap = {};
-            existingConsents.forEach(c => existingConsentMap[`${c.sub_package_id}_${c.consent_id}`] = true);
-
-            // ✅ INSERT or UPDATE sub-packages (for all packages under this one cart)
             if (Array.isArray(sub_packages)) {
                 for (const item of sub_packages) {
                     const sub_package_id = item.sub_package_id;
                     const quantity = item.quantity || 1;
                     const price = item.price || 0;
 
-                    if (existingItemIds.includes(sub_package_id)) {
-                        await connection.query(
-                            "UPDATE cart_package_items SET price = ?, quantity = ? WHERE cart_id = ? AND sub_package_id = ?",
-                            [price, quantity, cart_id, sub_package_id]
-                        );
-                    } else {
-                        await connection.query(
-                            "INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) VALUES (?, ?, ?, ?, ?)",
-                            [cart_id, package_id, sub_package_id, price, quantity]
-                        );
-                    }
+                    // ✅ Always insert new sub-package row (allow duplicates)
+                    const [insertSubPackage] = await connection.query(
+                        `INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [cart_id, package_id, sub_package_id, price, quantity]
+                    );
 
-                    // ✅ Addons
+                    const newCartItemId = insertSubPackage.insertId;
+
+                    // ✅ Always insert new Addons (even if identical exist)
                     if (Array.isArray(addons)) {
                         for (const addon of addons) {
-                            if (!existingAddonMap[`${sub_package_id}_${addon.addon_id}`]) {
-                                await connection.query(
-                                    "INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) VALUES (?, ?, ?, ?)",
-                                    [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
-                                );
-                            }
+                            await connection.query(
+                                `INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) 
+                                 VALUES (?, ?, ?, ?)`,
+                                [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
+                            );
                         }
                     }
 
-                    // ✅ Preferences
+                    // ✅ Always insert new Preferences (even if identical exist)
                     if (Array.isArray(preferences)) {
                         for (const pref of preferences) {
-                            if (!existingPrefMap[`${sub_package_id}_${pref.preference_id}`]) {
-                                await connection.query(
-                                    "INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) VALUES (?, ?, ?)",
-                                    [cart_id, sub_package_id, pref.preference_id]
-                                );
-                            }
+                            await connection.query(
+                                `INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) 
+                                 VALUES (?, ?, ?)`,
+                                [cart_id, sub_package_id, pref.preference_id]
+                            );
                         }
                     }
 
-                    // ✅ Consents
+                    // ✅ Always insert new Consents (even if identical exist)
                     if (Array.isArray(consents)) {
                         for (const consent of consents) {
-                            if (!existingConsentMap[`${sub_package_id}_${consent.consent_id}`]) {
-                                await connection.query(
-                                    "INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) VALUES (?, ?, ?, ?)",
-                                    [cart_id, sub_package_id, consent.consent_id, consent.answer || null]
-                                );
-                            }
+                            await connection.query(
+                                `INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) 
+                                 VALUES (?, ?, ?, ?)`,
+                                [cart_id, sub_package_id, consent.consent_id, consent.answer || null]
+                            );
                         }
                     }
                 }
@@ -137,7 +106,10 @@ const addToCartService = asyncHandler(async (req, res) => {
 
         await connection.commit();
         connection.release();
-        res.status(200).json({ message: "Cart updated successfully", carts: createdOrUpdatedCarts });
+        res.status(200).json({
+            message: "Cart updated successfully (duplicates supported)",
+            carts: createdOrUpdatedCarts,
+        });
     } catch (err) {
         await connection.rollback();
         connection.release();
@@ -145,6 +117,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

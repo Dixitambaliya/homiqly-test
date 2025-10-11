@@ -212,74 +212,84 @@ const applyForPayout = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 🔍 Step 1: Check if already has a pending payout
-        const [existing] = await db.query(
+        // 1️⃣ Check for existing payout requests in progress
+        const [existingRequest] = await db.query(
             `SELECT * FROM vendor_payout_requests 
              WHERE vendor_id = ? AND status IN ('0')`,
             [vendor_id]
         );
-        if (existing.length > 0) {
+
+        if (existingRequest.length > 0) {
             return res.status(400).json({
                 message: "You already have a payout request in progress"
             });
         }
 
-        // // 🔍 Step 2: Get vendor type
-        // const [[vendorRow]] = await db.query(
-        //     bookingGetQueries.getVendorIdForBooking,
-        //     [vendor_id]
-        // );
-        // const vendorType = vendorRow?.vendorType || null;
-
-        // // 🔍 Step 3: Get platform fee for this vendor type
-        // const [platformSettings] = await db.query(
-        //     bookingGetQueries.getPlateFormFee,
-        //     [vendorType]
-        // );
-        // const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-
-        // 🔍 Step 4: Calculate total payable amount (completed bookings)
-        const [payoutRows] = await db.query(
-            vendorGetQueries.getVendorPayoutHistory,
+        // 2️⃣ Fetch all pending booking payouts
+        const [pendingPayouts] = await db.query(
+            `SELECT * 
+             FROM vendor_payouts 
+             WHERE vendor_id = ? AND payout_status = 'pending'`,
             [vendor_id]
         );
 
-        const totalPayout = payoutRows.reduce((sum, row) => {
-            const amount = row.payoutAmount ? parseFloat(row.payoutAmount) : 0;
-            return sum + amount;
-        }, 0);
-
-        if (totalPayout <= 0) {
+        if (!pendingPayouts.length) {
             return res.status(400).json({
-                message: "No completed payments available for payout"
+                message: "No pending booking payouts available for request"
             });
         }
 
-        // 🔍 Step 5: Validate requested amount
-        if (requested_amount > totalPayout) {
+        // 3️⃣ Calculate total available payout
+        const totalAvailable = pendingPayouts.reduce(
+            (sum, row) => sum + parseFloat(row.payout_amount),
+            0
+        );
+
+        if (requested_amount > totalAvailable) {
             return res.status(400).json({
-                message: `Requested amount (${requested_amount}) exceeds your payable balance (${totalPayout.toFixed(2)})`
+                message: `Requested amount (${requested_amount}) exceeds your available balance (${totalAvailable.toFixed(2)})`
             });
         }
 
-        // ✅ Step 6: Create payout request
+        // 4️⃣ Lock only the pending payouts
+        const payoutIds = pendingPayouts.map(p => p.payout_id);
         await db.query(
-            `INSERT INTO vendor_payout_requests (vendor_id, requested_amount, platform_fee_percentage)
-             VALUES (?, ?, ?)`,
-            [vendor_id, requested_amount, platformFee]
+            `UPDATE vendor_payouts
+             SET payout_status = 'hold'
+             WHERE payout_id IN (?)`,
+            [payoutIds]
+        );
+
+        // 5️⃣ Insert new payout request
+        const [insertResult] = await db.query(
+            `INSERT INTO vendor_payout_requests (vendor_id, requested_amount)
+             VALUES (?, ?)`,
+            [vendor_id, requested_amount]
+        );
+
+        const payout_request_id = insertResult.insertId;
+
+        // 6️⃣ Link all held payouts to this request
+        await db.query(
+            `UPDATE vendor_payouts
+             SET payout_id = ?, payout_status = 'hold'
+             WHERE payout_id IN (?)`,
+            [payout_request_id, payoutIds]
         );
 
         res.status(200).json({
             message: "Payout request submitted successfully and pending admin approval",
-            totalPayable: totalPayout,
             requested_amount,
-            remainingBalance: (totalPayout - requested_amount).toFixed(2)
+            totalAvailable,
+            payout_request_id
         });
+
     } catch (err) {
         console.error("❌ Error submitting payout request:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
@@ -346,18 +356,19 @@ const getAllPayoutRequests = asyncHandler(async (req, res) => {
     res.status(200).json(requests);
 });
 
+
 const updatePayoutStatus = asyncHandler(async (req, res) => {
     const { payout_request_id } = req.params;
     const { status, admin_notes } = req.body;
 
     const payoutMedia = req.uploadedFiles?.payoutMedia?.[0]?.url || null;
 
-
     if (!payout_request_id || !status) {
         return res.status(400).json({ message: "payout_request_id and status required" });
     }
 
     try {
+        // 1️⃣ Update the payout request status
         await db.query(
             `UPDATE vendor_payout_requests 
              SET status = ?, admin_notes = ?, payout_media = ?
@@ -365,7 +376,31 @@ const updatePayoutStatus = asyncHandler(async (req, res) => {
             [status, admin_notes, payoutMedia, payout_request_id]
         );
 
+        // 2️⃣ If admin approves, mark corresponding vendor_payouts as paid
+        if (status === '1' || status === 'paid') {
+            // Get all locked payouts associated with this request
+            const [lockedPayouts] = await db.query(
+                `SELECT 
+                 vp.payout_id
+                 FROM vendor_payouts vp
+                 JOIN vendor_payout_requests vpr ON vpr.vendor_id = vp.vendor_id
+                 WHERE vp.payout_status = 'hold' AND vpr.payout_request_id = ?`,
+                [payout_request_id]
+            );
+
+            if (lockedPayouts.length > 0) {
+                const payoutIds = lockedPayouts.map(p => p.payout_id);
+                await db.query(
+                    `UPDATE vendor_payouts 
+                     SET payout_status = 'paid' 
+                     WHERE payout_id IN (?)`,
+                    [payoutIds]
+                );
+            }
+        }
+
         res.status(200).json({ message: `Payout request marked as ${status}` });
+
     } catch (err) {
         console.error("❌ Error updating payout status:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });

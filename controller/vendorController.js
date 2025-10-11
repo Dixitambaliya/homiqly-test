@@ -902,48 +902,59 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ Determine vendor type
-        const [[vendorRow]] = await db.query(
-            bookingGetQueries.getVendorIdForBooking,
-            [vendor_id]
-        );
-        const vendorType = vendorRow?.vendorType || null;
-
-        // ✅ Get platform fee for this vendor type
-        const [platformSettings] = await db.query(
-            bookingGetQueries.getPlateFormFee,
-            [vendorType]
-        );
-        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-
-        // ✅ Fetch completed (status=4) bookings for payout
+        // ✅ Fetch all payout records for this vendor
         const [payoutRows] = await db.query(
             vendorGetQueries.getVendorPayoutHistory,
-            [platformFee, vendor_id]
+            [vendor_id]
         );
 
-        // ✅ Enrich with parsed numbers
+        if (!payoutRows.length) {
+            return res.status(200).json({
+                vendor_id,
+                totalBookings: 0,
+                totalPayout: 0,
+                pendingPayout: 0,
+                paidPayout: 0,
+                bookings: []
+            });
+        }
+
+        // ✅ Parse numeric values properly
         const enriched = payoutRows.map(row => ({
             ...row,
-            payoutAmount: row.payoutAmount ? parseFloat(row.payoutAmount) : 0,
+            gross_amount: parseFloat(row.gross_amount || 0),
+            platform_fee_percentage: parseFloat(row.platform_fee_percentage || 0),
+            payout_amount: parseFloat(row.payout_amount || 0),
         }));
 
-        // ✅ Calculate total payable amount
-        const totalPayout = enriched.reduce((sum, b) => sum + (b.payoutAmount || 0), 0);
+        // ✅ Calculate totals
+        const pendingPayout = enriched
+            .filter(b => b.payout_status === 0) // 0 = pending
+            .reduce((sum, b) => sum + (b.payout_amount || 0), 0);
 
+        const paidPayout = enriched
+            .filter(b => b.payout_status === 3) // 3 = paid
+            .reduce((sum, b) => sum + (b.payout_amount || 0), 0);
+
+        // ✅ Response
         res.status(200).json({
             vendor_id,
             totalBookings: enriched.length,
-            totalPayout,
-            platformFee,
+            totalPayout: paidPayout,      // only paid amount as total
+            pendingPayout,                // pending total separately
             bookings: enriched
         });
 
     } catch (err) {
         console.error("❌ Error fetching vendor payout history:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
     }
 });
+
+
 
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
@@ -1012,7 +1023,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, action_link, is_read, sent_at)
-         VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody, ratingLink]
             );
         } else {
@@ -1021,10 +1032,59 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, is_read, sent_at)
-         VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
         }
+
+        if (status === 4) {
+            // ✅ Fetch payment + platform fee details
+            const [[paymentInfo]] = await db.query(
+                `SELECT 
+                    p.amount, 
+                    p.currency, 
+                    p.status AS payment_status,
+                    v.vendorType
+                FROM payments p
+                JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+                JOIN vendors v ON v.vendor_id = sb.vendor_id
+                WHERE sb.booking_id = ? LIMIT 1`,
+                [booking_id]
+            );
+
+            if (paymentInfo && paymentInfo.payment_status === 'completed') {
+                // ✅ Get platform fee for this vendor type
+                const [feeRows] = await db.query(
+                    `SELECT platform_fee_percentage 
+                    FROM platform_settings 
+                    WHERE vendor_type = ? LIMIT 1`,
+                    [paymentInfo.vendorType]
+                );
+
+                const platform_fee_percentage = Number(feeRows?.[0]?.platform_fee_percentage ?? 0);
+                const gross_amount = Number(paymentInfo.amount || 0);
+                const payout_amount = Number(
+                    (gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2)
+                );
+
+                // ✅ Insert payout entry if not already exists
+                await db.query(
+                    `INSERT INTO vendor_payouts 
+                    (booking_id, vendor_id, user_id, package_id, payment_intent_id,
+                    gross_amount, platform_fee_percentage, payout_amount, currency)
+                    SELECT 
+                        sb.booking_id, sb.vendor_id, sb.user_id, sb.package_id, sb.payment_intent_id,
+                        ?, ?, ?, ?
+                    FROM service_booking sb
+                    WHERE sb.booking_id = ?
+                    ON DUPLICATE KEY UPDATE 
+                    payout_amount = VALUES(payout_amount),
+                    platform_fee_percentage = VALUES(platform_fee_percentage)`,
+                    [gross_amount, platform_fee_percentage, payout_amount, paymentInfo.currency, booking_id]
+                );
+            }
+        }
+
 
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
@@ -1038,6 +1098,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;

@@ -194,7 +194,6 @@ const registerVendor = async (req, res) => {
     }
 };
 
-
 const loginVendor = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
 
