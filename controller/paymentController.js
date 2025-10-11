@@ -350,10 +350,10 @@ const getAllPayoutRequests = asyncHandler(async (req, res) => {
     `);
 
     if (requests.length === 0) {
-        return res.status(200).json({ message: "No payout requests found" });
+        return res.status(204).json({ message: "No payout requests found" });
     }
 
-    res.status(204).json(requests);
+    res.status(200).json(requests);
 });
 
 
