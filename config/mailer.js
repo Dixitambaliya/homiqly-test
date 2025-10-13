@@ -447,7 +447,7 @@ async function sendPasswordUpdatedMail({ userName, userEmail }) {
               <a href="${resetLink}" 
                  style="display:inline-block; background:#007BFF; color:#fff; text-decoration:none; 
                         padding:10px 20px; border-radius:6px; font-weight:bold;">
-                👉 Reset Password
+                 Reset Password
               </a>
             </p>
             <p>Stay safe,</p>
@@ -484,11 +484,202 @@ async function sendPasswordUpdatedMail({ userName, userEmail }) {
   }
 }
 
+async function sendPasswordResetCodeMail({ userEmail, code }) {
+  try {
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
+
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <div style="background:#007BFF; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Password Reset Request</h1>
+          </div>
+
+          <!-- Body -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello,</p>
+            <p>We received a request to reset your <strong>Homiqly</strong> account password.</p>
+            <p>Your password reset code is:</p>
+
+            <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px; 
+                        text-align:center; padding:15px; font-size:24px; font-weight:bold; color:#007BFF; letter-spacing:3px;">
+              ${code}
+            </div>
+
+            <p style="margin-top:15px;">⚠️ This code will expire in <strong>5 minutes</strong>. 
+               If you didn’t request a password reset, you can safely ignore this email.</p>
+
+            <p style="margin-top:20px;">Thanks,<br><strong>Homiqly Support Team</strong></p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
+            <p style="margin:4px 0;">Need help? Contact <a href="mailto:support@homiqly.com" style="color:#007BFF; text-decoration:none;">support@homiqly.com</a></p>
+            <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly Support" <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Your Homiqly Password Reset Code",
+      html: htmlBody,
+      attachments: [
+        {
+          filename: "homiqly.webp",
+          path: logoPath,
+          cid: cidName,
+          contentDisposition: "inline",
+        },
+      ],
+    });
+
+    console.log(`📧 Password reset code sent to: ${userEmail}`);
+  } catch (error) {
+    console.error("❌ Failed to send password reset email:", error.message);
+  }
+}
+
+async function sendUserVerificationMail({ firstname, userEmail, code }) {
+  try {
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
+
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <div style="background:#007BFF; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Verify Your Email</h1>
+          </div>
+
+          <!-- Body -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello <strong>${firstname}</strong>,</p>
+            <p>Welcome to <strong>Homiqly!</strong> We’re thrilled to have you join our community.</p>
+            <p>Before we get started, please verify your email address using the code below:</p>
+
+            <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px;
+                        text-align:center; padding:15px; font-size:24px; font-weight:bold; color:#007BFF; letter-spacing:3px;">
+              ${code}
+            </div>
+
+            <p style="margin-top:15px;">⚠️ This code is valid for <strong>5 minutes</strong>. If you didn’t request this verification, you can ignore this email.</p>
+            <p style="margin-top:20px;">Once verified, you’ll be ready to explore personalized beauty and lifestyle services on Homiqly.</p>
+
+            <p style="margin-top:20px;">Cheers,<br><strong>Team Homiqly</strong></p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
+            <p style="margin:4px 0;">Need help? Contact <a href="mailto:support@homiqly.com" style="color:#007BFF; text-decoration:none;">support@homiqly.com</a></p>
+            <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Verify Your Email - Homiqly Registration",
+      html: htmlBody,
+      attachments: [
+        {
+          filename: "homiqly.webp",
+          path: logoPath,
+          cid: cidName,
+          contentDisposition: "inline",
+        },
+      ],
+    });
+
+    console.log(`📧 Verification email sent to: ${userEmail}`);
+  } catch (error) {
+    console.error("❌ Failed to send verification email:", error.message);
+  }
+}
+
+async function sendReviewRequestMail({ userName, userEmail, serviceName, vendorName }) {
+  try {
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
+    const reviewLink = `https://homiqly-h81s.vercel.app/Profile/history`;
+
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <div style="background:#FF6F61; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">How Was Your Homiqly Experience?</h1>
+          </div>
+
+          <!-- Body -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello <strong>${userName}</strong>,</p>
+            <p>We hope you loved your recent <strong>${serviceName}</strong> service with <strong>${vendorName}</strong>!</p>
+            <p>Your feedback helps us improve and recognize our top professionals.</p>
+
+            <div style="text-align:center; margin:30px 0;">
+              <a href="${reviewLink}" 
+                 style="background:#FF6F61; color:#fff; padding:12px 28px; border-radius:30px; 
+                 font-size:16px; text-decoration:none; font-weight:bold;">
+                 👉 Leave a Review
+              </a>
+            </div>
+
+            <p>Thank you for choosing Homiqly — beauty, comfort, and care at your doorstep.</p>
+            <p>Warm regards,<br><strong>Team Homiqly</strong></p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
+            <p>&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "How Was Your Homiqly Experience? 👉",
+      html: htmlBody,
+      attachments: [
+        {
+          filename: "homiqly.webp",
+          path: logoPath,
+          cid: cidName,
+          contentDisposition: "inline",
+        },
+      ],
+    });
+
+    console.log(`📧 Review request sent to: ${userName} (${userEmail})`);
+  } catch (error) {
+    console.error("❌ Failed to send review request email:", error.message);
+  }
+}
+
+
 module.exports = {
   sendBookingEmail,
   sendVendorBookingEmail,
   sendAdminVendorRegistrationMail,
   sendVendorApprovalMail,
   sendVendorRejectionMail,
-  sendPasswordUpdatedMail
+  sendPasswordUpdatedMail,
+  sendPasswordResetCodeMail,
+  sendUserVerificationMail,
+  sendReviewRequestMail
 };

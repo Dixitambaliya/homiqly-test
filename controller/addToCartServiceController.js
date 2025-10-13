@@ -63,7 +63,8 @@ const addToCartService = asyncHandler(async (req, res) => {
                          VALUES (?, ?, ?, ?, ?)`,
                         [cart_id, package_id, sub_package_id, price, quantity]
                     );
-
+                    console.log(insertSubPackage);
+                    
                     const newCartItemId = insertSubPackage.insertId;
 
                     // ✅ Always insert new Addons (even if identical exist)
@@ -502,7 +503,6 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -737,8 +737,6 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { cart_id } = req.params;
@@ -825,7 +823,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch cart row(s) for the user and service_type_id
         const [cartRows] = await db.query(
-            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.service_type_id, sc.package_id,
+            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.service_type_id,
                     sc.bookingStatus, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime, sc.user_promo_code_id
              FROM service_cart sc
              WHERE sc.user_id = ? AND sc.service_type_id = ?`,
@@ -841,7 +839,14 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
 
         // 2️⃣ Fetch sub-packages
         const [subPackages] = await db.query(
-            `SELECT cpi.cart_package_items_id, cpi.sub_package_id, pi.itemName, cpi.price, cpi.quantity, pi.timeRequired
+            `SELECT 
+                cpi.cart_package_items_id, 
+                cpi.sub_package_id, 
+                cpi.package_id, 
+                pi.itemName, 
+                cpi.price, 
+                cpi.quantity, 
+                pi.timeRequired
              FROM cart_package_items cpi
              LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
              WHERE cpi.cart_id = ?`,

@@ -1012,11 +1012,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        // if (payment_status !== 'completed') {
-        //     return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
-        // }
-
-
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
 

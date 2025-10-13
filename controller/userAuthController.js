@@ -5,6 +5,7 @@ const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const { assignWelcomeCode } = require("./promoCode");
+const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail } = require("../config/mailer");
 
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -35,14 +36,12 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [
-            email,
-        ]);
+        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
         if (existingUser.length > 0) {
             return res.status(400).json({ error: "Email already exists" });
         }
 
-        // Save only name/email (no password yet)
+        // Insert user record (without password yet)
         const [result] = await db.query(userAuthQueries.userInsert1, [
             firstname,
             lastname,
@@ -50,16 +49,12 @@ const registerUser = asyncHandler(async (req, res) => {
             phone,
         ]);
 
-        // Generate code and send
+        // Generate code
         const code = generateResetCode();
         resetCodes.set(email, { code, expiresAt: Date.now() + RESET_EXPIRATION });
 
-        await transport.sendMail({
-            from: `"Support" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: "Verify Your Email - Registration",
-            text: `Hi ${firstname}, your verification code is: ${code}`,
-        });
+        // ✅ Use helper function to send the mail
+        sendUserVerificationMail({ firstname, userEmail: email, code }).catch(console.error);
 
         res.status(200).json({
             message: "Verification code sent to email.",
@@ -135,7 +130,6 @@ const setPassword = asyncHandler(async (req, res) => {
     }
 });
 
-// User Login
 const loginUser = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
 
@@ -212,7 +206,6 @@ const loginUser = asyncHandler(async (req, res) => {
     }
 });
 
-
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;
 
@@ -225,7 +218,6 @@ const requestReset = asyncHandler(async (req, res) => {
 
     try {
         const [user] = await db.query(userAuthQueries.GetUserOnMail, [email]);
-
         if (!user || user.length === 0) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -234,12 +226,8 @@ const requestReset = asyncHandler(async (req, res) => {
         const expires = Date.now() + RESET_EXPIRATION;
         resetCodes.set(email, { code, expires });
 
-        await transport.sendMail({
-            from: `"Support" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: "Password Reset Code",
-            text: `Your password reset code is: ${code}. It expires in 5 minutes.`,
-        });
+        // ✅ Use helper for email
+        sendPasswordResetCodeMail({ userEmail: email, code }).catch(console.error);
 
         res.status(200).json({ message: "Reset code sent to email." });
     } catch (err) {
