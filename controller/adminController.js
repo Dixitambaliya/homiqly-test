@@ -1403,7 +1403,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Application not found" });
         }
 
-        // ✅ If approved, transfer and delete from application tables
+        // ✅ If approved, transfer data into flattened table
         if (Number(status) === 1) {
             // Get application details
             const [appRows] = await connection.query(
@@ -1414,36 +1414,35 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 
             const { vendor_id, package_id } = appRows[0];
 
-            // Insert into vendor_packages
-            const [vpResult] = await connection.query(
-                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
-                [vendor_id, package_id]
-            );
-            const vendor_packages_id = vpResult.insertId;
-
-            // Get sub-package items from vendor_package_item_applications
+            // Get sub-package items from vendor_package_item_application
             const [subPkgRows] = await connection.query(
                 `SELECT package_item_id FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
             );
 
-            // Insert sub-packages into vendor_package_items
-            if (subPkgRows.length > 0) {
-                const insertSubPackages = subPkgRows.map(sp => [
-                    vendor_packages_id,
-                    vendor_id,
-                    package_id,
-                    sp.package_item_id
-                ]);
+            // Insert into flattened table
+            const flattenedData = subPkgRows.map(sp => [
+                vendor_id,
+                package_id,
+                sp.package_item_id
+            ]);
 
+            if (flattenedData.length > 0) {
                 await connection.query(
-                    `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
+                    `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
                      VALUES ?`,
-                    [insertSubPackages]
+                    [flattenedData]
+                );
+            } else {
+                // If no sub-packages, still insert the package with null/0 sub-package
+                await connection.query(
+                    `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, 0]
                 );
             }
 
-            // ✅ Delete transferred entries from application tables
+            // ✅ Delete application entries
             await connection.query(
                 `DELETE FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
@@ -1458,7 +1457,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: `Application ${application_id} status updated to ${status} successfully and data transferred.`
+            message: `Application ${application_id} status updated to ${status} successfully and data transferred to flattened table.`
         });
 
     } catch (err) {
