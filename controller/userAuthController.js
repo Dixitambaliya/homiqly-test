@@ -291,21 +291,28 @@ const resetPassword = asyncHandler(async (req, res) => {
         const email = decoded.email;
 
         const hashed = await bcrypt.hash(password, 10);
-        const [result] = await db.query(userAuthQueries.PasswordUpdate, [
-            hashed,
-            email,
-        ]);
+        const [result] = await db.query(userAuthQueries.PasswordUpdate, [hashed, email]);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: "User not found" });
         }
 
+        // fetch user info for email
+        const [[user]] = await db.query(
+            "SELECT CONCAT(firstName, ' ', lastName) AS userName, email AS userEmail FROM users WHERE email = ?",
+            [email]
+        );
+
+        // send email asynchronously (don’t block response)
+        sendPasswordUpdatedMail({
+            userName: user?.userName || "User",
+            userEmail: user?.userEmail || email,
+        }).catch(console.error);
+
         res.status(200).json({ message: "Password reset successfully" });
     } catch (err) {
         console.error("Reset Error:", err);
-        res
-            .status(400)
-            .json({ error: "Invalid or expired token", details: err.message });
+        res.status(400).json({ error: "Invalid or expired token", details: err.message });
     }
 });
 

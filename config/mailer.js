@@ -19,32 +19,58 @@ async function sendAdminVendorRegistrationMail({ vendorType, vendorName, vendorE
 
     const emailAddresses = adminEmails.map(row => row.email);
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER || "noreply@homiqly.com",
+    // Logo file path and CID
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
+
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header with logo -->
+          <div style="background:#4CAF50; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">New Vendor Registration</h1>
+          </div>
+
+          <!-- Body content -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello Homiqly Team,</p>
+            <p>A new service provider has just registered on Homiqly!</p>
+            <p><strong>Details:</strong></p>
+            <ul>
+                <li><strong>Name:</strong> ${vendorName}</li>
+                <li><strong>Email:</strong> ${vendorEmail}</li>
+                <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
+                <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
+            </ul>
+            <p>Please review their profile and documentation to proceed with verification.</p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
+            <p style="margin:4px 0;">Best regards,</p>
+            <p style="margin:4px 0;">Homiqly Team</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
       to: emailAddresses,
       subject: "New Service Provider Registration on Homiqly",
-      html: `
-                <p>Hello Homiqly Team,</p>
-                <p>A new service provider has just registered on Homiqly!</p>
-                <p><strong>Details:</strong></p>
-                <ul>
-                    <li><strong>Name:</strong> ${vendorName}</li>
-                    <li><strong>Email:</strong> ${vendorEmail}</li>
-                    <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
-                    <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
-                </ul>
-                <p>Please review their profile and documentation to proceed with verification.</p>
-                <br/>
-                <p>Best regards,<br/>Homiqly Team</p>
-            `
-    };
+      html: htmlBody,
+      attachments: [
+        { filename: 'homiqly.webp', path: logoPath, cid: cidName, contentDisposition: "inline" }
+      ]
+    });
 
-    await transport.sendMail(mailOptions);
     console.log(`📧 Admin notified about new vendor: ${vendorName}`);
   } catch (error) {
     console.error("❌ Failed to send admin vendor registration email:", error.message);
   }
-};
+}
 
 async function sendBookingEmail(user_id, bookingDetails) {
   try {
@@ -279,6 +305,190 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
   }
 }
 
+async function sendVendorApprovalMail({ vendorName, vendorEmail, plainPassword }) {
+  try {
+    // Logo path and CID
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
 
+    // Dynamically include password only if it exists (company vendors)
+    const passwordSection = plainPassword
+      ? `
+        <ul style="margin:10px 0 20px 15px;">
+          <li><strong>Vendor Email:</strong> ${vendorEmail}</li>
+          <li><strong>Password:</strong> ${plainPassword}</li>
+        </ul>
+        <p style="color:#555;">Please reset your password after you log in to your profile.</p>
+      `
+      : `
+        <p>You can now log in using your existing credentials and start accepting bookings.</p>
+      `;
 
-module.exports = { sendBookingEmail, sendVendorBookingEmail, sendAdminVendorRegistrationMail };
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header with logo -->
+          <div style="background:#4CAF50; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Welcome to Homiqly!</h1>
+          </div>
+
+          <!-- Body content -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello <strong>${vendorName}</strong>,</p>
+            <p>We’re excited to welcome you to Homiqly, where beauty and convenience meet!</p>
+            <p>Your registration has been approved, and you’re now part of our trusted network of service providers.</p>
+            <p>You can now log in to your dashboard:</p>
+            ${passwordSection}
+            <p><a href="https://glistening-marigold-c9df83.netlify.app/vendor/login" style="color:#4CAF50; text-decoration:none;">Login to Dashboard</a></p>
+            <p>Before you begin, make sure your profile, service details, and availability are updated.</p>
+            <p>Welcome aboard!</p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
+            <p style="margin:4px 0;">Team Homiqly</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      to: vendorEmail,
+      subject: "Welcome to Homiqly! Your Application Has Been Approved",
+      html: htmlBody,
+      attachments: [
+        {
+          filename: "homiqly.webp",
+          path: logoPath,
+          cid: cidName,
+          contentDisposition: "inline",
+        },
+      ],
+    });
+
+    console.log(`📧 Vendor approval email sent to: ${vendorName} (${vendorEmail})`);
+  } catch (error) {
+    console.error("❌ Failed to send vendor approval email:", error.message);
+  }
+}
+
+async function sendVendorRejectionMail({ vendorName, vendorEmail }) {
+  try {
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
+
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header with logo -->
+          <div style="background:#f44336; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Application Rejected</h1>
+          </div>
+
+          <!-- Body content -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello ${vendorName},</p>
+            <p>We regret to inform you that your application to join Homiqly has been rejected.</p>
+            <p>If you believe this is a mistake or would like more information, please contact our support team.</p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
+            <p style="margin:4px 0;">Best regards,</p>
+            <p style="margin:4px 0;">Homiqly Team</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly Support" <${process.env.EMAIL_USER}>`,
+      to: vendorEmail,
+      subject: "Your Homiqly Application Has Been Rejected",
+      html: htmlBody,
+      attachments: [
+        { filename: 'homiqly.webp', path: logoPath, cid: cidName, contentDisposition: "inline" }
+      ]
+    });
+
+    console.log(`📧 Rejection email sent to ${vendorName} (${vendorEmail})`);
+  } catch (err) {
+    console.error("❌ Failed to send vendor rejection email:", err.message);
+  }
+}
+
+async function sendPasswordUpdatedMail({ userName, userEmail }) {
+  try {
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
+    const resetLink = "https://ts-homiqly-adminpanel.vercel.app/forgotpassword"; // update if needed
+
+    const htmlBody = `
+      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
+        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <div style="background:#007BFF; padding:20px; text-align:center;">
+            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Password Updated Successfully</h1>
+          </div>
+
+          <!-- Body -->
+          <div style="padding:25px 30px; font-size:15px; color:#333;">
+            <p>Hello <strong>${userName}</strong>,</p>
+            <p>This is to confirm that your <strong>Homiqly</strong> account password has been successfully updated.</p>
+            <p>If you did not make this change, please reset your password immediately using the link below:</p>
+            <p>
+              <a href="${resetLink}" 
+                 style="display:inline-block; background:#007BFF; color:#fff; text-decoration:none; 
+                        padding:10px 20px; border-radius:6px; font-weight:bold;">
+                👉 Reset Password
+              </a>
+            </p>
+            <p>Stay safe,</p>
+            <p><strong>Homiqly Team</strong></p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
+            <p style="margin:4px 0;">If you have any questions, please contact <a href="mailto:support@homiqly.com" style="color:#007BFF; text-decoration:none;">support@homiqly.com</a></p>
+            <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Homiqly Security" <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Password Updated Successfully",
+      html: htmlBody,
+      attachments: [
+        {
+          filename: "homiqly.webp",
+          path: logoPath,
+          cid: cidName,
+          contentDisposition: "inline",
+        },
+      ],
+    });
+
+    console.log(`📧 Password update email sent to: ${userName} (${userEmail})`);
+  } catch (error) {
+    console.error("❌ Failed to send password update email:", error.message);
+  }
+}
+
+module.exports = {
+  sendBookingEmail,
+  sendVendorBookingEmail,
+  sendAdminVendorRegistrationMail,
+  sendVendorApprovalMail,
+  sendVendorRejectionMail,
+  sendPasswordUpdatedMail
+};

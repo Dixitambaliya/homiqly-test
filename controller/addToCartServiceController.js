@@ -541,10 +541,12 @@ const getUserCart = asyncHandler(async (req, res) => {
                     cpi.quantity,
                     cpi.package_id,
                     cpi.created_at,
+                    pi.itemName,
+                    pi.itemMedia,
                     pi.timeRequired,
                     st.service_type_id,
-                    s.serviceName AS itemName,
-                    s.serviceImage AS itemMedia
+                    s.serviceName,
+                    s.serviceImage
                  FROM cart_package_items cpi
                  LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
                  LEFT JOIN packages p ON pi.package_id = p.package_id
