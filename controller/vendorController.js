@@ -708,56 +708,57 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
     try {
-        // ✅ Fetch packages assigned to vendor
-        const [packages] = await db.query(
+        // ✅ Fetch all package-subpackage pairs assigned to vendor
+        const [assignedRows] = await db.query(
             `SELECT 
-                vp.vendor_packages_id,
-                vp.package_id
-            FROM vendor_packages vp
-            JOIN packages p ON vp.package_id = p.package_id
-            WHERE vp.vendor_id = ?`,
+                vpf.package_id,
+                vpf.package_item_id,
+                p.packageName,
+                pi.itemName AS sub_package_name,
+                pi.itemMedia,
+                pi.description
+             FROM vendor_package_items_flat vpf
+             JOIN packages p ON vpf.package_id = p.package_id
+             LEFT JOIN package_items pi ON vpf.package_item_id = pi.item_id
+             WHERE vpf.vendor_id = ?`,
             [vendorId]
         );
 
-        if (packages.length === 0) {
+        if (assignedRows.length === 0) {
             return res.status(200).json({
                 message: "No packages assigned to this vendor",
                 result: []
             });
         }
 
-        // ✅ Fetch sub-packages for these packages
-        const vendorPackageIds = packages.map(p => p.vendor_packages_id);
-        const [subPackages] = await db.query(
-            `SELECT 
-             vpi.vendor_packages_id, 
-             vpi.package_item_id, 
-             pi.itemName AS sub_package_name,
-             pi.itemMedia,
-             pi.description
-                FROM vendor_package_items vpi
-                JOIN package_items pi ON vpi.package_item_id = pi.item_id
-                WHERE vpi.vendor_packages_id IN (?)`,
-            [vendorPackageIds]
-        );
+        // ✅ Group sub-packages by package_id
+        const grouped = {};
+        assignedRows.forEach(row => {
+            if (!grouped[row.package_id]) {
+                grouped[row.package_id] = {
+                    package_id: row.package_id,
+                    package_name: row.packageName,
+                    sub_packages: []
+                };
+            }
 
-        // ✅ Map sub-packages to their parent packages
-        const result = packages.map(pkg => ({
-            vendor_packages_id: pkg.vendor_packages_id,
-            package_id: pkg.package_id,
-            sub_packages: subPackages
-                .filter(sp => sp.vendor_packages_id === pkg.vendor_packages_id)
-                .map(sp => ({
-                    sub_package_id: sp.package_item_id,
-                    sub_package_name: sp.sub_package_name,
-                    sub_package_media: sp.itemMedia,
-                    sub_package_description: sp.description,
-                }))
-        }));
+            // Only add sub-package if package_item_id is not 0 (placeholder for no sub-packages)
+            if (row.package_item_id && row.package_item_id !== 0) {
+                grouped[row.package_id].sub_packages.push({
+                    sub_package_id: row.package_item_id,
+                    sub_package_name: row.sub_package_name || "Unknown",
+                    sub_package_media: row.itemMedia || null,
+                    sub_package_description: row.description || null
+                });
+            }
+        });
+
+        const result = Object.values(grouped);
 
         res.status(200).json({
             message: "Vendor packages fetched successfully",
@@ -769,6 +770,9 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
+
 
 const addRatingToPackages = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
