@@ -84,10 +84,35 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
+        // 1️⃣ Fetch all services grouped by category
         const [rows] = await db.query(userGetQueries.getAllServicesWithCategory);
 
+        // 2️⃣ Fetch average rating and review count per service
+        const [ratings] = await db.query(`
+            SELECT 
+                s.service_id,
+                ROUND(AVG(r.rating), 1) AS avgRating,
+                COUNT(r.rating_id) AS reviewCount
+            FROM ratings r
+            JOIN packages p ON r.package_id = p.package_id
+            JOIN service_type st ON p.service_type_id = st.service_type_id
+            JOIN services s ON st.service_id = s.service_id
+            GROUP BY s.service_id
+        `);
+
+        // Convert ratings array to map for fast lookup
+        const ratingMap = {};
+        ratings.forEach(r => {
+            ratingMap[r.service_id] = {
+                avgRating: r.avgRating,
+                reviewCount: r.reviewCount
+            };
+        });
+
+        // 3️⃣ Group services by category
         const grouped = {};
 
         rows.forEach(row => {
@@ -111,13 +136,15 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
                     description: row.serviceDescription,
                     serviceImage: row.serviceImage,
                     serviceFilter: row.serviceFilter,
-                    slug: row.slug
+                    slug: row.slug,
+                    avgRating: ratingMap[row.serviceId]?.avgRating || 0,
+                    reviewCount: ratingMap[row.serviceId]?.reviewCount || 0
                 };
                 grouped[category].services.push(service);
             }
         });
 
-        // ✅ At this point, only services with at least one valid package exist
+        // 4️⃣ Only keep categories that have services
         const result = Object.values(grouped).filter(category => category.services.length > 0);
 
         res.status(200).json({ services: result });
@@ -126,6 +153,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -482,10 +510,12 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
     try {
+        // 1️⃣ Fetch package + subpackages + related data
         const [rows] = await db.query(
             `SELECT 
                 p.package_id,
@@ -526,6 +556,30 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
+        // 2️⃣ Fetch average rating per sub_package that has booking data in service_booking_sub_packages
+        const [ratingRows] = await db.query(
+            `SELECT 
+                sbsp.sub_package_id,
+                ROUND(AVG(r.rating), 1) AS avgRating,
+                COUNT(r.rating_id) AS reviewCount
+            FROM ratings r
+            JOIN service_booking_sub_packages sbsp ON r.booking_id = sbsp.booking_id
+            JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+            WHERE pi.package_id = ?
+            GROUP BY sbsp.sub_package_id`,
+            [package_id]
+        );
+
+        // Map ratings by sub_package_id
+        const ratingMap = {};
+        ratingRows.forEach(r => {
+            ratingMap[r.sub_package_id] = {
+                avgRating: r.avgRating || 0,
+                reviewCount: r.reviewCount || 0
+            };
+        });
+
+        // 3️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
@@ -539,6 +593,8 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         for (const row of rows) {
             if (row.sub_package_id) {
                 if (!subPackageMap.has(row.sub_package_id)) {
+                    const ratingInfo = ratingMap[row.sub_package_id] || { avgRating: 0, reviewCount: 0 };
+
                     subPackageMap.set(row.sub_package_id, {
                         sub_package_id: row.sub_package_id,
                         item_name: row.item_name,
@@ -546,8 +602,10 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         item_media: row.item_media,
                         price: row.sub_price,
                         time_required: row.sub_time_required,
+                        avgRating: Number(ratingInfo.avgRating),
+                        reviewCount: ratingInfo.reviewCount,
                         addons: [],
-                        preferences: {},   // group-level
+                        preferences: {},
                         consentForm: []
                     });
                 }
@@ -565,12 +623,11 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Preferences grouped by groupName with group-level is_required
+                // Preferences
                 if (row.preference_id != null) {
                     const groupName = row.preferenceGroup || "Default";
 
                     if (!sp.preferences[groupName]) {
-                        // Initialize group with is_required taken from first row
                         sp.preferences[groupName] = {
                             is_required: row.preference_is_required,
                             selections: []
@@ -599,12 +656,18 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
 
         pkg.sub_packages = Array.from(subPackageMap.values());
 
-        res.status(200).json({ message: "Package details fetched successfully", package: pkg });
+        res.status(200).json({
+            message: "Package details fetched successfully",
+            package: pkg
+        });
     } catch (err) {
         console.error("Error fetching package details:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
+
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

@@ -494,3 +494,4 @@ module.exports = {
     resetPassword,
     changeVendorPassword,
 };
+

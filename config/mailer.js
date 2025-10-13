@@ -4,57 +4,92 @@ const { db } = require('../config/db');
 const path = require('path');
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    }
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  }
 });
 
-async function sendBookingEmail(user_id, bookingDetails) {
-    try {
+async function sendAdminVendorRegistrationMail({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) {
+  try {
+    // Fetch admin emails
+    const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
+    if (!adminEmails.length) return console.warn("⚠️ No admin emails found.");
 
-        const [[user]] = await db.query(
-            `SELECT CONCAT(firstName, ' ', lastName) AS name, email 
+    const emailAddresses = adminEmails.map(row => row.email);
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || "noreply@homiqly.com",
+      to: emailAddresses,
+      subject: "New Service Provider Registration on Homiqly",
+      html: `
+                <p>Hello Homiqly Team,</p>
+                <p>A new service provider has just registered on Homiqly!</p>
+                <p><strong>Details:</strong></p>
+                <ul>
+                    <li><strong>Name:</strong> ${vendorName}</li>
+                    <li><strong>Email:</strong> ${vendorEmail}</li>
+                    <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
+                    <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
+                </ul>
+                <p>Please review their profile and documentation to proceed with verification.</p>
+                <br/>
+                <p>Best regards,<br/>Homiqly Team</p>
+            `
+    };
+
+    await transport.sendMail(mailOptions);
+    console.log(`📧 Admin notified about new vendor: ${vendorName}`);
+  } catch (error) {
+    console.error("❌ Failed to send admin vendor registration email:", error.message);
+  }
+};
+
+async function sendBookingEmail(user_id, bookingDetails) {
+  try {
+
+    const [[user]] = await db.query(
+      `SELECT CONCAT(firstName, ' ', lastName) AS name, email 
        FROM users 
        WHERE user_id = ? LIMIT 1`,
-            [user_id]
-        );
+      [user_id]
+    );
 
-        if (!user) {
-            console.warn(`⚠️ No user found for user_id ${user_id}, skipping email.`);
-            return;
-        }
+    if (!user) {
+      console.warn(`⚠️ No user found for user_id ${user_id}, skipping email.`);
+      return;
+    }
 
-        const {
-            booking_id,
-            bookingDate,
-            bookingTime,
-            packages = [],
-            promo_code,
-            promo_discount,
-            receiptUrl
-        } = bookingDetails;
+    const {
+      booking_id,
+      bookingDate,
+      bookingTime,
+      packages = [],
+      promo_code,
+      promo_discount,
+      receiptUrl
+    } = bookingDetails;
 
-        const pngPath = path.resolve("config/media/homiqly.webp");
-        const cidName = "homiqlyLogo";
+    const pngPath = path.resolve("config/media/homiqly.webp");
+    const cidName = "homiqlyLogo";
 
-        // 🧾 Create dynamic HTML for all packages
-        const packagesHtml = packages.map(pkg => {
-            const subPackagesHtml = pkg.sub_packages.map(sub => {
-                const addonsHtml = sub.addons?.length
-                    ? sub.addons.map(a => `<li>${a.addonName} <span style="color:#555;">(₹${a.price})</span></li>`).join("")
-                    : "<li>None</li>";
+    // 🧾 Create dynamic HTML for all packages
+    const packagesHtml = packages.map(pkg => {
+      const subPackagesHtml = pkg.sub_packages.map(sub => {
+        const addonsHtml = sub.addons?.length
+          ? sub.addons.map(a => `<li>${a.addonName} <span style="color:#555;">(₹${a.price})</span></li>`).join("")
+          : "<li>None</li>";
 
-                const prefsHtml = sub.preferences?.length
-                    ? sub.preferences.map(p => `<li>${p.preferenceValue} <span style="color:#555;">(₹${p.preferencePrice})</span></li>`).join("")
-                    : "<li>None</li>";
+        const prefsHtml = sub.preferences?.length
+          ? sub.preferences.map(p => `<li>${p.preferenceValue} <span style="color:#555;">(₹${p.preferencePrice})</span></li>`).join("")
+          : "<li>None</li>";
 
-                const consentsHtml = sub.consents?.length
-                    ? sub.consents.map(c => `<li>${c.question}: <strong>${c.answer}</strong></li>`).join("")
-                    : "<li>None</li>";
+        const consentsHtml = sub.consents?.length
+          ? sub.consents.map(c => `<li>${c.question}: <strong>${c.answer}</strong></li>`).join("")
+          : "<li>None</li>";
 
-                return `
+        return `
           <div style="padding:12px 15px; margin:10px 0; background:#fafafa; border-radius:8px; border:1px solid #eee;">
             <p style="margin:0 0 8px;"><strong>${sub.itemName}</strong> (${sub.timeRequired})</p>
             <table style="width:100%; font-size:14px; color:#333;">
@@ -65,18 +100,18 @@ async function sendBookingEmail(user_id, bookingDetails) {
             </table>
           </div>
         `;
-            }).join("");
+      }).join("");
 
-            return `
+      return `
         <div style="margin-bottom:25px;">
           <h3 style="color:#2c3e50; border-bottom:2px solid #4CAF50; padding-bottom:5px;">${pkg.packageName}</h3>
           ${subPackagesHtml}
         </div>
       `;
-        }).join("");
+    }).join("");
 
-        // 📄 Build the full email HTML
-        const htmlBody = `
+    // 📄 Build the full email HTML
+    const htmlBody = `
       <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
         <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
           
@@ -112,30 +147,28 @@ async function sendBookingEmail(user_id, bookingDetails) {
         </div>
       </div>
     `;
-    
-        await transporter.sendMail({
-            from: `"Homiqly" <${process.env.EMAIL_USER}>`,
-            to: user.email,
-            subject: `Booking Confirmation #${booking_id}`,
-            html: htmlBody,
-            attachments: [
-                { filename: 'homiqly.webp', path: pngPath, cid: cidName, contentDisposition: "inline" }
-            ]
-        });
 
-        console.log(`📧 Booking confirmation email sent to ${user.email}`);
-    } catch (err) {
-        console.error("❌ Failed to send booking email:", err);
-    }
+    await transporter.sendMail({
+      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: `Booking Confirmation #${booking_id}`,
+      html: htmlBody,
+      attachments: [
+        { filename: 'homiqly.webp', path: pngPath, cid: cidName, contentDisposition: "inline" }
+      ]
+    });
+
+    console.log(`📧 Booking confirmation email sent to ${user.email}`);
+  } catch (err) {
+    console.error("❌ Failed to send booking email:", err);
+  }
 }
 
-
-
 async function sendVendorBookingEmail(vendor_id, bookingDetails) {
-    try {
-        // 🔍 Fetch vendor info dynamically based on type
-        const [[vendor]] = await db.query(
-            `
+  try {
+    // 🔍 Fetch vendor info dynamically based on type
+    const [[vendor]] = await db.query(
+      `
   SELECT 
         v.vendor_id,
         v.vendorType,
@@ -155,35 +188,35 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
     WHERE v.vendor_id = ? 
     LIMIT 1
   `,
-            [vendor_id]
-        );
+      [vendor_id]
+    );
 
-        if (!vendor || !vendor.email) {
-            console.warn(`⚠️ No vendor found or missing email for vendor_id ${vendor_id}, skipping vendor email.`);
-            return;
-        }
+    if (!vendor || !vendor.email) {
+      console.warn(`⚠️ No vendor found or missing email for vendor_id ${vendor_id}, skipping vendor email.`);
+      return;
+    }
 
 
-        const {
-            booking_id,
-            userName,
-            userEmail,
-            userPhone,
-            bookingDate,
-            bookingTime,
-            packageName,
-            sub_packages,
-            addons,
-            preferences,
-            consents
-        } = bookingDetails;
+    const {
+      booking_id,
+      userName,
+      userEmail,
+      userPhone,
+      bookingDate,
+      bookingTime,
+      packageName,
+      sub_packages,
+      addons,
+      preferences,
+      consents
+    } = bookingDetails;
 
-        // ---------- Load logo ----------
-        const logoPath = path.resolve("config/media/homiqly.webp");
-        const cidLogo = "homiqlyLogo";
+    // ---------- Load logo ----------
+    const logoPath = path.resolve("config/media/homiqly.webp");
+    const cidLogo = "homiqlyLogo";
 
-        // ---------- Email HTML ----------
-        const htmlBody = `
+    // ---------- Email HTML ----------
+    const htmlBody = `
         <div style="font-family:Arial,sans-serif;padding:20px;max-width:650px;margin:auto;background:#f9f9f9;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.1);color:#333;">
           <div style="text-align:center;margin-bottom:30px;">
             <img src="cid:${cidLogo}" alt="Homiqly Logo" style="width:200px;height:auto;display:block;margin:0 auto;"/>
@@ -224,28 +257,28 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
         </div>
         `;
 
-        // ---------- Send email ----------
-        await transporter.sendMail({
-            from: `"Homiqly" <${process.env.EMAIL_USER}>`,
-            to: vendor.email,
-            subject: `New Booking Assigned #${booking_id}`,
-            html: htmlBody,
-            attachments: [
-                {
-                    filename: 'homiqly.webp',
-                    path: logoPath,
-                    cid: cidLogo,
-                    contentDisposition: "inline"
-                }
-            ]
-        });
+    // ---------- Send email ----------
+    await transporter.sendMail({
+      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      to: vendor.email,
+      subject: `New Booking Assigned #${booking_id}`,
+      html: htmlBody,
+      attachments: [
+        {
+          filename: 'homiqly.webp',
+          path: logoPath,
+          cid: cidLogo,
+          contentDisposition: "inline"
+        }
+      ]
+    });
 
-        console.log(`📧 Booking email sent to vendor ${vendor.email}`);
-    } catch (err) {
-        console.error("❌ Failed to send vendor booking email:", err.message);
-    }
+    console.log(`📧 Booking email sent to vendor ${vendor.email}`);
+  } catch (err) {
+    console.error("❌ Failed to send vendor booking email:", err.message);
+  }
 }
 
 
 
-module.exports = { sendBookingEmail, sendVendorBookingEmail };
+module.exports = { sendBookingEmail, sendVendorBookingEmail, sendAdminVendorRegistrationMail };
