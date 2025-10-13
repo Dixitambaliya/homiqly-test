@@ -1054,7 +1054,6 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
         const { date, time, packages } = req.body; // packages = [{package_id, sub_package_ids: []}, ...]
@@ -1163,17 +1162,6 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
-
-
-
-
-
-
-
-
-
 
 
 module.exports = {
