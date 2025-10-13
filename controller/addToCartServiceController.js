@@ -64,7 +64,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                         [cart_id, package_id, sub_package_id, price, quantity]
                     );
                     console.log(insertSubPackage);
-                    
+
                     const newCartItemId = insertSubPackage.insertId;
 
                     // ✅ Always insert new Addons (even if identical exist)
@@ -1020,7 +1020,6 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
-
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

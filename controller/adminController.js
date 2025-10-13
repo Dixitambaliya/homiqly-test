@@ -789,39 +789,23 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
             const packageName = pkgRow[0].packageName;
 
-            // ✅ Check if package is already assigned
-            const [existingPackage] = await connection.query(
-                `SELECT vendor_packages_id FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
-                [vendor_id, package_id]
-            );
-
-            let vendor_packages_id;
-            if (existingPackage.length > 0) {
-                vendor_packages_id = existingPackage[0].vendor_packages_id;
-            } else {
-                // Insert new package assignment
-                const [insertResult] = await connection.query(
-                    `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
-                    [vendor_id, package_id]
-                );
-                vendor_packages_id = insertResult.insertId;
-            }
-
-            // ✅ Insert sub-packages if not already assigned
             const selectedSubPackages = [];
+
+            // Insert package-subpackage pairs into flattened table
             for (const sub of sub_packages) {
                 const subpackage_id = sub.sub_package_id;
 
-                const [subExisting] = await connection.query(
-                    `SELECT vendor_package_item_id  FROM vendor_package_items WHERE vendor_packages_id = ? AND package_item_id = ?`,
-                    [vendor_packages_id, subpackage_id]
+                // Check if already exists
+                const [exists] = await connection.query(
+                    `SELECT 1 FROM vendor_package_items_flat WHERE vendor_id = ? AND package_id = ? AND package_item_id = ?`,
+                    [vendor_id, package_id, subpackage_id]
                 );
 
-                if (subExisting.length === 0) {
+                if (exists.length === 0) {
                     await connection.query(
-                        `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
-                         VALUES (?, ?, ?, ?)`,
-                        [vendor_packages_id, vendor_id, package_id, subpackage_id]
+                        `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
+                         VALUES (?, ?, ?)`,
+                        [vendor_id, package_id, subpackage_id]
                     );
                 }
 
@@ -839,7 +823,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             newlyAssigned.push({
                 package_id,
                 packageName,
-                vendor_packages_id,
                 selected_subpackages: selectedSubPackages
             });
         }
