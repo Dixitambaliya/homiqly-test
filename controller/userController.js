@@ -84,7 +84,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch all services grouped by category
@@ -153,7 +152,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -510,7 +508,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -665,9 +662,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
-
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

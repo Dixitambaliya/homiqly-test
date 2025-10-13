@@ -292,7 +292,6 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAdminInquiries = asyncHandler(async (req, res) => {
     try {
         const [inquiryRows] = await db.query(`
@@ -503,6 +502,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -513,7 +513,6 @@ const getUserCart = asyncHandler(async (req, res) => {
             FROM service_taxes 
             WHERE status = '1'
         `);
-
         const serviceTaxRate = taxRow ? parseFloat(taxRow.taxPercentage) : 0;
         const serviceTaxName = taxRow ? taxRow.taxName : null;
 
@@ -532,128 +531,113 @@ const getUserCart = asyncHandler(async (req, res) => {
         for (const cart of cartRows) {
             const { cart_id } = cart;
 
-            // 3️⃣ Get distinct package IDs in this cart
-            const [packageRows] = await db.query(
-                `SELECT DISTINCT package_id FROM cart_package_items WHERE cart_id = ?`,
+            // 3️⃣ Fetch all sub-packages in this cart with service info
+            const [subPackages] = await db.query(
+                `SELECT 
+                    cpi.cart_package_items_id,
+                    cpi.cart_id,
+                    cpi.sub_package_id,
+                    cpi.price,
+                    cpi.quantity,
+                    cpi.package_id,
+                    cpi.created_at,
+                    pi.timeRequired,
+                    st.service_type_id,
+                    s.serviceName AS itemName,
+                    s.serviceImage AS itemMedia
+                 FROM cart_package_items cpi
+                 LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+                 LEFT JOIN packages p ON pi.package_id = p.package_id
+                 LEFT JOIN service_type st ON p.service_type_id = st.service_type_id
+                 LEFT JOIN services s ON st.service_id = s.service_id
+                 WHERE cpi.cart_id = ?`,
                 [cart_id]
             );
 
+            if (!subPackages.length) continue;
+
+            const subPackageIds = subPackages.map(sp => sp.sub_package_id);
+
+            // 4️⃣ Fetch addons, preferences, consents in bulk
+            const [addons] = await db.query(
+                `SELECT ca.cart_id, ca.sub_package_id, ca.addon_id, ca.price, ca.created_at, a.addonName
+                 FROM cart_addons ca
+                 JOIN package_addons a ON ca.addon_id = a.addon_id
+                 WHERE ca.cart_id = ? AND ca.sub_package_id IN (?)`,
+                [cart_id, subPackageIds]
+            );
+
+            const [preferences] = await db.query(
+                `SELECT cp.cart_preference_id, cp.cart_id, cp.preference_id, cp.created_at, cp.sub_package_id,
+                        bp.preferenceValue, bp.preferencePrice
+                 FROM cart_preferences cp
+                 JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+                 WHERE cp.cart_id = ? AND cp.sub_package_id IN (?)`,
+                [cart_id, subPackageIds]
+            );
+
+            const [consents] = await db.query(
+                `SELECT cc.cart_consent_id, cc.cart_id, cc.consent_id, cc.created_at, cc.sub_package_id, cc.answer,
+                        c.question AS consentText
+                 FROM cart_consents cc
+                 JOIN package_consent_forms c ON cc.consent_id = c.consent_id
+                 WHERE cc.cart_id = ? AND cc.sub_package_id IN (?)`,
+                [cart_id, subPackageIds]
+            );
+
+            // 5️⃣ Group by sub_package_id
+            const groupBySubPackage = (arr, keyName = 'sub_package_id') => {
+                return arr.reduce((acc, item) => {
+                    const id = item[keyName];
+                    if (!acc[id]) acc[id] = [];
+                    acc[id].push(item);
+                    return acc;
+                }, {});
+            };
+
+            const addonsBySub = groupBySubPackage(addons);
+            const prefsBySub = groupBySubPackage(preferences);
+            const consentsBySub = groupBySubPackage(consents);
+
+            // 6️⃣ Structure sub-packages
             const structuredPackages = [];
 
-            for (const pkg of packageRows) {
-                const { package_id } = pkg;
+            // Group by package_id for nested packages
+            const packagesMap = new Map();
 
-                // 4️⃣ Sub-packages
-                const [subPackages] = await db.query(
-                    `SELECT cpi.cart_package_items_id, cpi.cart_id, cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, cpi.created_at,
-                            pi.itemName, pi.itemMedia, pi.timeRequired
-                     FROM cart_package_items cpi
-                     LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
-                     WHERE cpi.cart_id = ? AND cpi.package_id = ?`,
-                    [cart_id, package_id]
-                );
+            for (const sub of subPackages) {
+                const subAddons = addonsBySub[sub.sub_package_id] || [];
+                const subPrefs = prefsBySub[sub.sub_package_id] || [];
+                const subConsents = consentsBySub[sub.sub_package_id] || [];
 
-                const subPackageIds = subPackages.map(sp => sp.sub_package_id);
-                if (!subPackageIds.length) continue;
+                const basePrice = parseFloat(sub.price) || 0;
+                const subQuantity = parseInt(sub.quantity) || 1;
+                const addonsTotal = subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+                const prefsTotal = subPrefs.reduce((sum, p) => sum + (parseFloat(p.preferencePrice) || 0), 0);
 
-                // 5️⃣ Addons
-                const [addons] = await db.query(
-                    `SELECT ca.cart_id, ca.sub_package_id, ca.addon_id, ca.price, ca.created_at, a.addonName
-                     FROM cart_addons ca
-                     JOIN package_addons a ON ca.addon_id = a.addon_id
-                     WHERE ca.cart_id = ? AND ca.sub_package_id IN (?)`,
-                    [cart_id, subPackageIds]
-                );
+                const singleUnitTotal = basePrice + addonsTotal + prefsTotal;
+                const subTotal = singleUnitTotal * subQuantity;
 
-                // 6️⃣ Preferences
-                const [preferences] = await db.query(
-                    `SELECT cp.cart_preference_id, cp.cart_id, cp.preference_id, cp.created_at, cp.sub_package_id,
-                            bp.preferenceValue, bp.preferencePrice
-                     FROM cart_preferences cp
-                     JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-                     WHERE cp.cart_id = ? AND cp.sub_package_id IN (?)`,
-                    [cart_id, subPackageIds]
-                );
+                const subPackageData = {
+                    ...sub,
+                    serviceName: sub.serviceName || null,
+                    serviceImage: sub.serviceImage || null,
+                    addons: subAddons,
+                    preferences: subPrefs,
+                    consents: subConsents,
+                    total: subTotal
+                };
 
-                // 7️⃣ Consents
-                const [consents] = await db.query(
-                    `SELECT cc.cart_consent_id, cc.cart_id, cc.consent_id, cc.created_at, cc.sub_package_id, cc.answer,
-                            c.question AS consentText
-                     FROM cart_consents cc
-                     JOIN package_consent_forms c ON cc.consent_id = c.consent_id
-                     WHERE cc.cart_id = ? AND cc.sub_package_id IN (?)`,
-                    [cart_id, subPackageIds]
-                );
-
-                // 8️⃣ Group related data by sub_package_id
-                const addonsBySub = {};
-                addons.forEach(a => {
-                    if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
-                    addonsBySub[a.sub_package_id].push({
-                        addon_id: a.addon_id,
-                        addonName: a.addonName,
-                        price: parseFloat(a.price) || 0,
-                        created_at: a.created_at
-                    });
-                });
-
-                const prefsBySub = {};
-                preferences.forEach(p => {
-                    if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
-                    prefsBySub[p.sub_package_id].push({
-                        cart_preference_id: p.cart_preference_id,
-                        preference_id: p.preference_id,
-                        preferenceValue: p.preferenceValue,
-                        price: parseFloat(p.preferencePrice) || 0,
-                        created_at: p.created_at
-                    });
-                });
-
-                const consentsBySub = {};
-                consents.forEach(c => {
-                    if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
-                    consentsBySub[c.sub_package_id].push({
-                        consent_id: c.cart_consent_id,
-                        consentText: c.consentText,
-                        answer: c.answer,
-                        created_at: c.created_at
-                    });
-                });
-
-                // 9️⃣ Attach children + apply quantity multiplier to full total
-                const subPackagesStructured = subPackages.map(sub => {
-                    const subAddons = addonsBySub[sub.sub_package_id] || [];
-                    const subPrefs = prefsBySub[sub.sub_package_id] || [];
-                    const subConsents = consentsBySub[sub.sub_package_id] || [];
-
-                    const basePrice = parseFloat(sub.price) || 0;
-                    const subQuantity = parseInt(sub.quantity) || 1;
-
-                    const addonsTotal = subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
-                    const prefsTotal = subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
-
-                    // 🧩 Full total for one unit (base + addons + prefs)
-                    const singleUnitTotal = basePrice + addonsTotal + prefsTotal;
-
-                    // 🔁 Multiply full total by quantity
-                    const subTotal = singleUnitTotal * subQuantity;
-
-                    return {
-                        ...sub,
-                        addons: subAddons,
-                        preferences: subPrefs,
-                        consents: subConsents,
-                        total: subTotal
-                    };
-                });
-
-                structuredPackages.push({
-                    package_id,
-                    sub_packages: subPackagesStructured
-                });
+                if (!packagesMap.has(sub.package_id)) packagesMap.set(sub.package_id, []);
+                packagesMap.get(sub.package_id).push(subPackageData);
             }
 
-            // 🔟 Calculate totals per cart
+            // Convert packagesMap to array
+            for (const [package_id, subs] of packagesMap.entries()) {
+                structuredPackages.push({ package_id, sub_packages: subs });
+            }
+
+            // 7️⃣ Totals per cart
             let totalAmount = structuredPackages.reduce((sumPkg, pkg) => {
                 return sumPkg + pkg.sub_packages.reduce((sumSub, sp) => sumSub + sp.total, 0);
             }, 0);
@@ -661,13 +645,12 @@ const getUserCart = asyncHandler(async (req, res) => {
             const taxAmount = (totalAmount * serviceTaxRate) / 100;
             const afterTax = totalAmount + taxAmount;
 
-            // 1️⃣1️⃣ Apply promo/discount logic
+            // 8️⃣ Promo logic (same as original)
             let discountedTotal = afterTax;
             let promoDiscount = 0;
             let promoDetails = null;
 
             if (cart.user_promo_code_id) {
-                // Admin promo
                 const [userPromoRows] = await db.query(
                     `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                     [user_id, cart.user_promo_code_id]
@@ -684,11 +667,9 @@ const getUserCart = asyncHandler(async (req, res) => {
                         if (adminPromo.length) {
                             const discountValue = parseFloat(adminPromo[0].discountValue || 0);
                             const discountType = adminPromo[0].discount_type || 'percentage';
-
-                            discountedTotal =
-                                discountType === 'fixed'
-                                    ? Math.max(0, afterTax - discountValue)
-                                    : afterTax - (afterTax * discountValue / 100);
+                            discountedTotal = discountType === 'fixed'
+                                ? Math.max(0, afterTax - discountValue)
+                                : afterTax - (afterTax * discountValue / 100);
 
                             promoDiscount = afterTax - discountedTotal;
                             promoDetails = {
@@ -701,7 +682,6 @@ const getUserCart = asyncHandler(async (req, res) => {
                     }
                 }
 
-                // System promo if no admin promo applied
                 if (!promoDetails) {
                     const [systemPromoRows] = await db.query(
                         `SELECT sc.*, st.discount_type, st.discountValue 
@@ -715,12 +695,9 @@ const getUserCart = asyncHandler(async (req, res) => {
                         const sysPromo = systemPromoRows[0];
                         const discountValue = parseFloat(sysPromo.discountValue || 0);
                         const discountType = sysPromo.discount_type || 'percentage';
-
-                        discountedTotal =
-                            discountType === 'fixed'
-                                ? Math.max(0, afterTax - discountValue)
-                                : afterTax - (afterTax * discountValue / 100);
-
+                        discountedTotal = discountType === 'fixed'
+                            ? Math.max(0, afterTax - discountValue)
+                            : afterTax - (afterTax * discountValue / 100);
                         promoDiscount = afterTax - discountedTotal;
                         promoDetails = { ...sysPromo, source_type: 'system' };
                     }
@@ -746,17 +723,18 @@ const getUserCart = asyncHandler(async (req, res) => {
             });
         }
 
-        // ✅ Response
         res.status(200).json({
             message: "Cart retrieved successfully",
             carts: allCarts,
             promos
         });
+
     } catch (error) {
         console.error("Error retrieving cart:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
@@ -833,7 +811,6 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
