@@ -1,7 +1,7 @@
 const { db } = require("../config/db");
 const admin = require("../config/firebaseConfig");
 
-const sendVendorRegistrationNotification = async (vendorType, nameOrCompany) => {
+const sendVendorRegistrationNotification = async (vendorType, nameOrCompany) => {f
     try {
         const [admins] = await db.query(`SELECT fcmToken FROM admin WHERE fcmToken IS NOT NULL`);
         const tokens = admins.map(a => a.fcmToken).filter(Boolean);

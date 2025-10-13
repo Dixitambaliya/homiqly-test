@@ -507,6 +507,7 @@ const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
+        // 1️⃣ Fetch tax details
         const [[taxRow]] = await db.query(`
             SELECT taxName, taxPercentage 
             FROM service_taxes 
@@ -516,13 +517,14 @@ const getUserCart = asyncHandler(async (req, res) => {
         const serviceTaxRate = taxRow ? parseFloat(taxRow.taxPercentage) : 0;
         const serviceTaxName = taxRow ? taxRow.taxName : null;
 
-        // Fetch carts (one per service_type_id)
+        // 2️⃣ Fetch all carts for this user
         const [cartRows] = await db.query(
             `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC`,
             [user_id]
         );
 
-        if (!cartRows.length) return res.status(200).json({ message: "Cart is empty", carts: [], promos: [] });
+        if (!cartRows.length)
+            return res.status(200).json({ message: "Cart is empty", carts: [], promos: [] });
 
         const allCarts = [];
         const promos = [];
@@ -530,7 +532,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         for (const cart of cartRows) {
             const { cart_id } = cart;
 
-            // Get all package_ids in this cart
+            // 3️⃣ Get distinct package IDs in this cart
             const [packageRows] = await db.query(
                 `SELECT DISTINCT package_id FROM cart_package_items WHERE cart_id = ?`,
                 [cart_id]
@@ -541,7 +543,7 @@ const getUserCart = asyncHandler(async (req, res) => {
             for (const pkg of packageRows) {
                 const { package_id } = pkg;
 
-                // Sub-packages for this package
+                // 4️⃣ Sub-packages
                 const [subPackages] = await db.query(
                     `SELECT cpi.cart_package_items_id, cpi.cart_id, cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, cpi.created_at,
                             pi.itemName, pi.itemMedia, pi.timeRequired
@@ -554,7 +556,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 const subPackageIds = subPackages.map(sp => sp.sub_package_id);
                 if (!subPackageIds.length) continue;
 
-                // Addons for this package's sub-packages
+                // 5️⃣ Addons
                 const [addons] = await db.query(
                     `SELECT ca.cart_id, ca.sub_package_id, ca.addon_id, ca.price, ca.created_at, a.addonName
                      FROM cart_addons ca
@@ -563,7 +565,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                     [cart_id, subPackageIds]
                 );
 
-                // Preferences for this package's sub-packages
+                // 6️⃣ Preferences
                 const [preferences] = await db.query(
                     `SELECT cp.cart_preference_id, cp.cart_id, cp.preference_id, cp.created_at, cp.sub_package_id,
                             bp.preferenceValue, bp.preferencePrice
@@ -573,7 +575,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                     [cart_id, subPackageIds]
                 );
 
-                // Consents for this package's sub-packages
+                // 7️⃣ Consents
                 const [consents] = await db.query(
                     `SELECT cc.cart_consent_id, cc.cart_id, cc.consent_id, cc.created_at, cc.sub_package_id, cc.answer,
                             c.question AS consentText
@@ -583,7 +585,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                     [cart_id, subPackageIds]
                 );
 
-                // Map by sub_package_id
+                // 8️⃣ Group related data by sub_package_id
                 const addonsBySub = {};
                 addons.forEach(a => {
                     if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
@@ -618,17 +620,32 @@ const getUserCart = asyncHandler(async (req, res) => {
                     });
                 });
 
-                // Attach child arrays and calculate totals
-                const subPackagesStructured = subPackages.map(sub => ({
-                    ...sub,
-                    addons: addonsBySub[sub.sub_package_id] || [],
-                    preferences: prefsBySub[sub.sub_package_id] || [],
-                    consents: consentsBySub[sub.sub_package_id] || [],
-                    total:
-                        (parseFloat(sub.price) || 0) * (parseInt(sub.quantity) || 1) +
-                        (addonsBySub[sub.sub_package_id] || []).reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) +
-                        (prefsBySub[sub.sub_package_id] || []).reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0)
-                }));
+                // 9️⃣ Attach children + apply quantity multiplier to full total
+                const subPackagesStructured = subPackages.map(sub => {
+                    const subAddons = addonsBySub[sub.sub_package_id] || [];
+                    const subPrefs = prefsBySub[sub.sub_package_id] || [];
+                    const subConsents = consentsBySub[sub.sub_package_id] || [];
+
+                    const basePrice = parseFloat(sub.price) || 0;
+                    const subQuantity = parseInt(sub.quantity) || 1;
+
+                    const addonsTotal = subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+                    const prefsTotal = subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+
+                    // 🧩 Full total for one unit (base + addons + prefs)
+                    const singleUnitTotal = basePrice + addonsTotal + prefsTotal;
+
+                    // 🔁 Multiply full total by quantity
+                    const subTotal = singleUnitTotal * subQuantity;
+
+                    return {
+                        ...sub,
+                        addons: subAddons,
+                        preferences: subPrefs,
+                        consents: subConsents,
+                        total: subTotal
+                    };
+                });
 
                 structuredPackages.push({
                     package_id,
@@ -636,7 +653,7 @@ const getUserCart = asyncHandler(async (req, res) => {
                 });
             }
 
-            // Calculate totals for cart
+            // 🔟 Calculate totals per cart
             let totalAmount = structuredPackages.reduce((sumPkg, pkg) => {
                 return sumPkg + pkg.sub_packages.reduce((sumSub, sp) => sumSub + sp.total, 0);
             }, 0);
@@ -644,7 +661,7 @@ const getUserCart = asyncHandler(async (req, res) => {
             const taxAmount = (totalAmount * serviceTaxRate) / 100;
             const afterTax = totalAmount + taxAmount;
 
-            // Promo/discount calculation
+            // 1️⃣1️⃣ Apply promo/discount logic
             let discountedTotal = afterTax;
             let promoDiscount = 0;
             let promoDetails = null;
@@ -655,19 +672,31 @@ const getUserCart = asyncHandler(async (req, res) => {
                     `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                     [user_id, cart.user_promo_code_id]
                 );
+
                 if (userPromoRows.length) {
                     const promo = userPromoRows[0];
                     if (promo.promo_id) {
-                        const [adminPromo] = await db.query(`SELECT * FROM promo_codes WHERE promo_id = ?`, [promo.promo_id]);
+                        const [adminPromo] = await db.query(
+                            `SELECT * FROM promo_codes WHERE promo_id = ?`,
+                            [promo.promo_id]
+                        );
+
                         if (adminPromo.length) {
                             const discountValue = parseFloat(adminPromo[0].discountValue || 0);
                             const discountType = adminPromo[0].discount_type || 'percentage';
+
                             discountedTotal =
                                 discountType === 'fixed'
                                     ? Math.max(0, afterTax - discountValue)
                                     : afterTax - (afterTax * discountValue / 100);
+
                             promoDiscount = afterTax - discountedTotal;
-                            promoDetails = { user_promo_code_id: promo.user_promo_code_id, source_type: 'admin', ...adminPromo[0], code: promo.code };
+                            promoDetails = {
+                                user_promo_code_id: promo.user_promo_code_id,
+                                source_type: 'admin',
+                                ...adminPromo[0],
+                                code: promo.code
+                            };
                         }
                     }
                 }
@@ -681,14 +710,17 @@ const getUserCart = asyncHandler(async (req, res) => {
                          WHERE sc.system_promo_code_id = ? LIMIT 1`,
                         [cart.user_promo_code_id]
                     );
+
                     if (systemPromoRows.length) {
                         const sysPromo = systemPromoRows[0];
                         const discountValue = parseFloat(sysPromo.discountValue || 0);
                         const discountType = sysPromo.discount_type || 'percentage';
+
                         discountedTotal =
                             discountType === 'fixed'
                                 ? Math.max(0, afterTax - discountValue)
                                 : afterTax - (afterTax * discountValue / 100);
+
                         promoDiscount = afterTax - discountedTotal;
                         promoDetails = { ...sysPromo, source_type: 'system' };
                     }
@@ -704,18 +736,28 @@ const getUserCart = asyncHandler(async (req, res) => {
                 packages: structuredPackages,
                 totalAmount: parseFloat(totalAmount.toFixed(2)),
                 afterTax: parseFloat(afterTax.toFixed(2)),
-                tax: { taxName: serviceTaxName, taxPercentage: serviceTaxRate, taxAmount: parseFloat(taxAmount.toFixed(2)) },
+                tax: {
+                    taxName: serviceTaxName,
+                    taxPercentage: serviceTaxRate,
+                    taxAmount: parseFloat(taxAmount.toFixed(2))
+                },
                 promoDiscount: parseFloat(promoDiscount.toFixed(2)),
                 finalTotal
             });
         }
 
-        res.status(200).json({ message: "Cart retrieved successfully", carts: allCarts, promos });
+        // ✅ Response
+        res.status(200).json({
+            message: "Cart retrieved successfully",
+            carts: allCarts,
+            promos
+        });
     } catch (error) {
         console.error("Error retrieving cart:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -791,6 +833,7 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -880,16 +923,23 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
             });
         });
 
-        // 7️⃣ Attach child arrays + calculate sub-package total
+        // 7️⃣ Attach child arrays + calculate sub-package total (quantity affects whole total)
         const subPackagesStructured = subPackages.map(sub => {
             const subAddons = addonsBySub[sub.sub_package_id] || [];
             const subPrefs = prefsBySub[sub.sub_package_id] || [];
             const subConsents = consentsBySub[sub.sub_package_id] || [];
 
-            const subTotal =
-                (parseFloat(sub.price) || 0) * (parseInt(sub.quantity) || 1) +
-                subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0) +
-                subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+            const basePrice = parseFloat(sub.price) || 0;
+            const subQuantity = parseInt(sub.quantity) || 1;
+
+            const addonsTotal = subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+            const prefsTotal = subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+
+            // 🧩 Base subtotal for one unit (price + addons + preferences)
+            const singleUnitTotal = basePrice + addonsTotal + prefsTotal;
+
+            // 🔁 Multiply everything by quantity
+            const subTotal = singleUnitTotal * subQuantity;
 
             return {
                 ...sub,
@@ -986,6 +1036,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
+
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

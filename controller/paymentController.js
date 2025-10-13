@@ -217,7 +217,7 @@ const applyForPayout = asyncHandler(async (req, res) => {
             `SELECT * FROM vendor_bank_accounts WHERE vendor_id = ? LIMIT 1`,
             [vendor_id]
         );
-
+``
         if (!bankDetails.length) {
             return res.status(400).json({
                 message: "Please add your bank details before requesting a payout."
