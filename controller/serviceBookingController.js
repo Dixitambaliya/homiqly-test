@@ -1054,37 +1054,46 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
-        const { date, time, packages } = req.body; // packages = [{package_id, sub_package_ids: []}, ...]
+        const { date, time, package_id, sub_package_id } = req.body;
 
         if (!date || !time) {
             return res.status(400).json({ message: "date and time are required" });
         }
-        if (!Array.isArray(packages) || packages.length === 0) {
-            return res.status(400).json({ message: "packages array is required" });
+
+        if (!package_id) {
+            return res.status(400).json({ message: "package_id is required" });
         }
 
-        const blocking = [1, 3]; // booking statuses that block the vendor
+        if (!sub_package_id) {
+            return res.status(400).json({ message: "sub_package_id is required" });
+        }
+
+        // ✅ Parse comma-separated IDs into arrays
+        const packageIds = package_id.split(",").map(id => Number(id.trim())).filter(Boolean);
+        const subPackageIds = sub_package_id.split(",").map(id => Number(id.trim())).filter(Boolean);
+
+        if (packageIds.length === 0) {
+            return res.status(400).json({ message: "At least one package_id is required" });
+        }
+
+        if (subPackageIds.length === 0) {
+            return res.status(400).json({ message: "At least one sub_package_id is required" });
+        }
+
+        const blocking = [1, 3];
         const vendorBreakMinutes = 60;
 
-        // Flatten package-subpackage pairs
+        // ✅ Create flattened pairs
         const pairs = [];
-        packages.forEach(pkg => {
-            const { package_id, sub_package_ids } = pkg;
-            if (Array.isArray(sub_package_ids) && sub_package_ids.length > 0) {
-                sub_package_ids.forEach(sub_id => pairs.push({ package_id, sub_package_id: sub_id }));
-            } else {
-                // If no subpackages, still include the package with NULL sub_package
-                pairs.push({ package_id, sub_package_id: null });
-            }
-        });
-
-        if (pairs.length === 0) {
-            return res.status(400).json({ message: "No package-subpackage pairs provided" });
+        for (let i = 0; i < packageIds.length; i++) {
+            const pkgId = packageIds[i];
+            const subId = subPackageIds[i] || null; // handle unequal counts gracefully
+            pairs.push({ package_id: pkgId, sub_package_id: subId });
         }
 
-        // Build placeholders for SQL IN
         const pairPlaceholders = pairs.map(() => `(?, ?)`).join(',');
         const pairValues = pairs.map(p => [p.package_id, p.sub_package_id]).flat();
 
@@ -1098,8 +1107,6 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 IF(v.vendorType='company', cdet.profileImage, idet.profileImage) AS profileImage,
                 IFNULL(AVG(r.rating),0) AS avgRating,
                 COUNT(r.rating_id) AS totalReviews,
-                GROUP_CONCAT(DISTINCT s.serviceName ORDER BY s.serviceName ASC) AS serviceNames,
-                GROUP_CONCAT(DISTINCT s.serviceImage ORDER BY s.serviceName ASC) AS serviceImages,
                 GROUP_CONCAT(DISTINCT vpf.package_id) AS package_ids
             FROM vendors v
             LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
@@ -1162,6 +1169,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 module.exports = {
