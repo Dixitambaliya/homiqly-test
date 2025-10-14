@@ -1057,11 +1057,11 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
 
 const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
-        const { date, time, package_id, sub_package_id } = req.body;
+        const { date, time, package_id, sub_package_id } = req.query;
 
-        // if (!date || !time) {
-        //     return res.status(400).json({ message: "date and time are required" });
-        // }
+        if (!date || !time) {
+            return res.status(400).json({ message: "date and time are required" });
+        }
 
         if (!package_id) {
             return res.status(400).json({ message: "package_id is required" });
