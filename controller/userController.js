@@ -751,9 +751,6 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
             `SELECT 
                 sc.cart_id,
                 sc.service_id,
-                sc.package_id,
-                p.packageName,
-                p.service_type_id,
                 sc.user_id,
                 sc.vendor_id,
                 sc.bookingStatus,
@@ -764,7 +761,6 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
                 sc.bookingTime,
                 sc.user_promo_code_id
              FROM service_cart sc
-             LEFT JOIN packages p ON sc.package_id = p.package_id
              WHERE sc.user_id = ? ${cart_id ? 'AND sc.cart_id = ?' : ''}
              ORDER BY sc.created_at DESC`,
             cart_id ? [user_id, cart_id] : [user_id]
