@@ -304,6 +304,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     }
 });
 
+
 const googleLogin = asyncHandler(async (req, res) => {
     const { email, name, picture, fcmToken } = req.body;
 
@@ -318,69 +319,58 @@ const googleLogin = asyncHandler(async (req, res) => {
         // Check if user already exists
         const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
 
-        let user;
-        let user_id;
-
-        if (!existingUser || existingUser.length === 0) {
-            // First-time user: insert into DB
-            const [result] = await db.query(userAuthQueries.userInsert, [
-                given_name,
-                family_name,
-                email,
-                null,        // phone
-                picture,
-                fcmToken
-            ]);
-            user_id = result.insertId;
-
-            // Fetch the inserted user
-            const [[newUser]] = await db.query(userAuthQueries.userMailCheck, [email]);
-            user = newUser;
-        } else {
-            user = existingUser[0];
-            user_id = user.user_id;
-
-            // ✅ Update FCM token if provided and changed
-            if (fcmToken && fcmToken !== user.fcmToken) {
-                try {
-                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
-                } catch (err) {
-                    console.error("❌ FCM token update error:", err.message);
-                }
-            } else {
-                console.log("ℹ️ FCM token already up-to-date for user:", user_id);
-            }
+        if (existingUser && existingUser.length > 0) {
+            // ❌ Email already exists, throw error
+            return res.status(400).json({
+                error: "Email already exists. Please login with email and password."
+            });
         }
+
+        // If email does NOT exist, continue normal flow
+        // Insert new user
+        const [result] = await db.query(userAuthQueries.userInsert, [
+            given_name,
+            family_name,
+            email,
+            null,        // phone
+            picture,
+            fcmToken
+        ]);
+        const user_id = result.insertId;
+
+        // Fetch the inserted user
+        const [[newUser]] = await db.query(userAuthQueries.userMailCheck, [email]);
 
         // Auto-assign welcome code if available
         let welcomeCode = null;
         try {
             welcomeCode = await assignWelcomeCode(user_id, email);
-
         } catch (err) {
             console.error("❌ Auto-assign welcome code error:", err.message);
         }
 
         const token = jwt.sign(
             {
-                user_id: user.user_id,
-                email: user.email,
-                status: user.status || "active",
+                user_id: newUser.user_id,
+                email: newUser.email,
+                status: newUser.status || "active",
             },
             process.env.JWT_SECRET
         );
 
         res.status(200).json({
             message: "Login successful via Google",
-            user_id: user.user_id,
+            user_id: newUser.user_id,
             token,
-            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
+            ...(welcomeCode && { welcomeCode }),
         });
+
     } catch (err) {
         console.error("Google Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 
 
