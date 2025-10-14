@@ -293,7 +293,6 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAdminInquiries = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch all carts with no vendor assigned
@@ -518,7 +517,6 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

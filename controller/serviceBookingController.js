@@ -414,7 +414,8 @@ const getUserBookings = asyncHandler(async (req, res) => {
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-            WHERE sb.user_id = ?`,
+            WHERE sb.user_id = ?
+            ORDER BY sb.created_at DESC`,
             [user_id]
         );
 
