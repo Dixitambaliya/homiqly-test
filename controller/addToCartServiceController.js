@@ -293,15 +293,14 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAdminInquiries = asyncHandler(async (req, res) => {
     try {
+        // 1️⃣ Fetch all carts with no vendor assigned
         const [inquiryRows] = await db.query(`
             SELECT 
                 sc.cart_id,
                 sc.service_id,
-                sc.package_id,
-                p.packageName,
-                p.service_type_id,
                 sc.user_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
                 u.email AS userEmail,
@@ -315,7 +314,6 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                 sc.bookingTime,
                 sc.user_promo_code_id
             FROM service_cart sc
-            LEFT JOIN packages p ON sc.package_id = p.package_id
             LEFT JOIN users u ON sc.user_id = u.user_id
             WHERE sc.vendor_id IS NULL
             ORDER BY sc.created_at DESC
@@ -336,8 +334,10 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                 SELECT 
                     cpi.cart_package_items_id,
                     cpi.sub_package_id,
+                    cpi.cart_id,
                     pi.itemName,
                     pi.itemMedia,
+                    pi.package_id,
                     cpi.price,
                     cpi.quantity,
                     pi.timeRequired
@@ -370,7 +370,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                 WHERE cc.cart_id = ?`, [cart_id]
             );
 
-            // 🧩 Group Data by Sub-Package
+            // 🧩 Group Addons, Preferences, Consents by Sub-Package
             const addonsBySub = {};
             addons.forEach(a => {
                 if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
@@ -397,7 +397,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                 });
             });
 
-            // 🧩 Structure sub-packages with totals
+            // 🧩 Structure Sub-Packages with totals
             const subPackagesStructured = subPackages.map(sub => {
                 const subAddons = addonsBySub[sub.sub_package_id] || [];
                 const subPrefs = prefsBySub[sub.sub_package_id] || [];
@@ -417,25 +417,47 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                 };
             });
 
+            // 🧩 Fetch Packages for this cart
+            const packageIds = [...new Set(subPackagesStructured.map(sp => sp.package_id).filter(Boolean))];
+
+            const packagesStructured = [];
+
+            for (const pkgId of packageIds) {
+                // Get package details
+                const [packageRows] = await db.query(`
+                    SELECT package_id, packageName, service_type_id
+                    FROM packages
+                    WHERE package_id = ? LIMIT 1
+                `, [pkgId]);
+
+                if (!packageRows.length) continue;
+
+                const pkg = packageRows[0];
+
+                // Group sub-packages under this package
+                const subPackagesForPkg = subPackagesStructured.filter(sp => sp.package_id === pkg.package_id);
+
+                packagesStructured.push({
+                    ...pkg,
+                    sub_packages: subPackagesForPkg
+                });
+            }
+
+            // 🧩 Calculate total amount for cart
             const totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
 
-            // 💸 Promo Logic (based on user_promo_code_id)
+            // 💸 Promo Logic
             let discountedTotal = totalAmount;
             let promoDetails = null;
 
             if (cart.user_promo_code_id) {
-                // 🟢 Try admin promo first
+                // Try admin promo via user_promo_codes
                 const [userPromoRows] = await db.query(`
-                    SELECT 
-                    upc.*, 
-                    pc.discountValue, 
-                    pc.discount_type, 
-                    pc.description
+                    SELECT upc.*, pc.discountValue, pc.discount_type, pc.description
                     FROM user_promo_codes upc
                     LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-                    WHERE upc.user_promo_code_id = ? LIMIT 1`,
-                    [cart.user_promo_code_id]
-                );
+                    WHERE upc.user_promo_code_id = ? LIMIT 1
+                `, [cart.user_promo_code_id]);
 
                 if (userPromoRows.length) {
                     const promo = userPromoRows[0];
@@ -446,22 +468,19 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                         discountType === 'fixed'
                             ? Math.max(0, totalAmount - discountValue)
                             : totalAmount - (totalAmount * discountValue / 100);
+
+                    promoDetails = { ...promo, source_type: 'admin' };
                 }
 
-                // 🟡 If not admin promo, check system promo
+                // If no admin promo, check system promo
                 if (!promoDetails) {
                     const [systemPromoRows] = await db.query(`
-                        SELECT 
-                        sc.*, 
-                        st.discount_type, 
-                        st.discountValue, 
-                        st.description
+                        SELECT sc.*, st.discount_type, st.discountValue, st.description
                         FROM system_promo_codes sc
-                        JOIN system_promo_code_templates st 
+                        JOIN system_promo_code_templates st
                         ON sc.template_id = st.system_promo_code_template_id
-                        WHERE sc.system_promo_code_id = ? LIMIT 1`,
-                        [cart.user_promo_code_id]
-                    );
+                        WHERE sc.system_promo_code_id = ? LIMIT 1
+                    `, [cart.user_promo_code_id]);
 
                     if (systemPromoRows.length) {
                         const sysPromo = systemPromoRows[0];
@@ -473,10 +492,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
                                 ? Math.max(0, totalAmount - discountValue)
                                 : totalAmount - (totalAmount * discountValue / 100);
 
-                        promoDetails = {
-                            ...sysPromo,
-                            source_type: 'system'
-                        };
+                        promoDetails = { ...sysPromo, source_type: 'system' };
                     }
                 }
 
@@ -485,7 +501,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
 
             allInquiries.push({
                 ...cart,
-                packages: [{ sub_packages: subPackagesStructured }],
+                packages: packagesStructured,
                 totalAmount,
                 discountedTotal
             });
@@ -502,6 +518,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
