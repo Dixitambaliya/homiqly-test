@@ -506,6 +506,8 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
+    console.log(user_id);
+
     try {
         // 1️⃣ Fetch tax details
         const [[taxRow]] = await db.query(`

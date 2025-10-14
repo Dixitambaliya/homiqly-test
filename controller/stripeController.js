@@ -130,9 +130,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   // ✅ Fetch cart details
   const [cartRows] = await db.query(
-    `SELECT sc.*
-     FROM service_cart sc
-     WHERE sc.cart_id = ?`,
+    `SELECT sc.* FROM service_cart sc WHERE sc.cart_id = ?`,
     [cart_id]
   );
 
@@ -140,9 +138,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   const cart = cartRows[0];
 
   if (!cart.bookingDate || !cart.bookingTime) {
-    return res.status(400).json({
-      error: "Incomplete booking details. Please select booking date and time."
-    });
+    return res.status(400).json({ error: "Incomplete booking details. Please select booking date and time." });
   }
 
   // ✅ Fetch sub-packages
@@ -172,70 +168,19 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     [cart_id]
   );
 
-  // ✅ Fetch promo if exists
-  let appliedPromo = null;
+  // ✅ Fetch service tax (active)
+  const [serviceTaxRows] = await db.query(
+    `SELECT taxName, taxPercentage 
+     FROM service_taxes 
+     WHERE status = '1' 
+     ORDER BY created_at ASC LIMIT 1`
+  );
 
-  if (cart.user_promo_code_id) {
-
-    const [userPromoRows] = await db.query(
-      `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
-      [cart.user_id, cart.user_promo_code_id]
-    );
-
-    if (userPromoRows.length) {
-      const promo = userPromoRows[0];
-
-      if (promo.source_type === "admin" && promo.promo_id) {
-        const [adminPromoRows] = await db.query(
-          `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
-          [promo.promo_id]
-        );
-
-        if (adminPromoRows.length) {
-          appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
-        }
-      }
-
-      if (!appliedPromo && promo.source_type === "system") {
-        const [systemPromoRows] = await db.query(
-          `SELECT sc.*, 
-                st.discount_type, 
-                st.discountValue, 
-                st.minSpend, 
-                st.maxUse, 
-                st.code
-           FROM system_promo_codes sc
-           JOIN system_promo_code_templates st 
-             ON sc.template_id = st.system_promo_code_template_id
-          WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-          [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
-        );
-
-        if (systemPromoRows.length) {
-          appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-        }
-      }
-    } else {
-      const [systemPromoRows] = await db.query(
-        `SELECT sc.*, 
-              st.discount_type, 
-              st.discountValue, 
-              st.minSpend, 
-              st.maxUse, 
-              st.code
-         FROM system_promo_codes sc
-         JOIN system_promo_code_templates st 
-           ON sc.template_id = st.system_promo_code_template_id
-        WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-        [cart.user_promo_code_id, cart.user_id]
-      );
-
-      if (systemPromoRows.length) {
-        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-      } else {
-        console.log("🚫 No matching promo found in system_promo_codes either");
-      }
-    }
+  let taxPercentage = 0;
+  let taxName = '';
+  if (serviceTaxRows.length) {
+    taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
+    taxName = serviceTaxRows[0].taxName || 'Service Tax';
   }
 
   // ✅ Calculate subtotal including sub-packages, addons, preferences
@@ -261,20 +206,85 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
   });
 
-  // ✅ Apply discount (percentage or fixed)
-  let discountAmount = 0;
-  let totalAmount = subtotal;
+  // ✅ Calculate service tax
+  const taxAmount = subtotal * (taxPercentage / 100);
+  let totalAmount = subtotal + taxAmount;
 
-  if (appliedPromo && (!appliedPromo.minSpend || subtotal >= appliedPromo.minSpend)) {
+  metadata[`service_tax_name`] = taxName;
+  metadata[`service_tax_percentage`] = taxPercentage;
+  metadata[`service_tax_amount`] = taxAmount.toFixed(2);
+
+  // ✅ Fetch promo if exists
+  let appliedPromo = null;
+
+  if (cart.user_promo_code_id) {
+    // 1️⃣ Check user_promo_codes first
+    const [userPromoRows] = await db.query(
+      `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+      [cart.user_id, cart.user_promo_code_id]
+    );
+
+    if (userPromoRows.length) {
+      const promo = userPromoRows[0];
+
+      // Admin promo via user_promo_codes
+      if (promo.source_type === "admin" && promo.promo_id) {
+        const [adminPromoRows] = await db.query(
+          `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
+          [promo.promo_id]
+        );
+
+        if (adminPromoRows.length) {
+          appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
+        }
+      }
+
+      // System promo via user_promo_codes
+      if (!appliedPromo && promo.source_type === "system") {
+        const [systemPromoRows] = await db.query(
+          `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
+         FROM system_promo_codes sc
+         JOIN system_promo_code_templates st
+           ON sc.template_id = st.system_promo_code_template_id
+         WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+          [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
+        );
+
+        if (systemPromoRows.length) {
+          appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+        }
+      }
+    }
+
+    // 2️⃣ If no promo from user_promo_codes, check system_promo_codes directly
+    if (!appliedPromo) {
+      const [systemPromoRows] = await db.query(
+        `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
+       FROM system_promo_codes sc
+       JOIN system_promo_code_templates st
+         ON sc.template_id = st.system_promo_code_template_id
+       WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+        [cart.user_promo_code_id, cart.user_id]
+      );
+
+      if (systemPromoRows.length) {
+        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+      }
+    }
+  }
+
+  // ✅ Apply discount
+  let discountAmount = 0;
+  if (appliedPromo && (!appliedPromo.minSpend || totalAmount >= appliedPromo.minSpend)) {
     const discountValue = parseFloat(appliedPromo.discountValue || 0);
     const discountType = appliedPromo.discount_type || "percentage";
 
     if (discountType === "fixed") {
       discountAmount = discountValue;
-      totalAmount = Math.max(0, subtotal - discountValue);
+      totalAmount = Math.max(0, totalAmount - discountValue);
     } else {
-      discountAmount = subtotal * (discountValue / 100);
-      totalAmount = subtotal - discountAmount;
+      discountAmount = totalAmount * (discountValue / 100);
+      totalAmount -= discountAmount;
     }
 
     metadata.promo_code = appliedPromo.code;
@@ -283,7 +293,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     metadata.discount = discountAmount.toFixed(2);
   }
 
-  metadata.subtotal = subtotal;
+  metadata.subtotal = subtotal.toFixed(2);
   metadata.totalAmount = totalAmount.toFixed(2);
 
   if (totalAmount <= 0) return res.status(400).json({ error: "Total amount must be greater than 0" });
@@ -298,13 +308,11 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   if (existingPayment.length > 0) {
     try {
-      // ⚡ Cancel old PaymentIntent if it exists
       await stripe.paymentIntents.cancel(existingPayment[0].payment_intent_id);
     } catch (err) {
       console.warn("⚠️ Failed to cancel old PaymentIntent:", err.message);
     }
 
-    // ⚡ Create new PaymentIntent
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -313,7 +321,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
-    // ✅ Update DB with new PaymentIntent
     await db.query(
       `UPDATE payments 
        SET payment_intent_id = ?, amount = ?, currency = 'cad', status = 'pending' 
@@ -322,7 +329,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     );
 
   } else {
-    // ⚡ Create new PaymentIntent
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -331,7 +337,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
-    // ✅ Insert into DB
     await db.query(
       `INSERT INTO payments (user_id, payment_intent_id, cart_id, amount, currency, status)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -346,6 +351,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     paymentIntentId: paymentIntent.id,
   });
 });
+
 
 // ✅ stripeWebhook.js
 exports.stripeWebhook = asyncHandler(async (req, res) => {
