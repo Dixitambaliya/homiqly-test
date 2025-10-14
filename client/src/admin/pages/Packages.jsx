@@ -1,5 +1,3 @@
-// File: app/(admin)/PackagesPage.jsx
-"use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "../../shared/components/Button";
@@ -20,38 +18,7 @@ const fmtPrice = (n) =>
     ? `$${Number(n)}`
     : "—";
 
-/* -------------------------------
-  Module-level prefetch (starts as soon as this module is evaluated)
-   - The promise resolves to an array of raw package items (as returned by server)
-   - We then transform into grouped services inside component (so UI grouping is consistent)
----------------------------------*/
-let prefetchPackagesPromise = null;
-
-function startPrefetchPackages() {
-  if (!prefetchPackagesPromise) {
-    prefetchPackagesPromise = api
-      .get("/api/admin/getpackagelist")
-      .then((resp) => {
-        const raw =
-          resp?.data?.packages ??
-          resp?.data?.result ??
-          (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
-        return Array.isArray(raw) ? raw : [];
-      })
-      .catch((err) => {
-        // swallow error so promise remains rejection-free for consumer; we'll re-throw for debugging
-        console.error("prefetchPackages error:", err);
-        throw err;
-      });
-  }
-  return prefetchPackagesPromise;
-}
-
-// start prefetch immediately
-startPrefetchPackages();
-
 /* ---------- presentational components (small/memoized) ---------- */
-// (I keep these compact — same as your original components)
 const PreferencesChips = React.memo(function PreferencesChips({ preferences }) {
   if (!preferences || Object.keys(preferences).length === 0) {
     return <div className="text-xs text-gray-400 italic">No preferences</div>;
@@ -376,7 +343,7 @@ export default function Packages() {
   // transforms raw list (array of package objects) into grouped services
   const transformListToServices = (list) => {
     const servicesMap = {};
-    list.forEach((pkg) => {
+    (Array.isArray(list) ? list : []).forEach((pkg) => {
       const serviceId =
         pkg.service_id ?? pkg.service_type_id ?? `s_${pkg.package_id}`;
       const serviceName =
@@ -410,66 +377,9 @@ export default function Packages() {
     return Object.values(servicesMap);
   };
 
-  // Use module-level prefetch if available; otherwise fetch
-  useEffect(() => {
-    let canceled = false;
-
-    async function init() {
-      setLoading(true);
-      try {
-        if (prefetchPackagesPromise) {
-          // use prefetch result
-          const rawList = await prefetchPackagesPromise;
-          if (canceled) return;
-          const services = transformListToServices(rawList);
-          setAllServices(services);
-          const unique = Object.keys(
-            services.reduce((acc, it) => {
-              acc[it.service_category_name || "Other"] = true;
-              return acc;
-            }, {})
-          );
-          setCategories(unique.map((c) => ({ value: c, label: c })));
-          // clear prefetch so consumer code can re-fetch later if needed (optional)
-          // prefetchPackagesPromise = null;
-        } else {
-          // fallback
-          const resp = await api.get("/api/admin/getpackagelist");
-          const raw =
-            resp?.data?.packages ??
-            resp?.data?.result ??
-            (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
-          const list = Array.isArray(raw) ? raw : [];
-          const services = transformListToServices(list);
-          if (canceled) return;
-          setAllServices(services);
-          const unique = Object.keys(
-            services.reduce((acc, it) => {
-              acc[it.service_category_name || "Other"] = true;
-              return acc;
-            }, {})
-          );
-          setCategories(unique.map((c) => ({ value: c, label: c })));
-        }
-      } catch (err) {
-        console.error("Error fetching packages list", err);
-        setAllServices([]);
-        setCategories([]);
-      } finally {
-        if (!canceled) setLoading(false);
-      }
-    }
-
-    init();
-
-    return () => {
-      canceled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // fetchPackages: used on mount and as a refresh target
   const fetchPackages = useCallback(async () => {
-    // allow manual refresh (used by modals)
+    let canceled = false;
     try {
       setLoading(true);
       const resp = await api.get("/api/admin/getpackagelist");
@@ -479,6 +389,7 @@ export default function Packages() {
         (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
       const list = Array.isArray(raw) ? raw : [];
       const services = transformListToServices(list);
+      if (canceled) return;
       setAllServices(services);
       const unique = Object.keys(
         services.reduce((acc, it) => {
@@ -492,8 +403,51 @@ export default function Packages() {
       setAllServices([]);
       setCategories([]);
     } finally {
-      setLoading(false);
+      if (!canceled) setLoading(false);
     }
+
+    // no real way to cancel axios request here; the canceled flag prevents state changes
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  // run fetch on mount (ensures API call happens reliably on first page visit)
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const resp = await api.get("/api/admin/getpackagelist");
+        if (canceled) return;
+        const raw =
+          resp?.data?.packages ??
+          resp?.data?.result ??
+          (Array.isArray(resp?.data) ? resp.data : resp?.data ?? []);
+        const list = Array.isArray(raw) ? raw : [];
+        const services = transformListToServices(list);
+        if (canceled) return;
+        setAllServices(services);
+        const unique = Object.keys(
+          services.reduce((acc, it) => {
+            acc[it.service_category_name || "Other"] = true;
+            return acc;
+          }, {})
+        );
+        setCategories(unique.map((c) => ({ value: c, label: c })));
+      } catch (err) {
+        console.error("Error fetching packages list", err);
+        setAllServices([]);
+        setCategories([]);
+      } finally {
+        if (!canceled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDeletePackage = useCallback(
@@ -528,7 +482,7 @@ export default function Packages() {
 
   // Search & filter (no debounce — immediate)
   const filteredServices = useMemo(() => {
-    const s = allServices
+    const s = (allServices || [])
       .filter(
         (service) =>
           Array.isArray(service.packages) && service.packages.length > 0
@@ -657,26 +611,6 @@ export default function Packages() {
                               >
                                 <div className="flex items-center justify-between p-4">
                                   <div className="flex items-center gap-4 min-w-0">
-                                    {/* <img
-                                      className="w-14 h-14 flex-shrink-0 rounded-md"
-                                      src={pkg.packageMedia}
-                                    ></img> */}
-                                    {/* <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden border bg-gray-100">
-                                      <img
-                                        src={
-                                          safeSrc(pkg.packageMedia) ||
-                                          "https://via.placeholder.com/56?text=Pkg"
-                                        }
-                                        alt={
-                                          pkg.packageName ||
-                                          `Package ${pkg.package_id}`
-                                        }
-                                        width="56"
-                                        height="56"
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div> */}
-
                                     <div className="min-w-0">
                                       <div className="text-sm font-medium text-gray-900 truncate">
                                         {pkg.packageName ||
