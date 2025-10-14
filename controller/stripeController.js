@@ -130,9 +130,8 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   // ✅ Fetch cart details
   const [cartRows] = await db.query(
-    `SELECT sc.*, p.packageName
+    `SELECT sc.*
      FROM service_cart sc
-     LEFT JOIN packages p ON sc.package_id = p.package_id
      WHERE sc.cart_id = ?`,
     [cart_id]
   );
@@ -388,7 +387,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       if (event.type === "payment_intent.amount_capturable_updated") {
         // 🔎 Find payment + cart
         const [paymentRows] = await connection.query(
-          `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.package_id, sc.bookingDate, sc.bookingTime, 
+          `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime, 
                   sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
            FROM payments p
            LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
@@ -437,15 +436,14 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         // ✅ Create main booking
         const [insertBooking] = await connection.query(
           `INSERT INTO service_booking 
-            (user_id, service_id, bookingDate, bookingTime, package_id, vendor_id, notes, bookingMedia, 
+            (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia, 
              bookingStatus, payment_status, payment_intent_id, user_promo_code_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             user_id,
             cart.service_id,
             cart.bookingDate,
             cart.bookingTime,
-            cart.package_id,
             cart.vendor_id,
             cart.notes,
             cart.bookingMedia,
@@ -769,6 +767,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
   })(); // end background task
 });
+
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;
