@@ -46,7 +46,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, onSave }) => {
           className="w-full p-2 border rounded"
           placeholder="Description"
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
         />
         <input
           type="number"
@@ -57,9 +59,12 @@ const EditPackageModal = ({ isOpen, onClose, packageData, onSave }) => {
         />
         <input
           className="w-full p-2 border rounded"
-          placeholder="Time Required"
+          type="number"
+          label="Time Required (in minutes only)"
           value={formData.time_required}
-          onChange={(e) => setFormData({ ...formData, time_required: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, time_required: e.target.value })
+          }
         />
 
         {/* Sub-packages */}
@@ -75,7 +80,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, onSave }) => {
               className="w-full p-1 border rounded"
               placeholder="Description"
               value={sub.description}
-              onChange={(e) => handleSubChange(i, "description", e.target.value)}
+              onChange={(e) =>
+                handleSubChange(i, "description", e.target.value)
+              }
             />
             <input
               type="number"
@@ -88,14 +95,20 @@ const EditPackageModal = ({ isOpen, onClose, packageData, onSave }) => {
               className="w-full p-1 border rounded"
               placeholder="Time"
               value={sub.time_required}
-              onChange={(e) => handleSubChange(i, "time_required", e.target.value)}
+              onChange={(e) =>
+                handleSubChange(i, "time_required", e.target.value)
+              }
             />
           </div>
         ))}
 
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit}>Save</Button>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSubmit}>
+            Save
+          </Button>
         </div>
       </div>
     </Modal>

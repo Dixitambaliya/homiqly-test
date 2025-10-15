@@ -230,13 +230,14 @@ const AddServiceTypeModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
                     />
 
                     <FormInput
-                      label="Time Required"
+                      type="number"
+                      label="Time Required (in minutes only)"
                       name={`total_time_${index}`}
                       value={pkg.total_time}
                       onChange={(e) =>
                         handlePackageChange(index, "total_time", e.target.value)
                       }
-                      placeholder="e.g., 2 hours"
+                      // placeholder="e.g., 2 hours"
                       required
                     />
                   </div>

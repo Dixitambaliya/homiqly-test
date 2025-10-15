@@ -767,8 +767,9 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           }
                         />
                         <FormInput
-                          label="Time Required"
+                          label="Time Required (in minutes only)"
                           value={sub.time_required}
+                          type="number"
                           onChange={(e) =>
                             handleSubPackageChange(
                               pkgIndex,
@@ -1052,8 +1053,9 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                                 }
                               />
                               <FormInput
-                                label="Time Required "
+                                label="Time Required (in minutes only)"
                                 value={addon.time_required}
+                                type="number"
                                 onChange={(e) =>
                                   handleAddonChange(
                                     pkgIndex,

@@ -66,7 +66,8 @@ const SubPackageSection = ({
           onChange={(e) => setField("price", e.target.value)}
         />
         <FormInput
-          label="Time Required"
+          type="number"
+          label="Time Required (in minutes only)"
           value={local.time_required || ""}
           onChange={(e) => setField("time_required", e.target.value)}
         />

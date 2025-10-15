@@ -76,7 +76,10 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
             preference_id: p.preference_id ?? null,
             preference_value: p.preference_value ?? p.value ?? "",
             preference_price:
-              p.preference_price ?? p.price ?? safeNumber(p.preferencePrice) ?? 0,
+              p.preference_price ??
+              p.price ??
+              safeNumber(p.preferencePrice) ??
+              0,
           })),
         };
         return acc;
@@ -92,7 +95,10 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
             preference_id: p.preference_id ?? null,
             preference_value: p.preference_value ?? p.value ?? "",
             preference_price:
-              p.preference_price ?? p.price ?? safeNumber(p.preferencePrice) ?? 0,
+              p.preference_price ??
+              p.price ??
+              safeNumber(p.preferencePrice) ??
+              0,
           })),
         },
       };
@@ -109,7 +115,10 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
             preference_id: p.preference_id ?? null,
             preference_value: p.preference_value ?? p.value ?? "",
             preference_price:
-              p.preference_price ?? p.price ?? safeNumber(p.preferencePrice) ?? 0,
+              p.preference_price ??
+              p.price ??
+              safeNumber(p.preferencePrice) ??
+              0,
           })),
         };
         return acc;
@@ -165,7 +174,8 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
     // If packageData already contains heavy details, use them
     const hasSubs =
-      Array.isArray(packageData.sub_packages) && packageData.sub_packages.length > 0;
+      Array.isArray(packageData.sub_packages) &&
+      packageData.sub_packages.length > 0;
 
     setPackageName(
       packageData.packageName ??
@@ -188,14 +198,17 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
     if (hasSubs) {
       // Normalize server-provided sub_packages
-      const subs = (packageData.sub_packages || []).map((s) => normalizeSubFromServer(s));
+      const subs = (packageData.sub_packages || []).map((s) =>
+        normalizeSubFromServer(s)
+      );
       setSubPackages(subs);
       setDetailsLoading(false);
       return;
     }
 
     // If no sub_packages in the passed packageData, fetch details by package_id
-    const pid = packageData.package_id ?? packageData.packageId ?? packageData.id;
+    const pid =
+      packageData.package_id ?? packageData.packageId ?? packageData.id;
     if (!pid) {
       setSubPackages([]);
       return;
@@ -593,7 +606,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
         if (Number(group.is_required) === 1 && items.length === 0) {
           toast.error(
-            `Sub-package ${s + 1}, Preference group "${key}": At least one item is required.`
+            `Sub-package ${
+              s + 1
+            }, Preference group "${key}": At least one item is required.`
           );
           return false;
         }
@@ -645,7 +660,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         const ci = consent[c] || {};
         if (Number(ci.is_required) === 1 && !String(ci.question || "").trim()) {
           toast.error(
-            `Sub-package ${s + 1}, Consent ${c + 1}: Question is required when marked required.`
+            `Sub-package ${s + 1}, Consent ${
+              c + 1
+            }: Question is required when marked required.`
           );
           return false;
         }
@@ -755,7 +772,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         {/* show loader for details */}
         {detailsLoading && (
           <div className="py-6 flex justify-center">
-            <div className="text-sm text-gray-600">Loading package details...</div>
+            <div className="text-sm text-gray-600">
+              Loading package details...
+            </div>
           </div>
         )}
 
@@ -809,7 +828,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                     </button>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">No package media</p>
+                  <p className="text-sm text-gray-400 italic">
+                    No package media
+                  </p>
                 )}
               </div>
             </div>
@@ -819,7 +840,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         {/* Sub-Packages Section */}
         <section className="bg-white">
           <div className="flex justify-between items-center mb-4 pb-1">
-            <h3 className="text-lg font-semibold text-gray-800">Sub-Packages</h3>
+            <h3 className="text-lg font-semibold text-gray-800">
+              Sub-Packages
+            </h3>
             <Button
               type="button"
               size="sm"
@@ -831,13 +854,17 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
           </div>
 
           {subPackages.length === 0 && (
-            <p className="text-gray-500 italic mb-4">No sub-packages available.</p>
+            <p className="text-gray-500 italic mb-4">
+              No sub-packages available.
+            </p>
           )}
 
           {subPackages.map((sub, sIndex) => (
             <CollapsibleSectionCard
               key={sIndex}
-              title={`Sub-Package ${sIndex + 1} — ${sub.item_name || "Untitled"}`}
+              title={`Sub-Package ${sIndex + 1} — ${
+                sub.item_name || "Untitled"
+              }`}
               defaultOpen={false}
               className="mb-6"
             >
@@ -846,14 +873,18 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                   <FormInput
                     label="Item Name"
                     value={sub.item_name || ""}
-                    onChange={(e) => handleSubChange(sIndex, "item_name", e.target.value)}
+                    onChange={(e) =>
+                      handleSubChange(sIndex, "item_name", e.target.value)
+                    }
                     required
                   />
                   <FormInput
                     label="Price"
                     type="number"
                     value={sub.price ?? ""}
-                    onChange={(e) => handleSubChange(sIndex, "price", e.target.value)}
+                    onChange={(e) =>
+                      handleSubChange(sIndex, "price", e.target.value)
+                    }
                     required
                   />
                 </div>
@@ -861,7 +892,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                 <FormTextarea
                   label="Description"
                   value={sub.description || ""}
-                  onChange={(e) => handleSubChange(sIndex, "description", e.target.value)}
+                  onChange={(e) =>
+                    handleSubChange(sIndex, "description", e.target.value)
+                  }
                   className="mt-4"
                 />
 
@@ -872,38 +905,67 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                     onChange={(e) => handleFileChange(e, sIndex)}
                   />
                   <FormInput
-                    label="Time Required (e.g. 60 mins)"
+                    label="Time Required (in minutes only)"
                     value={sub.time_required ?? ""}
-                    onChange={(e) => handleSubChange(sIndex, "time_required", e.target.value)}
+                    type="number"
+                    onChange={(e) =>
+                      handleSubChange(sIndex, "time_required", e.target.value)
+                    }
                   />
                 </div>
 
                 <div className="mt-3 flex items-center gap-3">
                   {previews[`itemMedia_0_${sIndex}`] ? (
                     <div className="relative w-24 h-20 rounded overflow-hidden border border-gray-300 shadow-sm">
-                      <img src={previews[`itemMedia_0_${sIndex}`]} alt="preview" className="object-cover w-full h-full" />
-                      <button type="button" onClick={() => removePreview(sIndex)} className="absolute top-1 right-1 text-white bg-red-600 rounded-full px-2 hover:bg-red-700 transition">×</button>
+                      <img
+                        src={previews[`itemMedia_0_${sIndex}`]}
+                        alt="preview"
+                        className="object-cover w-full h-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePreview(sIndex)}
+                        className="absolute top-1 right-1 text-white bg-red-600 rounded-full px-2 hover:bg-red-700 transition"
+                      >
+                        ×
+                      </button>
                     </div>
                   ) : sub.item_media ? (
                     <div className="w-24 h-20 rounded overflow-hidden border border-gray-300 shadow-sm">
-                      <img src={sub.item_media} alt="existing" className="object-cover w-full h-full" />
+                      <img
+                        src={sub.item_media}
+                        alt="existing"
+                        className="object-cover w-full h-full"
+                      />
                     </div>
                   ) : null}
                 </div>
 
                 {/* Preferences Section (collapsible per sub) */}
-                <CollapsibleSectionCard title="Preferences (grouped)" defaultOpen={false} className="mt-6">
+                <CollapsibleSectionCard
+                  title="Preferences (grouped)"
+                  defaultOpen={false}
+                  className="mt-6"
+                >
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <div />
                       <div className="flex gap-2">
-                        <Button type="button" size="sm" onClick={() => addPreferenceGroupToSub(sIndex)}>+ Add Group</Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => addPreferenceGroupToSub(sIndex)}
+                        >
+                          + Add Group
+                        </Button>
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            const firstKey = Object.keys(sub.preferences || {})[0];
+                            const firstKey = Object.keys(
+                              sub.preferences || {}
+                            )[0];
                             if (!firstKey) addPreferenceGroupToSub(sIndex);
                             else addPreferenceItemToGroup(sIndex, firstKey);
                           }}
@@ -914,91 +976,237 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                     </div>
 
                     {Object.keys(sub.preferences || {}).length === 0 && (
-                      <p className="text-sm text-gray-500 italic">No preference groups</p>
+                      <p className="text-sm text-gray-500 italic">
+                        No preference groups
+                      </p>
                     )}
 
-                    {Object.entries(sub.preferences || {}).map(([groupKey, group], groupIdx) => {
-                      const prefs = group?.items || [];
-                      const groupIsRequired = Number(group?.is_required ?? 0);
-                      return (
-                        <div key={`${sIndex}-group-${groupIdx}`} className="mb-4 p-4 border rounded-lg bg-white shadow-sm">
-                          <div className="flex justify-between mb-2 items-center gap-4">
-                            <div className="flex-1">
-                              <FormInput label="Group Title" value={groupKey} onChange={(e) => renamePreferenceGroup(sIndex, groupKey, e.target.value)} />
-                            </div>
-
-                            <div className="flex gap-2 items-end">
-                              <div className="w-36">
-                                <FormSelect
-                                  label="Required?"
-                                  value={String(groupIsRequired ?? "0")}
-                                  onChange={(e) => setPreferenceGroupIsRequired(sIndex, groupKey, e.target.value)}
-                                  options={[
-                                    { value: "0", label: "Optional (0)" },
-                                    { value: "1", label: "Required (1)" },
-                                  ]}
+                    {Object.entries(sub.preferences || {}).map(
+                      ([groupKey, group], groupIdx) => {
+                        const prefs = group?.items || [];
+                        const groupIsRequired = Number(group?.is_required ?? 0);
+                        return (
+                          <div
+                            key={`${sIndex}-group-${groupIdx}`}
+                            className="mb-4 p-4 border rounded-lg bg-white shadow-sm"
+                          >
+                            <div className="flex justify-between mb-2 items-center gap-4">
+                              <div className="flex-1">
+                                <FormInput
+                                  label="Group Title"
+                                  value={groupKey}
+                                  onChange={(e) =>
+                                    renamePreferenceGroup(
+                                      sIndex,
+                                      groupKey,
+                                      e.target.value
+                                    )
+                                  }
                                 />
                               </div>
 
-                              <div className="flex gap-2">
-                                <Button type="button" size="xs" variant="outline" onClick={() => addPreferenceItemToGroup(sIndex, groupKey)}>+ Add Item</Button>
-                                <Button type="button" size="xs" variant="error" onClick={() => removePreferenceGroupFromSub(sIndex, groupKey)}>Remove Group</Button>
+                              <div className="flex gap-2 items-end">
+                                <div className="w-36">
+                                  <FormSelect
+                                    label="Required?"
+                                    value={String(groupIsRequired ?? "0")}
+                                    onChange={(e) =>
+                                      setPreferenceGroupIsRequired(
+                                        sIndex,
+                                        groupKey,
+                                        e.target.value
+                                      )
+                                    }
+                                    options={[
+                                      { value: "0", label: "Optional (0)" },
+                                      { value: "1", label: "Required (1)" },
+                                    ]}
+                                  />
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="outline"
+                                    onClick={() =>
+                                      addPreferenceItemToGroup(sIndex, groupKey)
+                                    }
+                                  >
+                                    + Add Item
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="error"
+                                    onClick={() =>
+                                      removePreferenceGroupFromSub(
+                                        sIndex,
+                                        groupKey
+                                      )
+                                    }
+                                  >
+                                    Remove Group
+                                  </Button>
+                                </div>
                               </div>
                             </div>
+
+                            {prefs.length === 0 && (
+                              <p className="text-xs text-gray-400 italic mb-2">
+                                No items in this group
+                              </p>
+                            )}
+
+                            {prefs.map((pref, pIndex) => (
+                              <div key={pIndex} className="mb-2">
+                                <div className="grid md:grid-cols-2 gap-3 my-2 items-end">
+                                  <FormInput
+                                    label={`Value ${pIndex + 1}`}
+                                    value={pref.preference_value}
+                                    onChange={(e) =>
+                                      updatePreference(
+                                        sIndex,
+                                        groupKey,
+                                        pIndex,
+                                        "preference_value",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="flex-1 min-w-[120px]"
+                                  />
+                                  <FormInput
+                                    label="Price"
+                                    type="number"
+                                    value={pref.preference_price ?? ""}
+                                    onChange={(e) =>
+                                      updatePreference(
+                                        sIndex,
+                                        groupKey,
+                                        pIndex,
+                                        "preference_price",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-28"
+                                  />
+                                </div>
+                                <div className="flex justify-end">
+                                  <Button
+                                    className=""
+                                    type="button"
+                                    size="xs"
+                                    variant="outline"
+                                    onClick={() =>
+                                      removePreferenceFromGroup(
+                                        sIndex,
+                                        groupKey,
+                                        pIndex
+                                      )
+                                    }
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-
-                          {prefs.length === 0 && <p className="text-xs text-gray-400 italic mb-2">No items in this group</p>}
-
-                          {prefs.map((pref, pIndex) => (
-                            <div key={pIndex} className="mb-2">
-                              <div className="grid md:grid-cols-2 gap-3 my-2 items-end">
-                                <FormInput
-                                  label={`Value ${pIndex + 1}`}
-                                  value={pref.preference_value}
-                                  onChange={(e) => updatePreference(sIndex, groupKey, pIndex, "preference_value", e.target.value)}
-                                  className="flex-1 min-w-[120px]"
-                                />
-                                <FormInput
-                                  label="Price"
-                                  type="number"
-                                  value={pref.preference_price ?? ""}
-                                  onChange={(e) => updatePreference(sIndex, groupKey, pIndex, "preference_price", e.target.value)}
-                                  className="w-28"
-                                />
-                              </div>
-                              <div className="flex justify-end">
-                                <Button className="" type="button" size="xs" variant="outline" onClick={() => removePreferenceFromGroup(sIndex, groupKey, pIndex)}>Remove</Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
+                        );
+                      }
+                    )}
                   </div>
                 </CollapsibleSectionCard>
 
                 {/* Add-ons Section (collapsible per sub) */}
-                <CollapsibleSectionCard title="Add-ons" defaultOpen={false} className="mt-6">
+                <CollapsibleSectionCard
+                  title="Add-ons"
+                  defaultOpen={false}
+                  className="mt-6"
+                >
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <h4 className="font-semibold text-md">Add-ons</h4>
-                      <Button type="button" size="sm" onClick={() => addAddonToSub(sIndex)}>+ Add Add-on</Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => addAddonToSub(sIndex)}
+                      >
+                        + Add Add-on
+                      </Button>
                     </div>
 
-                    {(sub.addons || []).length === 0 && <p className="text-sm text-gray-500 italic">No add-ons</p>}
+                    {(sub.addons || []).length === 0 && (
+                      <p className="text-sm text-gray-500 italic">No add-ons</p>
+                    )}
 
                     {(sub.addons || []).map((addon, aIndex) => (
-                      <div key={aIndex} className="mb-3 p-4 border rounded-lg bg-white shadow-sm">
+                      <div
+                        key={aIndex}
+                        className="mb-3 p-4 border rounded-lg bg-white shadow-sm"
+                      >
                         <div className="grid md:grid-cols-2 gap-3">
-                          <FormInput label="Add-on Name" value={addon.addon_name} onChange={(e) => updateAddon(sIndex, aIndex, "addon_name", e.target.value)} />
-                          <FormInput label="Price" type="number" value={addon.price ?? ""} onChange={(e) => updateAddon(sIndex, aIndex, "price", e.target.value)} />
+                          <FormInput
+                            label="Add-on Name"
+                            value={addon.addon_name}
+                            onChange={(e) =>
+                              updateAddon(
+                                sIndex,
+                                aIndex,
+                                "addon_name",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormInput
+                            label="Price"
+                            type="number"
+                            value={addon.price ?? ""}
+                            onChange={(e) =>
+                              updateAddon(
+                                sIndex,
+                                aIndex,
+                                "price",
+                                e.target.value
+                              )
+                            }
+                          />
                         </div>
                         <div className="grid md:grid-cols-2 gap-3 mt-3">
-                          <FormTextarea label="Description" value={addon.description ?? ""} onChange={(e) => updateAddon(sIndex, aIndex, "description", e.target.value)} />
-                          <FormInput label="Time Required (e.g. 20 minutes)" value={addon.time_required ?? ""} onChange={(e) => updateAddon(sIndex, aIndex, "time_required", e.target.value)} />
+                          <FormTextarea
+                            label="Description"
+                            value={addon.description ?? ""}
+                            onChange={(e) =>
+                              updateAddon(
+                                sIndex,
+                                aIndex,
+                                "description",
+                                e.target.value
+                              )
+                            }
+                          />
+                          <FormInput
+                            type="number"
+                            label="Time Required (in minutes only)"
+                            value={addon.time_required ?? ""}
+                            onChange={(e) =>
+                              updateAddon(
+                                sIndex,
+                                aIndex,
+                                "time_required",
+                                e.target.value
+                              )
+                            }
+                          />
                         </div>
                         <div className="flex justify-end mt-3">
-                          <Button type="button" size="sm" variant="outline" onClick={() => removeAddonFromSub(sIndex, aIndex)}>Remove</Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => removeAddonFromSub(sIndex, aIndex)}
+                          >
+                            Remove
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1006,28 +1214,87 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                 </CollapsibleSectionCard>
 
                 {/* Consent Form per sub-package (collapsible) */}
-                <CollapsibleSectionCard title="Consent Form (this sub-package)" defaultOpen={false} className="mt-6">
+                <CollapsibleSectionCard
+                  title="Consent Form (this sub-package)"
+                  defaultOpen={false}
+                  className="mt-6"
+                >
                   <div>
-                    {(sub.consentForm || []).length === 0 && <p className="text-sm text-gray-500 italic">No consent items</p>}
+                    {(sub.consentForm || []).length === 0 && (
+                      <p className="text-sm text-gray-500 italic">
+                        No consent items
+                      </p>
+                    )}
 
                     {(sub.consentForm || []).map((c, idx) => (
-                      <div key={idx} className="mb-3 flex gap-3 items-end flex-wrap">
-                        <FormInput label={`Question ${idx + 1}`} value={c.question} onChange={(e) => updateSubConsent(sIndex, idx, "question", e.target.value)} className="flex-1 min-w-[200px]" />
+                      <div
+                        key={idx}
+                        className="mb-3 flex gap-3 items-end flex-wrap"
+                      >
+                        <FormInput
+                          label={`Question ${idx + 1}`}
+                          value={c.question}
+                          onChange={(e) =>
+                            updateSubConsent(
+                              sIndex,
+                              idx,
+                              "question",
+                              e.target.value
+                            )
+                          }
+                          className="flex-1 min-w-[200px]"
+                        />
                         <div className="w-48">
-                          <FormSelect label="Required?" name={`consent_is_required_${sIndex}_${idx}`} value={String(c.is_required ?? 0)} onChange={(e) => updateSubConsent(sIndex, idx, "is_required", Number(e.target.value))} options={[{ value: "0", label: "Optional (0)" }, { value: "1", label: "Required (1)" }]} />
+                          <FormSelect
+                            label="Required?"
+                            name={`consent_is_required_${sIndex}_${idx}`}
+                            value={String(c.is_required ?? 0)}
+                            onChange={(e) =>
+                              updateSubConsent(
+                                sIndex,
+                                idx,
+                                "is_required",
+                                Number(e.target.value)
+                              )
+                            }
+                            options={[
+                              { value: "0", label: "Optional (0)" },
+                              { value: "1", label: "Required (1)" },
+                            ]}
+                          />
                         </div>
-                        <Button type="button" size="xs" variant="outline" onClick={() => removeSubConsent(sIndex, idx)}>Remove</Button>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          onClick={() => removeSubConsent(sIndex, idx)}
+                        >
+                          Remove
+                        </Button>
                       </div>
                     ))}
 
                     <div className="mt-2">
-                      <Button type="button" size="sm" onClick={() => addConsentToSub(sIndex)}>+ Add Consent Item</Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => addConsentToSub(sIndex)}
+                      >
+                        + Add Consent Item
+                      </Button>
                     </div>
                   </div>
                 </CollapsibleSectionCard>
 
                 <div className="flex justify-end pt-4">
-                  <Button type="button" size="sm" variant="outline" onClick={() => removeSubPackage(sIndex)}>Remove Sub-package</Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => removeSubPackage(sIndex)}
+                  >
+                    Remove Sub-package
+                  </Button>
                 </div>
               </div>
             </CollapsibleSectionCard>
@@ -1036,7 +1303,11 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
         {/* Submit Button */}
         <div className="flex justify-end">
-          <Button type="submit" variant="primary" disabled={loading || detailsLoading}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={loading || detailsLoading}
+          >
             {loading ? "Saving..." : "Save Changes"}
           </Button>
         </div>
