@@ -20,6 +20,6 @@ router.post("/verifyresetcode", verifyResetCode)
 router.post("/resetpassword", resetPassword);
 
 router.post("/google-login", googleLogin)
-router.post("/google-signup", googleLogin)
+router.post("/google-signup", googleSignup)
 
 module.exports = router;
