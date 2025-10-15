@@ -431,8 +431,8 @@ const googleSignup = asyncHandler(async (req, res) => {
                 email: newUser.email,
                 status: newUser.status || "active",
             },
-            process.env.JWT_SECRET,
-            { expiresIn: "30d" }
+            process.env.JWT_SECRET
+            // { expiresIn: "30d" }
         );
 
         res.status(201).json({
