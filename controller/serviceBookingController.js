@@ -8,7 +8,7 @@ const {
     sendBookingNotificationToUser,
     sendBookingAssignedNotificationToVendor,
     sendVendorAssignedNotificationToUser
-} = require("./adminNotification") 
+} = require("./adminNotification")
 
 
 const bookService = asyncHandler(async (req, res) => {
@@ -1078,7 +1078,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "package_id and sub_package_id arrays must have the same length" });
         }
 
-        // ✅ Build exact requested pairs (1-to-1 mapping)
+        // Build exact requested pairs (1-to-1 mapping)
         const pairs = packageIds.map((pkgId, i) => ({
             package_id: pkgId,
             sub_package_id: subPackageIds[i] || null
@@ -1087,8 +1087,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         const pairPlaceholders = pairs.map(() => `(?, ?)`).join(',');
         const pairValues = pairs.map(p => [p.package_id, p.sub_package_id]).flat();
 
-        const blocking = [1, 3]; // blocked statuses (confirmed, in-progress, etc.)
-        const vendorBreakMinutes = 60;
+        const vendorBreakMinutes = 60; // 1-hour break after booking
 
         const sql = `
             SELECT 
@@ -1106,7 +1105,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
             LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
 
-            -- ✅ Only vendors having ALL requested package+sub-package pairs
+            -- Only vendors having ALL requested package+sub-package pairs
             INNER JOIN (
                 SELECT vendor_id
                 FROM vendor_package_items_flat
@@ -1127,26 +1126,23 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                   SELECT 1
                   FROM service_booking sb
                   WHERE sb.vendor_id = v.vendor_id
-                    AND sb.bookingStatus IN (${blocking.map(() => '?').join(",")})
                     AND sb.bookingDate = ?
-                    AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
-                      BETWEEN COALESCE(sb.start_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'))
-                      AND DATE_ADD(
-                          COALESCE(sb.end_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')),
-                          INTERVAL ? MINUTE
-                      )
+                    AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s') 
+                        BETWEEN STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')
+                        AND DATE_ADD(
+                            STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'),
+                            INTERVAL (sb.totalTime + ${vendorBreakMinutes}) MINUTE
+                        )
               )
             GROUP BY v.vendor_id
             ORDER BY vendorName ASC
         `;
 
         const params = [
-            ...pairValues,      // all (package_id, sub_package_id) pairs
-            pairs.length,       // for HAVING count
-            ...blocking,        // blocked statuses for vendor availability check
-            date,               // bookingDate
-            date, time,         // used in STR_TO_DATE()
-            vendorBreakMinutes  // break buffer
+            ...pairValues,   // all package+sub-package pairs
+            pairs.length,    // for HAVING count
+            date,            // bookingDate for NOT EXISTS
+            date, time       // requested date/time
         ];
 
         const [vendors] = await db.query(sql, params);
@@ -1170,6 +1166,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
