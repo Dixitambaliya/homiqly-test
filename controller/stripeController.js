@@ -377,8 +377,10 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     const paymentIntent = event.data.object;
     const paymentIntentId = paymentIntent.id;
 
-    if (event.type !== "payment_intent.amount_capturable_updated" &&
-      event.type !== "charge.captured") {
+    if (
+      event.type !== "payment_intent.amount_capturable_updated" &&
+      event.type !== "charge.captured"
+    ) {
       console.log("ℹ️ Ignored event type:", event.type);
       return;
     }
@@ -415,7 +417,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const { cart_id, user_id, status, user_promo_code_id } = cart;
 
         if (status === "completed") {
-          console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
+          console.log(
+            `ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`
+          );
           await connection.commit();
           return;
         }
@@ -456,7 +460,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             0,
             "pending",
             paymentIntentId,
-            user_promo_code_id || null
+            user_promo_code_id || null,
           ]
         );
 
@@ -477,8 +481,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [sub_package_id]
           );
 
-          console.log(itemTimeRow);
-
           const itemTime = (itemTimeRow?.timeRequired || 0) * (quantity || 1);
           totalBookingTime += itemTime;
 
@@ -493,6 +495,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             `SELECT addon_id, price FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
             [cart_id, sub_package_id]
           );
+
           for (const addon of addons) {
             await connection.query(
               `INSERT INTO service_booking_addons (booking_id, sub_package_id, addon_id, price)
@@ -500,12 +503,16 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
               [booking_id, sub_package_id, addon.addon_id, addon.price]
             );
 
-            // 🕓 Fetch addon time
+            // 🕓 Fetch addon time and multiply by sub-package quantity
             const [[addonTimeRow]] = await connection.query(
               `SELECT addonTime FROM package_addons WHERE addon_id = ?`,
               [addon.addon_id]
             );
-            totalBookingTime += addonTimeRow?.addonTime ? Number(addonTimeRow.addonTime) : 0;
+
+            const addonTime = addonTimeRow?.addonTime
+              ? Number(addonTimeRow.addonTime) * (quantity || 1)
+              : 0;
+            totalBookingTime += addonTime;
           }
 
           // Preferences
@@ -536,16 +543,20 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         }
 
         // ✅ Safely update total time
-        const safeTotalTime = Number.isFinite(totalBookingTime) ? Math.round(totalBookingTime) : 0;
+        const safeTotalTime = Number.isFinite(totalBookingTime)
+          ? Math.round(totalBookingTime)
+          : 0;
 
         await connection.query(
           `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
           [safeTotalTime, booking_id]
         );
 
-        console.log(`🕒 Total booking time for booking #${booking_id}: ${safeTotalTime} minutes`);
+        console.log(
+          `🕒 Total booking time for booking #${booking_id}: ${safeTotalTime} minutes`
+        );
 
-        // ✅ Promo usage (for both user & system promo codes)
+        // ✅ Promo usage
         if (user_promo_code_id) {
           const [[userPromo]] = await connection.query(
             `SELECT upc.user_promo_code_id, upc.usedCount, pc.maxUse
@@ -574,9 +585,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                   WHERE user_promo_code_id = ?`,
                 [user_promo_code_id]
               );
-              console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
+              console.log(
+                `✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`
+              );
             } else {
-              console.warn(`⚠️ user_promo_code_id ${user_promo_code_id} reached its max usage (${userPromo.maxUse})`);
+              console.warn(
+                `⚠️ user_promo_code_id ${user_promo_code_id} reached its max usage (${userPromo.maxUse})`
+              );
             }
           } else if (systemPromo) {
             if (systemPromo.usage_count < systemPromo.maxUse) {
@@ -586,12 +601,18 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                   WHERE system_promo_code_id = ?`,
                 [user_promo_code_id]
               );
-              console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
+              console.log(
+                `✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`
+              );
             } else {
-              console.warn(`⚠️ system_promo_code_id ${user_promo_code_id} reached its max usage (${systemPromo.maxUse})`);
+              console.warn(
+                `⚠️ system_promo_code_id ${user_promo_code_id} reached its max usage (${systemPromo.maxUse})`
+              );
             }
           } else {
-            console.warn(`⚠️ No matching promo found for user_promo_code_id ${user_promo_code_id}`);
+            console.warn(
+              `⚠️ No matching promo found for user_promo_code_id ${user_promo_code_id}`
+            );
           }
         }
 
@@ -610,11 +631,23 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         );
 
         // ✅ Clear cart
-        await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
+        await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [
+          cart_id,
+        ]);
+        await connection.query(
+          `DELETE FROM cart_preferences WHERE cart_id = ?`,
+          [cart_id]
+        );
+        await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [
+          cart_id,
+        ]);
+        await connection.query(
+          `DELETE FROM cart_package_items WHERE cart_id = ?`,
+          [cart_id]
+        );
+        await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [
+          cart_id,
+        ]);
 
         await connection.commit();
         console.log(`✅ Booking transaction completed for booking #${booking_id}`);
@@ -712,12 +745,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           );
 
           const packageMap = {};
-          packages.forEach(pkg => {
+          packages.forEach((pkg) => {
             if (!packageMap[pkg.package_id]) {
               packageMap[pkg.package_id] = {
                 package_id: pkg.package_id,
                 packageName: pkg.packageName,
-                sub_packages: []
+                sub_packages: [],
               };
             }
 
@@ -729,15 +762,21 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
               quantity: pkg.quantity,
               addons: [],
               preferences: [],
-              consents: []
+              consents: [],
             });
           });
 
-          Object.values(packageMap).forEach(pkg => {
-            pkg.sub_packages.forEach(sub => {
-              sub.addons = addons.filter(a => a.sub_package_id === sub.sub_package_id);
-              sub.preferences = preferences.filter(p => p.sub_package_id === sub.sub_package_id);
-              sub.consents = consents.filter(c => c.sub_package_id === sub.sub_package_id);
+          Object.values(packageMap).forEach((pkg) => {
+            pkg.sub_packages.forEach((sub) => {
+              sub.addons = addons.filter(
+                (a) => a.sub_package_id === sub.sub_package_id
+              );
+              sub.preferences = preferences.filter(
+                (p) => p.sub_package_id === sub.sub_package_id
+              );
+              sub.consents = consents.filter(
+                (c) => c.sub_package_id === sub.sub_package_id
+              );
             });
           });
 
@@ -754,18 +793,26 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             userPhone: booking.userPhone,
             promo_code: booking.promo_code,
             promo_discount: booking.promo_discount,
-            packages: Object.values(packageMap)
+            packages: Object.values(packageMap),
           };
 
           if (bookingDetails) {
-            await sendBookingEmail(booking.user_id, { ...bookingDetails, receiptUrl });
+            await sendBookingEmail(booking.user_id, {
+              ...bookingDetails,
+              receiptUrl,
+            });
             console.log("📧 Booking email sent with receipt");
 
             if (bookingDetails.vendor_id) {
-              await sendVendorBookingEmail(bookingDetails.vendor_id, { ...bookingDetails, receiptUrl });
+              await sendVendorBookingEmail(bookingDetails.vendor_id, {
+                ...bookingDetails,
+                receiptUrl,
+              });
               console.log("📧 Vendor booking email sent");
             } else {
-              console.warn("⚠️ No vendor_id found in booking, skipping vendor email.");
+              console.warn(
+                "⚠️ No vendor_id found in booking, skipping vendor email."
+              );
             }
           }
         }
@@ -774,7 +821,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       console.error("❌ Webhook processing error:", err.message);
       await connection.rollback();
       try {
-        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
+        await stripe.paymentIntents.cancel(paymentIntentId, {
+          cancellation_reason: "abandoned",
+        });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ? `,
           [paymentIntentId]
@@ -787,7 +836,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
   })();
 });
-
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
