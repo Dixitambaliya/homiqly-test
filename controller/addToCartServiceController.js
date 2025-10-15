@@ -866,76 +866,61 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
             [cart_id]
         );
 
+        const cartPackageItemIds = subPackages.map(sp => sp.cart_package_items_id);
+
         // 3️⃣ Fetch addons
         const [addons] = await db.query(
-            `SELECT ca.addon_id, ca.sub_package_id, a.addonName, ca.price
+            `SELECT ca.cart_package_items_id, ca.addon_id, ca.sub_package_id, a.addonName, ca.price
              FROM cart_addons ca
              LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
-             WHERE ca.cart_id = ?`,
-            [cart_id]
+             WHERE ca.cart_id = ? AND ca.cart_package_items_id IN (?)`,
+            [cart_id, cartPackageItemIds]
         );
 
         // 4️⃣ Fetch preferences
         const [preferences] = await db.query(
-            `SELECT cp.preference_id, cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
+            `SELECT cp.cart_package_items_id, cp.preference_id, cp.cart_preference_id, cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
              FROM cart_preferences cp
              LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-             WHERE cp.cart_id = ?`,
-            [cart_id]
+             WHERE cp.cart_id = ? AND cp.cart_package_items_id IN (?)`,
+            [cart_id, cartPackageItemIds]
         );
 
         // 5️⃣ Fetch consents
         const [consents] = await db.query(
-            `SELECT cc.sub_package_id, c.question, cc.answer, c.consent_id 
+            `SELECT cc.cart_package_items_id, cc.sub_package_id, c.question, cc.answer, c.consent_id 
              FROM cart_consents cc
              LEFT JOIN package_consent_forms c ON cc.consent_id = c.consent_id
-             WHERE cc.cart_id = ?`,
-            [cart_id]
+             WHERE cc.cart_id = ? AND cc.cart_package_items_id IN (?)`,
+            [cart_id, cartPackageItemIds]
         );
 
-        // 6️⃣ Group addons/preferences/consents by sub_package_id
-        const addonsBySub = {};
-        addons.forEach(a => {
-            if (!addonsBySub[a.sub_package_id]) addonsBySub[a.sub_package_id] = [];
-            addonsBySub[a.sub_package_id].push(a);
-        });
+        // 6️⃣ Group by cart_package_items_id
+        const groupByCartItem = (arr) => {
+            return arr.reduce((acc, item) => {
+                if (!acc[item.cart_package_items_id]) acc[item.cart_package_items_id] = [];
+                acc[item.cart_package_items_id].push(item);
+                return acc;
+            }, {});
+        };
 
-        const prefsBySub = {};
-        preferences.forEach(p => {
-            if (!prefsBySub[p.sub_package_id]) prefsBySub[p.sub_package_id] = [];
-            prefsBySub[p.sub_package_id].push({
-                preference_id: p.preference_id,
-                preferenceValue: p.preferenceValue,
-                price: p.preferencePrice || 0
-            });
-        });
+        const addonsByCartItem = groupByCartItem(addons);
+        const prefsByCartItem = groupByCartItem(preferences);
+        const consentsByCartItem = groupByCartItem(consents);
 
-        const consentsBySub = {};
-        consents.forEach(c => {
-            if (!consentsBySub[c.sub_package_id]) consentsBySub[c.sub_package_id] = [];
-            consentsBySub[c.sub_package_id].push({
-                consent_id: c.consent_id,
-                consentText: c.question,
-                answer: c.answer
-            });
-        });
-
-        // 7️⃣ Attach child arrays + calculate sub-package total (quantity affects whole total)
+        // 7️⃣ Attach child arrays + calculate sub-package total
         const subPackagesStructured = subPackages.map(sub => {
-            const subAddons = addonsBySub[sub.sub_package_id] || [];
-            const subPrefs = prefsBySub[sub.sub_package_id] || [];
-            const subConsents = consentsBySub[sub.sub_package_id] || [];
+            const subAddons = addonsByCartItem[sub.cart_package_items_id] || [];
+            const subPrefs = prefsByCartItem[sub.cart_package_items_id] || [];
+            const subConsents = consentsByCartItem[sub.cart_package_items_id] || [];
 
             const basePrice = parseFloat(sub.price) || 0;
             const subQuantity = parseInt(sub.quantity) || 1;
 
             const addonsTotal = subAddons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
-            const prefsTotal = subPrefs.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+            const prefsTotal = subPrefs.reduce((sum, p) => sum + (parseFloat(p.preferencePrice) || 0), 0);
 
-            // 🧩 Base subtotal for one unit (price + addons + preferences)
             const singleUnitTotal = basePrice + addonsTotal + prefsTotal;
-
-            // 🔁 Multiply everything by quantity
             const subTotal = singleUnitTotal * subQuantity;
 
             return {
@@ -950,12 +935,11 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
         // 8️⃣ Calculate cart-level total
         let totalAmount = subPackagesStructured.reduce((sum, sp) => sum + sp.total, 0);
 
-        // 9️⃣ Apply promo logic (admin or system, percentage/fixed)
+        // 9️⃣ Apply promo logic
         let discountedTotal = totalAmount;
         let promoDetails = null;
 
         if (user_promo_code_id) {
-            // Admin promo
             const [userPromoRows] = await db.query(
                 `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
                 [user_id, user_promo_code_id]
@@ -990,12 +974,9 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
                 }
             }
 
-            // System promo (if admin promo not applied)
             if (!promoDetails) {
                 const [systemPromoRows] = await db.query(
-                    `SELECT sc.*, 
-                     st.discount_type,
-                     st.discountValue 
+                    `SELECT sc.*, st.discount_type, st.discountValue 
                      FROM system_promo_codes sc
                      JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
                      WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
@@ -1017,7 +998,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
             }
         }
 
-        // 🔟 Final response
+        // 🔟 Final response (keep format same as original)
         res.status(200).json({
             message: "Cart fetched successfully",
             cart: {
@@ -1033,6 +1014,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
+
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
