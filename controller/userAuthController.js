@@ -22,11 +22,10 @@ const transport = nodemailer.createTransport({
     },
 });
 
-// Create User
 const registerUser = asyncHandler(async (req, res) => {
     const { firstname, lastname, email, phone } = req.body;
 
-    if (!firstname || !email || !lastname || !phone) {
+    if (!firstname || !lastname || !email || !phone) {
         return res.status(400).json({ error: "All fields are required" });
     }
 
@@ -36,12 +35,26 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
-        if (existingUser.length > 0) {
-            return res.status(400).json({ error: "Email already exists" });
+        // 🔍 Check if user already exists
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+        if (existingUsers.length > 0) {
+            const existingUser = existingUsers[0];
+
+            // 🧩 Case 1: Account created via Google (no password)
+            if (!existingUser.password) {
+                return res.status(400).json({
+                    error: "This email is linked to a Google account. Please log in using Google.",
+                });
+            }
+
+            // 🧩 Case 2: Account exists with password (normal user)
+            return res.status(400).json({
+                error: "Email already exists. Please log in instead.",
+            });
         }
 
-        // Insert user record (without password yet)
+        // 🟢 Create new user (no password yet)
         const [result] = await db.query(userAuthQueries.userInsert1, [
             firstname,
             lastname,
@@ -49,11 +62,11 @@ const registerUser = asyncHandler(async (req, res) => {
             phone,
         ]);
 
-        // Generate code
+        // Generate and store OTP
         const code = generateResetCode();
         resetCodes.set(email, { code, expiresAt: Date.now() + RESET_EXPIRATION });
 
-        // ✅ Use helper function to send the mail
+        // Send email
         sendUserVerificationMail({ firstname, userEmail: email, code }).catch(console.error);
 
         res.status(200).json({
@@ -65,6 +78,7 @@ const registerUser = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 const verifyCode = asyncHandler(async (req, res) => {
     const { email, otp } = req.body;
@@ -146,20 +160,20 @@ const loginUser = asyncHandler(async (req, res) => {
 
         const user = loginUser[0];
 
-        // Safe check before bcrypt.compare
-        if (!user.password || typeof user.password !== "string") {
-            return res
-                .status(400)
-                .json({ error: "Password not set. Please reset your password." });
+        // 🧩 Check if user registered via Google (no password stored)
+        if (!user.password) {
+            return res.status(400).json({
+                error: "This account was created using Google. Please log in using Google.",
+            });
         }
 
+        // 🧩 Compare password
         const isPasswordValid = await bcrypt.compare(password, user.password);
-
         if (!isPasswordValid) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
-        // Optional: Update FCM token
+        // 🧩 Update FCM token if needed
         if (fcmToken && typeof fcmToken === "string" && fcmToken.trim() !== "") {
             const trimmedToken = fcmToken.trim();
 
@@ -172,12 +186,10 @@ const loginUser = asyncHandler(async (req, res) => {
                 } catch (err) {
                     console.error("❌ FCM token update error:", err.message);
                 }
-            } else {
-                console.log("ℹ️ FCM token already up-to-date for user:", user.user_id);
             }
         }
 
-        // Auto-assign welcome code if available
+        // 🧩 Assign welcome code if not already assigned
         let welcomeCode = null;
         try {
             welcomeCode = await assignWelcomeCode(user.user_id, user.email);
@@ -185,6 +197,7 @@ const loginUser = asyncHandler(async (req, res) => {
             console.error("❌ Auto-assign welcome code error:", err.message);
         }
 
+        // 🧩 Generate JWT
         const token = jwt.sign(
             {
                 user_id: user.user_id,
@@ -198,13 +211,14 @@ const loginUser = asyncHandler(async (req, res) => {
             message: "Login successful",
             user_id: user.user_id,
             token,
-            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
+            ...(welcomeCode && { welcomeCode }),
         });
     } catch (err) {
         console.error("Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;
