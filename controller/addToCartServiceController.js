@@ -47,7 +47,6 @@ const addToCartService = asyncHandler(async (req, res) => {
             cart_id = insertCart.insertId;
         }
 
-        // ✅ Handle packages under this one cart
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages, addons } = pkg;
 
@@ -57,43 +56,43 @@ const addToCartService = asyncHandler(async (req, res) => {
                     const quantity = item.quantity || 1;
                     const price = item.price || 0;
 
-                    // ✅ Always insert new sub-package row (allow duplicates)
+                    // ✅ Always create a new cart_package_items row for this sub-package
                     const [insertSubPackage] = await connection.query(
                         `INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) 
-                         VALUES (?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?)`,
                         [cart_id, package_id, sub_package_id, price, quantity]
                     );
 
                     const newCartItemId = insertSubPackage.insertId;
 
-                    // ✅ Always insert new Addons (even if identical exist)
-                    if (Array.isArray(addons)) {
-                        for (const addon of addons) {
-                            await connection.query(
-                                `INSERT INTO cart_addons (cart_id, sub_package_id, cart_package_items_id, addon_id, price) 
-                                 VALUES (?, ?, ?, ?, ?)`,
-                                [cart_id, sub_package_id, newCartItemId, addon.addon_id, addon.price || 0]
-                            );
-                        }
-                    }
-
-                    // ✅ Always insert new Preferences (even if identical exist)
+                    // ✅ Insert only preferences for this new cart_package_items row
                     if (Array.isArray(preferences)) {
                         for (const pref of preferences) {
                             await connection.query(
                                 `INSERT INTO cart_preferences (cart_id, sub_package_id, cart_package_items_id, preference_id) 
-                                 VALUES (?, ?, ?, ? )`,
+                         VALUES (?, ?, ?, ?)`,
                                 [cart_id, sub_package_id, newCartItemId, pref.preference_id]
                             );
                         }
                     }
 
-                    // ✅ Always insert new Consents (even if identical exist)
+                    // ✅ Insert only addons for this new cart_package_items row
+                    if (Array.isArray(addons)) {
+                        for (const addon of addons) {
+                            await connection.query(
+                                `INSERT INTO cart_addons (cart_id, sub_package_id, cart_package_items_id, addon_id, price) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                                [cart_id, sub_package_id, newCartItemId, addon.addon_id, addon.price || 0]
+                            );
+                        }
+                    }
+
+                    // ✅ Insert only consents for this new cart_package_items row
                     if (Array.isArray(consents)) {
                         for (const consent of consents) {
                             await connection.query(
                                 `INSERT INTO cart_consents (cart_id, sub_package_id, cart_package_items_id, consent_id, answer) 
-                                 VALUES (?, ?, ?, ? , ?)`,
+                         VALUES (?, ?, ?, ?, ?)`,
                                 [cart_id, sub_package_id, newCartItemId, consent.consent_id, consent.answer || null]
                             );
                         }
