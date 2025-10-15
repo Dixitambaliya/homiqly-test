@@ -63,7 +63,6 @@ const addToCartService = asyncHandler(async (req, res) => {
                          VALUES (?, ?, ?, ?, ?)`,
                         [cart_id, package_id, sub_package_id, price, quantity]
                     );
-                    console.log(insertSubPackage);
 
                     const newCartItemId = insertSubPackage.insertId;
 
@@ -71,9 +70,9 @@ const addToCartService = asyncHandler(async (req, res) => {
                     if (Array.isArray(addons)) {
                         for (const addon of addons) {
                             await connection.query(
-                                `INSERT INTO cart_addons (cart_id, sub_package_id, addon_id, price) 
-                                 VALUES (?, ?, ?, ?)`,
-                                [cart_id, sub_package_id, addon.addon_id, addon.price || 0]
+                                `INSERT INTO cart_addons (cart_id, sub_package_id, cart_package_items_id, addon_id, price) 
+                                 VALUES (?, ?, ?, ?, ?)`,
+                                [cart_id, sub_package_id, newCartItemId, addon.addon_id, addon.price || 0]
                             );
                         }
                     }
@@ -82,9 +81,9 @@ const addToCartService = asyncHandler(async (req, res) => {
                     if (Array.isArray(preferences)) {
                         for (const pref of preferences) {
                             await connection.query(
-                                `INSERT INTO cart_preferences (cart_id, sub_package_id, preference_id) 
-                                 VALUES (?, ?, ?)`,
-                                [cart_id, sub_package_id, pref.preference_id]
+                                `INSERT INTO cart_preferences (cart_id, sub_package_id, cart_package_items_id, preference_id) 
+                                 VALUES (?, ?, ?, ? )`,
+                                [cart_id, sub_package_id, newCartItemId, pref.preference_id]
                             );
                         }
                     }
@@ -93,9 +92,9 @@ const addToCartService = asyncHandler(async (req, res) => {
                     if (Array.isArray(consents)) {
                         for (const consent of consents) {
                             await connection.query(
-                                `INSERT INTO cart_consents (cart_id, sub_package_id, consent_id, answer) 
-                                 VALUES (?, ?, ?, ?)`,
-                                [cart_id, sub_package_id, consent.consent_id, consent.answer || null]
+                                `INSERT INTO cart_consents (cart_id, sub_package_id, cart_package_items_id, consent_id, answer) 
+                                 VALUES (?, ?, ?, ? , ?)`,
+                                [cart_id, sub_package_id, newCartItemId, consent.consent_id, consent.answer || null]
                             );
                         }
                     }
@@ -752,17 +751,18 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
+
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { cart_id } = req.params;
-    const { sub_package_id } = req.body;
+    const { cart_package_items_id } = req.body;
 
-    if (!cart_id || !sub_package_id) {
-        return res.status(400).json({ message: "cart_id and sub_package_id are required" });
+    if (!cart_id || !cart_package_items_id) {
+        return res.status(400).json({ message: "cart_id and cart_package_items_id are required" });
     }
 
     try {
-        // ✅ Verify the cart belongs to the user
+        // 🔍 Verify the cart belongs to the user
         const [cartCheck] = await db.query(
             `SELECT * FROM service_cart WHERE cart_id = ? AND user_id = ?`,
             [cart_id, user_id]
@@ -772,33 +772,33 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Cart not found or unauthorized" });
         }
 
-        // ✅ Delete related data (addons, preferences, consents) for this sub_package
+        // 🔗 Delete related data for this sub-package
         await db.query(
-            `DELETE FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
-            [cart_id, sub_package_id]
+            `DELETE FROM cart_addons WHERE cart_id = ? AND cart_package_items_id = ?`,
+            [cart_id, cart_package_items_id]
         );
 
         await db.query(
-            `DELETE FROM cart_preferences WHERE cart_id = ? AND sub_package_id = ?`,
-            [cart_id, sub_package_id]
+            `DELETE FROM cart_preferences WHERE cart_id = ? AND cart_package_items_id = ?`,
+            [cart_id, cart_package_items_id]
         );
 
         await db.query(
-            `DELETE FROM cart_consents WHERE cart_id = ? AND sub_package_id = ?`,
-            [cart_id, sub_package_id]
+            `DELETE FROM cart_consents WHERE cart_id = ? AND cart_package_items_id = ?`,
+            [cart_id, cart_package_items_id]
         );
 
-        // ✅ Delete the sub-package itself
+        // 🗑 Delete the sub-package itself
         const [deleteResult] = await db.query(
-            `DELETE FROM cart_package_items WHERE cart_id = ? AND sub_package_id = ?`,
-            [cart_id, sub_package_id]
+            `DELETE FROM cart_package_items WHERE cart_id = ? AND cart_package_items_id = ?`,
+            [cart_id, cart_package_items_id]
         );
 
         if (deleteResult.affectedRows === 0) {
             return res.status(404).json({ message: "Sub-package not found in cart" });
         }
 
-        // ✅ Check if there are any sub-packages left in this cart
+        // 🔎 Check if there are any sub-packages left in this cart
         const [remainingSubs] = await db.query(
             `SELECT COUNT(*) as count FROM cart_package_items WHERE cart_id = ?`,
             [cart_id]
@@ -811,7 +811,7 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
             return res.status(200).json({
                 message: "Last sub-package removed. Cart deleted.",
                 cart_id,
-                sub_package_id
+                cart_package_items_id
             });
         }
 
@@ -819,13 +819,17 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
         res.status(200).json({
             message: "Sub-package deleted successfully",
             cart_id,
-            sub_package_id
+            cart_package_items_id
         });
     } catch (error) {
         console.error("Error deleting sub-package:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
+
+
 
 const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
