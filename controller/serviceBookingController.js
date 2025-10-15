@@ -8,7 +8,7 @@ const {
     sendBookingNotificationToUser,
     sendBookingAssignedNotificationToVendor,
     sendVendorAssignedNotificationToUser
-} = require("./adminNotification")
+} = require("./adminNotification") 
 
 
 const bookService = asyncHandler(async (req, res) => {
@@ -1078,7 +1078,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "package_id and sub_package_id arrays must have the same length" });
         }
 
-        // ✅ Build exact requested pairs
+        // ✅ Build exact requested pairs (1-to-1 mapping)
         const pairs = packageIds.map((pkgId, i) => ({
             package_id: pkgId,
             sub_package_id: subPackageIds[i] || null
@@ -1087,7 +1087,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         const pairPlaceholders = pairs.map(() => `(?, ?)`).join(',');
         const pairValues = pairs.map(p => [p.package_id, p.sub_package_id]).flat();
 
-        const blocking = [1, 3]; // blocked statuses
+        const blocking = [1, 3]; // blocked statuses (confirmed, in-progress, etc.)
         const vendorBreakMinutes = 60;
 
         const sql = `
@@ -1098,7 +1098,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 IF(v.vendorType='company', cdet.companyEmail, idet.email) AS vendorEmail,
                 IF(v.vendorType='company', cdet.companyPhone, idet.phone) AS vendorPhone,
                 IF(v.vendorType='company', cdet.profileImage, idet.profileImage) AS profileImage,
-                IFNULL(AVG(r.rating),0) AS avgRating,
+                IFNULL(AVG(r.rating), 0) AS avgRating,
                 COUNT(r.rating_id) AS totalReviews,
                 GROUP_CONCAT(DISTINCT vpf.package_id) AS package_ids
             FROM vendors v
@@ -1112,11 +1112,10 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 FROM vendor_package_items_flat
                 WHERE (package_id, package_item_id) IN (${pairPlaceholders})
                 GROUP BY vendor_id
-                HAVING COUNT(DISTINCT CONCAT(package_id, '-', IFNULL(package_item_id,0))) = ?
+                HAVING COUNT(DISTINCT CONCAT(package_id, '-', IFNULL(package_item_id, 0))) = ?
             ) vpf_filtered ON vpf_filtered.vendor_id = v.vendor_id
 
             INNER JOIN vendor_package_items_flat vpf ON vpf.vendor_id = v.vendor_id
-
             LEFT JOIN service_booking sb_rating ON sb_rating.vendor_id = v.vendor_id
             LEFT JOIN ratings r ON r.booking_id = sb_rating.booking_id AND r.package_id = vpf.package_id
             INNER JOIN packages p ON p.package_id = vpf.package_id
@@ -1130,24 +1129,24 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                   WHERE sb.vendor_id = v.vendor_id
                     AND sb.bookingStatus IN (${blocking.map(() => '?').join(",")})
                     AND sb.bookingDate = ?
-                    AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s') BETWEEN 
-                        COALESCE(sb.start_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'))
-                        AND DATE_ADD(
-                            COALESCE(sb.end_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')),
-                            INTERVAL ? MINUTE
-                        )
+                    AND STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
+                      BETWEEN COALESCE(sb.start_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'))
+                      AND DATE_ADD(
+                          COALESCE(sb.end_time, STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')),
+                          INTERVAL ? MINUTE
+                      )
               )
             GROUP BY v.vendor_id
             ORDER BY vendorName ASC
         `;
 
         const params = [
-            ...pairValues,
-            pairs.length,          // HAVING count = total pairs
-            ...blocking,
-            date,
-            date, time,
-            vendorBreakMinutes
+            ...pairValues,      // all (package_id, sub_package_id) pairs
+            pairs.length,       // for HAVING count
+            ...blocking,        // blocked statuses for vendor availability check
+            date,               // bookingDate
+            date, time,         // used in STR_TO_DATE()
+            vendorBreakMinutes  // break buffer
         ];
 
         const [vendors] = await db.query(sql, params);
@@ -1171,6 +1170,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 
 

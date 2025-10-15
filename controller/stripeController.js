@@ -466,8 +466,21 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         // ==================================
         // Move cart data to booking tables
         // ==================================
+        let totalBookingTime = 0; // 🕒 total time accumulator
+
         for (const pkg of cartPackages) {
           const { sub_package_id, service_type_id, price, quantity } = pkg;
+
+          // 🕓 Fetch time from package_items table
+          const [[itemTimeRow]] = await connection.query(
+            `SELECT timeRequired FROM package_items WHERE item_id = ?`,
+            [sub_package_id]
+          );
+
+          console.log(itemTimeRow);
+
+          const itemTime = (itemTimeRow?.timeRequired || 0) * (quantity || 1);
+          totalBookingTime += itemTime;
 
           await connection.query(
             `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, service_type_id, price, quantity)
@@ -486,6 +499,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                VALUES (?, ?, ?, ?)`,
               [booking_id, sub_package_id, addon.addon_id, addon.price]
             );
+
+            // 🕓 Fetch addon time
+            const [[addonTimeRow]] = await connection.query(
+              `SELECT addonTime FROM package_addons WHERE addon_id = ?`,
+              [addon.addon_id]
+            );
+            totalBookingTime += addonTimeRow?.addonTime ? Number(addonTimeRow.addonTime) : 0;
           }
 
           // Preferences
@@ -515,10 +535,18 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
 
+        // ✅ Safely update total time
+        const safeTotalTime = Number.isFinite(totalBookingTime) ? Math.round(totalBookingTime) : 0;
+
+        await connection.query(
+          `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
+          [safeTotalTime, booking_id]
+        );
+
+        console.log(`🕒 Total booking time for booking #${booking_id}: ${safeTotalTime} minutes`);
+
         // ✅ Promo usage (for both user & system promo codes)
-        // ✅ Promo usage logic
         if (user_promo_code_id) {
-          // 1️⃣ Try finding in user promo chain
           const [[userPromo]] = await connection.query(
             `SELECT upc.user_promo_code_id, upc.usedCount, pc.maxUse
               FROM user_promo_codes upc
@@ -527,7 +555,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [user_promo_code_id]
           );
 
-          // 2️⃣ Try finding in system promo chain
           const [[systemPromo]] = await connection.query(
             `SELECT 
               spc.system_promo_code_id, 
@@ -539,7 +566,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [user_promo_code_id]
           );
 
-          // 3️⃣ Update accordingly
           if (userPromo) {
             if (userPromo.usedCount < userPromo.maxUse) {
               await connection.query(
@@ -568,7 +594,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             console.warn(`⚠️ No matching promo found for user_promo_code_id ${user_promo_code_id}`);
           }
         }
-
 
         // ✅ Capture payment
         await stripe.paymentIntents.capture(paymentIntentId);
@@ -606,7 +631,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         if (receiptUrl && paymentIntentId) {
           console.log("🧾 Captured receipt from Stripe webhook:", receiptUrl);
 
-          // Update payment & booking
           await connection.query(
             `UPDATE payments SET receipt_url = ?, status = 'completed' WHERE payment_intent_id = ?`,
             [receiptUrl, paymentIntentId]
@@ -616,7 +640,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [paymentIntentId]
           );
 
-          // 1️⃣ Fetch booking details + packages + nested data
           const [[booking]] = await connection.query(
             `SELECT 
               sb.booking_id,
@@ -630,11 +653,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
               u.lastName AS userLastName,
               u.email AS userEmail,
               u.phone AS userPhone,
-
               COALESCE(pc.code, spt.code) AS promo_code,
               COALESCE(pc.discountValue, spt.discountValue) AS promo_discount,
               sb.user_promo_code_id
-
             FROM service_booking sb
             LEFT JOIN users u ON sb.user_id = u.user_id
             LEFT JOIN user_promo_codes upc ON sb.user_promo_code_id = upc.user_promo_code_id
@@ -650,7 +671,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             return;
           }
 
-          // 2️⃣ Fetch packages for this booking
           const [packages] = await connection.query(
             `SELECT 
               pk.package_id,
@@ -667,7 +687,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [booking.booking_id]
           );
 
-          // 3️⃣ Fetch addons, preferences, consents per booking item
           const [addons] = await connection.query(
             `SELECT sba.sub_package_id, a.addon_id, a.addonName, sba.price
             FROM service_booking_addons sba
@@ -692,9 +711,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [booking.booking_id]
           );
 
-          // 4️⃣ Build nested package structure
           const packageMap = {};
-
           packages.forEach(pkg => {
             if (!packageMap[pkg.package_id]) {
               packageMap[pkg.package_id] = {
@@ -716,7 +733,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             });
           });
 
-          // Attach addons, preferences, consents to correct sub-packages
           Object.values(packageMap).forEach(pkg => {
             pkg.sub_packages.forEach(sub => {
               sub.addons = addons.filter(a => a.sub_package_id === sub.sub_package_id);
@@ -725,7 +741,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             });
           });
 
-          // 5️⃣ Final booking object ready for email
           const bookingDetails = {
             booking_id: booking.booking_id,
             user_id: booking.user_id,
@@ -742,7 +757,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             packages: Object.values(packageMap)
           };
 
-          // ✅ Send emails
           if (bookingDetails) {
             await sendBookingEmail(booking.user_id, { ...bookingDetails, receiptUrl });
             console.log("📧 Booking email sent with receipt");
@@ -771,8 +785,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     } finally {
       connection.release();
     }
-  })(); // end background task
+  })();
 });
+
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
