@@ -361,8 +361,6 @@ const googleLogin = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const googleSignup = asyncHandler(async (req, res) => {
     const { email, name, picture, fcmToken } = req.body;
 
@@ -376,12 +374,45 @@ const googleSignup = asyncHandler(async (req, res) => {
         // ✅ Check if user already exists
         const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
 
+        // 🟠 If user exists
         if (existingUsers.length > 0) {
-            // User found → reject signup
-            return res.status(409).json({ error: "Email already exists. Please log in instead." });
+            const user = existingUsers[0];
+
+            // 🚫 If the user has a password → normal login account → reject
+            if (user.password && user.password.trim() !== "") {
+                return res.status(409).json({
+                    error: "This email is registered with a password. Please log in using email and password.",
+                });
+            }
+
+            // 🟢 If user exists but password is empty → login via Google
+            const token = jwt.sign(
+                {
+                    user_id: user.user_id,
+                    email: user.email,
+                    status: user.status || "active",
+                },
+                process.env.JWT_SECRET
+                // { expiresIn: "30d" }
+            );
+
+            // Optional: Update FCM token if changed
+            if (fcmToken && fcmToken !== user.fcmToken) {
+                try {
+                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user.user_id]);
+                } catch (err) {
+                    console.error("❌ FCM token update error:", err.message);
+                }
+            }
+
+            return res.status(200).json({
+                message: "Login successful via Google",
+                user_id: user.user_id,
+                token,
+            });
         }
 
-        // 🟢 Create new user
+        // 🟢 If user not found → create new Google user
         const [result] = await db.query(userAuthQueries.userInsert, [
             given_name,
             family_name,
@@ -411,8 +442,8 @@ const googleSignup = asyncHandler(async (req, res) => {
                 email: newUser.email,
                 status: newUser.status || "active",
             },
-            process.env.JWT_SECRET
-            // { expiresIn: "30d" }
+            process.env.JWT_SECRET,
+            { expiresIn: "30d" }
         );
 
         res.status(201).json({
@@ -426,6 +457,7 @@ const googleSignup = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 
 
