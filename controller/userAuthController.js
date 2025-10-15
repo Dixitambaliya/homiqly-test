@@ -383,6 +383,70 @@ const googleLogin = asyncHandler(async (req, res) => {
 });
 
 
+const googleSignup = asyncHandler(async (req, res) => {
+    const { email, name, picture, fcmToken } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+    }
+
+    const [given_name = "", family_name = ""] = name?.split(" ") || [];
+
+    try {
+        // ✅ Check if user already exists
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+        if (existingUsers.length > 0) {
+            // User found → reject signup
+            return res.status(409).json({ error: "Email already exists. Please log in instead." });
+        }
+
+        // 🟢 Create new user
+        const [result] = await db.query(userAuthQueries.userInsert, [
+            given_name,
+            family_name,
+            email,
+            null, // phone
+            picture,
+            fcmToken || null
+        ]);
+
+        const user_id = result.insertId;
+
+        // Fetch the inserted user
+        const [[newUser]] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+        // Optional: Assign welcome code
+        let welcomeCode = null;
+        try {
+            welcomeCode = await assignWelcomeCode(user_id, email);
+        } catch (err) {
+            console.error("❌ Auto-assign welcome code error:", err.message);
+        }
+
+        // Generate JWT
+        const token = jwt.sign(
+            {
+                user_id: newUser.user_id,
+                email: newUser.email,
+                status: newUser.status || "active",
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "30d" }
+        );
+
+        res.status(201).json({
+            message: "Signup successful via Google",
+            user_id: newUser.user_id,
+            token,
+            ...(welcomeCode && { welcomeCode }),
+        });
+    } catch (err) {
+        console.error("Google Signup Error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+    }
+});
+
 
 
 module.exports = {
@@ -393,5 +457,6 @@ module.exports = {
     requestReset,
     verifyResetCode,
     resetPassword,
-    googleLogin
+    googleLogin,
+    googleSignup
 };
