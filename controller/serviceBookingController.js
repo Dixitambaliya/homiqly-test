@@ -236,7 +236,6 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -391,7 +390,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -1064,40 +1062,33 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         if (!date || !time) {
             return res.status(400).json({ message: "date and time are required" });
         }
-
-        if (!package_id) {
-            return res.status(400).json({ message: "package_id is required" });
+        if (!package_id || !sub_package_id) {
+            return res.status(400).json({ message: "package_id and sub_package_id are required" });
         }
 
-        if (!sub_package_id) {
-            return res.status(400).json({ message: "sub_package_id is required" });
-        }
-
-        // ✅ Parse comma-separated IDs into arrays
+        // Parse IDs into arrays
         const packageIds = package_id.split(",").map(id => Number(id.trim())).filter(Boolean);
         const subPackageIds = sub_package_id.split(",").map(id => Number(id.trim())).filter(Boolean);
 
-        if (packageIds.length === 0) {
-            return res.status(400).json({ message: "At least one package_id is required" });
+        if (packageIds.length === 0 || subPackageIds.length === 0) {
+            return res.status(400).json({ message: "At least one package_id and sub_package_id are required" });
         }
 
-        if (subPackageIds.length === 0) {
-            return res.status(400).json({ message: "At least one sub_package_id is required" });
+        if (packageIds.length !== subPackageIds.length) {
+            return res.status(400).json({ message: "package_id and sub_package_id arrays must have the same length" });
         }
 
-        const blocking = [1, 3];
-        const vendorBreakMinutes = 60;
-
-        // ✅ Create flattened pairs
-        const pairs = [];
-        for (let i = 0; i < packageIds.length; i++) {
-            const pkgId = packageIds[i];
-            const subId = subPackageIds[i] || null; // handle unequal counts gracefully
-            pairs.push({ package_id: pkgId, sub_package_id: subId });
-        }
+        // ✅ Build exact requested pairs
+        const pairs = packageIds.map((pkgId, i) => ({
+            package_id: pkgId,
+            sub_package_id: subPackageIds[i] || null
+        }));
 
         const pairPlaceholders = pairs.map(() => `(?, ?)`).join(',');
         const pairValues = pairs.map(p => [p.package_id, p.sub_package_id]).flat();
+
+        const blocking = [1, 3]; // blocked statuses
+        const vendorBreakMinutes = 60;
 
         const sql = `
             SELECT 
@@ -1114,14 +1105,24 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
             LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
             LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-            INNER JOIN vendor_package_items_flat vpf
-                ON vpf.vendor_id = v.vendor_id
-                AND (vpf.package_id, vpf.package_item_id) IN (${pairPlaceholders})
+
+            -- ✅ Only vendors having ALL requested package+sub-package pairs
+            INNER JOIN (
+                SELECT vendor_id
+                FROM vendor_package_items_flat
+                WHERE (package_id, package_item_id) IN (${pairPlaceholders})
+                GROUP BY vendor_id
+                HAVING COUNT(DISTINCT CONCAT(package_id, '-', IFNULL(package_item_id,0))) = ?
+            ) vpf_filtered ON vpf_filtered.vendor_id = v.vendor_id
+
+            INNER JOIN vendor_package_items_flat vpf ON vpf.vendor_id = v.vendor_id
+
             LEFT JOIN service_booking sb_rating ON sb_rating.vendor_id = v.vendor_id
             LEFT JOIN ratings r ON r.booking_id = sb_rating.booking_id AND r.package_id = vpf.package_id
             INNER JOIN packages p ON p.package_id = vpf.package_id
             INNER JOIN service_type st ON st.service_type_id = p.service_type_id
             INNER JOIN services s ON s.service_id = st.service_id
+
             WHERE vst.manual_assignment_enabled = 1
               AND NOT EXISTS (
                   SELECT 1
@@ -1137,17 +1138,16 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                         )
               )
             GROUP BY v.vendor_id
-            HAVING COUNT(DISTINCT CONCAT(vpf.package_id, '-', IFNULL(vpf.package_item_id, 0))) = ?
             ORDER BY vendorName ASC
         `;
 
         const params = [
             ...pairValues,
+            pairs.length,          // HAVING count = total pairs
             ...blocking,
             date,
             date, time,
-            vendorBreakMinutes,
-            pairs.length
+            vendorBreakMinutes
         ];
 
         const [vendors] = await db.query(sql, params);
@@ -1171,6 +1171,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 
