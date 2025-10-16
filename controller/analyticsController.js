@@ -64,33 +64,34 @@ const getVendorPerformance = asyncHandler(async (req, res) => {
 
 const getRevenueAnalytics = asyncHandler(async (req, res) => {
     try {
+        // Fetch revenue data with platform fee applied dynamically per vendor type
         const [revenueData] = await db.query(analyticsGetQueries.getRevenueAnalytics);
 
-        // Prepare chart data
+        // Prepare chart data for frontend
         const revenueChartData = {
             labels: revenueData.map(r => `${r.month}/${r.year}`),
-            // datasets: [
-            //     {
-            //         label: "Gross Revenue",
-            //         data: revenueData.map(r => r.gross_revenue),
-            //         backgroundColor: "#3b82f6",
-            //         borderColor: "#3b82f6",
-            //         borderWidth: 1,
-            //     },
-            //     {
-            //         label: "Platform Fees",
-            //         data: revenueData.map(r => r.commission_revenue),
-            //         backgroundColor: "#10b981",
-            //         borderColor: "#10b981",
-            //         borderWidth: 1,
-            //     },
-            // ],
+            datasets: [
+                {
+                    label: "Gross Revenue",
+                    data: revenueData.map(r => r.gross_revenue),
+                    backgroundColor: "#3b82f6",
+                    borderColor: "#3b82f6",
+                    borderWidth: 1,
+                },
+                {
+                    label: "Commission",
+                    data: revenueData.map(r => r.commission_revenue),
+                    backgroundColor: "#10b981",
+                    borderColor: "#10b981",
+                    borderWidth: 1,
+                },
+            ],
         };
 
         res.status(200).json({
             message: "Revenue analytics fetched successfully",
-            revenueData,
-            // revenueChartData
+            revenueData,       // raw DB data
+            revenueChartData,  // formatted for Chart.js
         });
     } catch (error) {
         console.error("Error fetching revenue analytics:", error);
