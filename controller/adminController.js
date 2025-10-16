@@ -995,10 +995,10 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     for (let k = 0; k < sub.addons.length; k++) {
                         const addon = sub.addons[k];
 
-                        // // Ensure addonTime is either a valid integer or null
-                        // const addonTime = addon.time_required && !isNaN(addon.time_required)
-                        //     ? parseInt(addon.time_required)
-                        //     : null;
+                        // Ensure addonTime is either a valid integer or null
+                        const addonTime = addon.time_required && !isNaN(addon.time_required)
+                            ? parseInt(addon.time_required)
+                            : null;
 
                         if (addon.addon_id) {
                             // Update existing addon
