@@ -67,7 +67,7 @@ const Bookings = () => {
 
     // possible customer name fields
     const customerCandidates = [
-      booking.customerName,
+      booking.userName,
       booking.customer?.name,
       booking.user?.name,
       booking.customer_name,

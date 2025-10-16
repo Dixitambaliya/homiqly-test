@@ -67,9 +67,9 @@ const GeneralSettings = () => {
         confirmPassword: passwordData.confirmPassword,
       };
 
-      Object.keys(payload).forEach(
-        (k) => payload[k] === undefined && delete payload[k]
-      );
+      // Object.keys(payload).forEach(
+      //   (k) => payload[k] === undefined && delete payload[k]
+      // );
 
       const res = await axios.patch("/api/admin/changepassword", payload);
 

@@ -254,16 +254,14 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     });
   };
 
-  const removePreferenceGroup = (pkgIndex, subIndex, groupIndex) => {
+  const removePreferenceGroup = (pkgIndex, subIndex, groupIndex) =>
     updatePackages((packages) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.preferences = sub.preferences || [];
       sub.preferences.splice(groupIndex, 1);
-      if (sub.preferences.length === 0)
-        sub.preferences = [makeEmptyPreferenceGroup("Default")];
+      // previously: if length === 0 -> add default. Now we allow empty array.
     });
-  };
 
   const handlePreferenceChange = (
     pkgIndex,
@@ -294,6 +292,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       group.items.push(makeEmptyPreferenceItem());
     });
 
+  // remove preference item (allow deleting last item)
   const removePreferenceItem = (pkgIndex, subIndex, groupIndex, prefIndex) =>
     updatePackages((packages) => {
       const group =
@@ -303,7 +302,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       if (!group) return;
       group.items = group.items || [];
       group.items.splice(prefIndex, 1);
-      if (group.items.length === 0) group.items = [makeEmptyPreferenceItem()];
+      // allow empty items array
     });
 
   // -------------------
@@ -331,22 +330,14 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       });
     });
 
+  // remove addon (allow deleting last addon)
   const removeAddon = (pkgIndex, subIndex, addonIndex) =>
     updatePackages((packages) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.addons = sub.addons || [];
       sub.addons.splice(addonIndex, 1);
-      if (sub.addons.length === 0) {
-        sub.addons = [
-          {
-            addon_name: "",
-            description: "",
-            price: "",
-            time_required: "",
-          },
-        ];
-      }
+      // allow empty addons array
     });
 
   // -------------------
@@ -377,16 +368,15 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       sub.consentForm.push({ question: "", is_required: "0" });
     });
 
+  // remove sub consent form item (allow deleting last item)
   const removeSubConsentForm = (pkgIndex, subIndex, consentIndex) =>
     updatePackages((packages) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.consentForm = sub.consentForm || [];
       sub.consentForm.splice(consentIndex, 1);
-      if (sub.consentForm.length === 0)
-        sub.consentForm = [{ question: "", is_required: "0" }];
+      // allow empty consentForm array
     });
-
   // -------------------
   // File & image helpers (top-level package media)
   // -------------------
@@ -1006,7 +996,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           <ItemCard
                             key={addonIndex}
                             title={`Add-on ${addonIndex + 1}`}
-                            showRemove={sub.addons.length > 1}
+                            showRemove={true} // <-- allow removing even when only one
                             onRemove={() =>
                               removeAddon(pkgIndex, subIndex, addonIndex)
                             }
@@ -1088,7 +1078,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                             <ItemCard
                               key={index}
                               title={`Consent Item ${index + 1}`}
-                              showRemove={sub.consentForm.length > 1}
+                              showRemove={true} // <-- allow removing even when only one
                               onRemove={() =>
                                 removeSubConsentForm(pkgIndex, subIndex, index)
                               }

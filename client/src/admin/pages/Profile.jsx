@@ -1,97 +1,177 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit, FiSave, FiX } from 'react-icons/fi';
-import { useAdminAuth } from '../contexts/AdminAuthContext';
-import { Card } from '../../shared/components/Card';
-import { Button } from '../../shared/components/Button';
-import { FormInput, FormTextarea, FormFileInput } from '../../shared/components/Form';
-import LoadingSpinner from '../../shared/components/LoadingSpinner';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import { FiUser, FiMail, FiEdit, FiSave, FiX, FiLock } from "react-icons/fi";
+import { useAdminAuth } from "../contexts/AdminAuthContext";
+import { Card } from "../../shared/components/Card";
+import { Button } from "../../shared/components/Button";
+import { FormInput, FormTextarea } from "../../shared/components/Form";
+import LoadingSpinner from "../../shared/components/LoadingSpinner";
 
 const Profile = () => {
   const { currentUser } = useAdminAuth();
+
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
+
+  // only name & email (as per your API)
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    country: '',
-    address: '',
-    state: '',
-    city: '',
-    zip_code: '',
-    about: ''
+    name: "",
+    email: "",
   });
-  const [profileImage, setProfileImage] = useState(null);
+
+  // Change password state (moved from GeneralSettings)
+  const [passwordData, setPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Helper: build headers (include token if available)
+  const getHeaders = () => {
+    const headers = { "Content-Type": "application/json" };
+    if (currentUser?.token)
+      headers.Authorization = `Bearer ${currentUser.token}`;
+    return headers;
+  };
 
   useEffect(() => {
-    // Simulate fetching profile data
-    setLoading(true);
-    setTimeout(() => {
-      const profileData = {
-        name: currentUser?.name || 'Admin User',
-        email: currentUser?.email || 'admin@example.com',
-        phone: currentUser?.phone || '+1 234 567 890',
-        country: currentUser?.country || 'India',
-        address: currentUser?.address || '123 Admin Street',
-        state: currentUser?.state || 'Maharashtra',
-        city: currentUser?.city || 'Mumbai',
-        zip_code: currentUser?.zip_code || '400001',
-        about: currentUser?.about || 'Administrator for the Homiqly platform.',
-        profileImage: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg'
-      };
-      
-      setProfile(profileData);
-      setFormData(profileData);
-      setLoading(false);
-    }, 500);
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get("/api/admin/getprofile", {
+          headers: getHeaders(),
+        });
+
+        const adminItem =
+          res?.data?.admin && res.data.admin.length ? res.data.admin[0] : null;
+
+        if (!adminItem) {
+          toast.error("Profile not found");
+          setLoading(false);
+          return;
+        }
+
+        const profileData = {
+          name: adminItem.name || "",
+          email: adminItem.email || "",
+          admin_id: adminItem.admin_id,
+          created_at: adminItem.created_at,
+        };
+
+        setProfile(profileData);
+        setFormData({ name: profileData.name, email: profileData.email });
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+        toast.error("Failed to fetch profile");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleImageChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setProfileImage(e.target.files[0]);
-    }
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+    };
+
     try {
       setUpdating(true);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update profile with form data
-      setProfile({
-        ...profile,
-        ...formData
+      const res = await axios.patch("/api/admin/editprofile", payload, {
+        headers: getHeaders(),
       });
-      
-      toast.success('Profile updated successfully');
-      setEditing(false);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+
+      if (res.status >= 200 && res.status < 300) {
+        setProfile((prev) => ({ ...prev, ...payload }));
+        toast.success(res.data?.message || "Profile updated successfully");
+        setEditing(false);
+      } else {
+        toast.error("Failed to update profile");
+      }
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      const message =
+        err?.response?.data?.message || "Failed to update profile";
+      toast.error(message);
     } finally {
       setUpdating(false);
     }
   };
 
   const toggleEdit = () => {
-    setEditing(!editing);
+    if (editing) {
+      // revert changes if cancelling
+      setFormData({ name: profile?.name || "", email: profile?.email || "" });
+    }
+    setEditing((prev) => !prev);
   };
+
+  // Change password handler (integrated from GeneralSettings)
+  const changePassword = async (e) => {
+    e.preventDefault();
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const payload = {
+        newPassword: passwordData.newPassword,
+        confirmPassword: passwordData.confirmPassword,
+      };
+
+      // remove undefined keys
+      Object.keys(payload).forEach(
+        (k) => payload[k] === undefined && delete payload[k]
+      );
+
+      const res = await axios.patch("/api/admin/changepassword", payload, {
+        headers: getHeaders(),
+      });
+
+      toast.success(res?.data?.message || "Password changed successfully");
+
+      setPasswordData({
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch (err) {
+      console.error("Change password error:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to change password";
+      toast.error(msg);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Avatar: first letter of name or email (uppercase)
+  const avatarLetter =
+    (profile?.name || profile?.email || "").trim().charAt(0).toUpperCase() ||
+    "?";
 
   if (loading) {
     return (
@@ -127,33 +207,29 @@ const Profile = () => {
       <Card>
         <form onSubmit={handleSubmit}>
           <div className="flex flex-col md:flex-row gap-8">
-            {/* Profile Image Section */}
+            {/* Avatar Section (non-editable initial) */}
             <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <div className="h-40 w-40 rounded-full overflow-hidden border-2 border-primary">
-                  <img 
-                    src={profile?.profileImage || 'https://via.placeholder.com/150?text=No+Image'} 
-                    alt="Profile" 
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                {editing && (
-                  <FormFileInput
-                    name="profileImage"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    showPreview={false}
-                    className="mt-2"
-                  />
-                )}
+              <div
+                className="h-40 w-40 rounded-full flex items-center justify-center text-4xl font-semibold border-2 border-primary bg-gray-100 text-gray-700"
+                title={profile?.name || profile?.email}
+                aria-hidden="true"
+              >
+                {avatarLetter}
               </div>
               <div className="text-center">
-                <h3 className="text-xl font-semibold">{profile?.name || 'Admin User'}</h3>
-                <p className="text-gray-500 capitalize">{currentUser?.role || 'admin'}</p>
+                <h3 className="text-xl font-semibold">
+                  {profile?.name || "Admin User"}
+                </h3>
+                <p className="text-gray-500 capitalize">
+                  {currentUser?.role || "admin"}
+                </p>
               </div>
+              <p className="text-xs text-gray-400">
+                Profile picture is fixed (initial shown)
+              </p>
             </div>
 
-            {/* Profile Details Section */}
+            {/* Profile Details Section - only name & email (per API) */}
             <div className="flex-1 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormInput
@@ -174,70 +250,6 @@ const Profile = () => {
                   disabled={!editing}
                   icon={<FiMail className="h-5 w-5 text-gray-400" />}
                 />
-
-                <FormInput
-                  label="Phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<FiPhone className="h-5 w-5 text-gray-400" />}
-                />
-
-                <FormInput
-                  label="Country"
-                  name="country"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                />
-
-                <FormInput
-                  label="State"
-                  name="state"
-                  value={formData.state}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                />
-
-                <FormInput
-                  label="City"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                />
-
-                <FormInput
-                  label="Zip Code"
-                  name="zip_code"
-                  value={formData.zip_code}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                />
-
-                <div className="md:col-span-2">
-                  <FormTextarea
-                    label="Address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    disabled={!editing}
-                    rows={2}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <FormTextarea
-                    label="About"
-                    name="about"
-                    value={formData.about}
-                    onChange={handleInputChange}
-                    disabled={!editing}
-                    rows={3}
-                  />
-                </div>
               </div>
 
               {editing && (
@@ -254,6 +266,43 @@ const Profile = () => {
                 </div>
               )}
             </div>
+          </div>
+        </form>
+      </Card>
+
+      {/* Change Password Card (moved here from GeneralSettings) */}
+      <Card title="Change Password" icon={<FiLock className="h-5 w-5" />}>
+        <form onSubmit={changePassword}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormInput
+              label="New Password"
+              name="newPassword"
+              type="password"
+              value={passwordData.newPassword}
+              onChange={handlePasswordChange}
+              required
+            />
+
+            <FormInput
+              label="Confirm New Password"
+              name="confirmPassword"
+              type="password"
+              value={passwordData.confirmPassword}
+              onChange={handlePasswordChange}
+              required
+            />
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={isChangingPassword}
+              isLoading={isChangingPassword}
+              icon={<FiSave className="mr-2" />}
+            >
+              Change Password
+            </Button>
           </div>
         </form>
       </Card>
