@@ -22,6 +22,8 @@ const vendorAuthQueries = {
                                     email,
                                     resume) VALUES (?, ?, ?, ?, ?)`,
 
+                                    
+
     insertIndividualServiceCategory: `INSERT INTO individual_service_categories
                                             (vendor_id,
                                             service_categories_id

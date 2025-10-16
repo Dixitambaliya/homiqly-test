@@ -480,6 +480,6 @@ module.exports = {
     requestResetVendor,
     verifyResetCode,
     resetPassword,
-    changeVendorPassword,
+    changeVendorPassword
 };
 
