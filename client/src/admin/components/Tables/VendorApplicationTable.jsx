@@ -54,7 +54,7 @@ const VendorApplicationTable = ({
         <div>
           <div className="text-sm text-gray-900">{row.packageName}</div>
           <div className="text-xs text-gray-500">
-            {row.totalTime} · {row.sub_packages?.length || 0} items
+          {row.subPackages?.length} items
           </div>
         </div>
       ),

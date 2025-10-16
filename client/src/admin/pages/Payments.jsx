@@ -100,63 +100,63 @@ const Payments = () => {
     return true;
   });
 
-  const exportToCSV = () => {
-    const headers = [
-      "Payment ID",
-      "User",
-      "Vendor",
-      "Package",
-      "Amount",
-      "Currency",
-      "Date",
-    ];
-    const rows = filteredPayments.map((payment) => [
-      payment.payment_id,
-      `${payment.user_firstname || ""} ${payment.user_lastname || ""}`.trim(),
-      payment.individual_name ||
-        payment.company_name ||
-        payment.vendor_name ||
-        "",
-      payment.packageName || payment.package_name || payment.productName || "",
-      payment.amount,
-      (payment.currency || "").toUpperCase(),
-      new Date(
-        payment.created_at || payment.createdAt || payment.date
-      ).toLocaleDateString(),
-    ]);
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row
-          .map((cell) => {
-            // escape commas and quotes in cells
-            if (cell === null || cell === undefined) return "";
-            const cellStr = String(cell);
-            if (
-              cellStr.includes(",") ||
-              cellStr.includes('"') ||
-              cellStr.includes("\n")
-            ) {
-              return `"${cellStr.replace(/"/g, '""')}"`;
-            }
-            return cellStr;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `payment_history_${new Date().toISOString().split("T")[0]}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // const exportToCSV = () => {
+  //   const headers = [
+  //     "Payment ID",
+  //     "User",
+  //     "Vendor",
+  //     "Package",
+  //     "Amount",
+  //     "Currency",
+  //     "Date",
+  //   ];
+  //   const rows = filteredPayments.map((payment) => [
+  //     payment.payment_id,
+  //     `${payment.user_firstname || ""} ${payment.user_lastname || ""}`.trim(),
+  //     payment.individual_name ||
+  //       payment.company_name ||
+  //       payment.vendor_name ||
+  //       "",
+  //     payment.packageName || payment.package_name || payment.productName || "",
+  //     payment.amount,
+  //     (payment.currency || "").toUpperCase(),
+  //     new Date(
+  //       payment.created_at || payment.createdAt || payment.date
+  //     ).toLocaleDateString(),
+  //   ]);
+  //   const csvContent = [
+  //     headers.join(","),
+  //     ...rows.map((row) =>
+  //       row
+  //         .map((cell) => {
+  //           // escape commas and quotes in cells
+  //           if (cell === null || cell === undefined) return "";
+  //           const cellStr = String(cell);
+  //           if (
+  //             cellStr.includes(",") ||
+  //             cellStr.includes('"') ||
+  //             cellStr.includes("\n")
+  //           ) {
+  //             return `"${cellStr.replace(/"/g, '""')}"`;
+  //           }
+  //           return cellStr;
+  //         })
+  //         .join(",")
+  //     ),
+  //   ].join("\n");
+  //   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  //   const url = URL.createObjectURL(blob);
+  //   const link = document.createElement("a");
+  //   link.setAttribute("href", url);
+  //   link.setAttribute(
+  //     "download",
+  //     `payment_history_${new Date().toISOString().split("T")[0]}.csv`
+  //   );
+  //   link.style.visibility = "hidden";
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  // };
 
   if (loading) {
     return (
@@ -180,10 +180,10 @@ const Payments = () => {
         <h2 className="text-2xl font-bold text-gray-800">
           Admin Payment History
         </h2>
-        <Button onClick={exportToCSV}>
+        {/* <Button onClick={exportToCSV}>
           <FiDownload className="mr-2" />
           Export CSV
-        </Button>
+        </Button> */}
       </div>
 
       {/* Filters */}
