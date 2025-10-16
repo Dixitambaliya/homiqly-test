@@ -298,45 +298,45 @@ const resetPassword = asyncHandler(async (req, res) => {
     }
 });
 
-const changeAdminPassword = asyncHandler(async (req, res) => {
-    const { email, oldPassword, newPassword } = req.body;
+const changeAdminPassword = asyncHandler(async (req, res) => {  
+    const admin_id = req.user.admin_id; // depends on your JWT payload
+    const { newPassword, confirmPassword } = req.body;
 
-    if (!email || !oldPassword || !newPassword) {
+    if (!admin_id) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!newPassword || !confirmPassword) {
         return res.status(400).json({
-            error: "All fields are required: email, oldPassword, newPassword",
+            error: "Both newPassword and confirmPassword are required",
+        });
+    }
+
+    if (newPassword !== confirmPassword) {
+        return res.status(400).json({
+            error: "New password and confirm password do not match",
         });
     }
 
     try {
-        const [adminRows] = await db.query(adminAuthQueries.getAdminByEmail, [
-            email,
-        ]);
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        if (!adminRows || adminRows.length === 0) {
-            return res.status(404).json({ error: "Admin not found" });
-        }
-
-        const admin = adminRows[0];
-        const isMatch = await bcrypt.compare(oldPassword, admin.password);
-
-        if (!isMatch) {
-            return res.status(401).json({ error: "Old password is incorrect" });
-        }
-
-        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-        await db.query(adminAuthQueries.resetAdminPassword, [
-            hashedNewPassword,
-            email,
+        // Assuming your query looks like: UPDATE admin SET password = ? WHERE admin_id = ?
+        await db.query(adminAuthQueries.resetAdminPasswordById, [
+            hashedPassword,
+            admin_id,   
         ]);
 
         res.json({ message: "Admin password changed successfully" });
     } catch (err) {
         console.error("Change Admin Password Error:", err);
-        res
-            .status(500)
-            .json({ error: "Internal server error", details: err.message });
+        res.status(500).json({
+            error: "Internal server error",
+            details: err.message,
+        });
     }
 });
+
 
 module.exports = {
     registerAdmin,
