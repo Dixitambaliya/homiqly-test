@@ -244,6 +244,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 //     }
 // });
 
+
 // Email function (non-blocking)
 const sendPromoEmail = async (userEmail, promoCode, discountValue) => {
     try {

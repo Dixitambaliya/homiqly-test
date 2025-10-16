@@ -63,21 +63,24 @@ SELECT
     `,
 
     getRevenueAnalytics: `
-        SELECT 
-            YEAR(sb.bookingDate) as year,
-            MONTH(sb.bookingDate) as month,
-            COUNT(sb.booking_id) as booking_count
-        FROM service_booking sb
-        LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
-        LEFT JOIN packages p ON sbp.package_id = p.package_id
-        LEFT JOIN vendor_supply_kits vsk ON sb.vendor_id = vsk.vendor_id 
-            AND MONTH(vsk.order_date) = MONTH(sb.bookingDate)
-            AND YEAR(vsk.order_date) = YEAR(sb.bookingDate)
-        WHERE sb.bookingStatus = 1
-        GROUP BY YEAR(sb.bookingDate), MONTH(sb.bookingDate)
-        ORDER BY year DESC, month DESC
-        LIMIT 12
-    `
+SELECT 
+    YEAR(sb.bookingDate) AS year,
+    MONTH(sb.bookingDate) AS month,
+    SUM(pay.amount) AS gross_revenue,
+    SUM(
+        pay.amount * (ps.platform_fee_percentage / 100)
+    ) AS commission_revenue
+FROM service_booking sb
+LEFT JOIN service_booking_packages sbp ON sb.booking_id = sbp.booking_id
+LEFT JOIN packages p ON sbp.package_id = p.package_id
+LEFT JOIN payments pay ON sb.payment_intent_id = pay.payment_intent_id
+LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+LEFT JOIN platform_settings ps 
+    ON ps.vendor_type = v.vendorType
+WHERE sb.bookingStatus = 1
+GROUP BY YEAR(sb.bookingDate), MONTH(sb.bookingDate)
+ORDER BY year DESC, month DESC
+LIMIT 12`
 };
 
 module.exports = analyticsGetQueries;

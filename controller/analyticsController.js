@@ -64,18 +64,41 @@ const getVendorPerformance = asyncHandler(async (req, res) => {
 
 const getRevenueAnalytics = asyncHandler(async (req, res) => {
     try {
-        const [revenue] = await db.query(analyticsGetQueries.getRevenueAnalytics);
+        const [revenueData] = await db.query(analyticsGetQueries.getRevenueAnalytics);
+
+        // Prepare chart data
+        const revenueChartData = {
+            labels: revenueData.map(r => `${r.month}/${r.year}`),
+            // datasets: [
+            //     {
+            //         label: "Gross Revenue",
+            //         data: revenueData.map(r => r.gross_revenue),
+            //         backgroundColor: "#3b82f6",
+            //         borderColor: "#3b82f6",
+            //         borderWidth: 1,
+            //     },
+            //     {
+            //         label: "Platform Fees",
+            //         data: revenueData.map(r => r.commission_revenue),
+            //         backgroundColor: "#10b981",
+            //         borderColor: "#10b981",
+            //         borderWidth: 1,
+            //     },
+            // ],
+        };
 
         res.status(200).json({
             message: "Revenue analytics fetched successfully",
-            revenue
+            revenueData,
+            // revenueChartData
         });
-
     } catch (error) {
         console.error("Error fetching revenue analytics:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
 
 module.exports = {
     getDashboardStats,

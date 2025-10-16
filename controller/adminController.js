@@ -1,11 +1,11 @@
 const { db } = require("../config/db");
+const asyncHandler = require("express-async-handler");
 const adminQueries = require("../config/adminQueries");
 const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
@@ -208,6 +208,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getBookings = asyncHandler(async (req, res) => {
     try {
@@ -443,6 +444,8 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
