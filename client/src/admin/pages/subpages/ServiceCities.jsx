@@ -3,6 +3,8 @@ import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import Button from "../../../shared/components/Button/Button";
 import { FormInput } from "../../../shared/components/Form";
+import { IconButton } from "../../../shared/components/Button";
+import { Delete, Trash2 } from "lucide-react";
 
 const ServiceCities = () => {
   const [cityInput, setCityInput] = useState("");
@@ -15,11 +17,12 @@ const ServiceCities = () => {
     try {
       setLoading(true);
       const res = await api.get("/api/service/getcity");
-      // Support either { cities: [] } OR [] directly
+      // Support either { city: [] } OR [] directly
       const list = Array.isArray(res.data?.city) ? res.data.city : res.data;
-      console.log(res.data.city);
+      // console.log(res.data.city);
       setCities(Array.isArray(list) ? list : []);
     } catch (err) {
+      console.error("fetchCities error:", err);
       toast.error(err?.response?.data?.message || "Failed to fetch cities");
     } finally {
       setLoading(false);
@@ -38,9 +41,29 @@ const ServiceCities = () => {
       setCityInput("");
       await fetchCities();
     } catch (err) {
+      console.error("add city error:", err);
       toast.error(err?.response?.data?.message || "Failed to add city");
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!id) {
+      toast.error("Invalid city id");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to delete this city?")) return;
+    try {
+      setLoading(true);
+      await api.delete(`/api/service/deleteservicecity/${id}`);
+      toast.success("City deleted");
+      await fetchCities();
+    } catch (err) {
+      console.error("delete city error:", err);
+      toast.error(err?.response?.data?.message || "Failed to delete city");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -118,14 +141,27 @@ const ServiceCities = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   City
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {filtered.map((c, i) => (
-                <tr key={c.city_id || c.id || c.serviceCity + i}>
-                  <td className="px-4 py-3 text-sm text-gray-700">{i + 1}</td>
+                <tr key={c.service_city_id ?? i}>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {c.service_city_id ?? i + 1}
+                  </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
                     {c.serviceCity || c.city || "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <IconButton
+                      size="xs"
+                      onClick={() => handleDelete(c.service_city_id)}
+                      variant="lightDanger"
+                      icon={<Trash2 className="w-4 h-4" />}
+                    />
                   </td>
                 </tr>
               ))}

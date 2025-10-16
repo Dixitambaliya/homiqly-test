@@ -69,7 +69,7 @@ const IconButton = ({
       title={tooltip}
       className={`
         inline-flex items-center justify-center rounded-full p-2
-        transition-colors duration-300 ease-in-out
+        transition-colors duration-300 ease-in-out cursor-pointer
         focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-primary
         ${variantClasses[variant]}
         ${sizeClasses[size]}

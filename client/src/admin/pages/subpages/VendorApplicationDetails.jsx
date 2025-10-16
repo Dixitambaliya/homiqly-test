@@ -273,13 +273,13 @@ const VendorApplicationDetails = () => {
                     {sp.itemName}
                   </p>
                   <div className="mt-2 flex justify-between items-center">
-                    <StatChip icon={FiClock} label={sp.timeRequired || "—"} />
+                    <StatChip icon={FiClock} label={`${sp.timeRequired} Mins` || "—"} />
                     <p className="text-sm font-semibold text-gray-900">
                       {formatMoney(sp.price)}
                     </p>
                   </div>
                 </div>
-              </div>
+              </div>  
             ))}
           </div>
         </div>

@@ -318,7 +318,7 @@ export default function AdminBookingDetailsPage() {
 
         <div className="flex items-center gap-3">
           <StatusBadge status={bookingStatus} />
-          <div className="text-sm text-gray-500">{paymentStatus}</div>
+          {/* <div className="text-sm text-gray-500">{paymentStatus}</div> */}
         </div>
       </div>
 
@@ -840,9 +840,9 @@ export default function AdminBookingDetailsPage() {
                 <h4 className="text-sm font-medium text-gray-600">Payment</h4>
                 <div className="mt-2 flex items-center gap-3">
                   <PaymentBadge status={paymentStatus} />
-                  <span className="text-xs text-gray-400 capitalize">
-                    {paymentStatus || "—"}
-                  </span>
+                  {/* <span className="text-xs text-gray-400 capitalize">
+                    {paymentStatus || "—"}i8 
+                  </span> */}
                 </div>
               </div>
 

@@ -1,6 +1,5 @@
-
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Button } from "../../shared/components/Button";
+import { Button, IconButton } from "../../shared/components/Button";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
@@ -8,7 +7,7 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EditPackageModal from "../components/Modals/EditPackageModal";
 import FormSelect from "../../shared/components/Form/FormSelect";
 import { FormInput } from "../../shared/components/Form";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 /* ---------- small helpers ---------- */
 const safeSrc = (src) => (typeof src === "string" ? src.trim() : "");
@@ -114,7 +113,7 @@ const AddonsChips = React.memo(function AddonsChips({ addons }) {
             </span>
             {a.time_required && (
               <div className="text-xs text-gray-500 mt-1 truncate">
-                {fmtTime(a.time_required)}
+                {fmtTime(a.time_required)} Min.
               </div>
             )}
           </div>
@@ -170,7 +169,7 @@ const SubPackageItem = React.memo(function SubPackageItem({ sub }) {
                 {sub.item_name}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Time: {fmtTime(sub.time_required)}
+                Time: {fmtTime(sub.time_required)} Minutes
               </p>
             </div>
             <div className="ml-4 text-right">
@@ -291,9 +290,13 @@ function PackageDetailsModal({ packageId, isOpen, onClose }) {
             {pkgData?.packageName ?? `Package #${packageId}`}
           </h3>
           <div className="flex items-center gap-3">
-            <Button size="sm" variant="outline" onClick={onClose}>
-              Close
-            </Button>
+            <IconButton
+              icon={<X className="w-4 h-4"/>}
+              size="sm"
+              variant="ghost"
+              onClick={onClose}
+            >
+            </IconButton>
           </div>
         </div>
 
@@ -336,7 +339,6 @@ export default function Packages() {
   const [search, setSearch] = useState(""); // immediate search, no debounce
   const [category, setCategory] = useState("");
   const [categories, setCategories] = useState([]);
-  // details modal
   const [detailsModalPkgId, setDetailsModalPkgId] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -412,7 +414,6 @@ export default function Packages() {
     };
   }, []);
 
-  // run fetch on mount (ensures API call happens reliably on first page visit)
   useEffect(() => {
     let canceled = false;
     (async () => {
@@ -631,14 +632,14 @@ export default function Packages() {
                                   <div className="flex items-center gap-2">
                                     <Button
                                       size="sm"
-                                      variant="outline"
+                                      variant="ghost"
                                       onClick={() => handleEdit(pkg)}
                                     >
                                       Edit
                                     </Button>
                                     <Button
                                       size="sm"
-                                      variant="error"
+                                      variant="lightError"
                                       onClick={() =>
                                         handleDeletePackage(pkg.package_id)
                                       }

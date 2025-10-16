@@ -21,6 +21,7 @@ const PackageRating = () => {
   const fetchPackages = async () => {
     try {
       const res = await axios.get("/api/admin/getallpackages");
+      // ensure option values are strings to match select value
       setPackages(res.data.packages || []);
     } catch (err) {
       console.error("Error fetching packages", err);
@@ -31,8 +32,9 @@ const PackageRating = () => {
     try {
       setLoading(true);
       const res = await axios.get(`/api/rating/packageaverage/${packageId}`);
-      setRatings(res.data.review.rating || []);
-      setPackageInfo(res.data.review);
+      // defensive: ensure rating is array
+      setRatings(res.data.review?.rating || []);
+      setPackageInfo(res.data.review || null);
     } catch (err) {
       console.error("Error fetching package ratings", err);
       setRatings([]);
@@ -45,7 +47,18 @@ const PackageRating = () => {
   const handlePackageChange = (e) => {
     const packageId = e.target.value;
     setSelectedPackageId(packageId);
-    if (packageId) fetchRatings(packageId);
+
+    if (packageId) {
+      // fetch ratings when a real package is chosen
+      fetchRatings(packageId);
+    } else {
+      // clear data when user selects the default/empty option
+      setRatings([]);
+      setPackageInfo(null);
+      // optional: reset filters/search if you want
+      // setFilter("all");
+      // setSearchTerm("");
+    }
   };
 
   const handleFilterChange = (e) => setFilter(e.target.value);
@@ -62,9 +75,9 @@ const PackageRating = () => {
     ));
 
   const filteredRatings = ratings.filter((r) => {
-    const matchesRating = filter === "all" || r.rating === parseInt(filter);
+    const matchesRating = filter === "all" || r.rating === parseInt(filter, 10);
     const matchesSearch =
-      !searchTerm || r.userName.toLowerCase().includes(searchTerm);
+      !searchTerm || (r.userName || "").toLowerCase().includes(searchTerm);
     return matchesRating && matchesSearch;
   });
 
@@ -82,7 +95,8 @@ const PackageRating = () => {
           options={[
             { value: "", label: "Select a Package" },
             ...packages.map((pkg) => ({
-              value: pkg.package_id,
+              // ensure the value is a string to avoid type mismatches
+              value: String(pkg.package_id),
               label: pkg.packageName,
             })),
           ]}

@@ -5,6 +5,7 @@ import { formatCurrency } from "../../../shared/utils/formatUtils";
 import api from "../../../lib/axiosConfig";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
 import { FiClipboard, FiExternalLink, FiDownload, FiCheckCircle, FiClock, FiUser, FiBriefcase } from "react-icons/fi";
+import { Button } from "../../../shared/components/Button";
 
 /**
  * Modernized PaymentDetails component
@@ -121,16 +122,15 @@ const PaymentDetails = () => {
             View Receipt
           </a>
 
-          <button
+          <Button
             onClick={() => copyToClipboard(payment.receiptUrl)}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md shadow-sm text-sm hover:bg-gray-50"
             title="Copy receipt link"
           >
             <FiClipboard />
             {copied ? "Copied" : "Copy Link"}
-          </button>
+          </Button>
 
-          <a
+          {/* <a
             href={payment.receiptUrl}
             target="_blank"
             rel="noopener noreferrer"
@@ -140,7 +140,7 @@ const PaymentDetails = () => {
           >
             <FiDownload />
             Download
-          </a>
+          </a> */}
         </div>
       </div>
 
