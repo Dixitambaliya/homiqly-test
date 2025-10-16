@@ -508,6 +508,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -560,8 +561,8 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 ROUND(AVG(r.rating), 1) AS avgRating,
                 COUNT(r.rating_id) AS reviewCount
             FROM ratings r
-            JOIN service_booking_sub_packages sbsp ON r.booking_id = sbsp.booking_id
-            JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+            LEFT JOIN service_booking_sub_packages sbsp ON r.booking_id = sbsp.booking_id
+            LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
             WHERE pi.package_id = ?
             GROUP BY sbsp.sub_package_id`,
             [package_id]
@@ -662,6 +663,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
