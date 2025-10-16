@@ -61,43 +61,29 @@ const getVendorPerformance = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 const getRevenueAnalytics = asyncHandler(async (req, res) => {
     try {
-        // Fetch revenue data with platform fee applied dynamically per vendor type
+        // Fetch revenue data grouped by month/year
         const [revenueData] = await db.query(analyticsGetQueries.getRevenueAnalytics);
 
-        // Prepare chart data for frontend
-        const revenueChartData = {
-            labels: revenueData.map(r => `${r.month}/${r.year}`),
-            datasets: [
-                {
-                    label: "Gross Revenue",
-                    data: revenueData.map(r => r.gross_revenue),
-                    backgroundColor: "#3b82f6",
-                    borderColor: "#3b82f6",
-                    borderWidth: 1,
-                },
-                {
-                    label: "Commission",
-                    data: revenueData.map(r => r.commission_revenue),
-                    backgroundColor: "#10b981",
-                    borderColor: "#10b981",
-                    borderWidth: 1,
-                },
-            ],
-        };
+        // Map to only include the fields you want
+        const simplifiedRevenue = revenueData.map(r => ({
+            month: r.month,
+            year: r.year,
+            gross_revenue: r.gross_revenue,
+            commission_revenue: r.commission_revenue
+        }));
 
         res.status(200).json({
             message: "Revenue analytics fetched successfully",
-            revenueData,       // raw DB data
-            revenueChartData,  // formatted for Chart.js
+            revenue: simplifiedRevenue
         });
     } catch (error) {
         console.error("Error fetching revenue analytics:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 
 
