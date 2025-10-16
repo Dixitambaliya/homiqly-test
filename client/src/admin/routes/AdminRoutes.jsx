@@ -38,6 +38,7 @@ import AdminPromoManager from "../pages/subpages/AdminPromoManager";
 import PlatformTax from "../pages/subpages/PlatformTax";
 import PayoutList from "../pages/PayoutList";
 import PayoutDetails from "../pages/subpages/PayoutDetails";
+import TempVendor from "../pages/TempVendor";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -101,6 +102,7 @@ const AdminRoutes = () => {
         <Route path="contractors" element={<Contractors />} />
         <Route path="employees" element={<Employees />} />
         <Route path="vendor-applications" element={<VendorApplications />} />
+        <Route path="tempvendor" element={<TempVendor/>} />
         <Route
           path="vendor-applications/:id"
           element={<VendorApplicationDetails />}

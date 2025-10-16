@@ -36,6 +36,12 @@ const menuItems = [
     icon: <FiUserCheck className="w-5 h-5" />,
   },
   {
+    path: "/admin/tempvendor",
+    name: "Temp Vendor",
+    icon: <FiUserCheck className="w-5 h-5" />,
+  },
+
+  {
     path: "/admin/users",
     name: "Users",
     icon: <FiUsers className="w-5 h-5" />,
