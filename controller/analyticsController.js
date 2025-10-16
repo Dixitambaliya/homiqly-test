@@ -61,6 +61,7 @@ const getVendorPerformance = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 const getRevenueAnalytics = asyncHandler(async (req, res) => {
     try {
         // Fetch revenue data grouped by month/year

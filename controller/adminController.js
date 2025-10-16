@@ -989,13 +989,19 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     }
                 }
 
-
                 // --- Addons ---
                 if (Array.isArray(sub.addons)) {
                     const submittedAddonIds = [];
                     for (let k = 0; k < sub.addons.length; k++) {
                         const addon = sub.addons[k];
+
+                        // // Ensure addonTime is either a valid integer or null
+                        // const addonTime = addon.time_required && !isNaN(addon.time_required)
+                        //     ? parseInt(addon.time_required)
+                        //     : null;
+
                         if (addon.addon_id) {
+                            // Update existing addon
                             const [oldAddon] = await connection.query(
                                 `SELECT * FROM package_addons WHERE addon_id = ?`,
                                 [addon.addon_id]
@@ -1004,34 +1010,37 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                             await connection.query(
                                 `UPDATE package_addons
-                                 SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
-                                 WHERE addon_id = ? AND package_item_id = ?`,
+                                SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
+                                WHERE addon_id = ? AND package_item_id = ?`,
                                 [
                                     addon.addon_name ?? oldAddon[0].addonName,
                                     addon.description ?? oldAddon[0].addonDescription,
                                     addon.price ?? oldAddon[0].addonPrice,
-                                    addon.time_required ?? oldAddon[0].addonTime,
+                                    addonTime ?? oldAddon[0].addonTime ?? null,
                                     addon.addon_id,
                                     sub_package_id
                                 ]
                             );
                             submittedAddonIds.push(addon.addon_id);
+
                         } else {
+                            // Insert new addon
                             const [newAddon] = await connection.query(
                                 `INSERT INTO package_addons
-                                 (package_item_id, addonName, addonDescription, addonPrice, addonTime)
-                                 VALUES (?, ?, ?, ?, ?)`,
+                                (package_item_id, addonName, addonDescription, addonPrice, addonTime)
+                                VALUES (?, ?, ?, ?, ?)`,
                                 [
                                     sub_package_id,
                                     addon.addon_name,
                                     addon.description,
                                     addon.price,
-                                    addon.time_required,
+                                    addonTime,
                                 ]
                             );
                             submittedAddonIds.push(newAddon.insertId);
                         }
                     }
+
 
                     await connection.query(
                         `DELETE FROM package_addons WHERE package_item_id = ? AND addon_id NOT IN (?)`,
