@@ -116,7 +116,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
-
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -244,7 +243,6 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
@@ -969,12 +967,13 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { booking_id, status } = req.body;
+    const { booking_id, status } = req.body;    
 
-    // ✅ Validate input
+    console.log(vendor_id);
+    
+    // ✅ Validate input    
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
     }
@@ -1106,8 +1105,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;

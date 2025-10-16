@@ -1,6 +1,8 @@
 const express = require("express")
 const router = express.Router()
-const { getVendor,
+const {
+    getAdminProfile,
+    getVendor,
     getAllServiceType,
     getUsers,
     updateUserByAdmin,
@@ -29,6 +31,7 @@ const { authenticationToken } = require("../middleware/authMiddleware")
 
 const multiUpload = upload.any();
 
+router.get("/getprofile", authenticationToken, getAdminProfile)
 router.get("/getvendors", authenticationToken, getVendor)
 router.get("/getallservicetype", authenticationToken, getAllServiceType)
 router.get("/getusers", authenticationToken, getUsers)

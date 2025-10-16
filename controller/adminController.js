@@ -16,6 +16,39 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+const getAdminProfile = asyncHandler(async (req, res) => {
+    const admin_id = req.user.admin_id; 
+    try {
+        // Assuming you have middleware that sets req.adminId
+        if (!admin_id) {
+            return res.status(401).json({ message: "Unauthorized: Admin ID missing" });
+        }
+
+        const rows = await db.query(
+            `SELECT
+                admin_id, 
+                email, 
+                name, 
+                created_at
+             FROM admin
+             WHERE admin_id = ?`,
+            [admin_id]
+        );
+
+        if (!rows.length) {
+            return res.status(404).json({ message: "Admin not found" });
+        }
+
+        res.status(200).json({
+            message: "Admin profile fetched successfully",
+            admin: rows[0],
+        });
+    } catch (error) {
+        console.error("Error fetching admin profile:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         const [vendors] = await db.query(adminGetQueries.vendorDetails);
@@ -208,7 +241,6 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 const getBookings = asyncHandler(async (req, res) => {
     try {
@@ -444,8 +476,6 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1917,6 +1947,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+    getAdminProfile,
     getVendor,
     getAllServiceType,
     getUsers,
