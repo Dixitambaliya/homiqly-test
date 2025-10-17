@@ -1202,7 +1202,7 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
     try {
         // ✅ Ensure the package belongs to the vendor
         const [rows] = await connection.query(
-            `SELECT vendor_packages_id FROM vendor_packages 
+            `SELECT vendor_packages_id FROM vendor_package_items_flat 
              WHERE vendor_packages_id = ? AND vendor_id = ?`,
             [vendor_packages_id, vendorId]
         );
