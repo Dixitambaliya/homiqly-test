@@ -346,7 +346,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
         const allPromos = [...normalizedUserPromos, ...normalizedSystemPromos];
 
         if (allPromos.length === 0) {
-            return res.status(404).json({ message: "No promo codes assigned to this user" });
+            return res.status(404).json({ message: "No promo code available" });
         }
 
         res.status(200).json({
