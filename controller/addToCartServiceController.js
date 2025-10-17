@@ -28,27 +28,29 @@ const addToCartService = asyncHandler(async (req, res) => {
     try {
         const createdOrUpdatedCarts = [];
 
-        // ✅ Check if a cart already exists for this user/service/service_type
+        // Check if cart exists
         const [existingCart] = await connection.query(
-            `SELECT cart_id FROM service_cart 
+            `SELECT cart_id, totalTime FROM service_cart 
              WHERE user_id = ? AND service_id = ? AND service_type_id = ? AND bookingStatus = 0 
              LIMIT 1`,
             [user_id, service_id, service_type_id]
         );
 
         let cart_id = existingCart.length ? existingCart[0].cart_id : null;
+        let totalCartTime = existingCart.length ? Number(existingCart[0].totalTime) || 0 : 0;
 
-        // ✅ Create new cart only if it doesn't exist
+        // Create new cart if not exists
         if (!cart_id) {
             const [insertCart] = await connection.query(
-                `INSERT INTO service_cart (user_id, service_id, service_type_id, bookingStatus)
-                 VALUES (?, ?, ?, 0)`,
+                `INSERT INTO service_cart (user_id, service_id, service_type_id, bookingStatus, totalTime)
+                 VALUES (?, ?, ?, 0, 0)`,
                 [user_id, service_id, service_type_id]
             );
             cart_id = insertCart.insertId;
+            totalCartTime = 0;
         }
 
-        // Loop through all packages
+        // Loop through packages
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages, addons: packageAddons } = pkg;
 
@@ -58,7 +60,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                     const quantity = sub.quantity || 1;
                     const price = sub.price || 0;
 
-                    // ✅ Always create a new row for this sub-package
+                    // Insert sub-package
                     const [insertSub] = await connection.query(
                         `INSERT INTO cart_package_items (cart_id, package_id, sub_package_id, price, quantity) 
                          VALUES (?, ?, ?, ?, ?)`,
@@ -66,7 +68,15 @@ const addToCartService = asyncHandler(async (req, res) => {
                     );
                     const cart_package_items_id = insertSub.insertId;
 
-                    // ✅ Attach preferences for this sub-package row
+                    // Fetch sub-package time
+                    const [[itemTimeRow]] = await connection.query(
+                        `SELECT timeRequired FROM package_items WHERE item_id = ?`,
+                        [sub_package_id]
+                    );
+                    const itemTime = (itemTimeRow?.timeRequired || 0) * quantity;
+                    totalCartTime += itemTime;
+
+                    // Attach preferences
                     if (Array.isArray(preferences)) {
                         for (const pref of preferences) {
                             await connection.query(
@@ -77,7 +87,7 @@ const addToCartService = asyncHandler(async (req, res) => {
                         }
                     }
 
-                    // ✅ Attach package-level addons if provided
+                    // Attach package-level addons
                     if (Array.isArray(packageAddons)) {
                         for (const addon of packageAddons) {
                             await connection.query(
@@ -85,10 +95,18 @@ const addToCartService = asyncHandler(async (req, res) => {
                                  VALUES (?, ?, ?, ?, ?)`,
                                 [cart_id, cart_package_items_id, sub_package_id, addon.addon_id, addon.price || 0]
                             );
+
+                            // Add addon time
+                            const [[addonTimeRow]] = await connection.query(
+                                `SELECT addonTime FROM package_addons WHERE addon_id = ?`,
+                                [addon.addon_id]
+                            );
+                            const addonTime = (addonTimeRow?.addonTime || 0) * quantity;
+                            totalCartTime += addonTime;
                         }
                     }
 
-                    // ✅ Attach consents if provided
+                    // Attach consents
                     if (Array.isArray(consents)) {
                         for (const consent of consents) {
                             await connection.query(
@@ -102,7 +120,13 @@ const addToCartService = asyncHandler(async (req, res) => {
             }
         }
 
-        createdOrUpdatedCarts.push({ cart_id });
+        // Update totalTime in service_cart (incremental)
+        await connection.query(
+            `UPDATE service_cart SET totalTime = ? WHERE cart_id = ?`,
+            [totalCartTime, cart_id]
+        );
+
+        createdOrUpdatedCarts.push({ cart_id, totalTime: totalCartTime });
 
         await connection.commit();
         connection.release();
@@ -119,6 +143,7 @@ const addToCartService = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to add service to cart", error: err.message });
     }
 });
+
 
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
