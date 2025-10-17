@@ -303,6 +303,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 spc.system_promo_code_id,
                 spc.user_id,
                 spc.source_type,
+                spct.minSpend,
                 spct.code AS userCode,
                 spct.discount_type,
                 spct.maxUse AS promoMaxUse,
