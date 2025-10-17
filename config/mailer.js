@@ -672,6 +672,57 @@ async function sendReviewRequestMail({ userName, userEmail, serviceName, vendorN
 }
 
 
+async function sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned }) {
+  if (!vendorData?.vendorEmail) {
+    console.warn("⚠️ No vendor email found, skipping email notification.");
+    return;
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    const emailHtml = `
+            <p>Dear ${vendorData.vendorName},</p>
+            <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
+            <ul>
+                ${newlyAssigned
+        .map(
+          (p) => `
+                        <li>
+                            <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
+                            <strong>Sub-Packages:</strong> 
+                            ${p.selected_subpackages.length > 0
+              ? p.selected_subpackages
+                .map((sp) => `${sp.name} (ID: ${sp.id})`)
+                .join(", ")
+              : "None"
+            }
+                        </li>`
+        )
+        .join("")}
+            </ul>
+            <p>You can now manage and offer these packages from your dashboard.</p>
+        `;
+
+    await transporter.sendMail({
+      from: `"Admin Team" <${process.env.EMAIL_USER}>`,
+      to: vendorData.vendorEmail,
+      subject: "New Packages Assigned to You",
+      html: emailHtml
+    });
+
+    console.log(`✅ Email sent to vendor ${vendorData.vendorEmail}`);
+  } catch (mailErr) {
+    console.error("⚠️ Failed to send vendor email:", mailErr.message);
+  }
+};
+
 module.exports = {
   sendBookingEmail,
   sendVendorBookingEmail,
@@ -681,5 +732,7 @@ module.exports = {
   sendPasswordUpdatedMail,
   sendPasswordResetCodeMail,
   sendUserVerificationMail,
-  sendReviewRequestMail
+  sendReviewRequestMail,
+  sendVendorAssignedPackagesEmail
+
 };

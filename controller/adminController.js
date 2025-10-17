@@ -7,6 +7,7 @@ const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const nodemailer = require("nodemailer");
+const { sendVendorAssignedPackagesEmail } = require("../config/mailer");
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -845,27 +846,23 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         );
         if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
 
-        // ✅ Fetch vendor details for email
+        // ✅ Fetch vendor details
         const [vendorDetails] = await connection.query(
-            `
-            SELECT v.vendor_id, v.vendorType,
-                   COALESCE(i.name, c.companyName) AS vendorName,
-                   COALESCE(i.email, c.companyEmail) AS vendorEmail
-            FROM vendors v
-            LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
-            LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-            WHERE v.vendor_id = ?
-            `,
+            `SELECT v.vendor_id, v.vendorType,
+                    COALESCE(i.name, c.companyName) AS vendorName,
+                    COALESCE(i.email, c.companyEmail) AS vendorEmail
+             FROM vendors v
+             LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+             LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+             WHERE v.vendor_id = ?`,
             [vendor_id]
         );
         const vendorData = vendorDetails[0];
-
         const newlyAssigned = [];
 
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
-            // ✅ Get packageName
             const [pkgRow] = await connection.query(
                 `SELECT package_id, packageName FROM packages WHERE package_id = ?`,
                 [package_id]
@@ -875,7 +872,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
 
             const selectedSubPackages = [];
 
-            // Insert package-subpackage pairs into flattened table
             for (const sub of sub_packages) {
                 const subpackage_id = sub.sub_package_id;
 
@@ -893,7 +889,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
                     );
                 }
 
-                // Add for email
                 const [subRow] = await connection.query(
                     `SELECT itemName FROM package_items WHERE item_id = ?`,
                     [subpackage_id]
@@ -914,45 +909,11 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         await connection.commit();
         connection.release();
 
-        // ✅ Send vendor notification email
-        try {
-            const transporter = nodemailer.createTransport({
-                service: "gmail",
-                auth: {
-                    user: process.env.EMAIL_USER,
-                    pass: process.env.EMAIL_PASS
-                }
-            });
+        // ✅ Trigger helper function in background (no await)
+        sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned })
+            .catch(err => console.error("⚠️ Email send failed (background):", err.message));
 
-            const emailHtml = `
-                <p>Dear ${vendorData.vendorName},</p>
-                <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
-                <ul>
-                    ${newlyAssigned.map(p => `
-                        <li>
-                            <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
-                            <strong>Sub-Packages:</strong>
-                            ${p.selected_subpackages.length > 0
-                    ? p.selected_subpackages.map(sp => `${sp.name} (ID: ${sp.id})`).join(", ")
-                    : "None"}
-                        </li>
-                    `).join("")}
-                </ul>
-                <p>You can now manage and offer these packages from your dashboard.</p>
-            `;
-
-            await transporter.sendMail({
-                from: `"Admin Team" <${process.env.EMAIL_USER}>`,
-                to: vendorData.vendorEmail,
-                subject: "New Packages Assigned to You",
-                html: emailHtml
-            });
-
-            console.log("✅ Vendor notification email sent successfully.");
-        } catch (mailErr) {
-            console.error("⚠️ Failed to send vendor email:", mailErr.message);
-        }
-
+        // ✅ Respond immediately
         res.status(200).json({
             message: "Packages successfully assigned to vendor"
         });
