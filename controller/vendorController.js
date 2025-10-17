@@ -728,7 +728,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         );
 
         if (assignedRows.length === 0) {
-            return res.status(200).json({
+            return res.status(200).json({ 
                 message: "No packages assigned to this vendor",
                 result: []
             });
