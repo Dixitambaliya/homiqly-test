@@ -1212,15 +1212,9 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found or not owned by this vendor" });
         }
 
-        // ✅ Delete related sub-packages first
-        await connection.query(
-            `DELETE FROM vendor_package_items WHERE vendor_packages_id = ?`,
-            [vendor_packages_id]
-        );
-
         // ✅ Delete the vendor package
         await connection.query(
-            `DELETE FROM vendor_packages WHERE vendor_packages_id = ? AND vendor_id = ?`,
+            `DELETE FROM vendor_package_items_flat WHERE vendor_packages_id = ? AND vendor_id = ?`,
             [vendor_packages_id, vendorId]
         );
 
