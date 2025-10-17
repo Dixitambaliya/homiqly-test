@@ -228,7 +228,7 @@ const updateCartDetails = asyncHandler(async (req, res) => {
                     return res.status(400).json({ message: "Promo code has reached its max usage" });
                 }
                 if (totalAmount < parseFloat(userPromo.minSpend || 0)) {
-                    return res.status(400).json({ message: `Does not the promo's minimum spend of ${userPromo.minSpend}` });
+                    return res.status(400).json({ message: `You need to spend at least ${userPromo.minSpend} to use this promo code` });
                 }
                 userPromoCodeId = userPromo.user_promo_code_id;
                 promoDetails = { ...userPromo, source_type: 'admin' };
