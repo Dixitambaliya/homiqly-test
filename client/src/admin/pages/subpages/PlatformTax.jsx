@@ -6,6 +6,7 @@ import { Button, IconButton } from "../../../shared/components/Button";
 import Modal from "../../../shared/components/Modal/Modal";
 import { FormInput } from "../../../shared/components/Form";
 import DataTable from "../../../shared/components/Table/DataTable";
+import UniversalDeleteModal from "../../../shared/components/Modal/UniversalDeleteModal";
 
 /**
  * TaxesTable
@@ -22,7 +23,6 @@ function TaxesTable({ taxes = [], isLoading = false, onEdit, onDelete }) {
       title: "#",
       key: "index",
       render: (row) => {
-        // compute 1-based index from array (works even if DataTable doesn't pass index)
         const idx = taxes.indexOf(row);
         return <div className="text-sm">{idx >= 0 ? idx + 1 : "-"}</div>;
       },
@@ -36,7 +36,9 @@ function TaxesTable({ taxes = [], isLoading = false, onEdit, onDelete }) {
       title: "Percentage",
       key: "taxPercentage",
       render: (row) => (
-        <div className="text-sm">{row.taxPercentage ?? row.tax_percentage ?? "-"}</div>
+        <div className="text-sm">
+          {row.taxPercentage ?? row.tax_percentage ?? "-"}
+        </div>
       ),
     },
     {
@@ -87,8 +89,6 @@ function TaxesTable({ taxes = [], isLoading = false, onEdit, onDelete }) {
         data={taxes}
         isLoading={isLoading}
         emptyMessage="No taxes yet"
-        // onRowClick could be passed here if you want click-to-edit:
-        // onRowClick={(row) => onEdit && onEdit(row)}
       />
     </div>
   );
@@ -108,6 +108,12 @@ export default function PlatformTax() {
   const [form, setForm] = useState({ taxName: "", taxPercentage: "" });
   const [editingId, setEditingId] = useState(null);
 
+  // delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAction, setDeleteAction] = useState(null);
+  const [deletingTax, setDeletingTax] = useState(null);
+
   useEffect(() => {
     fetchTaxes();
   }, []);
@@ -116,7 +122,10 @@ export default function PlatformTax() {
     try {
       setLoading(true);
       const res = await api.get("/api/tax/getservicetax");
-      setTaxes(res.data || []);
+      // The API might return { data: [...] } or an array directly — adapt as needed
+      setTaxes(
+        Array.isArray(res.data) ? res.data : res.data?.taxes ?? res.data ?? []
+      );
     } catch (err) {
       console.error(err);
       setError("Unable to fetch taxes");
@@ -171,19 +180,38 @@ export default function PlatformTax() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm("Are you sure you want to delete this tax?")) return;
-    try {
-      setLoading(true);
-      await api.delete(`/api/tax/deletetax/${id}`);
-      await fetchTaxes();
-    } catch (err) {
-      console.error(err);
-      setError("Delete failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+  // NEW: open delete modal and bind action
+  const handleDeleteClick = (id) => {
+    // find tax object for description
+    const tax = taxes.find(
+      (t) => (t.service_taxes_id ?? t.id ?? t.taxId) === id
+    );
+    setDeletingTax(tax ?? { id });
+    setShowDeleteModal(true);
+
+    setDeleteAction(() => async () => {
+      try {
+        setDeleting(true);
+        await api.delete(`/api/tax/deletetax/${id}`);
+        // refresh list
+        await fetchTaxes();
+      } catch (err) {
+        console.error("Delete failed", err);
+        throw err; // rethrow so modal's onError can catch it if provided
+      } finally {
+        setDeleting(false);
+        setShowDeleteModal(false);
+        setDeleteAction(null);
+        setDeletingTax(null);
+      }
+    });
+  };
+
+  const deleteDesc = deletingTax
+    ? `Delete tax "${deletingTax.taxName ?? deletingTax.name ?? ""}" (ID: ${
+        deletingTax.service_taxes_id ?? deletingTax.id ?? "unknown"
+      })? This action cannot be undone.`
+    : "Are you sure you want to delete this tax?";
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -201,12 +229,16 @@ export default function PlatformTax() {
         taxes={taxes}
         isLoading={loading}
         onEdit={openEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
       />
 
       {/* Modal - simple implementation */}
       {isOpen && (
-        <Modal isOpen={isOpen} onClose={closeModal} title={isEditing ? "Edit Tax" : "Create Tax"}>
+        <Modal
+          isOpen={isOpen}
+          onClose={closeModal}
+          title={isEditing ? "Edit Tax" : "Create Tax"}
+        >
           <div className="">
             <form onSubmit={handleSubmit} className="space-y-4 p-3">
               <div>
@@ -236,13 +268,37 @@ export default function PlatformTax() {
                   Cancel
                 </Button>
                 <Button type="submit">
-                  {loading ? "Saving..." : isEditing ? "Save changes" : "Create"}
+                  {loading
+                    ? "Saving..."
+                    : isEditing
+                    ? "Save changes"
+                    : "Create"}
                 </Button>
               </div>
             </form>
           </div>
         </Modal>
       )}
+
+      {/* Universal delete modal */}
+      <UniversalDeleteModal
+        open={showDeleteModal}
+        onClose={() => {
+          if (!deleting) {
+            setShowDeleteModal(false);
+            setDeleteAction(null);
+            setDeletingTax(null);
+          }
+        }}
+        onDelete={deleteAction}
+        title="Delete Tax"
+        desc={deleteDesc}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onError={(err) => {
+          setError("Delete failed");
+        }}
+      />
     </div>
   );
 }

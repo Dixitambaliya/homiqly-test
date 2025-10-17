@@ -5,6 +5,7 @@ import Button from "../../../shared/components/Button/Button";
 import { FormInput } from "../../../shared/components/Form";
 import { IconButton } from "../../../shared/components/Button";
 import { Delete, Trash2 } from "lucide-react";
+import UniversalDeleteModal from "../../../shared/components/Modal/UniversalDeleteModal";
 
 const ServiceCities = () => {
   const [cityInput, setCityInput] = useState("");
@@ -13,13 +14,17 @@ const ServiceCities = () => {
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
 
+  // delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAction, setDeleteAction] = useState(null);
+  const [deletingCity, setDeletingCity] = useState(null);
+
   const fetchCities = async () => {
     try {
       setLoading(true);
       const res = await api.get("/api/service/getcity");
-      // Support either { city: [] } OR [] directly
       const list = Array.isArray(res.data?.city) ? res.data.city : res.data;
-      // console.log(res.data.city);
       setCities(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error("fetchCities error:", err);
@@ -48,23 +53,31 @@ const ServiceCities = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!id) {
-      toast.error("Invalid city id");
-      return;
-    }
-    if (!window.confirm("Are you sure you want to delete this city?")) return;
-    try {
-      setLoading(true);
-      await api.delete(`/api/service/deleteservicecity/${id}`);
-      toast.success("City deleted");
-      await fetchCities();
-    } catch (err) {
-      console.error("delete city error:", err);
-      toast.error(err?.response?.data?.message || "Failed to delete city");
-    } finally {
-      setLoading(false);
-    }
+  // open delete modal and bind delete action for a city id
+  const confirmDeleteCity = (city) => {
+    if (!city) return;
+    const id = city.service_city_id ?? city.id;
+    setDeletingCity(city);
+    setShowDeleteModal(true);
+
+    setDeleteAction(() => async () => {
+      if (!id) throw new Error("Invalid city id");
+      try {
+        setDeleting(true);
+        await api.delete(`/api/service/deleteservicecity/${id}`);
+        toast.success("City deleted");
+        await fetchCities();
+      } catch (err) {
+        console.error("delete city error:", err);
+        toast.error(err?.response?.data?.message || "Failed to delete city");
+        throw err; // rethrow so modal handlers can react if needed
+      } finally {
+        setDeleting(false);
+        setShowDeleteModal(false);
+        setDeleteAction(null);
+        setDeletingCity(null);
+      }
+    });
   };
 
   useEffect(() => {
@@ -78,6 +91,12 @@ const ServiceCities = () => {
       (c.serviceCity || c.city || "").toLowerCase().includes(q)
     );
   }, [cities, query]);
+
+  const deleteDesc = deletingCity
+    ? `Delete city "${deletingCity.serviceCity ?? deletingCity.city}" (ID: ${
+        deletingCity.service_city_id ?? deletingCity.id
+      })? This action cannot be undone.`
+    : "Are you sure you want to delete this city?";
 
   return (
     <div className="max-w-3xl mx-auto mt-12 p-6 bg-white shadow rounded-lg border border-gray-200">
@@ -158,7 +177,7 @@ const ServiceCities = () => {
                   <td className="px-4 py-3">
                     <IconButton
                       size="xs"
-                      onClick={() => handleDelete(c.service_city_id)}
+                      onClick={() => confirmDeleteCity(c)}
                       variant="lightDanger"
                       icon={<Trash2 className="w-4 h-4" />}
                     />
@@ -169,6 +188,26 @@ const ServiceCities = () => {
           </table>
         </div>
       )}
+
+      {/* Universal Delete Modal */}
+      <UniversalDeleteModal
+        open={showDeleteModal}
+        onClose={() => {
+          if (!deleting) {
+            setShowDeleteModal(false);
+            setDeleteAction(null);
+            setDeletingCity(null);
+          }
+        }}
+        onDelete={deleteAction}
+        title="Delete City"
+        desc={deleteDesc}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onError={(err) => {
+          toast.error(err?.message || "Delete failed");
+        }}
+      />
     </div>
   );
 };

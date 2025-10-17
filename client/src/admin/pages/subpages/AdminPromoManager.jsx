@@ -7,6 +7,7 @@ import { Button, IconButton } from "../../../shared/components/Button";
 import Modal from "../../../shared/components/Modal/Modal";
 import PromosTable from "../../components/Tables/PromosTable";
 import FormSelect from "../../../shared/components/Form/FormSelect";
+import UniversalDeleteModal from "../../../shared/components/Modal/UniversalDeleteModal";
 
 /**
  * AdminPromoManager (JSX)
@@ -34,6 +35,12 @@ export default function AdminPromoManager() {
 
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
+
+  // delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAction, setDeleteAction] = useState(null);
+  const [deletingPromo, setDeletingPromo] = useState(null);
 
   useEffect(() => {
     fetchPromos();
@@ -133,34 +140,22 @@ export default function AdminPromoManager() {
     setModalOpen(false);
   }
 
-  /**
-   * Flexible handleChange
-   * - Accepts native events (e.target.name & e.target.value)
-   * - Accepts object like { name, value }
-   * - Accepts (name, value) signature
-   */
   function handleChange(eOrName, maybeValue) {
     let name, value;
 
-    // native event
     if (eOrName && eOrName.target) {
       name = eOrName.target.name;
       value = eOrName.target.value;
-    }
-    // object with name/value
-    else if (eOrName && typeof eOrName === "object" && "name" in eOrName) {
+    } else if (eOrName && typeof eOrName === "object" && "name" in eOrName) {
       name = eOrName.name;
       value = eOrName.value;
-    }
-    // (name, value)
-    else if (typeof eOrName === "string") {
+    } else if (typeof eOrName === "string") {
       name = eOrName;
       value = maybeValue;
     } else {
       return;
     }
 
-    // if switching to 'system' we clear the fields that should be hidden
     if (name === "source_type") {
       if (value === "system") {
         setForm((s) => ({
@@ -232,35 +227,40 @@ export default function AdminPromoManager() {
     }
   }
 
-  async function handleDelete(p) {
-    if (
-      !confirm(`Delete promo code '${p.code}'? This action cannot be undone.`)
-    )
-      return;
-    try {
+  // NEW: open delete modal and bind action
+  const handleDeleteClick = (p) => {
+    if (!p) return;
+    setDeletingPromo(p);
+    setShowDeleteModal(true);
+
+    setDeleteAction(() => async () => {
       const id = p.promo_id || p.id;
-      if (!id) {
-        toast.error("Promo id not found");
-        return;
-      }
+      if (!id) throw new Error("Promo id not found");
 
       const payload = {
         source_type: p?.source_type ?? form?.source_type ?? "admin",
       };
 
-      const res = await axios.delete(`/api/deletecode/${id}`, {
-        data: payload,
-      });
-
-      console.log("delete response:", res?.status, res?.data);
-
-      toast.success(res?.data?.message || "Promo code deleted successfully");
-      fetchPromos();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete");
-    }
-  }
+      try {
+        setDeleting(true);
+        const res = await axios.delete(`/api/deletecode/${id}`, {
+          data: payload,
+        });
+        toast.success(res?.data?.message || "Promo code deleted successfully");
+        await fetchPromos();
+      } catch (err) {
+        console.error("delete promo error:", err);
+        const message = err?.response?.data?.message || "Failed to delete";
+        toast.error(message);
+        throw err; // rethrow so modal's onError can catch it if provided
+      } finally {
+        setDeleting(false);
+        setShowDeleteModal(false);
+        setDeleteAction(null);
+        setDeletingPromo(null);
+      }
+    });
+  };
 
   const filtered = promos.filter((p) => {
     if (!search) return true;
@@ -270,6 +270,12 @@ export default function AdminPromoManager() {
       dv.toLowerCase().includes(search.toLowerCase())
     );
   });
+
+  const deleteDesc = deletingPromo
+    ? `Delete promo code "${deletingPromo.code}" (ID: ${
+        deletingPromo.promo_id ?? deletingPromo.id
+      })? This action cannot be undone.`
+    : "Are you sure you want to delete this promo code?";
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
@@ -320,7 +326,7 @@ export default function AdminPromoManager() {
           promos={filtered}
           isLoading={loading}
           onEdit={openEditModal}
-          onDelete={handleDelete}
+          onDelete={handleDeleteClick} // now opens delete modal
         />
 
         <Modal
@@ -459,6 +465,26 @@ export default function AdminPromoManager() {
             </div>
           </form>
         </Modal>
+
+        {/* Universal delete modal */}
+        <UniversalDeleteModal
+          open={showDeleteModal}
+          onClose={() => {
+            if (!deleting) {
+              setShowDeleteModal(false);
+              setDeleteAction(null);
+              setDeletingPromo(null);
+            }
+          }}
+          onDelete={deleteAction}
+          title="Delete Promo"
+          desc={deleteDesc}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onError={(err) => {
+            toast.error(err?.message || "Delete failed");
+          }}
+        />
       </div>
     </div>
   );

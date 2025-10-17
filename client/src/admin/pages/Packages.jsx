@@ -8,6 +8,7 @@ import EditPackageModal from "../components/Modals/EditPackageModal";
 import FormSelect from "../../shared/components/Form/FormSelect";
 import { FormInput } from "../../shared/components/Form";
 import { Search, X } from "lucide-react";
+import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 
 /* ---------- small helpers ---------- */
 const safeSrc = (src) => (typeof src === "string" ? src.trim() : "");
@@ -291,12 +292,11 @@ function PackageDetailsModal({ packageId, isOpen, onClose }) {
           </h3>
           <div className="flex items-center gap-3">
             <IconButton
-              icon={<X className="w-4 h-4"/>}
+              icon={<X className="w-4 h-4" />}
               size="sm"
               variant="ghost"
               onClick={onClose}
-            >
-            </IconButton>
+            ></IconButton>
           </div>
         </div>
 
@@ -341,6 +341,12 @@ export default function Packages() {
   const [categories, setCategories] = useState([]);
   const [detailsModalPkgId, setDetailsModalPkgId] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAction, setDeleteAction] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(null); // { type: 'package', item: {...} }
 
   // transforms raw list (array of package objects) into grouped services
   const transformListToServices = (list) => {
@@ -451,20 +457,43 @@ export default function Packages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDeletePackage = useCallback(
-    async (packageId) => {
-      if (!window.confirm("Are you sure you want to delete this package?"))
-        return;
+  const handleDeleteClick = (type, item) => {
+    // Only "package" supported here but kept type for extensibility
+    setDeletingItem({ type, item });
+    setShowDeleteModal(true);
+
+    setDeleteAction(() => async () => {
+      if (!item) return;
       try {
-        await api.delete(`/api/admin/deletepackage/${packageId}`);
-        // re-fetch the light list
-        await fetchPackages();
+        setDeleting(true);
+        // call API depending on type
+        if (type === "package") {
+          const packageId = item.package_id ?? item.packageId ?? item.id;
+          await api.delete(`/api/admin/deletepackage/${packageId}`);
+          // refresh packages list after delete
+          await fetchPackages();
+        } else {
+          // future types can be added here
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to delete:", err);
+      } finally {
+        setDeleting(false);
+        setShowDeleteModal(false);
+        setDeleteAction(null);
+        setDeletingItem(null);
       }
-    },
-    [fetchPackages]
-  );
+    });
+  };
+
+  const deleteDesc = useMemo(() => {
+    if (!deletingItem) return "Are you sure you want to delete this package?";
+    const pkg = deletingItem.item || {};
+    const name =
+      pkg.packageName ?? pkg.package_name ?? `#${pkg.package_id ?? pkg.id}`;
+    const id = pkg.package_id ?? pkg.packageId ?? pkg.id;
+    return `Are you sure you want to delete "${name}" (Package ID: ${id})? This action cannot be undone.`;
+  }, [deletingItem]);
 
   const openDetails = useCallback((pkgId) => {
     setDetailsModalPkgId(pkgId);
@@ -641,7 +670,11 @@ export default function Packages() {
                                       size="sm"
                                       variant="lightError"
                                       onClick={() =>
-                                        handleDeletePackage(pkg.package_id)
+                                        handleDeleteClick("package", {
+                                          package_id: pkg.package_id,
+                                          packageName: pkg.packageName,
+                                          id: pkg.package_id,
+                                        })
                                       }
                                       icon={<FiTrash2 />}
                                     >
@@ -695,6 +728,25 @@ export default function Packages() {
         packageId={detailsModalPkgId}
         isOpen={isDetailsOpen}
         onClose={closeDetails}
+      />
+
+      <UniversalDeleteModal
+        open={showDeleteModal}
+        onClose={() => {
+          if (!deleting) {
+            setShowDeleteModal(false);
+            setDeleteAction(null);
+            setDeletingItem(null);
+          }
+        }}
+        onDelete={deleteAction}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onError={(err) => {
+          console.error("Delete error:", err);
+        }}
+        title="Delete Package"
+        desc={deleteDesc}
       />
     </div>
   );

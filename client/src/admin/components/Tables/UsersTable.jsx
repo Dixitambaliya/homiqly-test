@@ -67,15 +67,6 @@ const UsersTable = ({ users, isLoading, onViewUser, onEditUser, onDelete }) => {
       render: (row) => (
         <div className="flex items-center justify-end space-x-2">
           <IconButton
-            icon={<FiEye />}
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewUser(row);
-            }}
-            tooltip="View details"
-          />
-          <IconButton
             icon={<MdEdit />}
             onClick={(e) => {
               e.stopPropagation();
@@ -89,7 +80,7 @@ const UsersTable = ({ users, isLoading, onViewUser, onEditUser, onDelete }) => {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete(row.user_id);
+               onDelete(row.user_id);
             }}
             tooltip="Delete user"
           />
