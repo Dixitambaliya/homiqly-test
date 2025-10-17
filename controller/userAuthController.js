@@ -79,7 +79,6 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 });
 
-
 const verifyCode = asyncHandler(async (req, res) => {
     const { email, otp } = req.body;
 
@@ -219,7 +218,6 @@ const loginUser = asyncHandler(async (req, res) => {
     }
 });
 
-
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;
 
@@ -341,6 +339,13 @@ const googleLogin = asyncHandler(async (req, res) => {
             return res.status(403).json({
                 error: "This email is registered with a password. Please log in using your email and password.",
             });
+        }
+        // Optional: Assign welcome code
+        let welcomeCode = null;
+        try {
+            welcomeCode = await assignWelcomeCode(user_id, email);
+        } catch (err) {
+            console.error("❌ Auto-assign welcome code error:", err.message);
         }
 
         // 3️⃣ If password is empty → it's a Google account → allow login
