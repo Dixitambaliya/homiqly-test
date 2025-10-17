@@ -278,6 +278,7 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -301,7 +302,17 @@ const addUserData = asyncHandler(async (req, res) => {
             return res.status(403).json({ message: "Phone not verified. You cannot update data yet." });
         }
 
-        // 3️⃣ Update user data
+        // 3️⃣ Check if phone number already exists for another user
+        const [phoneCheck] = await db.query(
+            `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
+            [phone, user_id]
+        );
+
+        if (phoneCheck.length > 0) {
+            return res.status(409).json({ message: "Phone number already exists" });
+        }
+
+        // 4️⃣ Update user data
         await db.query(
             `UPDATE users 
              SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ? 
@@ -317,6 +328,8 @@ const addUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
