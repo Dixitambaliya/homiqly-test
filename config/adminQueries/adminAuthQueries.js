@@ -12,6 +12,9 @@ const adminAuthQueries = {
 
     resetAdminPassword: `UPDATE admin SET password = ? WHERE email = ?`,
 
+    resetAdminPasswordById: "UPDATE admin SET password = ? WHERE admin_id = ?"
+
+
 }
 
 module.exports = adminAuthQueries;

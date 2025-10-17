@@ -5,6 +5,7 @@ const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const { assignWelcomeCode } = require("./promoCode");
+const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail } = require("../config/mailer");
 
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
@@ -21,11 +22,10 @@ const transport = nodemailer.createTransport({
     },
 });
 
-// Create User
 const registerUser = asyncHandler(async (req, res) => {
     const { firstname, lastname, email, phone } = req.body;
 
-    if (!firstname || !email || !lastname || !phone) {
+    if (!firstname || !lastname || !email || !phone) {
         return res.status(400).json({ error: "All fields are required" });
     }
 
@@ -35,14 +35,26 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [
-            email,
-        ]);
-        if (existingUser.length > 0) {
-            return res.status(400).json({ error: "Email already exists" });
+        // 🔍 Check if user already exists
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+        if (existingUsers.length > 0) {
+            const existingUser = existingUsers[0];
+
+            // 🧩 Case 1: Account created via Google (no password)
+            if (!existingUser.password) {
+                return res.status(400).json({
+                    error: "This email is linked to a Google account. Please log in using Google.",
+                });
+            }
+
+            // 🧩 Case 2: Account exists with password (normal user)
+            return res.status(400).json({
+                error: "Email already exists. Please log in instead.",
+            });
         }
 
-        // Save only name/email (no password yet)
+        // 🟢 Create new user (no password yet)
         const [result] = await db.query(userAuthQueries.userInsert1, [
             firstname,
             lastname,
@@ -50,16 +62,12 @@ const registerUser = asyncHandler(async (req, res) => {
             phone,
         ]);
 
-        // Generate code and send
+        // Generate and store OTP
         const code = generateResetCode();
         resetCodes.set(email, { code, expiresAt: Date.now() + RESET_EXPIRATION });
 
-        await transport.sendMail({
-            from: `"Support" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: "Verify Your Email - Registration",
-            text: `Hi ${firstname}, your verification code is: ${code}`,
-        });
+        // Send email
+        sendUserVerificationMail({ firstname, userEmail: email, code }).catch(console.error);
 
         res.status(200).json({
             message: "Verification code sent to email.",
@@ -135,7 +143,6 @@ const setPassword = asyncHandler(async (req, res) => {
     }
 });
 
-// User Login
 const loginUser = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
 
@@ -152,20 +159,20 @@ const loginUser = asyncHandler(async (req, res) => {
 
         const user = loginUser[0];
 
-        // Safe check before bcrypt.compare
-        if (!user.password || typeof user.password !== "string") {
-            return res
-                .status(400)
-                .json({ error: "Password not set. Please reset your password." });
+        // 🧩 Check if user registered via Google (no password stored)
+        if (!user.password) {
+            return res.status(400).json({
+                error: "This account was created using Google. Please log in using Google.",
+            });
         }
 
+        // 🧩 Compare password
         const isPasswordValid = await bcrypt.compare(password, user.password);
-
         if (!isPasswordValid) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
-        // Optional: Update FCM token
+        // 🧩 Update FCM token if needed
         if (fcmToken && typeof fcmToken === "string" && fcmToken.trim() !== "") {
             const trimmedToken = fcmToken.trim();
 
@@ -178,12 +185,10 @@ const loginUser = asyncHandler(async (req, res) => {
                 } catch (err) {
                     console.error("❌ FCM token update error:", err.message);
                 }
-            } else {
-                console.log("ℹ️ FCM token already up-to-date for user:", user.user_id);
             }
         }
 
-        // Auto-assign welcome code if available
+        // 🧩 Assign welcome code if not already assigned
         let welcomeCode = null;
         try {
             welcomeCode = await assignWelcomeCode(user.user_id, user.email);
@@ -191,6 +196,7 @@ const loginUser = asyncHandler(async (req, res) => {
             console.error("❌ Auto-assign welcome code error:", err.message);
         }
 
+        // 🧩 Generate JWT
         const token = jwt.sign(
             {
                 user_id: user.user_id,
@@ -204,14 +210,13 @@ const loginUser = asyncHandler(async (req, res) => {
             message: "Login successful",
             user_id: user.user_id,
             token,
-            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
+            ...(welcomeCode && { welcomeCode }),
         });
     } catch (err) {
         console.error("Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
-
 
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;
@@ -225,7 +230,6 @@ const requestReset = asyncHandler(async (req, res) => {
 
     try {
         const [user] = await db.query(userAuthQueries.GetUserOnMail, [email]);
-
         if (!user || user.length === 0) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -234,12 +238,8 @@ const requestReset = asyncHandler(async (req, res) => {
         const expires = Date.now() + RESET_EXPIRATION;
         resetCodes.set(email, { code, expires });
 
-        await transport.sendMail({
-            from: `"Support" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: "Password Reset Code",
-            text: `Your password reset code is: ${code}. It expires in 5 minutes.`,
-        });
+        // ✅ Use helper for email
+        sendPasswordResetCodeMail({ userEmail: email, code }).catch(console.error);
 
         res.status(200).json({ message: "Reset code sent to email." });
     } catch (err) {
@@ -291,81 +291,74 @@ const resetPassword = asyncHandler(async (req, res) => {
         const email = decoded.email;
 
         const hashed = await bcrypt.hash(password, 10);
-        const [result] = await db.query(userAuthQueries.PasswordUpdate, [
-            hashed,
-            email,
-        ]);
+        const [result] = await db.query(userAuthQueries.PasswordUpdate, [hashed, email]);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: "User not found" });
         }
 
+        // fetch user info for email
+        const [[user]] = await db.query(
+            "SELECT CONCAT(firstName, ' ', lastName) AS userName, email AS userEmail FROM users WHERE email = ?",
+            [email]
+        );
+
+        // send email asynchronously (don’t block response)
+        sendPasswordUpdatedMail({
+            userName: user?.userName || "User",
+            userEmail: user?.userEmail || email,
+        }).catch(console.error);
+
         res.status(200).json({ message: "Password reset successfully" });
     } catch (err) {
         console.error("Reset Error:", err);
-        res
-            .status(400)
-            .json({ error: "Invalid or expired token", details: err.message });
+        res.status(400).json({ error: "Invalid or expired token", details: err.message });
     }
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-    const { email, name, picture, fcmToken } = req.body;
+    const { email, fcmToken } = req.body;
 
     if (!email) {
         return res.status(400).json({ error: "Email is required" });
     }
 
-    // Split name
-    const [given_name = "", family_name = ""] = name?.split(" ") || [];
-
     try {
-        // Check if user already exists
-        const [existingUser] = await db.query(userAuthQueries.userMailCheck, [email]);
+        // 1️⃣ Check if user exists
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
 
-        let user;
-        let user_id;
-
-        if (!existingUser || existingUser.length === 0) {
-            // First-time user: insert into DB
-            const [result] = await db.query(userAuthQueries.userInsert, [
-                given_name,
-                family_name,
-                email,
-                null,        // phone
-                picture,
-                fcmToken
-            ]);
-            user_id = result.insertId;
-
-            // Fetch the inserted user
-            const [[newUser]] = await db.query(userAuthQueries.userMailCheck, [email]);
-            user = newUser;
-        } else {
-            user = existingUser[0];
-            user_id = user.user_id;
-
-            // ✅ Update FCM token if provided and changed
-            if (fcmToken && fcmToken !== user.fcmToken) {
-                try {
-                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
-                } catch (err) {
-                    console.error("❌ FCM token update error:", err.message);
-                }
-            } else {
-                console.log("ℹ️ FCM token already up-to-date for user:", user_id);
-            }
+        if (!existingUsers || existingUsers.length === 0) {
+            return res.status(404).json({ error: "User not found. Please sign up first." });
         }
 
-        // Auto-assign welcome code if available
+        const user = existingUsers[0];
+        const user_id = user.user_id;
+
+        // 2️⃣ If user has password → must log in using email/password
+        if (user.password && user.password.trim() !== "") {
+            return res.status(403).json({
+                error: "This email is registered with a password. Please log in using your email and password.",
+            });
+        }
+        // Optional: Assign welcome code
         let welcomeCode = null;
         try {
             welcomeCode = await assignWelcomeCode(user_id, email);
-
         } catch (err) {
             console.error("❌ Auto-assign welcome code error:", err.message);
         }
 
+        // 3️⃣ If password is empty → it's a Google account → allow login
+        // Update FCM token if changed
+        if (fcmToken && fcmToken !== user.fcmToken) {
+            try {
+                await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
+            } catch (err) {
+                console.error("❌ FCM token update error:", err.message);
+            }
+        }
+
+        // 4️⃣ Generate JWT
         const token = jwt.sign(
             {
                 user_id: user.user_id,
@@ -373,16 +366,113 @@ const googleLogin = asyncHandler(async (req, res) => {
                 status: user.status || "active",
             },
             process.env.JWT_SECRET
+            // { expiresIn: "30d" }
         );
 
         res.status(200).json({
             message: "Login successful via Google",
             user_id: user.user_id,
             token,
-            ...(welcomeCode && { welcomeCode }), // Include welcome code if assigned
         });
     } catch (err) {
         console.error("Google Login Error:", err);
+        res.status(500).json({ error: "Server error", details: err.message });
+    }
+});
+
+const googleSignup = asyncHandler(async (req, res) => {
+    const { email, name, picture, fcmToken } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+    }
+
+    const [given_name = "", family_name = ""] = name?.split(" ") || [];
+
+    try {
+        // ✅ Check if user already exists
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+        // 🟠 If user exists
+        if (existingUsers.length > 0) {
+            const user = existingUsers[0];
+
+            // 🚫 If the user has a password → normal login account → reject
+            if (user.password && user.password.trim() !== "") {
+                return res.status(409).json({
+                    error: "This email is registered with a password. Please log in using email and password.",
+                });
+            }
+
+            // 🟢 If user exists but password is empty → login via Google
+            const token = jwt.sign(
+                {
+                    user_id: user.user_id,
+                    email: user.email,
+                    status: user.status || "active",
+                },
+                process.env.JWT_SECRET
+                // { expiresIn: "30d" }
+            );
+
+            // Optional: Update FCM token if changed
+            if (fcmToken && fcmToken !== user.fcmToken) {
+                try {
+                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user.user_id]);
+                } catch (err) {
+                    console.error("❌ FCM token update error:", err.message);
+                }
+            }
+
+            return res.status(200).json({
+                message: "Login successful via Google",
+                user_id: user.user_id,
+                token,
+            });
+        }
+
+        // 🟢 If user not found → create new Google user
+        const [result] = await db.query(userAuthQueries.userInsert, [
+            given_name,
+            family_name,
+            email,
+            null, // phone
+            picture,
+            fcmToken || null
+        ]);
+
+        const user_id = result.insertId;
+
+        // Fetch the inserted user
+        const [[newUser]] = await db.query(userAuthQueries.userMailCheck, [email]);
+
+        // Optional: Assign welcome code
+        let welcomeCode = null;
+        try {
+            welcomeCode = await assignWelcomeCode(user_id, email);
+        } catch (err) {
+            console.error("❌ Auto-assign welcome code error:", err.message);
+        }
+
+        // Generate JWT
+        const token = jwt.sign(
+            {
+                user_id: newUser.user_id,
+                email: newUser.email,
+                status: newUser.status || "active",
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "30d" }
+        );
+
+        res.status(201).json({
+            message: "Signup successful via Google",
+            user_id: newUser.user_id,
+            token,
+            ...(welcomeCode && { welcomeCode }),
+        });
+    } catch (err) {
+        console.error("Google Signup Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
@@ -398,5 +488,6 @@ module.exports = {
     requestReset,
     verifyResetCode,
     resetPassword,
-    googleLogin
+    googleLogin,
+    googleSignup
 };

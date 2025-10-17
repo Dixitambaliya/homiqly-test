@@ -9,12 +9,15 @@ const { loginAdmin,
     loginUpdateAdmin
 } = require("../controller/adminAuthContoller")
 
+const { authenticationToken } = require('../middleware/authMiddleware');
+
+
 router.post("/register", registerAdmin)
 router.post("/login", loginAdmin)
 router.post("/requestreset", requestResetAdmin)
 router.post("/verifyresetcode", verifyResetCode)
 router.post("/resetpassword", resetPassword);
-router.post("/changepassword", changeAdminPassword);
+router.patch("/changepassword", authenticationToken, changeAdminPassword);
 router.post("/loginupdate", loginUpdateAdmin);
 
 module.exports = router;

@@ -1,6 +1,9 @@
 const verificationQueries = {
 
-    vendorCheck: `SELECT vendorType FROM vendors WHERE vendor_id = ?`,
+    vendorCheck: `SELECT 
+                    vendorType 
+                    FROM vendors 
+                    WHERE vendor_id = ?`,
 
     getCompanyEmail: `SELECT companyEmail FROM company_details WHERE vendor_id = ?`,
 

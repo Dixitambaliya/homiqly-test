@@ -64,18 +64,29 @@ const getVendorPerformance = asyncHandler(async (req, res) => {
 
 const getRevenueAnalytics = asyncHandler(async (req, res) => {
     try {
-        const [revenue] = await db.query(analyticsGetQueries.getRevenueAnalytics);
+        // Fetch revenue data grouped by month/year
+        const [revenueData] = await db.query(analyticsGetQueries.getRevenueAnalytics);
+
+        // Map to only include the fields you want
+        const simplifiedRevenue = revenueData.map(r => ({
+            month: r.month,
+            year: r.year,
+            gross_revenue: r.gross_revenue,
+            commission_revenue: r.commission_revenue
+        }));
 
         res.status(200).json({
             message: "Revenue analytics fetched successfully",
-            revenue
+            revenue: simplifiedRevenue
         });
-
     } catch (error) {
         console.error("Error fetching revenue analytics:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
+
 
 module.exports = {
     getDashboardStats,
