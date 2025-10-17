@@ -278,7 +278,6 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -328,8 +327,6 @@ const addUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
@@ -521,7 +518,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -676,7 +672,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
