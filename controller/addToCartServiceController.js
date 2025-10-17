@@ -144,7 +144,6 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
     const user_id = req.user.user_id;
@@ -774,7 +773,6 @@ const getUserCart = asyncHandler(async (req, res) => {
     }
 });
 
-
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { cart_id } = req.params;
@@ -861,7 +859,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch cart row(s) for the user and service_type_id
         const [cartRows] = await db.query(
-            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.service_type_id,
+            `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.service_type_id, sc.totalTime,
                     sc.bookingStatus, sc.notes, sc.bookingMedia, sc.bookingDate, sc.bookingTime, sc.user_promo_code_id
              FROM service_cart sc
              WHERE sc.user_id = ? AND sc.service_type_id = ?`,
@@ -1039,7 +1037,6 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
-
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;

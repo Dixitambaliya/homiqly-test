@@ -1055,16 +1055,15 @@ const approveOrAssignBooking = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
-        const { date, time, package_id, sub_package_id, cart_total_time } = req.query;
+        const { date, time, package_id, sub_package_id, totalTime } = req.query;
 
-        if (!date || !time || !package_id || !sub_package_id || !cart_total_time) {
+        if (!date || !time || !package_id || !sub_package_id || !totalTime) {
             return res.status(400).json({ message: "All required parameters are needed" });
         }
 
-        const cartTotalTime = Number(cart_total_time); // requested booking duration in minutes
+        const cartTotalTime = Number(totalTime); // requested booking duration in minutes
         const vendorBreakMinutes = 60; // break after each booking
 
         // Convert package/sub-package IDs to arrays
