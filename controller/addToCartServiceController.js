@@ -160,79 +160,120 @@ const updateCartDetails = asyncHandler(async (req, res) => {
 
     try {
         let userPromoCodeId = null;
+        let promoDetails = null;
+        let promoDiscount = 0;
 
-        // 🎯 Step 1: Validate and get promo ID (either from user_promo_codes or system_promo_codes)
+        // 1️⃣ Calculate cart total dynamically
+        const [subPackages] = await db.query(
+            `SELECT cpi.cart_package_items_id, cpi.price, cpi.quantity
+             FROM cart_package_items cpi
+             WHERE cpi.cart_id = ?`,
+            [cart_id]
+        );
+
+        if (!subPackages.length) {
+            return res.status(400).json({ message: "Cart is empty" });
+        }
+
+        const cartPackageItemIds = subPackages.map(sp => sp.cart_package_items_id);
+
+        const [addons] = await db.query(
+            `SELECT ca.cart_package_items_id, ca.price
+             FROM cart_addons ca
+             WHERE ca.cart_id = ? AND ca.cart_package_items_id IN (?)`,
+            [cart_id, cartPackageItemIds]
+        );
+
+        const [preferences] = await db.query(
+            `SELECT cp.cart_package_items_id, bp.preferencePrice
+             FROM cart_preferences cp
+             JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+             WHERE cp.cart_id = ? AND cp.cart_package_items_id IN (?)`,
+            [cart_id, cartPackageItemIds]
+        );
+
+        // Map addons and prefs
+        const addonsMap = addons.reduce((acc, a) => {
+            acc[a.cart_package_items_id] = (acc[a.cart_package_items_id] || 0) + parseFloat(a.price || 0);
+            return acc;
+        }, {});
+        const prefsMap = preferences.reduce((acc, p) => {
+            acc[p.cart_package_items_id] = (acc[p.cart_package_items_id] || 0) + parseFloat(p.preferencePrice || 0);
+            return acc;
+        }, {});
+
+        // Total calculation
+        let totalAmount = 0;
+        for (const sp of subPackages) {
+            const basePrice = parseFloat(sp.price) || 0;
+            const quantity = parseInt(sp.quantity) || 1;
+            const addonTotal = addonsMap[sp.cart_package_items_id] || 0;
+            const prefTotal = prefsMap[sp.cart_package_items_id] || 0;
+            totalAmount += (basePrice + addonTotal + prefTotal) * quantity;
+        }
+
+        // 2️⃣ Validate promo code if provided
         if (promoCode && typeof promoCode === "string" && promoCode.trim() !== "") {
             // Check user promo
             const [[userPromo]] = await db.query(
-                `SELECT user_promo_code_id AS promo_id, usedCount AS used_count, maxUse AS max_use 
-                 FROM user_promo_codes 
-                 WHERE user_id = ? AND code = ? LIMIT 1`,
+                `SELECT upc.user_promo_code_id, upc.promo_id, upc.usedCount, pc.minSpend, pc.discountValue, pc.discount_type, pc.maxUse
+                 FROM user_promo_codes upc
+                 LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                 WHERE upc.user_id = ? AND upc.code = ? LIMIT 1`,
                 [user_id, promoCode]
             );
 
             if (userPromo) {
-                if (userPromo.used_count >= userPromo.max_use) {
+                if (userPromo.usedCount >= userPromo.maxUse) {
                     return res.status(400).json({ message: "Promo code has reached its max usage" });
                 }
-                userPromoCodeId = userPromo.promo_id;
+                if (totalAmount < parseFloat(userPromo.minSpend || 0)) {
+                    return res.status(400).json({ message: `Cart total does not meet promo's minimum spend of ${userPromo.minSpend}` });
+                }
+                userPromoCodeId = userPromo.user_promo_code_id;
+                promoDetails = { ...userPromo, source_type: 'admin' };
+                promoDiscount = userPromo.discount_type === 'fixed'
+                    ? parseFloat(userPromo.discountValue || 0)
+                    : totalAmount * parseFloat(userPromo.discountValue || 0) / 100;
             } else {
                 // Check system promo
                 const [[systemPromo]] = await db.query(
-                    `SELECT 
-                        spc.system_promo_code_id AS promo_id, 
-                        spc.usage_count AS used_count,
-                        spct.maxUse AS max_use
+                    `SELECT spc.system_promo_code_id, st.minSpend, st.discountValue, st.discount_type, spc.usage_count AS usedCount, st.maxUse
                      FROM system_promo_codes spc
-                     LEFT JOIN system_promo_code_templates spct 
-                     ON spc.template_id = spct.system_promo_code_template_id
-                     WHERE spct.code = ? LIMIT 1`,
+                     JOIN system_promo_code_templates st ON spc.template_id = st.system_promo_code_template_id
+                     WHERE st.code = ? LIMIT 1`,
                     [promoCode]
                 );
 
                 if (!systemPromo) {
                     return res.status(400).json({ message: "Promo code not valid" });
                 }
-
-                if (systemPromo.used_count >= systemPromo.max_use) {
+                if (systemPromo.usedCount >= systemPromo.maxUse) {
                     return res.status(400).json({ message: "Promo code has reached its max usage" });
                 }
+                if (totalAmount < parseFloat(systemPromo.minSpend || 0)) {
+                    return res.status(400).json({ message: `Does not meet promo's minimum spend of ${systemPromo.minSpend}` });
+                }
 
-                userPromoCodeId = systemPromo.promo_id;
+                userPromoCodeId = systemPromo.system_promo_code_id;
+                promoDetails = { ...systemPromo, source_type: 'system' };
+                promoDiscount = systemPromo.discount_type === 'fixed'
+                    ? parseFloat(systemPromo.discountValue || 0)
+                    : totalAmount * parseFloat(systemPromo.discountValue || 0) / 100;
             }
         }
 
-        // ✅ Step 2: Update booking details in `service_cart`
+        // 3️⃣ Update cart fields
         const fields = [];
         const values = [];
 
-        if (bookingDate !== null) {
-            fields.push("bookingDate = ?");
-            values.push(bookingDate);
-        }
-        if (bookingTime !== null) {
-            fields.push("bookingTime = ?");
-            values.push(bookingTime);
-        }
-        if (notes !== null) {
-            fields.push("notes = ?");
-            values.push(notes);
-        }
-        if (bookingMedia !== null) {
-            fields.push("bookingMedia = ?");
-            values.push(bookingMedia);
-        }
-        if (userPromoCodeId !== null) {
-            fields.push("user_promo_code_id = ?");
-            values.push(userPromoCodeId);
-        } else if (promoCode === "") {
-            fields.push("user_promo_code_id = NULL");
-        }
-
-        if (vendor_id) {
-            fields.push("vendor_id = ?");
-            values.push(vendor_id);
-        }
+        if (bookingDate !== null) { fields.push("bookingDate = ?"); values.push(bookingDate); }
+        if (bookingTime !== null) { fields.push("bookingTime = ?"); values.push(bookingTime); }
+        if (notes !== null) { fields.push("notes = ?"); values.push(notes); }
+        if (bookingMedia !== null) { fields.push("bookingMedia = ?"); values.push(bookingMedia); }
+        if (userPromoCodeId !== null) { fields.push("user_promo_code_id = ?"); values.push(userPromoCodeId); }
+        else if (promoCode === "") { fields.push("user_promo_code_id = NULL"); }
+        if (vendor_id) { fields.push("vendor_id = ?"); values.push(vendor_id); }
 
         if (fields.length > 0) {
             const query = `UPDATE service_cart SET ${fields.join(", ")} WHERE cart_id = ? AND user_id = ?`;
@@ -240,7 +281,7 @@ const updateCartDetails = asyncHandler(async (req, res) => {
             await db.query(query, values);
         }
 
-        // ❌ Step 3: If vendor not selected → log inquiry (only cart_id + user_id)
+        // 4️⃣ Handle vendor not selected → create inquiry
         if (!vendor_id) {
             const [existingInquiry] = await db.query(
                 `SELECT inquiry_id FROM admin_inquiries WHERE cart_id = ? LIMIT 1`,
@@ -259,8 +300,10 @@ const updateCartDetails = asyncHandler(async (req, res) => {
             });
         }
 
-        // ✅ Step 4: Vendor selected → normal flow
-        res.status(200).json({ message: "Cart updated successfully" });
+        // ✅ Step 5: Vendor selected → normal response
+        res.status(200).json({
+            message: "Cart updated successfully"
+        });
 
     } catch (err) {
         console.error("Cart update error:", err);
