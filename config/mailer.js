@@ -2,6 +2,7 @@
 const nodemailer = require("nodemailer");
 const { db } = require('../config/db');
 const path = require('path');
+const Resend = require("resend")
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -10,6 +11,9 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   }
 });
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 
 async function sendAdminVendorRegistrationMail({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) {
   try {
@@ -587,7 +591,7 @@ async function sendUserVerificationMail({ firstname, userEmail, code }) {
       </div>
     `;
 
-    await transporter.sendMail({
+    const data = await resend.emails.send({
       from: `"Homiqly" <${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject: "Verify Your Email - Homiqly Registration",

@@ -713,6 +713,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         // ✅ Fetch all package-subpackage pairs assigned to vendor
         const [assignedRows] = await db.query(
             `SELECT 
+                vpf.vendor_packages_id,
                 vpf.package_id,
                 vpf.package_item_id,
                 p.packageName,
