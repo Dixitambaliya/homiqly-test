@@ -2,7 +2,6 @@
 const nodemailer = require("nodemailer");
 const { db } = require('../config/db');
 const path = require('path');
-const Resend = require("resend")
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -12,7 +11,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 
 async function sendAdminVendorRegistrationMail({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) {
