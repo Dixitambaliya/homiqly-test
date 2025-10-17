@@ -1,7 +1,5 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
-const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
-
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
