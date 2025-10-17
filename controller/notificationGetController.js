@@ -47,7 +47,6 @@ const getAdminNotificationsCount = asyncHandler(async (req, res) => {
     return res.status(200).json({ count });
 });
 
-
 const getUserNotifications = asyncHandler(async (req, res) => {
     const { user_id } = req.user;
 

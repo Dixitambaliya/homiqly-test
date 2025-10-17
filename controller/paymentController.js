@@ -1,8 +1,5 @@
 const asyncHandler = require("express-async-handler");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
-const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
-
 
 const registerBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -202,7 +199,6 @@ const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
     res.json(rows);
 });
 
-
 const applyForPayout = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { requested_amount } = req.body;
@@ -302,10 +298,6 @@ const applyForPayout = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-
-
 const getVendorPayoutStatus = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -347,7 +339,6 @@ const getVendorPayoutStatus = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllPayoutRequests = asyncHandler(async (req, res) => {
     const [requests] = await db.query(`
         SELECT r.*, 
@@ -368,7 +359,6 @@ const getAllPayoutRequests = asyncHandler(async (req, res) => {
 
     res.status(200).json(requests);
 });
-
 
 const updatePayoutStatus = asyncHandler(async (req, res) => {
     const { payout_request_id } = req.params;

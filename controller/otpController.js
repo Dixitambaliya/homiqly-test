@@ -51,10 +51,6 @@ const sendOtp = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
 });
-
-
-
-
 // ---- Verify OTP ----
 const verifyOtp = asyncHandler(async (req, res) => {
     const { phone, otp, token } = req.body;

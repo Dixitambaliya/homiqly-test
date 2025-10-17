@@ -3,7 +3,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
-const nodemailer = require("nodemailer");
 const { assignWelcomeCode } = require("./promoCode");
 const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail } = require("../config/mailer");
 
@@ -13,14 +12,6 @@ const generateResetCode = () =>
     Math.floor(Math.random() * 1_000_000)
         .toString()
         .padStart(6, "0");
-
-const transport = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
 
 const registerUser = asyncHandler(async (req, res) => {
     const { firstname, lastname, email, phone } = req.body;
