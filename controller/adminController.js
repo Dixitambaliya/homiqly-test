@@ -316,7 +316,7 @@ const getBookings = asyncHandler(async (req, res) => {
         }
 
         // ===== Filter by status =====
-        if (status && [1, 2, 3, 4].includes(Number(status))) {
+        if (status && [1, 3, 4].includes(Number(status))) {
             filters += ` AND sb.bookingStatus = ?`;
             params.push(status);
         }
