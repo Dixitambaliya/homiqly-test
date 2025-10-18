@@ -302,67 +302,72 @@ const getBookings = asyncHandler(async (req, res) => {
         limit = parseInt(limit);
         const offset = (page - 1) * limit;
 
-        // ===== Base Query =====
-        let baseQuery = `
-            FROM service_booking sb
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-            LEFT JOIN packages pkg ON sb.package_id = pkg.package_id
-            LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
-            LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-            LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
-            LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
-            LEFT JOIN service_booking_preferences sp ON sb.booking_id = sp.booking_id
-            LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-            LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
-            LEFT JOIN package_consent_forms pcf ON sbc.consent_id = pcf.consent_id
-            WHERE 1=1
-        `;
+        let filters = " WHERE 1=1 ";
+        const params = [];
 
-        const queryParams = [];
-
-        // ===== Apply Filters =====
-
-        // Search by user name, email, or service name
+        // ===== Search by username, email, or service name =====
         if (search && search.trim() !== "") {
-            baseQuery += ` AND (
-                CONCAT(u.firstName, ' ', u.lastName) LIKE ?
-                OR u.email LIKE ?
+            filters += ` AND (
+                CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+                OR u.email LIKE ? 
                 OR s.serviceName LIKE ?
             )`;
-            queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
 
-        // Filter by booking status (1=pending, 2=approved/started, 3=completed, 4=cancelled)
+        // ===== Filter by status =====
         if (status && [1, 2, 3, 4].includes(Number(status))) {
-            baseQuery += ` AND sb.bookingStatus = ?`;
-            queryParams.push(status);
+            filters += ` AND sb.bookingStatus = ?`;
+            params.push(status);
         }
 
-        // Filter by booking date range
+        // ===== Filter by date range =====
         if (start_date && end_date) {
-            baseQuery += ` AND sb.bookingDate BETWEEN ? AND ?`;
-            queryParams.push(start_date, end_date);
+            filters += ` AND DATE(sb.bookingDate) BETWEEN ? AND ?`;
+            params.push(start_date, end_date);
         } else if (start_date) {
-            baseQuery += ` AND sb.bookingDate >= ?`;
-            queryParams.push(start_date);
+            filters += ` AND DATE(sb.bookingDate) >= ?`;
+            params.push(start_date);
         } else if (end_date) {
-            baseQuery += ` AND sb.bookingDate <= ?`;
-            queryParams.push(end_date);
+            filters += ` AND DATE(sb.bookingDate) <= ?`;
+            params.push(end_date);
         }
 
-        // ===== Get Total Count =====
+        // ===== Count total bookings =====
         const [[{ total }]] = await db.query(
-            `SELECT COUNT(DISTINCT sb.booking_id) AS total ${baseQuery}`,
-            queryParams
+            `SELECT COUNT(DISTINCT sb.booking_id) AS total
+             FROM service_booking sb
+             LEFT JOIN users u ON sb.user_id = u.user_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
+             ${filters}`,
+            params
         );
 
-        // ===== Get Paginated Data =====
+        // ===== Get paginated unique booking IDs =====
+        const [bookingIds] = await db.query(
+            `SELECT DISTINCT sb.booking_id
+             FROM service_booking sb
+             LEFT JOIN users u ON sb.user_id = u.user_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
+             ${filters}
+             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+             LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        if (bookingIds.length === 0) {
+            return res.status(200).json({
+                message: "No bookings found",
+                currentPage: page,
+                totalPages: 0,
+                totalRecords: 0,
+                bookings: [],
+            });
+        }
+
+        const bookingIdList = bookingIds.map(b => b.booking_id);
+
+        // ===== Fetch full booking details =====
         const [rows] = await db.query(
             `
             SELECT
@@ -414,17 +419,33 @@ const getBookings = asyncHandler(async (req, res) => {
                 sbc.consent_id,
                 pcf.question,
                 sbc.answer
-            ${baseQuery}
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            LEFT JOIN packages pkg ON sb.package_id = pkg.package_id
+            LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
+            LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+            LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
+            LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
+            LEFT JOIN service_booking_preferences sp ON sb.booking_id = sp.booking_id
+            LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+            LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
+            LEFT JOIN package_consent_forms pcf ON sbc.consent_id = pcf.consent_id
+            WHERE sb.booking_id IN (?)
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-            LIMIT ? OFFSET ?
             `,
-            [...queryParams, limit, offset]
+            [bookingIdList]
         );
 
-        // ===== Group Rows by Booking ID =====
+        // ===== Group by booking_id =====
         const bookingsMap = new Map();
 
-        rows.forEach(row => {
+        for (const row of rows) {
             let booking = bookingsMap.get(row.booking_id);
             if (!booking) {
                 booking = {
@@ -475,7 +496,6 @@ const getBookings = asyncHandler(async (req, res) => {
                     booking.packages.push(pkg);
                 }
 
-                // Items
                 if (row.item_id && !pkg.items.find(i => i.item_id === row.item_id)) {
                     pkg.items.push({
                         item_id: row.item_id,
@@ -487,7 +507,6 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Addons
                 if (row.addon_id && !pkg.addons.find(a => a.addon_id === row.addon_id)) {
                     pkg.addons.push({
                         addon_id: row.addon_id,
@@ -498,7 +517,6 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Preferences
                 if (row.preference_id && !pkg.preferences.find(p => p.preference_id === row.preference_id)) {
                     pkg.preferences.push({
                         preference_id: row.preference_id,
@@ -506,7 +524,6 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Consents
                 if (row.consent_id && !pkg.concents.find(p => p.consent_id === row.consent_id)) {
                     pkg.concents.push({
                         consent_id: row.consent_id,
@@ -515,11 +532,9 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
             }
-        });
+        }
 
         const enrichedBookings = Array.from(bookingsMap.values());
-
-        // ===== Pagination Metadata =====
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -539,6 +554,7 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
