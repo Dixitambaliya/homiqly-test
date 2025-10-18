@@ -256,7 +256,7 @@ const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
         console.error("Error fetching all employees for admin:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
-});
+}); 
 
 const updateUserByAdmin = asyncHandler(async (req, res) => {
     const { user_id } = req.params;
@@ -554,7 +554,6 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
