@@ -10,7 +10,6 @@ import {
   FiLoader,
   FiChevronRight,
   FiChevronLeft,
-  FiCheck,
 } from "react-icons/fi";
 import axios from "axios";
 import Button from "../../shared/components/Button/Button";
@@ -237,17 +236,17 @@ const Register = () => {
     <div className="bg-white rounded-lg shadow-xl max-w-4xl mx-auto p-4 max-h-[800px] overflow-y-auto">
       <div className="text-center">
         <img
-          className="w-full h-10 object-contain"
+          className="object-contain w-full h-10"
           src="/homiqly-logo.png"
           alt="logo"
         />
       </div>
-      <p className="text-center text-gray-600 font-semibold">
+      <p className="font-semibold text-center text-gray-600">
         Vendor Panel Registration
       </p>
 
-      <div className="flex flex-col justify-center items-center px-4">
-        <div className="w-full max-w-3xl  rounded-2xl p-8 bg-white">
+      <div className="flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-3xl p-8 bg-white rounded-2xl">
           {/* Stepper */}
           <div className="flex justify-between mb-8">
             {["Basic Info", "Services", "Confirm"].map((label, index) => {
@@ -280,10 +279,10 @@ const Register = () => {
           {/* Step 1 */}
           {step === 1 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-800 mb-6">
+              <h2 className="mb-6 text-lg font-semibold text-gray-800">
                 Basic Information
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <FormSelect
                     label="Vendor Type"
@@ -420,14 +419,14 @@ const Register = () => {
           {/* Step 2: Services + Global City selection */}
           {step === 2 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">
+              <h2 className="mb-3 text-lg font-semibold text-gray-800">
                 Select Packages & City
               </h2>
 
               <div className="mb-4">
                 {citiesLoading ? (
                   <div className="flex items-center">
-                    <FiLoader className="animate-spin h-5 w-5 text-primary mr-2" />
+                    <FiLoader className="w-5 h-5 mr-2 animate-spin text-primary" />
                     <span>Loading cities...</span>
                   </div>
                 ) : (
@@ -448,21 +447,21 @@ const Register = () => {
 
               {serviceLoading ? (
                 <div className="flex justify-center py-8">
-                  <FiLoader className="animate-spin h-8 w-8 text-primary" />
+                  <FiLoader className="w-8 h-8 animate-spin text-primary" />
                 </div>
               ) : (
-                <div className="space-y-6 max-h-96 overflow-y-auto pr-2">
+                <div className="pr-2 space-y-6 overflow-y-auto max-h-96">
                   {serviceCategories.map((category) => (
                     <div
                       key={category.serviceCategoryId}
-                      className="bg-gray-50 p-4 rounded-lg"
+                      className="p-4 rounded-lg bg-gray-50"
                     >
-                      <h3 className="font-semibold text-gray-800 mb-2">
+                      <h3 className="mb-2 font-semibold text-gray-800">
                         {category.categoryName}
                       </h3>
 
                       {category.services.map((service) => (
-                        <div key={service.serviceId} className="ml-4 mb-4">
+                        <div key={service.serviceId} className="mb-4 ml-4">
                           <h4 className="font-medium text-gray-700">
                             {service.title}
                           </h4>
@@ -476,7 +475,7 @@ const Register = () => {
                               return (
                                 <div
                                   key={pkg.package_id}
-                                  className="ml-6 mt-2 border-l pl-4 border-gray-300"
+                                  className="pl-4 mt-2 ml-6 border-l border-gray-300"
                                 >
                                   <p className="font-medium text-gray-600">
                                     {pkg.packageName}
@@ -505,7 +504,7 @@ const Register = () => {
                                                 sub.item_id
                                               )
                                             }
-                                            className="h-4 w-4 text-primary border-gray-300 rounded"
+                                            className="w-4 h-4 border-gray-300 rounded text-primary"
                                           />
                                           <span className="ml-2 text-sm">
                                             {sub.itemName}
@@ -537,31 +536,31 @@ const Register = () => {
           {/* Step 3: Confirmation */}
           {step === 3 && (
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+              <h2 className="mb-6 text-2xl font-semibold text-gray-900">
                 Confirm Registration
               </h2>
 
               <div className="grid grid-cols-1 gap-6">
                 {/* left: Vendor basic info card */}
-                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-lg font-medium text-gray-800">
                         Vendor Information
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="mt-1 text-sm text-gray-500">
                         Check your details before submitting. You can go back to
                         edit.
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary/10 text-primary">
+                      <span className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-primary/10 text-primary">
                         {vendorType === "individual" ? "Individual" : "Company"}
                       </span>
                     </div>
                   </div>
 
-                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 mt-6 md:grid-cols-2">
                     {vendorType === "individual" ? (
                       <>
                         <div className="space-y-2">
@@ -634,7 +633,7 @@ const Register = () => {
                             {companyPhone}
                           </p>
                         </div>
-                        <div className="md:col-span-2 space-y-2">
+                        <div className="space-y-2 md:col-span-2">
                           <p className="text-xs text-gray-500">Address</p>
                           <p className="text-sm text-gray-700">
                             {companyAddress}
@@ -646,12 +645,12 @@ const Register = () => {
 
                   {/* Selected City */}
                   <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-800 mb-2">
+                    <h4 className="mb-2 text-sm font-medium text-gray-800">
                       Service City
                     </h4>
-                    <div className="inline-flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-100">
+                    <div className="inline-flex items-center gap-3 px-4 py-2 border border-gray-100 rounded-lg bg-gray-50">
                       <svg
-                        className="h-5 w-5 text-gray-400"
+                        className="w-5 h-5 text-gray-400"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -698,7 +697,7 @@ const Register = () => {
 
                   {/* Packages summary */}
                   <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-800 mb-3">
+                    <h4 className="mb-3 text-sm font-medium text-gray-800">
                       Selected Packages
                     </h4>
                     <div className="space-y-3">
@@ -716,7 +715,7 @@ const Register = () => {
                           return (
                             <div
                               key={pkg.package_id}
-                              className="bg-white border border-gray-100 rounded-lg p-4 shadow-sm"
+                              className="p-4 bg-white border border-gray-100 rounded-lg shadow-sm"
                             >
                               <div className="flex items-start justify-between">
                                 <div>
@@ -724,7 +723,7 @@ const Register = () => {
                                     {pkgDetails?.packageName ||
                                       `Package ID: ${pkg.package_id}`}
                                   </p>
-                                  <p className="text-xs text-gray-500 mt-1">
+                                  <p className="mt-1 text-xs text-gray-500">
                                     {pkgDetails?.description ||
                                     pkgDetails?.packageName
                                       ? ""
@@ -732,13 +731,13 @@ const Register = () => {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-primary/10 text-primary">
+                                  <span className="inline-flex items-center px-2 py-1 text-xs rounded-md bg-primary/10 text-primary">
                                     {pkg.sub_packages.length} items
                                   </span>
                                 </div>
                               </div>
 
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-2 mt-3">
                                 {pkg.sub_packages.map((sub) => {
                                   const subDetails =
                                     pkgDetails?.sub_packages?.find(
@@ -747,7 +746,7 @@ const Register = () => {
                                   return (
                                     <span
                                       key={sub.item_id}
-                                      className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-700"
+                                      className="inline-flex items-center gap-2 px-3 py-1 text-xs text-gray-700 bg-gray-100 rounded-full"
                                     >
                                       {subDetails?.itemName ||
                                         `Item ${sub.item_id}`}
@@ -764,20 +763,20 @@ const Register = () => {
                 </div>
 
                 {/* right: Summary & actions card */}
-                <div className=" flex flex-col items-center space-y-4">
-                  <p className=" text-xs text-gray-500 text-center max-w-md">
+                <div className="flex flex-col items-center space-y-4 ">
+                  <p className="max-w-md text-xs text-center text-gray-500 ">
                     By completing registration, you agree to our terms and
                     conditions. <br />
                     Admin will verify your details before activation.
                   </p>
                   {/* Action buttons */}
-                  <div className="flex flex-wrap justify-center items-center gap-4 w-full">
+                  <div className="flex flex-wrap items-center justify-center w-full gap-4">
                     <Button
                       variant="ghost"
                       type="button"
                       onClick={handlePrevStep}
                     >
-                      <FiChevronLeft className="h-4 w-4" />
+                      <FiChevronLeft className="w-4 h-4" />
                       Previous
                     </Button>
 
@@ -788,7 +787,7 @@ const Register = () => {
                     >
                       {loading ? (
                         <>
-                          <FiLoader className="animate-spin h-4 w-4" />{" "}
+                          <FiLoader className="w-4 h-4 animate-spin" />{" "}
                           Registering...
                         </>
                       ) : (
@@ -803,11 +802,11 @@ const Register = () => {
             </div>
           )}
 
-          <p className="mt-6 text-center text-sm text-gray-600">
+          <p className="mt-6 text-sm text-center text-gray-600">
             Already have an account?{" "}
             <Link
               to="/vendor/login"
-              className="text-primary font-medium hover:underline"
+              className="font-medium text-primary hover:underline"
             >
               Login here
             </Link>
