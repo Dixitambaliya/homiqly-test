@@ -93,25 +93,51 @@ const Profile = () => {
     }
   };
 
-  const deleteVendorService = async (vendorId) => {
-    if (!vendorId) return;
+  const deleteVendorService = async (vendor_packages_id) => {
+    // require a non-empty string/number ID (allow 0 if backend uses 0)
+    if (
+      vendor_packages_id === undefined ||
+      vendor_packages_id === null ||
+      vendor_packages_id === ""
+    ) {
+      console.warn(
+        "deleteVendorService called with invalid vendor_packages_id:",
+        vendor_packages_id
+      );
+      return;
+    }
 
-    const confirm = window.confirm(
+    const confirmed = window.confirm(
       "Are you sure you want to delete this service? This action cannot be undone."
     );
-    if (!confirm) return;
+    if (!confirmed) return;
+
     try {
       setLoading(true);
-      const response = await api.delete(`api/vendor/removepackage/${vendorId}`);
-      if (response.status === 200) {
-        toast.success(response.data.message || "Service deleted successfully");
-        fetchVendorService(); // Refresh the list
+      // NOTE: add leading slash so axios baseURL or absolute path is used consistently
+      const response = await api.delete(
+        `/api/vendor/removepackage/${vendor_packages_id}`
+      );
+
+      // helpful debug logs
+      console.log("delete service response:", response);
+
+      if (response?.status === 200) {
+        toast.success(response.data?.message || "Service deleted successfully");
+        // refresh services
+        fetchVendorService();
       } else {
-        toast.error(response.data.message || "Failed to delete service");
+        toast.error(response.data?.message || "Failed to delete service");
       }
     } catch (error) {
+      // show server message if available
       console.error("Error deleting vendor service:", error);
-      toast.error("Failed to delete service");
+      const serverMsg = error?.response?.data?.message;
+      if (serverMsg) {
+        toast.error(serverMsg);
+      } else {
+        toast.error("Failed to delete service");
+      }
     } finally {
       setLoading(false);
     }
