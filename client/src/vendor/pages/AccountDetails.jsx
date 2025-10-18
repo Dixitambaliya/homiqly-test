@@ -8,8 +8,8 @@ import { toast } from "react-toastify";
 
 const AccountDetails = () => {
   const vendorType =
-    localStorage.getItem("vendor") &&
-    JSON.parse(localStorage.getItem("vendor")).vendor_type;
+    localStorage.getItem("vendorData") &&
+    JSON.parse(localStorage.getItem("vendorData")).vendor_type;
 
   const [account, setAccount] = useState(null);
   const [formData, setFormData] = useState({
