@@ -256,7 +256,7 @@ const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
         console.error("Error fetching all employees for admin:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
-}); 
+});
 
 const updateUserByAdmin = asyncHandler(async (req, res) => {
     const { user_id } = req.params;
@@ -1370,7 +1370,18 @@ const getAllPackages = asyncHandler(async (req, res) => {
 
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
-        // 1️⃣ Fetch all vendor package applications with vendor + package + service info
+        // ✅ Pagination params
+        let page = parseInt(req.query.page) || 1;
+        let limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        // 1️⃣ Fetch total count for pagination info
+        const [[{ total }]] = await db.query(`
+            SELECT COUNT(*) AS total
+            FROM vendor_package_applications
+        `);
+
+        // 2️⃣ Fetch paginated vendor package applications with vendor + package + service info
         const [applications] = await db.query(`
             SELECT
                 vpa.application_id,
@@ -1396,16 +1407,23 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             JOIN service_type st ON p.service_type_id = st.service_type_id
             JOIN services s ON st.service_id = s.service_id
             ORDER BY vpa.applied_at DESC
-        `);
+            LIMIT ? OFFSET ?
+        `, [limit, offset]);
 
         if (!applications.length) {
             return res.status(200).json({
                 message: "No vendor package requests found",
-                applications: []
+                applications: [],
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
             });
         }
 
-        // 2️⃣ Extract all package_ids to fetch sub-packages (items) in one query
+        // 3️⃣ Extract all package_ids to fetch sub-packages (items) in one query
         const packageIds = applications.map(a => a.package_id);
         const [packageItems] = await db.query(
             `
@@ -1422,23 +1440,29 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             [packageIds]
         );
 
-        // 3️⃣ Group sub-packages by package_id
+        // 4️⃣ Group sub-packages by package_id
         const itemsByPackage = {};
         packageItems.forEach(item => {
             if (!itemsByPackage[item.package_id]) itemsByPackage[item.package_id] = [];
             itemsByPackage[item.package_id].push(item);
         });
 
-        // 4️⃣ Combine everything into structured response
+        // 5️⃣ Combine everything into structured response
         const detailedApplications = applications.map(app => ({
             ...app,
             subPackages: itemsByPackage[app.package_id] || []
         }));
 
-        // 5️⃣ Send final response
+        // 6️⃣ Send final response with pagination info
         res.status(200).json({
             message: "All vendor package requests fetched successfully with package details",
-            applications: detailedApplications
+            applications: detailedApplications,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
 
     } catch (err) {
@@ -1449,6 +1473,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

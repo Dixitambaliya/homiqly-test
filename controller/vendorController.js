@@ -1,11 +1,9 @@
 const { db } = require("../config/db");
 const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
-const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs")
 const asyncHandler = require("express-async-handler");
 const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries");
-const { loginVendor } = require("./vendorAuthController");
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
@@ -896,7 +894,6 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -996,7 +993,6 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -1137,7 +1133,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
