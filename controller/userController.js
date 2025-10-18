@@ -239,6 +239,7 @@ const getUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, email, phone } = req.body;
@@ -246,7 +247,9 @@ const updateUserData = asyncHandler(async (req, res) => {
     try {
         // Step 1: Fetch existing user data
         const [existingRows] = await db.query(
-            `SELECT firstName, lastName, email, phone, profileImage FROM users WHERE user_id = ?`,
+            `SELECT firstName, lastName, email, phone, profileImage, is_approved 
+             FROM users 
+             WHERE user_id = ?`,
             [user_id]
         );
 
@@ -256,10 +259,23 @@ const updateUserData = asyncHandler(async (req, res) => {
 
         const existing = existingRows[0];
 
+        // Step 2: Prevent updating phone if user is approved
+        let updatedPhone = existing.phone;
+        if (existing.is_approved !== 1 && phone) {
+            // Step 2a: Check if phone already exists for another user
+            const [phoneRows] = await db.query(
+                `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
+                [phone, user_id]
+            );
+            if (phoneRows.length > 0) {
+                return res.status(400).json({ message: "Phone number already in use" });
+            }
+            updatedPhone = phone;
+        }
+
         const updatedFirstName = firstName || existing.firstName;
         const updatedLastName = lastName || existing.lastName;
         const updatedEmail = email || existing.email;
-        const updatedPhone = phone || existing.phone;
         const updatedProfileImage = req.uploadedFiles?.profileImage?.[0]?.url || existing.profileImage;
 
         // Step 3: Update the user record
@@ -277,6 +293,8 @@ const updateUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

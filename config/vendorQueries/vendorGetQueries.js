@@ -117,7 +117,7 @@ const vendorGetQueries = {
 FROM vendor_payouts vp
 JOIN service_booking sb ON vp.booking_id = sb.booking_id
 JOIN users u ON vp.user_id = u.user_id
-LEFT JOIN packages pkg ON pkg.package_id = vp.package_id
+LEFT JOIN package_items pkg ON pkg.package_id = vp.package_id
 WHERE vp.vendor_id = ?
 ORDER BY vp.created_at DESC;
 `,

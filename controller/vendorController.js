@@ -4,7 +4,8 @@ const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs")
 const asyncHandler = require("express-async-handler");
-const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries")
+const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries");
+const { loginVendor } = require("./vendorAuthController");
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
@@ -728,7 +729,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         );
 
         if (assignedRows.length === 0) {
-            return res.status(200).json({ 
+            return res.status(200).json({
                 message: "No packages assigned to this vendor",
                 result: []
             });
@@ -895,6 +896,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -971,10 +973,10 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { booking_id, status } = req.body;    
+    const { booking_id, status } = req.body;
 
     console.log(vendor_id);
-    
+
     // ✅ Validate input    
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
@@ -1077,13 +1079,13 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                 );
 
                 // ✅ Insert payout entry if not already exists
-                await db.query(
+                const data = await db.query(
                     `INSERT INTO vendor_payouts 
-                    (booking_id, vendor_id, user_id, package_id, payment_intent_id,
+                    (booking_id, vendor_id, user_id, payment_intent_id,
                     gross_amount, platform_fee_percentage, payout_amount, currency)
                     SELECT 
-                        sb.booking_id, sb.vendor_id, sb.user_id, sb.package_id, sb.payment_intent_id,
-                        ?, ?, ?, ?
+                        sb.booking_id, sb.vendor_id, sb.user_id, sb.payment_intent_id,
+                        ?, ?, ?
                     FROM service_booking sb
                     WHERE sb.booking_id = ?
                     ON DUPLICATE KEY UPDATE 
@@ -1091,7 +1093,9 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                     platform_fee_percentage = VALUES(platform_fee_percentage)`,
                     [gross_amount, platform_fee_percentage, payout_amount, paymentInfo.currency, booking_id]
                 );
+                console.log(data);
             }
+
         }
 
 
