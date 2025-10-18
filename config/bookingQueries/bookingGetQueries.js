@@ -1,6 +1,6 @@
 const bookingGetQueries = {
 
-    getVendorBookings: `
+   getVendorBookings: `
   SELECT
     sb.booking_id, 
     sb.bookingDate, 
@@ -32,13 +32,11 @@ const bookingGetQueries = {
     e.last_name AS employeeLastName,
     e.email AS employeeEmail,
     e.phone AS employeePhone
-FROM service_booking sb
-LEFT JOIN services s ON sb.service_id = s.service_id
-LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-LEFT JOIN users u ON sb.user_id = u.user_id
-LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
-WHERE sb.vendor_id = ?
-ORDER BY sb.bookingDate DESC, sb.bookingTime DESC;
+  FROM service_booking sb
+  LEFT JOIN services s ON sb.service_id = s.service_id
+  LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+  LEFT JOIN users u ON sb.user_id = u.user_id
+  LEFT JOIN company_employees e ON sb.assigned_employee_id = e.employee_id
 `,
 
 

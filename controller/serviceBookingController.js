@@ -238,6 +238,7 @@ const bookService = asyncHandler(async (req, res) => {
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+    const { page = 1, limit = 10, status } = req.query;
 
     try {
         // 1️⃣ Get vendor type
@@ -248,31 +249,53 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-        // 3️⃣ Fetch vendor bookings
-        const [bookings] = await db.query(bookingGetQueries.getVendorBookings, [vendor_id]);
+        // 3️⃣ Build filters dynamically
+        let filterCondition = "WHERE sb.vendor_id = ?";
+        const params = [vendor_id];
+
+        if (status && !isNaN(status)) {
+            filterCondition += " AND sb.bookingStatus = ?";
+            params.push(status);
+        }
+
+        // 4️⃣ Pagination setup
+        const offset = (page - 1) * limit;
+
+        // 5️⃣ Count total records
+        const [[{ totalRecords }]] = await db.query(`
+            SELECT COUNT(*) AS totalRecords
+            FROM service_booking sb
+            ${filterCondition}
+        `, params);
+
+        const totalPages = Math.ceil(totalRecords / limit);
+
+        // 6️⃣ Fetch paginated bookings
+        const [bookings] = await db.query(`
+            ${bookingGetQueries.getVendorBookings}
+            ${filterCondition}
+            ORDER BY sb.booking_id DESC
+            LIMIT ? OFFSET ?
+        `, [...params, Number(limit), Number(offset)]);
 
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
             const rawAmount = Number(booking.payment_amount) || 0;
 
-            // ✅ Just calculate and adjust payment amount internally
+            // ✅ Calculate vendor net amount
             const platformFeeAmount = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
             const netAmount = parseFloat((rawAmount - platformFeeAmount).toFixed(2));
-
-            // Keep payment_amount as netAmount (vendor receives this)
             booking.payment_amount = netAmount;
 
-            // ❌ Don't attach platform_fee or net_amount to the response
             delete booking.platform_fee;
             delete booking.net_amount;
 
-            // 5️⃣ Fetch sub-packages, addons, preferences, consents
+            // 🔹 Sub-packages, Addons, Preferences, Consents
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
             const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
             const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
 
-            // 6️⃣ Group addons, preferences, consents by sub_package_id
             const addonsByItem = {};
             bookingAddons.forEach(a => {
                 if (!addonsByItem[a.sub_package_id]) addonsByItem[a.sub_package_id] = [];
@@ -297,7 +320,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 });
             });
 
-            // 7️⃣ Group sub-packages by package_id
+            // 🔹 Group sub-packages by package_id
             const groupedByPackage = subPackages.reduce((acc, sp) => {
                 const packageId = sp.package_id;
 
@@ -310,7 +333,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     };
                 }
 
-                // Attach corresponding addons, preferences, consents
                 const addons = addonsByItem[sp.sub_package_id] || [];
                 const preferences = prefsByItem[sp.sub_package_id] || [];
                 const consents = consentsByItem[sp.sub_package_id] || [];
@@ -331,7 +353,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             booking.sub_packages = Object.values(groupedByPackage);
 
-            // 8️⃣ Attach promo code if exists
+            // 🔹 Attach promo code if exists
             if (booking.user_promo_code_id) {
                 let promo = null;
 
@@ -352,7 +374,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                                spct.code AS promoCode,
                                spct.discountValue
                         FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id
+                        LEFT JOIN system_promo_code_templates spct 
+                        ON spc.template_id = spct.system_promo_code_template_id
                         WHERE spc.system_promo_code_id = ?
                     `, [booking.user_promo_code_id]);
                     if (systemPromo) promo = systemPromo;
@@ -361,7 +384,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 if (promo) booking.promo = promo;
             }
 
-            // 9️⃣ Employee info
+            // 🔹 Employee info
             if (booking.assignedEmployeeId) {
                 booking.assignedEmployee = {
                     employee_id: booking.assignedEmployeeId,
@@ -371,14 +394,18 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 🔟 Cleanup extra fields & nulls
+            // 🔹 Cleanup
             ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(k => delete booking[k]);
             Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
         }
 
-        // ✅ Final response
+        // ✅ Final paginated response
         res.status(200).json({
             message: "Vendor bookings fetched successfully",
+            currentPage: Number(page),
+            totalPages,
+            totalRecords,
+            limit: Number(limit),
             bookings
         });
 
@@ -390,6 +417,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
