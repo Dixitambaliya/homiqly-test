@@ -905,9 +905,45 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ Fetch all payout records for this vendor
+        // ✅ Fetch payouts + booking info
         const [payoutRows] = await db.query(
-            vendorGetQueries.getVendorPayoutHistory,
+            `
+            SELECT 
+                vp.payout_id,
+                vp.booking_id,
+                vp.vendor_id,
+                vp.user_id,
+                vp.platform_fee_percentage,
+                vp.payout_amount,
+                vp.currency,
+                vp.payout_status,
+                vp.created_at,
+
+                sb.bookingDate,
+                sb.bookingTime,
+                CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+                u.email AS user_email,
+                u.phone AS user_phone,
+
+                sbs.sub_package_id,
+
+                pkg.package_id,
+                pkg.packageName,
+                pkg.packageMedia,
+
+                spi.itemName AS sub_package_name,
+                spi.itemMedia AS sub_package_media,
+                spi.description AS sub_package_description
+
+            FROM vendor_payouts vp
+            JOIN service_booking sb ON vp.booking_id = sb.booking_id
+            JOIN users u ON vp.user_id = u.user_id
+            LEFT JOIN service_booking_sub_packages sbs ON sbs.booking_id = sb.booking_id
+            LEFT JOIN package_items spi ON spi.item_id = sbs.sub_package_id
+            LEFT JOIN packages pkg ON pkg.package_id = spi.package_id
+            WHERE vp.vendor_id = ?
+            ORDER BY vp.created_at DESC
+            `,
             [vendor_id]
         );
 
@@ -922,37 +958,66 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
             });
         }
 
-        // ✅ Normalize and parse values
-        const allPayouts = payoutRows.map(row => ({
-            ...row,
-            gross_amount: parseFloat(parseFloat(row.gross_amount || 0).toFixed(2)),
-            payout_amount: parseFloat(parseFloat(row.payout_amount || 0).toFixed(2)),
-            payout_status:
-                typeof row.payout_status === "string"
-                    ? row.payout_status.toLowerCase()
-                    : row.payout_status
-        }));
+        // ✅ Group by booking_id
+        const payoutMap = {};
+        payoutRows.forEach(row => {
+            if (!payoutMap[row.booking_id]) {
+                payoutMap[row.booking_id] = {
+                    payout_id: row.payout_id,
+                    booking_id: row.booking_id,
+                    vendor_id: row.vendor_id,
+                    user_id: row.user_id,
+                    platform_fee_percentage: parseFloat(row.platform_fee_percentage || 0),
+                    payout_amount: parseFloat(row.payout_amount || 0),
+                    currency: row.currency,
+                    payout_status: typeof row.payout_status === "string" ? row.payout_status.toLowerCase() : row.payout_status,
+                    created_at: row.created_at,
+                    bookingDate: row.bookingDate,
+                    bookingTime: row.bookingTime,
+                    user_name: row.user_name,
+                    user_email: row.user_email,
+                    user_phone: row.user_phone,
+                    packages: []
+                };
+            }
 
-        // ✅ Totals
-        const totalPayout = parseFloat(
-            allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
-        );
+            if (row.package_id && row.sub_package_id) {
+                const pkgIndex = payoutMap[row.booking_id].packages.findIndex(p => p.package_id === row.package_id);
+                if (pkgIndex === -1) {
+                    // Add new package
+                    payoutMap[row.booking_id].packages.push({
+                        package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
+                        sub_packages: [{
+                            sub_package_id: row.sub_package_id,
+                            sub_package_name: row.sub_package_name,
+                            sub_package_media: row.sub_package_media,
+                            sub_package_description: row.sub_package_description
+                        }]
+                    });
+                } else {
+                    // Append sub_package to existing package
+                    payoutMap[row.booking_id].packages[pkgIndex].sub_packages.push({
+                        sub_package_id: row.sub_package_id,
+                        sub_package_name: row.sub_package_name,
+                        sub_package_media: row.sub_package_media,
+                        sub_package_description: row.sub_package_description
+                    });
+                }
+            }
+        });
 
-        const pendingPayout = parseFloat(
-            allPayouts
-                .filter(b => b.payout_status === 0 || b.payout_status === "pending")
-                .reduce((sum, b) => sum + b.payout_amount, 0)
-                .toFixed(2)
-        );
+        const allPayouts = Object.values(payoutMap);
 
-        const paidPayout = parseFloat(
-            allPayouts
-                .filter(b => b.payout_status === 3 || b.payout_status === "paid")
-                .reduce((sum, b) => sum + b.payout_amount, 0)
-                .toFixed(2)
-        );
+        const totalPayout = parseFloat(allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2));
+        const pendingPayout = parseFloat(allPayouts
+            .filter(b => b.payout_status === 0 || b.payout_status === "pending")
+            .reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2));
+        const paidPayout = parseFloat(allPayouts
+            .filter(b => b.payout_status === 3 || b.payout_status === "paid")
+            .reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2));
 
-        // ✅ Response
         res.status(200).json({
             vendor_id,
             totalBookings: allPayouts.length,
@@ -970,6 +1035,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -1064,7 +1130,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             );
 
             if (paymentInfo && paymentInfo.payment_status === 'completed') {
-                // ✅ Get platform fee for this vendor type
                 const [feeRows] = await db.query(
                     `SELECT platform_fee_percentage 
                     FROM platform_settings 
@@ -1074,28 +1139,28 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
                 const platform_fee_percentage = Number(feeRows?.[0]?.platform_fee_percentage ?? 0);
                 const gross_amount = Number(paymentInfo.amount || 0);
-                const payout_amount = Number(
-                    (gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2)
-                );
+                const payout_amount = Number((gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2));
 
-                // ✅ Insert payout entry if not already exists
-                const data = await db.query(
+                // ✅ Insert payout only using booking_id, vendor_id, user_id, and payment info
+                const [insertResult] = await db.query(
                     `INSERT INTO vendor_payouts 
-                    (booking_id, vendor_id, user_id, payment_intent_id,
-                    gross_amount, platform_fee_percentage, payout_amount, currency)
-                    SELECT 
-                        sb.booking_id, sb.vendor_id, sb.user_id, sb.payment_intent_id,
-                        ?, ?, ?
-                    FROM service_booking sb
-                    WHERE sb.booking_id = ?
-                    ON DUPLICATE KEY UPDATE 
+                    (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, platform_fee_percentage, payout_amount, currency)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
                     payout_amount = VALUES(payout_amount),
                     platform_fee_percentage = VALUES(platform_fee_percentage)`,
-                    [gross_amount, platform_fee_percentage, payout_amount, paymentInfo.currency, booking_id]
+                    [
+                        booking_id,
+                        vendor_id,
+                        user_id,
+                        paymentInfo.payment_intent_id,
+                        gross_amount,
+                        platform_fee_percentage,
+                        payout_amount,
+                        paymentInfo.currency
+                    ]
                 );
-                console.log(data);
             }
-
         }
 
 
@@ -1111,6 +1176,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
