@@ -1286,18 +1286,17 @@ const getAllPayments = asyncHandler(async (req, res) => {
                 cdet.companyPhone AS phone,
                 cdet.profileImage AS company_profile_image,
 
-                -- Package Info
-                pkg.package_id,
-                pkg.packageName,
-                pkg.packageMedia
+                s.service_id,
+                s.serviceName,
+                s.serviceImage
 
             FROM payments p
             LEFT JOIN users u ON p.user_id = u.user_id
             LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
             LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-            LEFT JOIN packages pkg ON pkg.package_id = sb.package_id
             WHERE p.status = 'completed'
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?;
