@@ -27,7 +27,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     try {
         // 🔍 Check if user already exists
-        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email, phone]);
 
         if (existingUsers.length > 0) {
             const existingUser = existingUsers[0];
@@ -36,6 +36,12 @@ const registerUser = asyncHandler(async (req, res) => {
             if (!existingUser.password) {
                 return res.status(400).json({
                     error: "This email is linked to a Google account. Please log in using Google.",
+                });
+            }
+
+            if (existingUser.phone === phone) {
+                return res.status(400).json({
+                    error: "This phone number is already exists.",
                 });
             }
 
