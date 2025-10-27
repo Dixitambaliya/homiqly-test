@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, LogOut, User } from 'lucide-react';
+import {ChevronDown, LogOut, User } from 'lucide-react';
 
 const HeaderMenu = ({ 
   userName, 
@@ -37,19 +37,19 @@ const HeaderMenu = ({
           <img 
             src={userAvatar} 
             alt={userName} 
-            className="h-8 w-8 rounded-full object-cover border border-gray-200"
+            className="object-cover w-8 h-8 border border-gray-200 rounded-full"
           />
         ) : (
-          <div className="h-8 w-8 rounded-full bg-primary-light/20 flex items-center justify-center text-primary-dark">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-light/20 text-primary-dark">
             {userName?.charAt(0)?.toUpperCase() || 'U'}
           </div>
         )}
-        <span className="font-medium hidden md:block">{userName}</span>
-        <ArrowDown className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="hidden font-medium md:block">{userName}</span>
+        <ChevronDown className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} h-4 w-4`} />
       </button>
       
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-100">
+        <div className="absolute right-0 z-10 w-48 py-1 mt-2 bg-white border border-gray-100 rounded-md shadow-lg">
           <div className="px-4 py-2 border-b border-gray-100">
             <p className="text-sm font-medium text-gray-900">{userName}</p>
             <p className="text-xs text-gray-500 capitalize">{userRole}</p>
@@ -60,7 +60,7 @@ const HeaderMenu = ({
             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             onClick={() => setIsOpen(false)}
           >
-            <User className="mr-2 h-4 w-4" />
+            <User className="w-4 h-4 mr-2" />
             Profile
           </Link>
           
@@ -69,7 +69,7 @@ const HeaderMenu = ({
             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             onClick={() => setIsOpen(false)}
           >
-            <FiSettings className="mr-2 h-4 w-4" />
+            <FiSettings className="w-4 h-4 mr-2" />
             Settings
           </Link> */}
           
@@ -78,9 +78,9 @@ const HeaderMenu = ({
               setIsOpen(false);
               onLogout();
             }}
-            className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
           >
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="w-4 h-4 mr-2" />
             Logout
           </button>
         </div>

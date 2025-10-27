@@ -152,9 +152,9 @@ const Calendar = () => {
     }
 
     return (
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
+      <div className="flex flex-col gap-3 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-2 bg-white border rounded-lg px-3 py-2 shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-lg shadow-sm">
             <button
               onClick={handlePreviousPeriod}
               className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
@@ -177,14 +177,14 @@ const Calendar = () => {
             </button>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+          <div className="items-center hidden gap-2 text-sm text-gray-600 md:flex">
             <CalendarIcon />
             <span>{viewMode.toUpperCase()}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 rounded-md overflow-hidden">
+          <div className="flex overflow-hidden bg-gray-100 rounded-md">
             <button
               onClick={() => setViewMode("month")}
               className={`px-3 py-1 text-sm ${
@@ -222,7 +222,7 @@ const Calendar = () => {
 
           <button
             onClick={handleToday}
-            className="px-3 py-1 text-sm bg-primary-light text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-light"
+            className="px-3 py-1 text-sm text-white rounded-md bg-primary-light hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-light"
           >
             Today
           </button>
@@ -269,12 +269,12 @@ const Calendar = () => {
     }
 
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-7 bg-gray-50 border-b">
+      <div className="overflow-hidden bg-white rounded-lg shadow">
+        <div className="grid grid-cols-7 border-b bg-gray-50">
           {daysOfWeek.map((dayName) => (
             <div
               key={dayName}
-              className="p-2 text-center text-sm font-medium text-gray-700"
+              className="p-2 text-sm font-medium text-center text-gray-700"
             >
               {dayName}
             </div>
@@ -315,7 +315,7 @@ const Calendar = () => {
                       }}
                       aria-label={`Open bookings for ${day.toDateString()}`}
                     >
-                      <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center justify-between mb-2">
                         <span
                           className={`text-sm font-medium ${
                             isToday ? "text-primary-light" : ""
@@ -337,13 +337,19 @@ const Calendar = () => {
                             key={booking.booking_id || booking.bookingId}
                             className={`text-xs p-1 rounded truncate ${
                               booking.bookingStatus === 0
-                                ? "bg-yellow-100 text-yellow-800"
-                                : booking.bookingStatus === 1
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
+                      ? "bg-amber-100 text-amber-700 border border-amber-200/50"
+                      : booking.bookingStatus === 1
+                      ? "bg-blue-100 text-blue-700 border border-blue-200/50"
+                      : booking.bookingStatus === 2
+                      ? "bg-red-100 text-red-700 border border-red-200/50"
+                      : booking.bookingStatus === 3
+                      ? "bg-purple-100 text-purple-700 border border-purple-200/50"
+                      : booking.bookingStatus === 4
+                      ? "bg-green-100 text-green-700 border border-green-200/50"
+                      : "bg-gray-100 text-gray-700 border border-gray-200/50"
                             }`}
                           >
-                            <span className="font-medium mr-1">
+                            <span className="mr-1 font-medium">
                               {booking.bookingTime
                                 ? booking.bookingTime.substring(0, 5)
                                 : ""}
@@ -385,8 +391,8 @@ const Calendar = () => {
     dayBookings.sort((a, b) => a.bookingTime.localeCompare(b.bookingTime));
 
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b">
+      <div className="overflow-hidden bg-white rounded-lg shadow">
+        <div className="p-4 border-b bg-gray-50">
           <h3 className="text-lg font-medium text-gray-800">
             {currentDate.toLocaleDateString("en-US", {
               weekday: "long",
@@ -404,16 +410,16 @@ const Calendar = () => {
                 key={booking.booking_id || booking.bookingId}
                 className="p-4 hover:bg-gray-50"
               >
-                <div className="flex justify-between items-start">
+                <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <div className="flex items-center text-gray-500 text-sm mb-1 gap-2">
+                    <div className="flex items-center gap-2 mb-1 text-sm text-gray-500">
                       <Clock className="mr-1" />
                       <span>{formatTime(booking.bookingTime)}</span>
                     </div>
                     <h4 className="font-medium text-gray-800 truncate">
                       {booking.serviceName}
                     </h4>
-                    <div className="flex items-center text-sm text-gray-600 mt-1 gap-2">
+                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
                       <User className="mr-1" />
                       <span>{booking.userName}</span>
                     </div>
@@ -425,7 +431,7 @@ const Calendar = () => {
                 </div>
 
                 {booking.bookingStatus === 0 && (
-                  <div className="mt-3 flex space-x-2">
+                  <div className="flex mt-3 space-x-2">
                     <button
                       onClick={() =>
                         handleUpdateStatus(
@@ -478,8 +484,8 @@ const Calendar = () => {
     }
 
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-7 bg-gray-50 border-b">
+      <div className="overflow-hidden bg-white rounded-lg shadow">
+        <div className="grid grid-cols-7 border-b bg-gray-50">
           {days.map((day) => {
             const isToday = day.toDateString() === new Date().toDateString();
             return (
@@ -527,10 +533,16 @@ const Calendar = () => {
                       key={booking.booking_id || booking.bookingId}
                       className={`p-2 mb-2 rounded text-xs ${
                         booking.bookingStatus === 0
-                          ? "bg-yellow-100 text-yellow-800"
-                          : booking.bookingStatus === 1
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+                      ? "bg-amber-100 text-amber-700 border border-amber-200/50"
+                      : booking.bookingStatus === 1
+                      ? "bg-blue-100 text-blue-700 border border-blue-200/50"
+                      : booking.bookingStatus === 2
+                      ? "bg-red-100 text-red-700 border border-red-200/50"
+                      : booking.bookingStatus === 3
+                      ? "bg-purple-100 text-purple-700 border border-purple-200/50"
+                      : booking.bookingStatus === 4
+                      ? "bg-green-100 text-green-700 border border-green-200/50"
+                      : "bg-gray-100 text-gray-700 border border-gray-200/50"
                       }`}
                     >
                       <div className="font-medium">
@@ -541,7 +553,7 @@ const Calendar = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                  <div className="flex items-center justify-center h-full text-xs text-gray-400">
                     No bookings
                   </div>
                 )}
@@ -557,7 +569,7 @@ const Calendar = () => {
   const renderSelectedDateDetails = () => {
     if (!selectedDate)
       return (
-        <div className="p-6 border-l hidden lg:block">
+        <div className="hidden p-6 border-l lg:block">
           <div className="text-center text-gray-400">
             Select a day to view bookings
           </div>
@@ -565,7 +577,7 @@ const Calendar = () => {
       );
 
     return (
-      <aside className="w-full lg:w-96 p-4 border-l bg-white shadow-sm">
+      <aside className="w-full p-4 bg-white border-l shadow-sm lg:w-96">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold">
@@ -576,7 +588,7 @@ const Calendar = () => {
                 year: "numeric",
               })}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               {selectedBookings.length} booking
               {selectedBookings.length !== 1 ? "s" : ""}
             </p>
@@ -607,7 +619,7 @@ const Calendar = () => {
                   className="py-3"
                 >
                   <div className="flex gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">
+                    <div className="flex items-center justify-center w-10 h-10 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full">
                       {booking.userName
                         ? booking.userName
                             .split(" ")
@@ -621,9 +633,9 @@ const Calendar = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <div className="flex items-center gap-2 text-sm text-gray-500 ">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium">
-                              <Clock className="mr-1" />
+                              <Clock className="w-3 h-3 mr-1" />
                               <span className="whitespace-nowrap">
                                 {formatTime(booking.bookingTime)}
                               </span>
@@ -652,7 +664,7 @@ const Calendar = () => {
                       </div>
 
                       {booking.bookingStatus === 0 && (
-                        <div className="mt-3 flex gap-2">
+                        <div className="flex gap-2 mt-3">
                           <button
                             onClick={() =>
                               handleUpdateStatus(
@@ -699,7 +711,7 @@ const Calendar = () => {
   /* ---------------------- Main render ---------------------- */
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -707,7 +719,7 @@ const Calendar = () => {
 
   if (error) {
     return (
-      <div className="bg-red-50 p-4 rounded-md">
+      <div className="p-4 rounded-md bg-red-50">
         <p className="text-red-500">{error}</p>
       </div>
     );

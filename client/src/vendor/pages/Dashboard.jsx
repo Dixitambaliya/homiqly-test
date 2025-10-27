@@ -105,14 +105,14 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-light"></div>
+        <div className="w-12 h-12 border-t-2 border-b-2 rounded-full animate-spin border-primary-light"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 p-4 rounded-md">
+      <div className="p-4 rounded-md bg-red-50">
         <p className="text-red-500">{error}</p>
       </div>
     );
@@ -123,7 +123,7 @@ const Dashboard = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <ToggleButton />
 
-        <div className="flex flex-col sm:flex-row sm:items-end sm:space-x-4 space-y-3 sm:space-y-0 mb-6">
+        <div className="flex flex-col space-y-3 sm:flex-row sm:items-end sm:space-x-4 sm:space-y-0">
           {/* Filter Type */}
           <div className="w-full sm:w-48">
             <FormSelect
@@ -167,10 +167,10 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
-          <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-            <ShoppingBag className="h-6 w-6" />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center p-6 space-x-4 bg-white rounded-lg shadow">
+          <div className="p-3 text-blue-600 bg-blue-100 rounded-full">
+            <ShoppingBag className="w-6 h-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Bookings</p>
@@ -178,9 +178,9 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
-          <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-            <Clock className="h-6 w-6" />
+        <div className="flex items-center p-6 space-x-4 bg-white rounded-lg shadow">
+          <div className="p-3 text-yellow-600 bg-yellow-100 rounded-full">
+            <Clock className="w-6 h-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Pending Bookings</p>
@@ -188,9 +188,9 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
-          <div className="p-3 rounded-full bg-green-100 text-green-600">
-            <CheckCircle className="h-6 w-6" />
+        <div className="flex items-center p-6 space-x-4 bg-white rounded-lg shadow">
+          <div className="p-3 text-green-600 bg-green-100 rounded-full">
+            <CheckCircle className="w-6 h-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Completed Bookings</p>
@@ -198,9 +198,9 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
-          <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-            <DollarSign className="h-6 w-6" />
+        <div className="flex items-center p-6 space-x-4 bg-white rounded-lg shadow">
+          <div className="p-3 text-purple-600 bg-purple-100 rounded-full">
+            <DollarSign className="w-6 h-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Earnings</p>
@@ -210,9 +210,9 @@ const Dashboard = () => {
       </div>
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Recent Bookings</h2>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="p-6 bg-white rounded-lg shadow">
+          <h2 className="mb-4 text-lg font-semibold">Recent Bookings</h2>
           {recentBookings.length > 0 ? (
             <div className="divide-y">
               {recentBookings.map((booking) => {
@@ -233,7 +233,7 @@ const Dashboard = () => {
                 return (
                   <div
                     key={booking.bookingId || booking.booking_id}
-                    className="py-3 flex justify-between items-center"
+                    className="flex items-center justify-between py-3"
                   >
                     <div>
                       <p className="font-medium">{booking.userName}</p>
@@ -254,12 +254,12 @@ const Dashboard = () => {
               })}
             </div>
           ) : (
-            <p className="text-center text-gray-500 py-4">No recent bookings</p>
+            <p className="py-4 text-center text-gray-500">No recent bookings</p>
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Service Performance</h2>
+        <div className="p-6 bg-white rounded-lg shadow">
+          <h2 className="mb-4 text-lg font-semibold">Service Performance</h2>
           <div className="h-64">
             <Line
               data={performanceData}
@@ -283,18 +283,18 @@ const Dashboard = () => {
       </div>
 
       {/* Upcoming Bookings */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
+      <div className="p-6 bg-white rounded-lg shadow">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Today's Bookings</h2>
           <Link
             to="/vendor/calendar"
-            className="text-sm text-primary-light hover:text-primary-dark font-medium"
+            className="text-sm font-medium text-primary-light hover:text-primary-dark"
           >
             View Calendar
           </Link>
         </div>
 
-        <div className="border rounded-lg p-4 max-w-7xl mx-auto">
+        <div className="p-4 mx-auto border rounded-lg max-w-7xl">
           <Calendar />
         </div>
       </div>
