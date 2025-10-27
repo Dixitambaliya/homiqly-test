@@ -504,32 +504,36 @@ const verifyOtp = asyncHandler(async (req, res) => {
     const { phone, otp, firstName, lastName, email, password } = req.body;
     const authHeader = req.headers.authorization;
 
-    // Check token in headers
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(400).json({ message: "Authorization token missing or invalid" });
-    }
+    let decoded = null;
 
-    const token = authHeader.split(" ")[1]; // Extract token from header
+    // ✅ Step 1: Try OTP-based verification if token exists
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
 
-    if (!phone || !otp) {
-        return res.status(400).json({ message: "Phone and OTP are required" });
-    }
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    try {
-        // 🔍 Decode JWT token (auto-checks expiration)
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // Validate phone + otp
-        if (decoded.phone !== phone) {
-            return res.status(400).json({ message: "Invalid OTP or phone number" });
+            // Verify OTP if provided
+            if (decoded.phone !== phone || (otp && decoded.otp !== otp)) {
+                return res.status(400).json({ message: "Invalid OTP or phone number" });
+            }
+        } catch (err) {
+            console.error("JWT Verification Error:", err);
+            if (err.name === "TokenExpiredError") {
+                return res.status(400).json({ message: "OTP expired. Please request a new one." });
+            }
+            // ⚠️ Don't return yet — allow password login fallback
         }
+    }
 
-        // ✅ OTP verified — handle login/registration
-        const [rows] = await db.query(`SELECT * FROM users WHERE phone = ?`, [phone]);
-        const user = rows[0];
+    // ✅ Step 2: Lookup user
+    const [rows] = await db.query(`SELECT * FROM users WHERE phone = ? OR email = ?`, [phone, email]);
+    const user = rows[0];
 
+    // ✅ Step 3: If OTP verified (decoded exists and matches)
+    if (decoded && decoded.phone === phone) {
         if (!user) {
-            // New user → require details
+            // New user registration
             if (!firstName || !lastName) {
                 return res.status(200).json({
                     message: "Welcome — please provide name (and optionally email/password)",
@@ -546,7 +550,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
             );
 
             const user_id = result.insertId;
-
             const loginToken = jwt.sign({ user_id, phone }, process.env.JWT_SECRET);
 
             return res.status(200).json({
@@ -556,23 +559,32 @@ const verifyOtp = asyncHandler(async (req, res) => {
             });
         }
 
-        // Existing user → login directly
+        // Existing user — login via OTP success
         const loginToken = jwt.sign({ user_id: user.user_id, phone: user.phone }, process.env.JWT_SECRET);
-
-        res.status(200).json({
-            message: "Login successful",
+        return res.status(200).json({
+            message: "Login successful via OTP",
             token: loginToken
         });
-
-    } catch (err) {
-        console.error("JWT Verification Error:", err);
-        // Handle token expiration or tampering
-        if (err.name === "TokenExpiredError") {
-            return res.status(400).json({ message: "OTP expired. Please request a new one." });
-        }
-        return res.status(400).json({ message: "Invalid or tampered OTP token." });
     }
+
+    // ✅ Step 4: Fallback — allow email/password login
+    if (email && password) {
+        if (!user) return res.status(404).json({ message: "User not found with provided email or phone" });
+
+        const isMatch = await bcrypt.compare(password, user.password || "");
+        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+        const loginToken = jwt.sign({ user_id: user.user_id, phone: user.phone }, process.env.JWT_SECRET);
+        return res.status(200).json({
+            message: "Login successful via email/password",
+            token: loginToken
+        });
+    }
+
+    // ✅ Step 5: If neither OTP nor password provided
+    return res.status(400).json({ message: "OTP or email/password required to login" });
 });
+
 
 
 module.exports = {
