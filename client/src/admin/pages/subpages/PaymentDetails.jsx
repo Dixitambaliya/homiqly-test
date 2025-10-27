@@ -17,14 +17,15 @@ import {
 const PaymentDetails = () => {
   const { paymentId } = useParams();
   const location = useLocation();
+  // if the route passed the payment via state, use it; otherwise we'll fetch
   const [payment, setPayment] = useState(location.state?.payment || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // Only fetch when we don't have initial payment from location.state
-    if (payment) {
+    // Only fetch when we DON'T have an initial payment from location.state
+    if (!payment) {
       fetchPayment();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -33,10 +34,12 @@ const PaymentDetails = () => {
   const fetchPayment = async () => {
     setLoading(true);
     try {
+      // NOTE: keep using list endpoint and find; replace with single endpoint if available
       const res = await api.get("/api/admin/getpayments");
-      const found = res.data.payments.find(
-        (p) => Number(p.payment_id) === Number(paymentId)
-      );
+      const list = res.data?.payments ?? res.data?.data ?? [];
+      const found = Array.isArray(list)
+        ? list.find((p) => Number(p.payment_id) === Number(paymentId))
+        : null;
 
       if (found) {
         setPayment(found);
@@ -53,8 +56,21 @@ const PaymentDetails = () => {
   };
 
   const copyToClipboard = async (text) => {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // fallback
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch (err) {
@@ -78,17 +94,16 @@ const PaymentDetails = () => {
     );
   }
 
-  // Derived values
+  // Derived values (handle string amounts & lowercase currency like "cad")
   const paidAtFormatted =
-    payment.paidAt || new Date(payment.created_at).toLocaleString();
-  const currency =
-    (payment.currency || payment.currency === "cad"
-      ? payment.currency
-      : payment.currency
-    )?.toUpperCase() ||
-    (payment.currency && payment.currency.toUpperCase()) ||
-    "CAD";
-  const amount = formatCurrency(payment.amount, currency);
+    payment.paidAt ||
+    (payment.created_at ? new Date(payment.created_at).toLocaleString() : "");
+  const currencyCode = (payment.currency || "cad")
+    .toString()
+    .trim()
+    .toUpperCase();
+  const numericAmount = Number(payment.amount || payment.totalPrice || 0);
+  const amount = formatCurrency(numericAmount, currencyCode);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -114,36 +129,27 @@ const PaymentDetails = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <a
-            href={payment.receiptUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md shadow-sm text-sm hover:bg-gray-50"
-            title="Open receipt in new tab"
-          >
-            <ExternalLink className="w-4 h-4" />
-            View Receipt
-          </a>
+          {payment.receiptUrl && (
+            <a
+              href={payment.receiptUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md shadow-sm text-sm hover:bg-gray-50"
+              title="Open receipt in new tab"
+            >
+              <ExternalLink className="w-4 h-4" />
+              View Receipt
+            </a>
+          )}
 
           <Button
-            onClick={() => copyToClipboard(payment.receiptUrl)}
+            onClick={() => copyToClipboard(payment.receiptUrl || "")}
             title="Copy receipt link"
+            className="inline-flex items-center gap-2"
           >
             <Clipboard className="w-4 h-4" />
             {copied ? "Copied" : "Copy Link"}
           </Button>
-
-          {/* <a
-            href={payment.receiptUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            download
-            className="inline-flex items-center gap-2 px-3 py-2 bg-primary-light text-white rounded-md text-sm hover:bg-primary-dark"
-            title="Download receipt"
-          >
-            <FiDownload />
-            Download
-          </a> */}
         </div>
       </div>
 
@@ -155,7 +161,8 @@ const PaymentDetails = () => {
             {amount}
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Paid via {payment.cardBrand?.toUpperCase()} •••• {payment.last4}
+            Paid via {String(payment.cardBrand || "").toUpperCase() || "—"}{" "}
+            {payment.last4 ? `• •••• ${payment.last4}` : ""}
           </p>
         </div>
 
@@ -164,7 +171,7 @@ const PaymentDetails = () => {
           <div className="mt-2">
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                payment.status === "completed"
+                String(payment.status).toLowerCase() === "completed"
                   ? "bg-green-50 text-green-700"
                   : "bg-gray-100 text-gray-700"
               }`}
@@ -175,23 +182,28 @@ const PaymentDetails = () => {
 
           <p className="text-sm text-gray-500 mt-4">Payment intent</p>
           <div className="mt-1 text-sm text-gray-800 break-all">
-            {payment.payment_intent_id || payment.paymentIntentId}
+            {payment.payment_intent_id || payment.paymentIntentId || "—"}
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow border p-4 flex flex-col justify-between">
           <div>
             <p className="text-sm text-gray-500">Receipt</p>
-            <a
-              href={payment.receiptUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 block text-sm font-medium text-blue-600 hover:underline break-all"
-            >
-              View Receipt
-            </a>
+            {payment.receiptUrl ? (
+              <a
+                href={payment.receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 block text-sm font-medium text-blue-600 hover:underline break-all"
+              >
+                View Receipt
+              </a>
+            ) : (
+              <div className="mt-1 text-sm text-gray-600">—</div>
+            )}
             <p className="text-xs text-gray-400 mt-2">
-              Receipt sent to {payment.receiptEmail || payment.user_email}
+              Receipt sent to{" "}
+              {payment.receiptEmail || payment.user_email || "—"}
             </p>
           </div>
 
@@ -199,13 +211,15 @@ const PaymentDetails = () => {
             <div>
               Charge ID:{" "}
               <span className="font-mono text-gray-700">
-                {payment.chargeId}
+                {payment.chargeId || "—"}
               </span>
             </div>
             <div className="mt-1">
               Created:{" "}
               <span className="text-gray-700">
-                {new Date(payment.created_at).toLocaleString()}
+                {payment.created_at
+                  ? new Date(payment.created_at).toLocaleString()
+                  : "—"}
               </span>
             </div>
           </div>
@@ -214,36 +228,55 @@ const PaymentDetails = () => {
 
       {/* Two-column detail area */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Invoice / Package */}
+        {/* Left: Invoice / Service */}
         <div className="bg-white rounded-lg shadow border p-6">
           <div className="flex items-start gap-4">
             <img
-              src={payment.packageMedia}
-              alt={payment.packageName}
+              src={
+                payment.serviceImage ||
+                payment.service_image ||
+                payment.packageMedia
+              }
+              alt={payment.serviceName || payment.service_name || "service"}
               className="w-28 h-20 object-cover rounded-md border"
             />
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">
-                    {payment.packageName}
+                    {payment.serviceName || payment.service_name || "—"}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    {payment.totalTime || "—"} •{" "}
-                    {payment.package_id ? `Package #${payment.package_id}` : ""}
+                    {payment.totalTime || "—"}{" "}
+                    {payment.package_id
+                      ? `• Package #${payment.package_id}`
+                      : ""}
                   </p>
                 </div>
 
                 <div className="text-right">
                   <div className="text-lg font-semibold text-gray-900">
                     {formatCurrency(
-                      payment.totalPrice ?? payment.amount,
-                      currency
+                      payment.totalPrice ?? numericAmount,
+                      currencyCode
                     )}
                   </div>
                   <div className="text-xs text-gray-400 mt-1">
-                    {(payment.currency || currency).toUpperCase()}
+                    {currencyCode}
                   </div>
+                </div>
+              </div>
+
+              {/* Price breakdown (if available) */}
+              <div className="mt-4 text-sm text-gray-700 space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(numericAmount, currencyCode)}</span>
+                </div>
+
+                <div className="flex justify-between font-semibold">
+                  <span>Total</span>
+                  <span>{formatCurrency(numericAmount, currencyCode)}</span>
                 </div>
               </div>
             </div>
@@ -255,7 +288,8 @@ const PaymentDetails = () => {
               <User className="w-4 h-4" />{" "}
               <span className="font-medium">Customer:</span>{" "}
               <span className="ml-1">
-                {payment.user_firstname} {payment.user_lastname}
+                {payment.user_firstname || payment.user_name || ""}{" "}
+                {payment.user_lastname || ""}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -287,7 +321,8 @@ const PaymentDetails = () => {
                   <div>
                     <div className="text-sm text-gray-500">Customer</div>
                     <div className="text-lg font-semibold text-gray-800">
-                      {payment.user_firstname} {payment.user_lastname}
+                      {payment.user_firstname || payment.user_name || ""}{" "}
+                      {payment.user_lastname || ""}
                     </div>
                   </div>
                 </div>
@@ -295,11 +330,15 @@ const PaymentDetails = () => {
                 <div className="mt-3 text-sm text-gray-600 space-y-1">
                   <div>
                     Email:{" "}
-                    <span className="text-gray-800">{payment.user_email}</span>
+                    <span className="text-gray-800">
+                      {payment.user_email || "—"}
+                    </span>
                   </div>
                   <div>
                     Phone:{" "}
-                    <span className="text-gray-800">{payment.user_phone}</span>
+                    <span className="text-gray-800">
+                      {payment.user_phone || "—"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -313,6 +352,7 @@ const PaymentDetails = () => {
                 src={
                   payment.individual_profile_image ||
                   payment.company_profile_image ||
+                  payment.serviceImage ||
                   payment.packageMedia
                 }
                 alt="vendor"
@@ -340,13 +380,13 @@ const PaymentDetails = () => {
                   <div>
                     Email:{" "}
                     <span className="text-gray-800">
-                      {payment.email || payment.individual_email || "-"}
+                      {payment.individual_email || payment.email || "-"}
                     </span>
                   </div>
                   <div>
                     Phone:{" "}
                     <span className="text-gray-800">
-                      {payment.phone || payment.individual_phone || "-"}
+                      {payment.individual_phone || payment.phone || "-"}
                     </span>
                   </div>
                 </div>
@@ -371,31 +411,31 @@ const PaymentDetails = () => {
 
               <div className="flex items-center justify-between">
                 <div>Currency</div>
-                <div className="text-gray-800">
-                  {(payment.currency || currency).toUpperCase()}
-                </div>
+                <div className="text-gray-800">{currencyCode}</div>
               </div>
 
               <div className="flex items-center justify-between">
                 <div>Receipt</div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => copyToClipboard(payment.receiptUrl)}
+                    onClick={() => copyToClipboard(payment.receiptUrl || "")}
                     className="text-sm text-gray-600 hover:text-gray-800"
                     title="Copy receipt URL"
                   >
                     <Clipboard className="w-4 h-4" />
                   </button>
 
-                  <a
-                    href={payment.receiptUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Open
-                  </a>
+                  {payment.receiptUrl && (
+                    <a
+                      href={payment.receiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -404,7 +444,7 @@ const PaymentDetails = () => {
               <div>
                 Payment Intent:{" "}
                 <span className="font-mono text-gray-700">
-                  {payment.payment_intent_id || payment.paymentIntentId}
+                  {payment.payment_intent_id || payment.paymentIntentId || "—"}
                 </span>
               </div>
             </div>
