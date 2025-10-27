@@ -6,7 +6,7 @@ import { Card } from "../../shared/components/Card";
 import { Button } from "../../shared/components/Button";
 import { FormInput, FormTextarea } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
-import { Edit, Lock, Mail, Save, User, X } from "lucide-react";
+import { Edit, Lock, Mail, Save, User, X, Shield, Camera } from "lucide-react";
 
 const Profile = () => {
   const { currentUser } = useAdminAuth();
@@ -16,20 +16,17 @@ const Profile = () => {
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  // only name & email (as per your API)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
   });
 
-  // Change password state (moved from GeneralSettings)
   const [passwordData, setPasswordData] = useState({
     newPassword: "",
     confirmPassword: "",
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // Helper: build headers (include token if available)
   const getHeaders = () => {
     const headers = { "Content-Type": "application/json" };
     if (currentUser?.token)
@@ -118,13 +115,17 @@ const Profile = () => {
 
   const toggleEdit = () => {
     if (editing) {
-      // revert changes if cancelling
+      // Revert changes if cancelling
       setFormData({ name: profile?.name || "", email: profile?.email || "" });
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
     }
     setEditing((prev) => !prev);
   };
 
-  // Change password handler (integrated from GeneralSettings)
   const changePassword = async (e) => {
     e.preventDefault();
 
@@ -132,16 +133,15 @@ const Profile = () => {
       toast.error("Passwords do not match");
       return;
     }
-
     setIsChangingPassword(true);
 
     try {
       const payload = {
+        currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
         confirmPassword: passwordData.confirmPassword,
       };
 
-      // remove undefined keys
       Object.keys(payload).forEach(
         (k) => payload[k] === undefined && delete payload[k]
       );
@@ -153,6 +153,7 @@ const Profile = () => {
       toast.success(res?.data?.message || "Password changed successfully");
 
       setPasswordData({
+        currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
@@ -168,144 +169,216 @@ const Profile = () => {
     }
   };
 
-  // Avatar: first letter of name or email (uppercase)
   const avatarLetter =
     (profile?.name || profile?.email || "").trim().charAt(0).toUpperCase() ||
     "?";
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Admin Profile</h2>
-        {!editing ? (
-          <Button
-            onClick={toggleEdit}
-            variant="primary"
-            icon={<Edit className="mr-2" />}
-          >
-            Edit Profile
-          </Button>
-        ) : (
-          <Button
-            onClick={toggleEdit}
-            variant="outline"
-            icon={<X className="mr-2" />}
-          >
-            Cancel
-          </Button>
-        )}
-      </div>
-
-      <Card>
-        <form onSubmit={handleSubmit}>
-          <div className="flex flex-col md:flex-row gap-8">
-            {/* Avatar Section (non-editable initial) */}
-            <div className="flex flex-col items-center space-y-4">
-              <div
-                className="h-40 w-40 rounded-full flex items-center justify-center text-4xl font-semibold border-2 border-primary bg-gray-100 text-gray-700"
-                title={profile?.name || profile?.email}
-                aria-hidden="true"
-              >
-                {avatarLetter}
+    <div className="y-8  bg-gray-50">
+      <div className="max-w-4xl px-4 mx-auto sm:px-6 lg:px-8">
+        {/* Header Section */}
+        <div className="p-6 mb-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center mb-4 space-x-4 md:mb-0">
+              <div className="relative">
+                <div className="flex items-center justify-center w-20 h-20 text-5xl font-bold text-white bg-gray-600 rounded-2xl">
+                  {avatarLetter}
+                </div>
               </div>
-              <div className="text-center">
-                <h3 className="text-xl font-semibold">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
                   {profile?.name || "Admin User"}
-                </h3>
-                <p className="text-gray-500 capitalize">
-                  {currentUser?.role || "admin"}
+                </h1>
+                <p className="flex items-center text-gray-500">
+                  <Mail className="w-4 h-4 mr-1" />
+                  {profile?.email}
                 </p>
               </div>
-              <p className="text-xs text-gray-400">
-                Profile picture is fixed (initial shown)
-              </p>
             </div>
-
-            {/* Profile Details Section - only name & email (per API) */}
-            <div className="flex-1 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormInput
-                  label="Full Name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<User className="h-5 w-5 text-gray-400" />}
-                />
-
-                <FormInput
-                  label="Email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  disabled={!editing}
-                  icon={<Mail className="h-5 w-5 text-gray-400" />}
-                />
-              </div>
-
-              {editing && (
-                <div className="flex justify-end pt-4">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={updating}
-                    isLoading={updating}
-                    icon={<Save className="mr-2" />}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
+            
+            <div className="flex space-x-3">
+              {!editing ? (
+                <Button
+                  onClick={toggleEdit}
+                  variant="primary"
+                  icon={<Edit className="w-4 h-4" />}
+                  className="px-6 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  Edit Profile
+                </Button>
+              ) : (
+                <Button
+                  onClick={toggleEdit}
+                  variant="outline"
+                  icon={<X className="w-4 h-4" />}
+                  className="px-6 py-2.5 rounded-xl border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                >
+                  Cancel
+                </Button>
               )}
             </div>
           </div>
-        </form>
-      </Card>
+        </div>
 
-      {/* Change Password Card (moved here from GeneralSettings) */}
-      <Card title="Change Password" icon={<Lock className="h-5 w-5" />}>
-        <form onSubmit={changePassword}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <FormInput
-              label="New Password"
-              name="newPassword"
-              type="password"
-              value={passwordData.newPassword}
-              onChange={handlePasswordChange}
-              required
-            />
+        {/* Edit Mode - Show Both Sections */}
+        {editing ? (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Profile Information Card */}
+            <Card className="lg:col-span-2">
+              <div className="flex items-center pb-4 mb-6 space-x-2 border-b border-gray-100">
+                <User className="w-5 h-5 text-green-600" />
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Profile Information
+                </h2>
+              </div>
+              
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <FormInput
+                      label="Full Name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      icon={<User className="w-5 h-5 text-gray-400" />}
+                      required
+                    />
 
-            <FormInput
-              label="Confirm New Password"
-              name="confirmPassword"
-              type="password"
-              value={passwordData.confirmPassword}
-              onChange={handlePasswordChange}
-              required
-            />
+                    <FormInput
+                      label="Email Address"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      icon={<Mail className="w-5 h-5 text-gray-400" />}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-gray-100">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={updating}
+                      isLoading={updating}
+                      icon={<Save className="w-4 h-4" />}
+                    >
+                      Update Profile
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            </Card>
+
+            {/* Change Password Card */}
+            <Card className="lg:col-span-2">
+              <div className="flex items-center pb-4 mb-6 space-x-2 border-b border-gray-100">
+                <Lock className="w-5 h-5 text-green-600" />
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Change Password
+                </h2>
+              </div>
+
+              <form onSubmit={changePassword}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormInput
+                      label="New Password"
+                      name="newPassword"
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={handlePasswordChange}
+                      required
+                    />
+
+                    <FormInput
+                      label="Confirm New Password"
+                      name="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={handlePasswordChange}
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end pt-4 border-t border-gray-100">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={isChangingPassword}
+                      isLoading={isChangingPassword}
+                      icon={<Save className="w-4 h-4" />}
+                    >
+                      Update Password
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            </Card>
           </div>
+        ) : (
+          /* View Mode - Read Only Information */
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Profile Details Card */}
+            <Card>
+              <div className="flex items-center pb-4 mb-6 space-x-2 border-b border-gray-100">
+                <User className="w-5 h-5 text-blue-600" />
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Profile Details
+                </h2>
+              </div>
+              
+              <div className="space-y-6">
+                <div className="flex items-center p-3 space-x-3 bg-gray-50 rounded-xl">
+                  <User className="w-5 h-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Full Name</p>
+                    <p className="font-medium text-gray-900">{profile?.name}</p>
+                  </div>
+                </div>
 
-          <div className="mt-4 flex justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isChangingPassword}
-              isLoading={isChangingPassword}
-              icon={<Save className="mr-2" />}
-            >
-              Change Password
-            </Button>
+                <div className="flex items-center p-3 space-x-3 bg-gray-50 rounded-xl">
+                  <Mail className="w-5 h-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Email Address</p>
+                    <p className="font-medium text-gray-900">{profile?.email}</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Security Card */}
+            <Card>
+              <div className="flex items-center pb-4 mb-6 space-x-2 border-b border-gray-100">
+                <Lock className="w-5 h-5 text-green-600" />
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Security
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 border border-green-200 bg-green-50 rounded-xl">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
+                      <Lock className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-green-900">Password</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
-        </form>
-      </Card>
+        )}
+      </div>
     </div>
   );
 };
