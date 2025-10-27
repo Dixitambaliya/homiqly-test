@@ -47,6 +47,25 @@ const getAdminNotificationsCount = asyncHandler(async (req, res) => {
     return res.status(200).json({ count });
 });
 
+const getVendorUnreadNotificationCount = asyncHandler(async (req, res) => {
+    const { vendor_id } = req.user;
+    if (!vendor_id) {
+        return res.status(400).json({ message: "Missing 'vendor_id' parameter" });
+    }
+
+    const [[{ count }]] = await db.query(
+        `SELECT COUNT(*) AS count 
+         FROM notifications 
+         WHERE user_type = 'vendors' 
+         AND user_id = ? 
+         AND is_read = 0`,
+        [vendor_id]
+    );
+
+    return res.status(200).json({ count });
+});
+
+
 const getUserNotifications = asyncHandler(async (req, res) => {
     const { user_id } = req.user;
 
@@ -103,6 +122,7 @@ const getVendorNotifications = asyncHandler(async (req, res) => {
 }
 )
 
+
 const getEmployeeNotifications = asyncHandler(async (req, res) => {
     const { employee_id } = req.user;
 
@@ -157,5 +177,6 @@ module.exports = {
     getVendorNotifications,
     getEmployeeNotifications,
     readNotification,
-    getAdminNotificationsCount
+    getAdminNotificationsCount,
+    getVendorUnreadNotificationCount
 };

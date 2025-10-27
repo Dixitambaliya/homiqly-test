@@ -6,7 +6,8 @@ const {
     getVendorNotifications,
     getEmployeeNotifications,
     readNotification,
-    getAdminNotificationsCount
+    getAdminNotificationsCount,
+    getVendorUnreadNotificationCount
 } = require("../controller/notificationGetController");
 const { authenticationToken } = require('../middleware/authMiddleware');
 
@@ -15,8 +16,9 @@ router.get("/getnotification/:userType", authenticationToken, getAdminNotificati
 router.get("/getusernotification", authenticationToken, getUserNotifications);
 router.get("/getvendornotification", authenticationToken, getVendorNotifications);
 router.get("/getemployeenotification", authenticationToken, getEmployeeNotifications);
-
 router.get("/getnotificationcount/:userType", authenticationToken, getAdminNotificationsCount);
+
+router.get("/getnotificationcount", authenticationToken, getVendorUnreadNotificationCount);
 
 router.patch("/markasread/:notification_id", authenticationToken, readNotification);
 
