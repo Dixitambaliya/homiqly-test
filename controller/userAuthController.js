@@ -561,7 +561,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "Login successful",
-            user,
             token: loginToken
         });
 
