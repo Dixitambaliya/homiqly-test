@@ -45,6 +45,13 @@ const registerUser = asyncHandler(async (req, res) => {
                 });
             }
 
+            // 📧 Case 3: Email already exists
+            if (existingUser.email === email) {
+                return res.status(400).json({
+                    error: "This email is already registered.",
+                });
+            }
+
             // 🧩 Case 2: Account exists with password (normal user)
             return res.status(400).json({
                 error: "Email already exists. Please log in instead.",
