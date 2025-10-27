@@ -1392,6 +1392,7 @@ const getAllPackages = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
         // ✅ Pagination params
@@ -1399,13 +1400,34 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         let limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        // 1️⃣ Fetch total count for pagination info
+        // ✅ Optional search keyword
+        const search = req.query.search ? `%${req.query.search}%` : null;
+
+        // ✅ Base WHERE condition
+        let whereClause = "";
+        let params = [];
+
+        if (search) {
+            whereClause = `
+                WHERE 
+                    vpa.application_id LIKE ? OR
+                    IF(v.vendorType = 'company', cdet.companyName, idet.name) LIKE ? OR
+                    IF(v.vendorType = 'company', cdet.companyEmail, idet.email) LIKE ?
+            `;
+            params.push(search, search, search);
+        }
+
+        // 1️⃣ Fetch total count for pagination info (with search filter)
         const [[{ total }]] = await db.query(`
             SELECT COUNT(*) AS total
-            FROM vendor_package_applications
-        `);
+            FROM vendor_package_applications vpa
+            JOIN vendors v ON vpa.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            ${whereClause}
+        `, params);
 
-        // 2️⃣ Fetch paginated vendor package applications with vendor + package + service info
+        // 2️⃣ Fetch paginated vendor package applications
         const [applications] = await db.query(`
             SELECT
                 vpa.application_id,
@@ -1430,9 +1452,10 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             JOIN packages p ON vpa.package_id = p.package_id
             JOIN service_type st ON p.service_type_id = st.service_type_id
             JOIN services s ON st.service_id = s.service_id
+            ${whereClause}
             ORDER BY vpa.applied_at DESC
             LIMIT ? OFFSET ?
-        `, [limit, offset]);
+        `, [...params, limit, offset]);
 
         if (!applications.length) {
             return res.status(200).json({
@@ -1479,13 +1502,12 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
 
         // 6️⃣ Send final response with pagination info
         res.status(200).json({
-            message: "All vendor package requests fetched successfully with package details",
+            message: "Vendor package requests fetched successfully",
             applications: detailedApplications,
             total,
             page,
             limit,
             totalPages: Math.ceil(total / limit)
-
         });
 
     } catch (err) {
@@ -1496,6 +1518,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
