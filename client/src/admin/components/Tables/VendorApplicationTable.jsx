@@ -54,18 +54,12 @@ const VendorApplicationTable = ({
         <div>
           <div className="text-sm text-gray-900">{row.packageName}</div>
           <div className="text-xs text-gray-500">
-          {row.subPackages?.length} items
+            {row.subPackages?.length} items
           </div>
         </div>
       ),
     },
-    {
-      title: "Price",
-      key: "totalPrice",
-      render: (row) => (
-        <div className="text-sm text-gray-700">{row.totalPrice}</div>
-      ),
-    },
+
     {
       title: "Status",
       key: "status",
