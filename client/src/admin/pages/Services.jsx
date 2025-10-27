@@ -424,27 +424,30 @@ const Services = () => {
               setFilterMode("add");
               setShowFilterModal(true);
             }}
+            icon={<Plus className="w-4 h-4" />}
           >
             {" "}
-            <Plus className="mr-2" />
             Add Service Filter
           </Button>
           <Button
             variant="lightPrimary"
+            icon={<Plus className="w-4 h-4" />}
             onClick={() => setShowAddServiceModal(true)}
           >
-            <Plus className="mr-2" />
             Add Service
           </Button>
           <Button
             variant="lightSecondary"
             onClick={() => setShowAddCategoryModal(true)}
+            icon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="mr-2" />
             Add Category
           </Button>
-          <Button variant="lightInherit" onClick={fetchData}>
-            <RefreshCcw className="mr-2" />
+          <Button
+            variant="lightInherit"
+            onClick={fetchData}
+            icon={<RefreshCcw className="w-4 h-4" />}
+          >
             Refresh
           </Button>
         </div>
@@ -496,7 +499,6 @@ const Services = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <IconButton
                           variant="lightInfo"
-                          size="md"
                           icon={<Pen />}
                           onClick={() =>
                             editCategory({
@@ -508,7 +510,6 @@ const Services = () => {
                         />
                         <IconButton
                           variant="lightDanger"
-                          size="md"
                           icon={<Trash />}
                           onClick={() =>
                             handleDeleteClick("category", {
@@ -569,13 +570,11 @@ const Services = () => {
                           <div className="flex items-start space-x-2 ml-4">
                             <IconButton
                               variant="lightInfo"
-                              size="md"
                               icon={<Pen />}
                               onClick={() => editService(service)}
                             />
                             <IconButton
                               variant="lightDanger"
-                              size="md"
                               icon={<Trash />}
                               onClick={() =>
                                 handleDeleteClick("service", {

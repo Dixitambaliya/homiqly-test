@@ -4,7 +4,7 @@ import { useAdminAuth } from "../contexts/AdminAuthContext";
 import { HeaderMenu } from "../../shared/components/Header";
 import NotificationIcon from "../components/NotificationIcon";
 import { IconButton } from "../../shared/components/Button";
-import { ArrowDown, ArrowRight, BarChart2, Bell, Calendar, CheckSquare, HelpCircleIcon, Home, Menu, ShoppingBag, Star, ToolCase, User, UserCheck, UserPlus, Users } from "lucide-react";
+import { ArrowDown, ArrowRight, BarChart2, Bell, Calendar, CheckSquare, ChevronDown, ChevronRight, HelpCircleIcon, Home, Menu, ShoppingBag, Star, ToolCase, User, UserCheck, UserPlus, Users } from "lucide-react";
 
 // Menu configuration
 const menuItems = [
@@ -174,9 +174,9 @@ const DashboardLayout = () => {
                         </span>
                         {!sidebarCollapsed &&
                           (openSubmenu === item.name ? (
-                            <ArrowDown className="w-4 h-4" />
+                            <ChevronDown className="w-4 h-4" />
                           ) : (
-                            <ArrowRight className="w-4 h-4" />
+                            <ChevronRight className="w-4 h-4" />
                           ))}
                       </button>
                       {/* Children only expand if open and not collapsed */}
