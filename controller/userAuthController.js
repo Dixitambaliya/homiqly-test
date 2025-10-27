@@ -501,8 +501,11 @@ const sendOtp = asyncHandler(async (req, res) => {
 
 // ✅ Step 2: Verify OTP (Handles both Login & Registration)
 const verifyOtp = asyncHandler(async (req, res) => {
-    const { phone, otp, firstName, lastName, email, password } = req.body;
+    let { phone, otp, firstName, lastName, email, password } = req.body;
     const authHeader = req.headers.authorization;
+
+    // Convert OTP to string for consistent comparison
+    if (otp !== undefined && otp !== null) otp = String(otp);
 
     let decoded = null;
 
@@ -513,6 +516,10 @@ const verifyOtp = asyncHandler(async (req, res) => {
         try {
             decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+            // Convert decoded.otp to string for comparison
+            if (decoded.otp !== undefined && decoded.otp !== null)
+                decoded.otp = String(decoded.otp);
+
             // Verify OTP if provided
             if (decoded.phone !== phone || (otp && decoded.otp !== otp)) {
                 return res.status(400).json({ message: "Invalid OTP or phone number" });
@@ -522,7 +529,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
             if (err.name === "TokenExpiredError") {
                 return res.status(400).json({ message: "OTP expired. Please request a new one." });
             }
-            // ⚠️ Don't return yet — allow password login fallback
+            // ⚠️ Don’t return yet — allow password login fallback
         }
     }
 
@@ -584,6 +591,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
     // ✅ Step 5: If neither OTP nor password provided
     return res.status(400).json({ message: "OTP or email/password required to login" });
 });
+
 
 
 
