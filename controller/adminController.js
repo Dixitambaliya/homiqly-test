@@ -1245,10 +1245,14 @@ const getAllPayments = asyncHandler(async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        // 1️⃣ Get total count for pagination metadata
-        const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM payments`);
+        // 1️⃣ Get total count for completed payments
+        const [[{ total }]] = await db.query(`
+            SELECT COUNT(*) AS total 
+            FROM payments 
+            WHERE status = 'completed'
+        `);
 
-        // 2️⃣ Fetch paginated payment records
+        // 2️⃣ Fetch paginated completed payment records
         const [payments] = await db.query(`
             SELECT
                 p.payment_id,
@@ -1294,6 +1298,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
             LEFT JOIN packages pkg ON pkg.package_id = sb.package_id
+            WHERE p.status = 'completed'
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?;
         `, [limit, offset]);
@@ -1354,7 +1359,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
         // ✅ Response
         res.status(200).json({
             success: true,
-            message: "Payments fetched successfully",
+            message: "Completed payments fetched successfully",
             page,
             limit,
             totalPayments: total,
@@ -1363,10 +1368,11 @@ const getAllPayments = asyncHandler(async (req, res) => {
             payments: filteredPayments,
         });
     } catch (error) {
-        console.error("❌ Error fetching payments:", error);
-        res.status(500).json({ success: false, message: "Failed to fetch payments", error: error.message });
+        console.error("❌ Error fetching completed payments:", error);
+        res.status(500).json({ success: false, message: "Failed to fetch completed payments", error: error.message });
     }
 });
+
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
