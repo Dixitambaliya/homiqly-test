@@ -894,6 +894,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -901,9 +902,23 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Vendor ID is required" });
     }
 
+    // 🧭 Pagination inputs
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
     try {
-        // ✅ Fetch payouts + booking info
-        const [payoutRows] = await db.query(vendorGetQueries.getVendorPayoutHistory,[vendor_id]);
+        // 🔢 Count total payouts for vendor
+        const [[{ total }]] = await db.query(
+            `SELECT COUNT(*) AS total FROM vendor_payouts WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        // ✅ Fetch payouts + booking info (paginated)
+        const [payoutRows] = await db.query(
+            vendorGetQueries.getVendorPayoutHistory,
+            [vendor_id, limit, offset]
+        );
 
         if (!payoutRows.length) {
             return res.status(200).json({
@@ -912,7 +927,13 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                 totalPayout: 0,
                 pendingPayout: 0,
                 paidPayout: 0,
-                allPayouts: []
+                allPayouts: [],
+                pagination: {
+                    page,
+                    limit,
+                    totalPages: 0,
+                    totalRecords: 0
+                }
             });
         }
 
@@ -928,7 +949,10 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                     platform_fee_percentage: parseFloat(row.platform_fee_percentage || 0),
                     payout_amount: parseFloat(row.payout_amount || 0),
                     currency: row.currency,
-                    payout_status: typeof row.payout_status === "string" ? row.payout_status.toLowerCase() : row.payout_status,
+                    payout_status:
+                        typeof row.payout_status === "string"
+                            ? row.payout_status.toLowerCase()
+                            : row.payout_status,
                     created_at: row.created_at,
                     bookingDate: row.bookingDate,
                     bookingTime: row.bookingTime,
@@ -940,19 +964,23 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
             }
 
             if (row.package_id && row.sub_package_id) {
-                const pkgIndex = payoutMap[row.booking_id].packages.findIndex(p => p.package_id === row.package_id);
+                const pkgIndex = payoutMap[row.booking_id].packages.findIndex(
+                    p => p.package_id === row.package_id
+                );
                 if (pkgIndex === -1) {
                     // Add new package
                     payoutMap[row.booking_id].packages.push({
                         package_id: row.package_id,
                         packageName: row.packageName,
                         packageMedia: row.packageMedia,
-                        sub_packages: [{
-                            sub_package_id: row.sub_package_id,
-                            sub_package_name: row.sub_package_name,
-                            sub_package_media: row.sub_package_media,
-                            sub_package_description: row.sub_package_description
-                        }]
+                        sub_packages: [
+                            {
+                                sub_package_id: row.sub_package_id,
+                                sub_package_name: row.sub_package_name,
+                                sub_package_media: row.sub_package_media,
+                                sub_package_description: row.sub_package_description
+                            }
+                        ]
                     });
                 } else {
                     // Append sub_package to existing package
@@ -968,23 +996,38 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
         const allPayouts = Object.values(payoutMap);
 
-        const totalPayout = parseFloat(allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2));
-        const pendingPayout = parseFloat(allPayouts
-            .filter(b => b.payout_status === 0 || b.payout_status === "pending")
-            .reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2));
-        const paidPayout = parseFloat(allPayouts
-            .filter(b => b.payout_status === 3 || b.payout_status === "paid")
-            .reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2));
+        // 💰 Calculate totals
+        const totalPayout = parseFloat(
+            allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
+        );
+        const pendingPayout = parseFloat(
+            allPayouts
+                .filter(b => b.payout_status === 0 || b.payout_status === "pending")
+                .reduce((sum, b) => sum + b.payout_amount, 0)
+                .toFixed(2)
+        );
+        const paidPayout = parseFloat(
+            allPayouts
+                .filter(b => b.payout_status === 3 || b.payout_status === "paid")
+                .reduce((sum, b) => sum + b.payout_amount, 0)
+                .toFixed(2)
+        );
 
+        // 📦 Response with pagination
         res.status(200).json({
             vendor_id,
             totalBookings: allPayouts.length,
             totalPayout,
             pendingPayout,
             paidPayout,
-            allPayouts
+            allPayouts,
+            pagination: {
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                totalRecords: total
+            }
         });
-
     } catch (err) {
         console.error("❌ Error fetching vendor payout history:", err);
         res.status(500).json({
@@ -993,6 +1036,8 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;

@@ -103,23 +103,32 @@ const editAdminProfile = asyncHandler(async (req, res) => {
 
 const getVendor = asyncHandler(async (req, res) => {
     try {
-        const [vendors] = await db.query(adminGetQueries.vendorDetails);
+        // 📄 Pagination setup
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
 
+        // 1️⃣ Fetch vendors with pagination
+        const [vendors] = await db.query(adminGetQueries.vendorDetails, [limit, offset]);
+
+        // 2️⃣ Get total count for pagination metadata
+        const [[{ totalCount }]] = await db.query(`SELECT COUNT(*) AS totalCount FROM vendors`);
+
+        // 3️⃣ Process vendor data
         const processedVendors = vendors.map(vendor => {
-            // Parse packages and package items
             let packages = [];
             let packageItems = [];
             try { packages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { }
             try { packageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { }
 
-            // Cleanup based on vendor type
+            // Cleanup irrelevant fields
             if (vendor.vendorType === "individual") {
                 for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
             } else {
                 for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
             }
 
-            // Group packages under their service
+            // Group packages under service
             const serviceMap = {};
             packages.forEach(pkg => {
                 const serviceId = pkg.service_id;
@@ -156,17 +165,19 @@ const getVendor = asyncHandler(async (req, res) => {
 
             const servicesWithPackages = Object.values(serviceMap);
 
-            // Return vendor object without the original string fields
             const { packages: _p, package_items: _pi, ...vendorWithoutStrings } = vendor;
-
-            return {
-                ...vendorWithoutStrings,
-                services: servicesWithPackages
-            };
+            return { ...vendorWithoutStrings, services: servicesWithPackages };
         });
 
+        // 4️⃣ Send response
         res.status(200).json({
             message: "Vendor details fetched successfully",
+            pagination: {
+                total: totalCount,
+                page,
+                limit,
+                totalPages: Math.ceil(totalCount / limit)
+            },
             data: processedVendors
         });
     } catch (err) {
@@ -219,12 +230,28 @@ const getAllServiceType = asyncHandler(async (req, res) => {
 
 const getUsers = asyncHandler(async (req, res) => {
     try {
-        const [users] = await db.query(adminGetQueries.getAllUserDetails);
+        // 📄 Read pagination parameters from query (defaults)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
 
+        // 1️⃣ Get total count for pagination metadata
+        const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM users`);
+
+        const [users] = await db.query(adminGetQueries.getAllUserDetails, [limit, offset]);
+
+        // 3️⃣ Calculate total pages
+        const totalPages = Math.ceil(total / limit);
+
+        // ✅ Send response
         res.status(200).json({
             message: "Users fetched successfully",
+            page,
+            limit,
+            totalUsers: total,
+            totalPages,
             count: users.length,
-            users
+            users,
         });
     } catch (error) {
         console.error("Error fetching users:", error);
@@ -1213,85 +1240,79 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
+        // 📄 Read pagination parameters from query (defaults)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        // 1️⃣ Get total count for pagination metadata
+        const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM payments`);
+
+        // 2️⃣ Fetch paginated payment records
         const [payments] = await db.query(`
-      SELECT
-    p.payment_id,
-    p.payment_intent_id,
-    p.amount,
-    p.currency,
-    p.created_at,
-    p.status,
+            SELECT
+                p.payment_id,
+                p.payment_intent_id,
+                p.amount,
+                p.currency,
+                p.created_at,
+                p.status,
 
-    -- User Info
-    u.user_id,
-    u.firstname AS user_firstname,
-    u.lastname AS user_lastname,
-    u.email AS user_email,
-    u.phone AS user_phone,
+                -- User Info
+                u.user_id,
+                u.firstname AS user_firstname,
+                u.lastname AS user_lastname,
+                u.email AS user_email,
+                u.phone AS user_phone,
 
-    -- Vendor Info
-    v.vendor_id,
-    v.vendorType,
+                -- Vendor Info
+                v.vendor_id,
+                v.vendorType,
 
-    -- Individual Vendor Info
-    idet.name AS individual_name,
-    idet.phone AS individual_phone,
-    idet.email AS individual_email,
-    idet.profileImage AS individual_profile_image,
+                -- Individual Vendor Info
+                idet.name AS individual_name,
+                idet.phone AS individual_phone,
+                idet.email AS individual_email,
+                idet.profileImage AS individual_profile_image,
 
-    -- Company Vendor Info
-    cdet.companyName,
-    cdet.contactPerson,
-    cdet.companyEmail AS email,
-    cdet.companyPhone AS phone,
-    cdet.profileImage AS company_profile_image,
+                -- Company Vendor Info
+                cdet.companyName,
+                cdet.contactPerson,
+                cdet.companyEmail AS email,
+                cdet.companyPhone AS phone,
+                cdet.profileImage AS company_profile_image,
 
-    -- Package Info
-    pkg.package_id,
-    pkg.packageName,
-    pkg.packageMedia
+                -- Package Info
+                pkg.package_id,
+                pkg.packageName,
+                pkg.packageMedia
 
-FROM payments p
-JOIN users u ON p.user_id = u.user_id
-LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-JOIN packages pkg ON pkg.package_id = sb.package_id
-ORDER BY p.created_at DESC;
+            FROM payments p
+            JOIN users u ON p.user_id = u.user_id
+            LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+            JOIN packages pkg ON pkg.package_id = sb.package_id
+            ORDER BY p.created_at DESC
+            LIMIT ? OFFSET ?;
+        `, [limit, offset]);
 
-    `);
-
+        // 3️⃣ Enhance with Stripe metadata
         const enhancedPayments = await Promise.all(
-            payments.map(async (payment, index) => {
-                // console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
-                // console.log(`👉 Payment ID: ${payment.payment_id}`);
-                // console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
-
+            payments.map(async (payment) => {
                 try {
-                    const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id);
-                    // console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
-
                     const charges = await stripe.charges.list({
                         payment_intent: payment.payment_intent_id,
                         limit: 1,
                     });
                     const charge = charges.data?.[0];
 
-                    // if (!charge) {
-                    //     console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
-                    // } else {
-                    //     console.log(`✅ Retrieved Charge ID: ${charge.id}`);
-                    //     console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
-                    //     console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
-                    //     console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
-                    //     console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
-                    //     console.log(`🕒 Paid At (raw): ${charge.created}`);
-                    // }
-
-                    const stripeMetadata = {
+                    return {
+                        ...payment,
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
                         last4: charge?.payment_method_details?.card?.last4 || "****",
                         receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
@@ -1309,11 +1330,6 @@ ORDER BY p.created_at DESC;
                         receiptUrl: charge?.receipt_url || null,
                         paymentIntentId: charge?.payment_intent || "N/A",
                     };
-
-                    return {
-                        ...payment,
-                        ...stripeMetadata,
-                    };
                 } catch (stripeError) {
                     console.error(`❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
                     return {
@@ -1330,23 +1346,32 @@ ORDER BY p.created_at DESC;
             })
         );
 
-        // ✅ Remove null fields from final response
+        // 4️⃣ Remove null or empty fields
         const filteredPayments = enhancedPayments.map((payment) =>
-            Object.fromEntries(
-                Object.entries(payment).filter(([_, value]) => value !== null && value !== "")
-            )
+            Object.fromEntries(Object.entries(payment).filter(([_, v]) => v !== null && v !== ""))
         );
 
+        // 5️⃣ Pagination metadata
+        const totalPages = Math.ceil(total / limit);
 
+        // ✅ Response
         res.status(200).json({
             success: true,
+            message: "Payments fetched successfully",
+            page,
+            limit,
+            totalPayments: total,
+            totalPages,
+            count: filteredPayments.length,
             payments: filteredPayments,
         });
     } catch (error) {
         console.error("❌ Error fetching payments:", error);
-        res.status(500).json({ success: false, message: "Failed to fetch payments" });
+        res.status(500).json({ success: false, message: "Failed to fetch payments", error: error.message });
     }
 });
+
+
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
@@ -1473,7 +1498,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
