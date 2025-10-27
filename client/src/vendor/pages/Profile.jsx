@@ -1,15 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import {
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiMapPin,
-  FiEdit,
-  FiSave,
-  FiX,
-} from "react-icons/fi";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { Card } from "../../shared/components/Card";
 import { Button, IconButton } from "../../shared/components/Button";
@@ -19,7 +10,7 @@ import {
   FormFileInput,
 } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
-import { Trash2 } from "lucide-react";
+import { Edit, Mail, Phone, Save, Trash, User, X } from "lucide-react";
 
 const Profile = () => {
   const { currentUser } = useVendorAuth();
@@ -192,9 +183,7 @@ const Profile = () => {
         <Button
           onClick={toggleEdit}
           variant={editing ? "outline" : "primary"}
-          icon={
-            editing ? <FiX className="mr-2" /> : <FiEdit className="mr-2" />
-          }
+          icon={editing ? <X className="mr-2" /> : <Edit className="mr-2" />}
         >
           {editing ? "Cancel" : "Edit Profile"}
         </Button>
@@ -274,7 +263,7 @@ const Profile = () => {
                 value={formData.name}
                 onChange={handleInputChange}
                 disabled={!editing}
-                icon={<FiUser />}
+                icon={<User />}
               />
               <FormInput
                 label="Email"
@@ -282,7 +271,7 @@ const Profile = () => {
                 value={formData.email}
                 onChange={handleInputChange}
                 disabled={!editing}
-                icon={<FiMail />}
+                icon={<Mail />}
               />
               <FormInput
                 label="Phone"
@@ -290,7 +279,7 @@ const Profile = () => {
                 value={formData.phone}
                 onChange={handleInputChange}
                 disabled={!editing}
-                icon={<FiPhone />}
+                icon={<Phone />}
               />
               <FormInput
                 label="Date of Birth"
@@ -299,7 +288,7 @@ const Profile = () => {
                 value={formData.birthDate}
                 onChange={handleInputChange}
                 disabled={!editing}
-                icon={<FiUser />}
+                icon={<User />}
               />
 
               {profile?.vendorType === "company" && (
@@ -310,7 +299,7 @@ const Profile = () => {
                     value={formData.contactPerson}
                     onChange={handleInputChange}
                     disabled={!editing}
-                    icon={<FiUser />}
+                    icon={<User />}
                   />
                   <FormInput
                     label="Google Business Profile"
@@ -364,7 +353,7 @@ const Profile = () => {
                   type="submit"
                   variant="primary"
                   isLoading={updating}
-                  icon={<FiSave className="mr-2" />}
+                  icon={<Save className="mr-2" />}
                 >
                   Save Changes
                 </Button>
@@ -410,7 +399,7 @@ const Profile = () => {
                       deleteVendorService(service.vendor_packages_id)
                     }
                     variant="lightDanger"
-                    icon={<Trash2 className="w-5 h-5" />}
+                    icon={<Trash className="w-5 h-5" />}
                   />
                 </div>
               </div>

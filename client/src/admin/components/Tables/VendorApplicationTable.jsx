@@ -1,8 +1,8 @@
 import React from "react";
-import { FiCheckCircle, FiEye, FiXCircle } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
 import Button from "../../../shared/components/Button/Button";
+import { CheckCircle, Eye, XCircle } from "lucide-react";
 
 /** Small renderer for status */
 const StatusPill = ({ status }) => {
@@ -79,7 +79,7 @@ const VendorApplicationTable = ({
           {row.status === 0 || row.status === 1 || row.status === 2 ? (
             <>
               <IconButton
-                icon={<FiCheckCircle />}
+                icon={<CheckCircle />}
                 variant="success"
                 size="sm"
                 disabled={updatingId === row.application_id}
@@ -90,7 +90,7 @@ const VendorApplicationTable = ({
                 tooltip="Approve"
               />
               <IconButton
-                icon={<FiXCircle />}
+                icon={<XCircle />}
                 variant="danger"
                 size="sm"
                 disabled={updatingId === row.application_id}
@@ -114,7 +114,7 @@ const VendorApplicationTable = ({
             </Button>
           )}
           <IconButton
-            icon={<FiEye />}
+            icon={<Eye />}
             variant="ghost"
             size="sm"
             onClick={(e) => {

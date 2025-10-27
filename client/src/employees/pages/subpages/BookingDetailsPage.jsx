@@ -1,14 +1,6 @@
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import {
-  FiCalendar,
-  FiClock,
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiMapPin,
-} from "react-icons/fi";
 import { Button } from "../../../shared/components/Button";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
@@ -16,6 +8,7 @@ import { toast } from "react-toastify";
 import RatingModal from "../../components/Modals/RatingModal";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
 import PaymentBadge from "../../../shared/components/PaymentBadge";
+import { Calendar, Clock, Mail, MapPin, Phone } from "lucide-react";
 
 // NOTE: UI rework only. All existing functionality (fetching, status updates, rating modal)
 // preserved. This layout focuses on quick access for employees in the field.
@@ -176,15 +169,15 @@ export default function BookingDetailsPage() {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
                   <div className="flex items-center gap-2">
-                    <FiCalendar />
+                    <Calendar />
                     {formatDate(booking.bookingDate)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <FiClock />
+                    <Clock />
                     {formatTime(booking.bookingTime)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <FiPhone />{" "}
+                    <Phone />{" "}
                     <a
                       href={`tel:${booking.userPhone}`}
                       className="hover:underline"
@@ -193,7 +186,7 @@ export default function BookingDetailsPage() {
                     </a>
                   </div>
                   <div className="flex items-center gap-2">
-                    <FiMail />{" "}
+                    <Mail />{" "}
                     <a
                       href={`mailto:${booking.userEmail}`}
                       className="hover:underline"
@@ -497,11 +490,11 @@ export default function BookingDetailsPage() {
             <div className="mt-3 text-sm text-gray-900">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FiCalendar />
+                  <Calendar />
                   {formatDate(booking.bookingDate)}
                 </div>
                 <div className="flex items-center gap-2">
-                  <FiClock />
+                  <Clock />
                   {formatTime(booking.bookingTime)}
                 </div>
               </div>
@@ -580,13 +573,13 @@ export default function BookingDetailsPage() {
                 href={`tel:${booking.userPhone}`}
                 className="flex items-center gap-2 text-sm hover:underline"
               >
-                <FiPhone /> Call
+                <Phone /> Call
               </a>
               <a
                 href={`mailto:${booking.userEmail}`}
                 className="flex items-center gap-2 text-sm hover:underline"
               >
-                <FiMail /> Email
+                <Mail /> Email
               </a>
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -596,7 +589,7 @@ export default function BookingDetailsPage() {
                 rel="noreferrer"
                 className="flex items-center gap-2 text-sm hover:underline"
               >
-                <FiMapPin /> Map
+                <MapPin /> Map
               </a>
             </div>
           </section>

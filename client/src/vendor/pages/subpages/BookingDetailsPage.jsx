@@ -1,6 +1,5 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { FiCalendar, FiClock, FiUser, FiMapPin } from "react-icons/fi";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import LoadingSlider from "../../../shared/components/LoadingSpinner";
@@ -11,7 +10,7 @@ import { Button } from "../../../shared/components/Button";
 import axios from "axios";
 import { toast } from "react-toastify";
 import RatingModal from "../../../employees/components/Modals/RatingModal";
-import { Mail, MapPin, Phone, User as UserIcon } from "lucide-react";
+import { Calendar, Clock, Mail, MapPin, Phone, User as UserIcon } from "lucide-react";
 
 // Version: v2 — expands addons / preferences / consents so vendors see them clearly
 
@@ -160,11 +159,11 @@ const BookingDetailsPage = () => {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
                   <div className="flex items-center gap-2 truncate">
-                    <FiCalendar />
+                    <Calendar />
                     <span>{formatDate(booking.bookingDate)}</span>
                   </div>
                   <div className="flex items-center gap-2 truncate">
-                    <FiClock />
+                    <Clock />
                     <span>{formatTime(booking.bookingTime)}</span>
                   </div>
                   <div className="flex items-center gap-2 truncate">
@@ -466,11 +465,11 @@ const BookingDetailsPage = () => {
             <div className="mt-3 text-sm text-gray-900">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FiCalendar />
+                  <Calendar />
                   {formatDate(booking.bookingDate)}
                 </div>
                 <div className="flex items-center gap-2">
-                  <FiClock />
+                  <Clock />
                   {formatTime(booking.bookingTime)}
                 </div>
               </div>

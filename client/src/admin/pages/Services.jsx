@@ -1,16 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import {
-  FiPlus,
-  FiTrash2,
-  FiRefreshCw,
-  FiX,
-  FiEdit,
-  FiSearch,
-} from "react-icons/fi";
-import { FaPen } from "react-icons/fa6";
-
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button, IconButton } from "../../shared/components/Button";
 import {
@@ -22,6 +12,7 @@ import { ServiceFilterModal } from "../components/Modals/ServiceFilterModal";
 import { CustomFileInput } from "../../shared/components/CustomFileInput";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 import Modal from "../../shared/components/Modal/Modal";
+import { Pen, Plus, RefreshCcw, Trash, X } from "lucide-react";
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -435,25 +426,25 @@ const Services = () => {
             }}
           >
             {" "}
-            <FiPlus className="mr-2" />
+            <Plus className="mr-2" />
             Add Service Filter
           </Button>
           <Button
             variant="lightPrimary"
             onClick={() => setShowAddServiceModal(true)}
           >
-            <FiPlus className="mr-2" />
+            <Plus className="mr-2" />
             Add Service
           </Button>
           <Button
             variant="lightSecondary"
             onClick={() => setShowAddCategoryModal(true)}
           >
-            <FiPlus className="mr-2" />
+            <Plus className="mr-2" />
             Add Category
           </Button>
           <Button variant="lightInherit" onClick={fetchData}>
-            <FiRefreshCw className="mr-2" />
+            <RefreshCcw className="mr-2" />
             Refresh
           </Button>
         </div>
@@ -506,7 +497,7 @@ const Services = () => {
                         <IconButton
                           variant="lightInfo"
                           size="md"
-                          icon={<FaPen />}
+                          icon={<Pen />}
                           onClick={() =>
                             editCategory({
                               serviceCategoryId: category.serviceCategoryId,
@@ -518,7 +509,7 @@ const Services = () => {
                         <IconButton
                           variant="lightDanger"
                           size="md"
-                          icon={<FiTrash2 />}
+                          icon={<Trash />}
                           onClick={() =>
                             handleDeleteClick("category", {
                               serviceCategoryId: category.serviceCategoryId,
@@ -579,13 +570,13 @@ const Services = () => {
                             <IconButton
                               variant="lightInfo"
                               size="md"
-                              icon={<FaPen />}
+                              icon={<Pen />}
                               onClick={() => editService(service)}
                             />
                             <IconButton
                               variant="lightDanger"
                               size="md"
-                              icon={<FiTrash2 />}
+                              icon={<Trash />}
                               onClick={() =>
                                 handleDeleteClick("service", {
                                   serviceId: service.serviceId,
@@ -640,7 +631,7 @@ const Services = () => {
                       <IconButton
                         variant="lightInfo"
                         size="sm"
-                        icon={<FaPen />}
+                        icon={<Pen />}
                         onClick={() => {
                           setSelectedFilter(filter);
                           setFilterMode("edit");
@@ -650,7 +641,7 @@ const Services = () => {
                       <IconButton
                         variant="lightDanger"
                         size="sm"
-                        icon={<FiTrash2 />}
+                        icon={<Trash />}
                         onClick={() =>
                           handleDeleteClick("filter", {
                             service_filter_id: filter.service_filter_id,
@@ -683,7 +674,7 @@ const Services = () => {
                 }}
                 variant="lightDanger"
                 size="sm"
-                icon={<FiX />}
+                icon={<X />}
               />
             </div>
 
@@ -811,7 +802,7 @@ const Services = () => {
                 onClick={() => setShowEditServiceModal(false)}
                 variant="lightDanger"
                 size="sm"
-                icon={<FiX />}
+                icon={<X />}
               />
             </div>
 
@@ -936,7 +927,7 @@ const Services = () => {
                 size="sm"
                 variant="lightDanger"
                 onClick={() => setShowAddCategoryModal(false)}
-                icon={<FiX />}
+                icon={<X />}
               />
             </div>
 
@@ -992,7 +983,7 @@ const Services = () => {
               <IconButton
                 variant="lightDanger"
                 size="sm"
-                icon={<FiX />}
+                icon={<X />}
                 onClick={() => setShowEditCategoryModal(false)}
               />
             </div>

@@ -4,14 +4,8 @@ import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import { formatCurrency } from "../../../shared/utils/formatUtils";
 import api from "../../../lib/axiosConfig";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
-import { FiClipboard, FiExternalLink, FiDownload, FiCheckCircle, FiClock, FiUser, FiBriefcase } from "react-icons/fi";
 import { Button } from "../../../shared/components/Button";
-
-/**
- * Modernized PaymentDetails component
- * - Keeps original data shape & fetch logic
- * - Improved UI using Tailwind utility classes
- */
+import { Briefcase, CheckCircle, Clock, ExternalLink, User } from "lucide-react";
 
 const PaymentDetails = () => {
   const { paymentId } = useParams();
@@ -99,11 +93,11 @@ const PaymentDetails = () => {
           <p className="text-sm text-gray-500 mt-1">
             {payment.status === "completed" ? (
               <span className="inline-flex items-center gap-2 text-green-600">
-                <FiCheckCircle /> Completed
+                <CheckCircle /> Completed
               </span>
             ) : (
               <span className="inline-flex items-center gap-2 text-gray-600">
-                <FiClock /> {payment.status}
+                <Clock /> {payment.status}
               </span>
             )}{" "}
             • {paidAtFormatted}
@@ -118,7 +112,7 @@ const PaymentDetails = () => {
             className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md shadow-sm text-sm hover:bg-gray-50"
             title="Open receipt in new tab"
           >
-            <FiExternalLink />
+            <ExternalLink />
             View Receipt
           </a>
 
@@ -126,7 +120,7 @@ const PaymentDetails = () => {
             onClick={() => copyToClipboard(payment.receiptUrl)}
             title="Copy receipt link"
           >
-            <FiClipboard />
+            <Clipboard />
             {copied ? "Copied" : "Copy Link"}
           </Button>
 
@@ -230,8 +224,8 @@ const PaymentDetails = () => {
 
           {/* Invoice metadata */}
           <div className="mt-6 border-t pt-4 text-sm text-gray-600 space-y-2">
-            <div className="flex items-center gap-2"><FiUser /> <span className="font-medium">Customer:</span> <span className="ml-1">{payment.user_firstname} {payment.user_lastname}</span></div>
-            <div className="flex items-center gap-2"><FiBriefcase /> <span className="font-medium">Vendor:</span> <span className="ml-1">{payment.companyName || payment.individual_name || "—"}</span></div>
+            <div className="flex items-center gap-2"><User /> <span className="font-medium">Customer:</span> <span className="ml-1">{payment.user_firstname} {payment.user_lastname}</span></div>
+            <div className="flex items-center gap-2"><Briefcase /> <span className="font-medium">Vendor:</span> <span className="ml-1">{payment.companyName || payment.individual_name || "—"}</span></div>
             <div className="flex items-start gap-2">
               <span className="font-medium">Notes:</span>
               <span className="ml-1 text-gray-500">{payment.notes || "—"}</span>
@@ -316,7 +310,7 @@ const PaymentDetails = () => {
                     className="text-sm text-gray-600 hover:text-gray-800"
                     title="Copy receipt URL"
                   >
-                    <FiClipboard />
+                    <Clipboard />
                   </button>
 
                   <a
@@ -325,7 +319,7 @@ const PaymentDetails = () => {
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                   >
-                    <FiExternalLink />
+                    <ExternalLink />
                     Open
                   </a>
                 </div>

@@ -1,17 +1,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import {
-  FiStar,
-  FiUser,
-  FiCalendar,
-  FiPhone,
-  FiMail,
-  FiTrash2,
-} from "react-icons/fi";
 import LoadingSlider from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import IconButton from "../../shared/components/Button/IconButton";
 import { FormSelect, FormInput } from "../../shared/components/Form";
+import { Calendar, Star, Trash, User } from "lucide-react";
 
 const VendorRating = () => {
   const [ratings, setRatings] = useState([]);
@@ -138,7 +131,7 @@ const VendorRating = () => {
               return (
                 <div key={rating} className="flex items-center mb-2">
                   <div className="flex items-center text-yellow-400 mr-2 ">
-                    {rating} <FiStar className="ml-1" />
+                    {rating} <Star className="ml-1" />
                   </div>
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
@@ -210,24 +203,24 @@ const VendorRating = () => {
                 {/* Delete button */}
                 <IconButton
                   aria-label="Delete Rating"
-                  variant="danger"
+                  variant="lightDanger"
                   onClick={() => handleDelete(r.rating_id)}
                   className="absolute bottom-3 right-3 "
                   title="Delete Rating"
-                  icon={<FiTrash2 className="h-5 w-5" />}
+                  icon={<Trash className="h-4 w-4" />}
                 ></IconButton>
 
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">
                     <div className="mr-3 bg-gray-100 rounded-full p-2">
-                      <FiUser className="h-5 w-5 text-gray-500" />
+                      <User className="h-5 w-5 text-gray-500" />
                     </div>
                     <div>
                       <h4 className="font-medium text-gray-900">
                         {r.vendor_name}
                       </h4>
                       <div className="flex items-center text-sm text-gray-500">
-                        <FiCalendar className="mr-1" />
+                        <Calendar className="mr-1" />
                         {formatDate(r.created_at)}
                       </div>
                     </div>

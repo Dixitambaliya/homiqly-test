@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import Button from "../../../shared/components/Button/Button";
 import { FormInput } from "../../../shared/components/Form";
 import { IconButton } from "../../../shared/components/Button";
-import { Delete, Trash2 } from "lucide-react";
+import { Delete, Trash } from "lucide-react";
 import UniversalDeleteModal from "../../../shared/components/Modal/UniversalDeleteModal";
 
 const ServiceCities = () => {
@@ -179,7 +179,7 @@ const ServiceCities = () => {
                       size="xs"
                       onClick={() => confirmDeleteCity(c)}
                       variant="lightDanger"
-                      icon={<Trash2 className="w-4 h-4" />}
+                      icon={<Trash className="w-4 h-4" />}
                     />
                   </td>
                 </tr>

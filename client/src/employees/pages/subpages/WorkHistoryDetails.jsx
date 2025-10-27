@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../../shared/components/Button";
-import {
-  FiCalendar,
-  FiClock,
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiMapPin,
-} from "react-icons/fi";
+
+import { Calendar, Clock, User, Mail, Phone, MapPin } from "lucide-react";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import { toast } from "react-toastify";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
@@ -85,17 +79,17 @@ const WorkHistoryDetails = () => {
           <div>
             <h4 className="text-sm font-medium text-gray-500 mb-1">Customer</h4>
             <p className="text-gray-900 flex items-center">
-              <FiUser className="mr-1 text-gray-400" />
+              <User className="mr-1 text-gray-400" />
               {booking.userName}
             </p>
             <p className="text-sm text-gray-500 flex items-center">
-              <FiMail className="mr-1" /> {booking.userEmail}
+              <Mail className="mr-1" /> {booking.userEmail}
             </p>
             <p className="text-sm text-gray-500 flex items-center">
-              <FiPhone className="mr-1" /> {booking.userPhone}
+              <Phone className="mr-1" /> {booking.userPhone}
             </p>
             <p className="text-sm text-gray-500 flex items-center">
-              <FiMapPin className="mr-1" /> {booking.userAddress},{" "}
+              <MapPin className="mr-1" /> {booking.userAddress},{" "}
               {booking.userState} - {booking.userPostalCode}
             </p>
           </div>
@@ -112,14 +106,14 @@ const WorkHistoryDetails = () => {
           <div>
             <h4 className="text-sm font-medium text-gray-500 mb-1">Date</h4>
             <p className="text-gray-900 flex items-center">
-              <FiCalendar className="mr-1 text-gray-400" />
+              <Calendar className="mr-1 text-gray-400" />
               {formatDate(booking.bookingDate)}
             </p>
           </div>
           <div>
             <h4 className="text-sm font-medium text-gray-500 mb-1">Time</h4>
             <p className="text-gray-900 flex items-center">
-              <FiClock className="mr-1 text-gray-400" />
+              <Clock className="mr-1 text-gray-400" />
               {formatTime(booking.bookingTime)}
             </p>
           </div>

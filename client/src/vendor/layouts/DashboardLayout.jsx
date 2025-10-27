@@ -1,20 +1,10 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
-import { FiHelpCircle, FiMenu, FiX } from "react-icons/fi";
-import {
-  FiHome,
-  FiCalendar,
-  FiShoppingBag,
-  FiBox,
-  FiCreditCard,
-  FiStar,
-  FiUser,
-} from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
 import NotificationIcon from "../components/NotificationIcon";
 import api from "../../lib/axiosConfig"; // ✅ your axios instance
-import { Loader, Loader2 } from "lucide-react";
+import { Calendar, CreditCard, HelpCircle, Home, Loader, Menu, ShoppingBag, Star, User, X } from "lucide-react";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useVendorAuth();
@@ -54,27 +44,27 @@ const DashboardLayout = () => {
     {
       path: "/vendor/dashboard",
       name: "Dashboard",
-      icon: <FiHome className="w-5 h-5" />,
+      icon: <Home className="w-5 h-5" />,
     },
     {
       path: "/vendor/calendar",
       name: "Calendar",
-      icon: <FiCalendar className="w-5 h-5" />,
+      icon: <Calendar className="w-5 h-5" />,
     },
     {
       path: "/vendor/profile",
       name: "Profile",
-      icon: <FiUser className="w-5 h-5" />,
+      icon: <User className="w-5 h-5" />,
     },
     {
       path: "/vendor/services",
       name: "Apply for Services",
-      icon: <FiShoppingBag className="w-5 h-5" />,
+      icon: <ShoppingBag className="w-5 h-5" />,
     },
     {
       path: "/vendor/bookings",
       name: "Bookings",
-      icon: <FiShoppingBag className="w-5 h-5" />,
+      icon: <ShoppingBag className="w-5 h-5" />,
     },
     // { path: "/vendor/supply-kits", name: "Supply Kits", icon: <FiBox className="w-5 h-5" /> },
 
@@ -84,7 +74,7 @@ const DashboardLayout = () => {
           {
             path: "/vendor/employees",
             name: "Employees",
-            icon: <FiUser className="w-5 h-5" />,
+            icon: <User className="w-5 h-5" />,
           },
         ]
       : []),
@@ -92,22 +82,22 @@ const DashboardLayout = () => {
     {
       path: "/vendor/payments",
       name: "Payments",
-      icon: <FiCreditCard className="w-5 h-5" />,
+      icon: <CreditCard className="w-5 h-5" />,
     },
     {
       path: "/vendor/ratings",
       name: "Ratings",
-      icon: <FiStar className="w-5 h-5" />,
+      icon: <Star className="w-5 h-5" />,
     },
     {
       path: "/vendor/support",
       name: "Support",
-      icon: <FiHelpCircle className="w-5 h-5" />,
+      icon: <HelpCircle className="w-5 h-5" />,
     },
     {
       path: "/vendor/accountdetails",
       name: "Bank account details",
-      icon: <FiCreditCard className="w-5 h-5" />,
+      icon: <CreditCard className="w-5 h-5" />,
     },
   ];
 
@@ -120,7 +110,7 @@ const DashboardLayout = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen gap-2">
-        <Loader2 className="animate-spin" />
+        <Loader className="animate-spin" />
         Loading...
       </div>
     );
@@ -172,16 +162,16 @@ const DashboardLayout = () => {
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="hidden lg:block text-gray-500 focus:outline-none"
               >
-                <FiMenu className="w-6 h-6" />
+                <Menu className="w-6 h-6" />
               </button>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden text-gray-500 focus:outline-none"
               >
                 {mobileMenuOpen ? (
-                  <FiX className="w-6 h-6" />
+                  <X className="w-6 h-6" />
                 ) : (
-                  <FiMenu className="w-6 h-6" />
+                  <Menu className="w-6 h-6" />
                 )}
               </button>
               <h1 className="ml-4 text-xl font-semibold text-gray-800">

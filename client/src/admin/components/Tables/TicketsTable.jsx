@@ -1,7 +1,6 @@
-import React from "react";
-import { FiDelete, FiEye, FiTrash } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
+import { Trash } from "lucide-react";
 
 // ✅ Merged StatusBadge component (move this above TicketsTable)
 const StatusBadge = ({ status }) => {
@@ -84,7 +83,7 @@ const TicketsTable = ({ tickets, isLoading, onViewTicket, onDeleteTicket }) => {
             tooltip="View Ticket"
           /> */}
           <IconButton
-            icon={<FiTrash className="h-4 w-4" />}
+            icon={<Trash className="h-4 w-4" />}
             variant="danger"
             size="sm"
             onClick={(e) => {

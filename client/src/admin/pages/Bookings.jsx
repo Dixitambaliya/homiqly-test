@@ -1,16 +1,12 @@
 import { useState, useEffect } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import { FiEye, FiRefreshCw } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
-import StatusBadge from "../../shared/components/StatusBadge";
-import { formatDate, formatTime } from "../../shared/utils/dateUtils";
-import BookingDetailsModal from "../components/Modals/BookingDetailsModal";
 import { useNavigate } from "react-router-dom";
 import Button from "../../shared/components/Button/Button";
 import BookingsTable from "../components/Tables/BookingsTable";
 import { FormInput, FormSelect } from "../../shared/components/Form";
-import { Search } from "lucide-react";
+import { RefreshCcw, Search } from "lucide-react";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -179,8 +175,8 @@ const Bookings = () => {
           onClick={fetchBookings}
           variant="lightInherit"
           className="flex items-center"
+          icon={<RefreshCcw />}
         >
-          <FiRefreshCw className="mr-2" />
           Refresh
         </Button>
       </div>

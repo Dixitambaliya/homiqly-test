@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiSend } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import Select from "react-select";
 import Button from "../../shared/components/Button/Button";
 import { FormInput, FormSelect, FormTextarea } from "../../shared/components/Form";
+import { Send } from "lucide-react";
 
 const Notifications = () => {
   const [loading, setLoading] = useState(false);
@@ -281,7 +281,7 @@ const Notifications = () => {
                   </>
                 ) : (
                   <>
-                    <FiSend className="mr-2" />
+                    <Send className="mr-2" />
                     Send Notification
                   </>
                 )}

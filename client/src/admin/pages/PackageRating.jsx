@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FiStar, FiUser, FiCalendar } from "react-icons/fi";
 import { formatDate } from "../../shared/utils/dateUtils";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { FormSelect } from "../../shared/components/Form";
+import { Calendar, User } from "lucide-react";
 
 const PackageRating = () => {
   const [packages, setPackages] = useState([]);
@@ -174,14 +174,14 @@ const PackageRating = () => {
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center">
                       <div className="mr-3 bg-gray-100 rounded-full p-2">
-                        <FiUser className="h-5 w-5 text-gray-500" />
+                        <User className="h-5 w-5 text-gray-500" />
                       </div>
                       <div>
                         <h4 className="font-medium text-gray-900">
                           {r.userName}
                         </h4>
                         <div className="flex items-center text-sm text-gray-500">
-                          <FiCalendar className="mr-1" />
+                          <Calendar className="mr-1" />
                           {formatDate(r.created_at)}
                         </div>
                       </div>

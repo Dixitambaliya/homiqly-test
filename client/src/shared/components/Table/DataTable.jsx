@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import LoadingSpinner from '../LoadingSpinner';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 const DataTable = ({ 
   columns, 
@@ -119,7 +119,7 @@ const DataTable = ({
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="sr-only">Previous</span>
-                  <FiChevronLeft className="h-5 w-5" />
+                  <ArrowLeft className="h-5 w-5" />
                 </button>
                 
                 {/* Page numbers */}
@@ -172,7 +172,7 @@ const DataTable = ({
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="sr-only">Next</span>
-                  <FiChevronRight className="h-5 w-5" />
+                  <ArrowRight className="h-5 w-5" />
                 </button>
               </nav>
             </div>

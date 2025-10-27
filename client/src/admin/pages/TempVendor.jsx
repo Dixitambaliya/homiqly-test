@@ -15,6 +15,8 @@ import {
   Eye,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import Modal from "../../shared/components/Modal/Modal";
+import { IconButton } from "../../shared/components/Button";
 
 const TempVendor = () => {
   const [vendors, setVendors] = useState([]);
@@ -91,17 +93,16 @@ const TempVendor = () => {
         </div>
       )}
 
-      {/* Modal */}
-      {selectedVendor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setSelectedVendor(null)}
-          />
-
-          {/* Modal panel */}
-          <div className="relative z-10 w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden">
+      {/* Modal using your prebuilt Modal component */}
+      <Modal
+        isOpen={!!selectedVendor}
+        onClose={() => setSelectedVendor(null)}
+        size="xxl"
+        // we want to render the same rich custom header inside children, so disable Modal title/close UI
+        showCloseButton={false}
+      >
+        {selectedVendor && (
+          <>
             {/* Header */}
             <div className="flex items-start justify-between gap-4 p-6 border-b">
               <div className="flex items-center gap-4">
@@ -139,14 +140,13 @@ const TempVendor = () => {
 
               {/* close */}
               <div className="flex items-center gap-2">
-                <button
+                <IconButton
                   onClick={() => setSelectedVendor(null)}
-                  className="rounded-md p-2 hover:bg-slate-100"
                   aria-label="Close"
+                  variant="ghost"
+                  icon={<X />}
                   title="Close"
-                >
-                  <X size={20} className="text-slate-600" />
-                </button>
+                ></IconButton>
               </div>
             </div>
 
@@ -506,9 +506,9 @@ const TempVendor = () => {
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

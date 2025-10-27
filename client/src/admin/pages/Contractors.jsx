@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { FiPlus, FiEye, FiX, FiCheck } from 'react-icons/fi';
 import LoadingSpinner from '../../shared/components/LoadingSpinner';
+import { Check, Eye, Plus, X } from 'lucide-react';
 
 const Contractors = () => {
   const [contractors, setContractors] = useState([]);
@@ -147,7 +147,7 @@ const Contractors = () => {
           onClick={() => setShowAddModal(true)}
           className="px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark flex items-center"
         >
-          <FiPlus className="mr-2" />
+          <Plus className="mr-2" />
           Add Contractor
         </button>
       </div>
@@ -213,7 +213,7 @@ const Contractors = () => {
                         onClick={() => viewContractorDetails(contractor)}
                         className="text-primary-600 hover:text-primary-900"
                       >
-                        <FiEye className="h-5 w-5" />
+                        <Eye className="h-5 w-5" />
                       </button>
                     </td>
                   </tr>
@@ -241,7 +241,7 @@ const Contractors = () => {
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <FiX className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             
@@ -408,7 +408,7 @@ const Contractors = () => {
                 onClick={() => setShowDetailsModal(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <FiX className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             
@@ -523,7 +523,7 @@ const Contractors = () => {
                     }}
                     className="px-4 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 flex items-center"
                   >
-                    <FiCheck className="mr-2" />
+                    <Check className="mr-2" />
                     Verify Contractor
                   </button>
                 </div>

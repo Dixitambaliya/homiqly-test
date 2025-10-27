@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useEmployeesAuth } from "../contexts/EmployeesAuthContext";
 import { toast } from "react-toastify";
-import { FiMail, FiLock, FiLoader } from "react-icons/fi";
+import { Loader, Lock, Mail } from "lucide-react";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -120,7 +120,7 @@ const ForgotPassword = () => {
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiMail className="h-5 w-5 text-gray-400" />
+                  <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="email"
@@ -144,7 +144,7 @@ const ForgotPassword = () => {
               >
                 {loading ? (
                   <>
-                    <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                    <Loader className="animate-spin -ml-1 mr-2 h-4 w-4" />
                     Sending...
                   </>
                 ) : (
@@ -198,7 +198,7 @@ const ForgotPassword = () => {
               >
                 {loading ? (
                   <>
-                    <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                    <Loader className="animate-spin -ml-1 mr-2 h-4 w-4" />
                     Verifying...
                   </>
                 ) : (
@@ -225,7 +225,7 @@ const ForgotPassword = () => {
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiLock className="h-5 w-5 text-gray-400" />
+                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="newPassword"
@@ -249,7 +249,7 @@ const ForgotPassword = () => {
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiLock className="h-5 w-5 text-gray-400" />
+                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="confirmPassword"
@@ -272,7 +272,7 @@ const ForgotPassword = () => {
               >
                 {loading ? (
                   <>
-                    <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                    <Loader className="animate-spin -ml-1 mr-2 h-4 w-4" />
                     Resetting...
                   </>
                 ) : (

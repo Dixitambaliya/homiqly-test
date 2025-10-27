@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FiDownload, FiFilter } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import { formatCurrency } from "../../shared/utils/formatUtils";

@@ -1,85 +1,68 @@
 import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAdminAuth } from "../contexts/AdminAuthContext";
-import {
-  FiHome,
-  FiUserCheck,
-  FiUsers,
-  FiShoppingBag,
-  FiCalendar,
-  FiUserPlus,
-  FiBarChart2,
-  FiStar,
-  FiCheckSquare,
-  FiBell,
-  FiHelpCircle,
-  FiTool,
-  FiMenu,
-  FiX,
-  FiChevronDown,
-  FiChevronRight,
-} from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
 import NotificationIcon from "../components/NotificationIcon";
 import { IconButton } from "../../shared/components/Button";
+import { ArrowDown, ArrowRight, BarChart2, Bell, Calendar, CheckSquare, HelpCircleIcon, Home, Menu, ShoppingBag, Star, ToolCase, User, UserCheck, UserPlus, Users } from "lucide-react";
 
 // Menu configuration
 const menuItems = [
   {
     path: "/admin/dashboard",
     name: "Dashboard",
-    icon: <FiHome className="w-5 h-5" />,
+    icon: <Home className="w-5 h-5" />,
   },
   {
     path: "/admin/vendors",
     name: "Vendors",
-    icon: <FiUserCheck className="w-5 h-5" />,
+    icon: <UserCheck className="w-5 h-5" />,
   },
   {
     path: "/admin/tempvendor",
     name: "Temp Vendor",
-    icon: <FiUserCheck className="w-5 h-5" />,
+    icon: <UserCheck className="w-5 h-5" />,
   },
 
   {
     path: "/admin/users",
     name: "Users",
-    icon: <FiUsers className="w-5 h-5" />,
+    icon: <User className="w-5 h-5" />,
   },
   {
     path: "/admin/services",
     name: "Services",
-    icon: <FiShoppingBag className="w-5 h-5" />,
+    icon: <ShoppingBag className="w-5 h-5" />,
   },
   {
     path: "/admin/packages",
     name: "Packages",
-    icon: <FiShoppingBag className="w-5 h-5" />,
+    icon: <ShoppingBag className="w-5 h-5" />,
   },
   {
     path: "/admin/bookings",
     name: "Bookings",
-    icon: <FiCalendar className="w-5 h-5" />,
+    icon: <Calendar className="w-5 h-5" />,
   },
   {
     path: "/admin/employees",
     name: "Employees",
-    icon: <FiUserPlus className="w-5 h-5" />,
+    icon: <UserPlus className="w-5 h-5" />,
   },
   {
     path: "/admin/analytics",
     name: "Analytics",
-    icon: <FiBarChart2 className="w-5 h-5" />,
+    icon: <BarChart2 className="w-5 h-5" />,
   },
   {
     path: "/admin/vendor-applications",
     name: "Vendor Applications",
-    icon: <FiUsers className="w-5 h-5" />,
+    icon: <Users className="w-5 h-5" />,
   },
   {
     path: "/admin/rating",
     name: "Rating",
-    icon: <FiStar className="w-5 h-5" />,
+    icon: <Star className="w-5 h-5" />,
     children: [
       { path: "/admin/rating/user", name: "User Ratings" },
       { path: "/admin/rating/vendor", name: "Vendor Ratings" },
@@ -89,7 +72,7 @@ const menuItems = [
   {
     path: "/admin/payments",
     name: "Payments",
-    icon: <FiCheckSquare className="w-5 h-5" />,
+    icon: <CheckSquare className="w-5 h-5" />,
     children: [
       { path: "/admin/payments/payoutlist", name: "Payouts" },
       { path: "/admin/payments/history", name: "History" },
@@ -98,21 +81,21 @@ const menuItems = [
   {
     path: "/admin/notifications",
     name: "Notifications",
-    icon: <FiBell className="w-5 h-5" />,
+    icon: <Bell className="w-5 h-5" />,
   },
   {
     path: "/admin/tickets",
     name: "Support Tickets",
-    icon: <FiHelpCircle className="w-5 h-5" />,
+    icon: <HelpCircleIcon className="w-5 h-5" />,
   },
   {
     path: "/admin/settings",
     name: "Settings",
-    icon: <FiTool className="w-5 h-5" />,
+    icon: <ToolCase className="w-5 h-5" />,
     children: [
       { path: "/admin/promocodes", name: "Promo Codes" },
       { path: "/admin/settings/platform-tax", name: "Platform Tax" },
-      { path: "/admin/settings/general", name: "General Settings" },
+      // { path: "/admin/settings/general", name: "General Settings" },
       { path: "/admin/settings/platform-fees", name: "Platform Fees" },
       { path: "/admin/settings/city", name: "Add City" },
     ],
@@ -191,9 +174,9 @@ const DashboardLayout = () => {
                         </span>
                         {!sidebarCollapsed &&
                           (openSubmenu === item.name ? (
-                            <FiChevronDown className="w-4 h-4" />
+                            <ArrowDown className="w-4 h-4" />
                           ) : (
-                            <FiChevronRight className="w-4 h-4" />
+                            <ArrowRight className="w-4 h-4" />
                           ))}
                       </button>
                       {/* Children only expand if open and not collapsed */}
@@ -252,7 +235,7 @@ const DashboardLayout = () => {
                 className="rounded"
                 onClick={() => setSidebarCollapsed((s) => !s)}
                 title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                icon={<FiMenu className="w-5 h-5" />}
+                icon={<Menu className="w-5 h-5" />}
               />
               <h1 className="ml-4 text-xl font-semibold text-gray-800">
                 {getPageTitle(location.pathname)}
@@ -264,7 +247,7 @@ const DashboardLayout = () => {
                 userRole={currentUser?.role || "admin"}
                 onLogout={handleLogout}
                 profilePath="/admin/profile"
-                settingsPath="/admin/settings"
+                // settingsPath="/admin/settings"
               />
               <NotificationIcon />
             </div>

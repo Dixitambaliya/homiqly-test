@@ -1,11 +1,11 @@
 // pages/vendor/components/PaymentDetails.jsx
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { FiArrowLeft } from "react-icons/fi";
 import axios from "axios";
 import { formatDate } from "../../../shared/utils/dateUtils";
 import { formatCurrency } from "../../../shared/utils/formatUtils";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
+import { ArrowLeft } from "lucide-react";
 
 const PaymentDetails = () => {
   const { paymentId } = useParams(); // route param (booking_id passed earlier)
@@ -120,7 +120,7 @@ const PaymentDetails = () => {
             onClick={() => navigate(-1)}
             className="inline-flex items-center gap-2 text-sm text-gray-600"
           >
-            <FiArrowLeft />
+            <ArrowLeft />
             Back
           </button>
 

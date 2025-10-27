@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiSave, FiLock } from "react-icons/fi";
+// import { FiSave, FiLock } from "react-icons/fi";
 import { Card } from "../../../shared/components/Card";
 import { Button } from "../../../shared/components/Button";
 import { FormInput, FormSelect } from "../../../shared/components/Form";
 import { useAdminAuth } from "../../contexts/AdminAuthContext";
+import { Lock } from "lucide-react";
 
 const GeneralSettings = () => {
   const { currentUser } = useAdminAuth();
@@ -153,7 +154,7 @@ const GeneralSettings = () => {
         </form>
       </Card> */}
 
-      <Card title="Change Password" icon={<FiLock className="h-5 w-5" />}>
+      <Card title="Change Password" icon={<Lock className="h-5 w-5" />}>
         <form onSubmit={changePassword}>
           <div className="grid grid-cols-2 gap-3">
          

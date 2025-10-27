@@ -1,11 +1,10 @@
 // src/app/components/Tables/PayoutsTable.jsx
 import React from "react";
-import { FiEye } from "react-icons/fi";
-import { MdEdit, MdDelete } from "react-icons/md";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate } from "../../../shared/utils/dateUtils";
 import { formatCurrency } from "../../../shared/utils/formatUtils";
+import { Eye } from "lucide-react";
 
 const statusMap = {
   0: "Pending",
@@ -98,7 +97,7 @@ const PayoutsTable = ({
       render: (row) => (
         <div className="flex items-center justify-end space-x-2">
           <IconButton
-            icon={<FiEye />}
+            icon={<Eye />}
             variant="ghost"
             onClick={(e) => {
               e.stopPropagation();

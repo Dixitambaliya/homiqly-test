@@ -1,10 +1,10 @@
 // pages/vendor/components/PaymentsTable.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { FiEye } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { formatDate } from "../../../shared/utils/dateUtils";
 import IconButton from "../../../shared/components/Button/IconButton";
+import { Eye } from "lucide-react";
 
 const PaymentsTable = ({
   bookings = [],
@@ -123,7 +123,7 @@ const PaymentsTable = ({
         <IconButton
           onClick={() => handleViewDetails(row)}
           variant="ghost"
-          icon={<FiEye />}
+          icon={<Eye />}
         />
       ),
     },

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiUser, FiSettings, FiLogOut, FiChevronDown } from 'react-icons/fi';
+import { ArrowDown, LogOut, User } from 'lucide-react';
 
 const HeaderMenu = ({ 
   userName, 
@@ -45,7 +45,7 @@ const HeaderMenu = ({
           </div>
         )}
         <span className="font-medium hidden md:block">{userName}</span>
-        <FiChevronDown className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ArrowDown className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       
       {isOpen && (
@@ -60,18 +60,18 @@ const HeaderMenu = ({
             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             onClick={() => setIsOpen(false)}
           >
-            <FiUser className="mr-2 h-4 w-4" />
+            <User className="mr-2 h-4 w-4" />
             Profile
           </Link>
           
-          <Link 
+          {/* <Link 
             to={settingsPath}
             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             onClick={() => setIsOpen(false)}
           >
             <FiSettings className="mr-2 h-4 w-4" />
             Settings
-          </Link>
+          </Link> */}
           
           <button
             onClick={() => {
@@ -80,7 +80,7 @@ const HeaderMenu = ({
             }}
             className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
           >
-            <FiLogOut className="mr-2 h-4 w-4" />
+            <LogOut className="mr-2 h-4 w-4" />
             Logout
           </button>
         </div>

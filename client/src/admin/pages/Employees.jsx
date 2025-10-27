@@ -4,10 +4,10 @@ import { toast } from "react-toastify";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EmployeesTable from "../components/Tables/EmployeesTable";
 import EmployeeDetailsModal from "../components/Modals/EmployeeDetailsModal"; // <-- modal has edit built-in
-import { FiSearch } from "react-icons/fi";
 import FormInput from "../../shared/components/Form/FormInput";
 import { FormSelect } from "../../shared/components/Form";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
+import { Search } from "lucide-react";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
@@ -201,7 +201,7 @@ const Employees = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name or email..."
-              icon={<FiSearch />}
+              icon={<Search />}
               className="w-full"
               aria-label="Search employees"
             />

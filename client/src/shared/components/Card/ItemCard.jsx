@@ -1,5 +1,5 @@
-import { FiTrash2 } from "react-icons/fi";
 import { IconButton } from "../Button";
+import { Trash } from "lucide-react";
 
 const ItemCard = ({ title, children, onRemove, showRemove = true }) => (
   <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
@@ -8,7 +8,7 @@ const ItemCard = ({ title, children, onRemove, showRemove = true }) => (
       {showRemove && (
         <IconButton
           variant="lightDanger"
-          icon={<FiTrash2 />}
+          icon={<Trash />}
           onClick={onRemove}
           className="!p-2"
         />

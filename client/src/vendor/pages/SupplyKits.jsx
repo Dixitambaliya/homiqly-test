@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { FiPackage, FiShoppingCart, FiPlus, FiX, FiCheck } from 'react-icons/fi';
 import LoadingSpinner from '../../shared/components/LoadingSpinner';
 import { formatCurrency } from '../../shared/utils/formatUtils';
 import { formatDate } from '../../shared/utils/dateUtils';
+import { Check, ShoppingCart, X } from 'lucide-react';
 
 const SupplyKits = () => {
   const [supplyKits, setSupplyKits] = useState([]);
@@ -168,7 +168,7 @@ const SupplyKits = () => {
                     onClick={() => handleOrderKit(kit)}
                     className="w-full flex items-center justify-center px-4 py-2 bg-primary-light text-white rounded-md hover:bg-primary-dark"
                   >
-                    <FiShoppingCart className="mr-2" />
+                    <ShoppingCart className="mr-2" />
                     Order Kit
                   </button>
                 </div>
@@ -258,7 +258,7 @@ const SupplyKits = () => {
                 onClick={() => setShowOrderModal(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <FiX className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             
@@ -318,7 +318,7 @@ const SupplyKits = () => {
                     </>
                   ) : (
                     <>
-                      <FiCheck className="mr-2" />
+                      <Check className="mr-2" />
                       Confirm Order
                     </>
                   )}

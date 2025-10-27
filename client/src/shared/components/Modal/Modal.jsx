@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
-import { FiX } from "react-icons/fi";
 import { IconButton } from "../Button";
+import { X } from "lucide-react";
 
 const Modal = ({
   isOpen,
@@ -40,6 +40,7 @@ const Modal = ({
     md: "max-w-lg",
     lg: "max-w-2xl",
     xl: "max-w-4xl",
+    xxl: "max-w-6xl",
     full: "max-w-full mx-4",
   };
 
@@ -64,7 +65,7 @@ const Modal = ({
               <IconButton
                 onClick={onClose}
                 variant="lightDanger"
-                icon={<FiX />}
+                icon={<X />}
               ></IconButton>
             )}
           </div>
