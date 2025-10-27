@@ -1483,12 +1483,11 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         res.status(200).json({
             message: "All vendor package requests fetched successfully with package details",
             applications: detailedApplications,
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit)
-            }
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+
         });
 
     } catch (err) {
