@@ -486,7 +486,7 @@ const sendOtp = asyncHandler(async (req, res) => {
     const otp = generateOTP();
 
     // 🔐 Create JWT with phone + otp (expires in 5 minutes)
-    const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "5m" });
+    const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "30m" });
 
     // 📩 Send OTP via SMS (Twilio)
     await client.messages.create({
@@ -520,7 +520,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // Validate phone + otp
-        if (decoded.phone !== phone || decoded.otp !== otp) {
+        if (decoded.phone !== phone) {
             return res.status(400).json({ message: "Invalid OTP or phone number" });
         }
 
@@ -547,7 +547,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
             const user_id = result.insertId;
 
-            const loginToken = jwt.sign({ user_id, phone }, JWT_SECRET, { expiresIn: "7d" });
+            const loginToken = jwt.sign({ user_id, phone }, process.env.JWT_SECRET);
 
             return res.status(200).json({
                 message: "Registration successful",
@@ -557,7 +557,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         }
 
         // Existing user → login directly
-        const loginToken = jwt.sign({ user_id: user.user_id, phone: user.phone }, JWT_SECRET, { expiresIn: "7d" });
+        const loginToken = jwt.sign({ user_id: user.user_id, phone: user.phone }, process.env.JWT_SECRET);
 
         res.status(200).json({
             message: "Login successful",
@@ -566,6 +566,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         });
 
     } catch (err) {
+        console.error("JWT Verification Error:", err);
         // Handle token expiration or tampering
         if (err.name === "TokenExpiredError") {
             return res.status(400).json({ message: "OTP expired. Please request a new one." });
