@@ -49,8 +49,7 @@ const getAdminNotificationsCount = asyncHandler(async (req, res) => {
 
 const getVendorUnreadNotificationCount = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
-    console.log(vendor_id);
-    
+  
     if (!vendor_id) {
         return res.status(400).json({ message: "Missing 'vendor_id' parameter" });
     }
