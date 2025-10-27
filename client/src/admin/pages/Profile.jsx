@@ -208,18 +208,15 @@ const Profile = () => {
               {!editing ? (
                 <Button
                   onClick={toggleEdit}
-                  variant="primary"
                   icon={<Edit className="w-4 h-4" />}
-                  className="px-6 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
                 >
                   Edit Profile
                 </Button>
               ) : (
                 <Button
                   onClick={toggleEdit}
-                  variant="outline"
+                  variant="ghost"
                   icon={<X className="w-4 h-4" />}
-                  className="px-6 py-2.5 rounded-xl border-gray-300 hover:bg-gray-50 transition-all duration-200"
                 >
                   Cancel
                 </Button>
@@ -266,7 +263,6 @@ const Profile = () => {
                   <div className="flex justify-end pt-4 border-t border-gray-100">
                     <Button
                       type="submit"
-                      variant="primary"
                       disabled={updating}
                       isLoading={updating}
                       icon={<Save className="w-4 h-4" />}
@@ -311,7 +307,6 @@ const Profile = () => {
                   <div className="flex justify-end pt-4 border-t border-gray-100">
                     <Button
                       type="submit"
-                      variant="primary"
                       disabled={isChangingPassword}
                       isLoading={isChangingPassword}
                       icon={<Save className="w-4 h-4" />}
@@ -329,7 +324,7 @@ const Profile = () => {
             {/* Profile Details Card */}
             <Card>
               <div className="flex items-center pb-4 mb-6 space-x-2 border-b border-gray-100">
-                <User className="w-5 h-5 text-blue-600" />
+                <User className="w-5 h-5 text-green-600" />
                 <h2 className="text-lg font-semibold text-gray-900">
                   Profile Details
                 </h2>

@@ -157,7 +157,6 @@ const Profile = () => {
                       variant="primary"
                       size="sm"
                       icon={<Edit className="w-4 h-4" />}
-                      className="relative text-white transition-all duration-200 border-0 shadow-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:scale-105"
                     >
                       Edit Profile
                     </Button>
