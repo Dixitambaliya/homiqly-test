@@ -172,12 +172,10 @@ const getVendor = asyncHandler(async (req, res) => {
         // 4️⃣ Send response
         res.status(200).json({
             message: "Vendor details fetched successfully",
-            pagination: {
-                total: totalCount,
-                page,
-                limit,
-                totalPages: Math.ceil(totalCount / limit)
-            },
+            total: totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit),
             data: processedVendors
         });
     } catch (err) {
