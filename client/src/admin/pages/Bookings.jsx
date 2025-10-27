@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import { FiEye, FiRefreshCw } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { useNavigate } from "react-router-dom";
 import Button from "../../shared/components/Button/Button";
@@ -213,7 +212,7 @@ const Bookings = () => {
           variant="lightInherit"
           className="flex items-center"
         >
-          <FiRefreshCw className="mr-2" />
+          <RefreshCcw className="mr-2" />
           Refresh
         </Button>
       </div>
