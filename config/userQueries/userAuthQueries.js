@@ -4,6 +4,8 @@ const userAuthQueries = {
   userInsert1: `INSERT INTO users (firstName, lastName, email, phone) VALUES (?, ?, ?, ?)`,
 
   userMailCheck: 'SELECT * FROM users WHERE email = ? OR phone = ?',
+  
+  userMailCheckGoogle: 'SELECT * FROM users WHERE email = ?',
 
   userSetPassword: `UPDATE users 
                   SET password = ? 

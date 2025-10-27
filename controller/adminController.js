@@ -1240,7 +1240,6 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
         // 📄 Read pagination parameters from query (defaults)
@@ -1370,8 +1369,6 @@ const getAllPayments = asyncHandler(async (req, res) => {
         res.status(500).json({ success: false, message: "Failed to fetch payments", error: error.message });
     }
 });
-
-
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {

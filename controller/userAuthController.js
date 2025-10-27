@@ -320,7 +320,7 @@ const googleLogin = asyncHandler(async (req, res) => {
 
     try {
         // 1️⃣ Check if user exists
-        const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email]);
+        const [existingUsers] = await db.query(userAuthQueries.userMailCheckGoogle, [email]);
 
         if (!existingUsers || existingUsers.length === 0) {
             return res.status(404).json({ error: "User not found. Please sign up first." });
