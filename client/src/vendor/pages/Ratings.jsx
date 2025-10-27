@@ -81,7 +81,7 @@ const Ratings = () => {
     );
 
   return (
-    <section className="max-w-7xl mx-auto px-4 py-8">
+    <section className="max-w-7xl mx-auto px-4 ">
       <header className="mb-8">
         <h2 className="text-3xl font-bold text-gray-900">Ratings & Reviews</h2>
         <p className="text-gray-500 mt-1">Real feedback from customers</p>
