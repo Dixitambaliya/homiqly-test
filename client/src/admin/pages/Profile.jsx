@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiUser, FiMail, FiEdit, FiSave, FiX, FiLock } from "react-icons/fi";
 import { useAdminAuth } from "../contexts/AdminAuthContext";
 import { Card } from "../../shared/components/Card";
 import { Button } from "../../shared/components/Button";
 import { FormInput, FormTextarea } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { Edit, Lock, Mail, Save, User, X } from "lucide-react";
 
 const Profile = () => {
   const { currentUser } = useAdminAuth();
@@ -189,7 +189,7 @@ const Profile = () => {
           <Button
             onClick={toggleEdit}
             variant="primary"
-            icon={<FiEdit className="mr-2" />}
+            icon={<Edit className="mr-2" />}
           >
             Edit Profile
           </Button>
@@ -197,7 +197,7 @@ const Profile = () => {
           <Button
             onClick={toggleEdit}
             variant="outline"
-            icon={<FiX className="mr-2" />}
+            icon={<X className="mr-2" />}
           >
             Cancel
           </Button>
@@ -238,7 +238,7 @@ const Profile = () => {
                   value={formData.name}
                   onChange={handleInputChange}
                   disabled={!editing}
-                  icon={<FiUser className="h-5 w-5 text-gray-400" />}
+                  icon={<User className="h-5 w-5 text-gray-400" />}
                 />
 
                 <FormInput
@@ -248,7 +248,7 @@ const Profile = () => {
                   value={formData.email}
                   onChange={handleInputChange}
                   disabled={!editing}
-                  icon={<FiMail className="h-5 w-5 text-gray-400" />}
+                  icon={<Mail className="h-5 w-5 text-gray-400" />}
                 />
               </div>
 
@@ -259,7 +259,7 @@ const Profile = () => {
                     variant="primary"
                     disabled={updating}
                     isLoading={updating}
-                    icon={<FiSave className="mr-2" />}
+                    icon={<Save className="mr-2" />}
                   >
                     Save Changes
                   </Button>
@@ -271,7 +271,7 @@ const Profile = () => {
       </Card>
 
       {/* Change Password Card (moved here from GeneralSettings) */}
-      <Card title="Change Password" icon={<FiLock className="h-5 w-5" />}>
+      <Card title="Change Password" icon={<Lock className="h-5 w-5" />}>
         <form onSubmit={changePassword}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormInput
@@ -299,7 +299,7 @@ const Profile = () => {
               variant="primary"
               disabled={isChangingPassword}
               isLoading={isChangingPassword}
-              icon={<FiSave className="mr-2" />}
+              icon={<Save className="mr-2" />}
             >
               Change Password
             </Button>

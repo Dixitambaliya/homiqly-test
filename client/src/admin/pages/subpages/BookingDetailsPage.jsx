@@ -1,8 +1,5 @@
-"use client";
-
 import { useLocation, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { FiCalendar, FiClock, FiUser, FiMapPin } from "react-icons/fi";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import LoadingSlider from "../../../shared/components/LoadingSpinner";
@@ -11,6 +8,7 @@ import Breadcrumb from "../../../shared/components/Breadcrumb";
 import { toast } from "react-toastify";
 import { Button } from "../../../shared/components/Button";
 import PaymentBadge from "../../../shared/components/PaymentBadge";
+import { Calendar, Clock, MapPin } from "lucide-react";
 
 // Utilities (kept from original file) --------------------------------------------------
 const getField = (obj, ...keys) => {
@@ -356,9 +354,9 @@ export default function AdminBookingDetailsPage() {
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                  <FiCalendar />{" "}
+                  <Calendar />{" "}
                   <span>{bookingDate ? formatDate(bookingDate) : "—"}</span>
-                  <FiClock className="ml-4" />{" "}
+                  <Clock className="ml-4" />{" "}
                   <span>{bookingTime ? formatTime(bookingTime) : "—"}</span>
                 </div>
 
@@ -798,7 +796,7 @@ export default function AdminBookingDetailsPage() {
                 )}
                 {userAddress && (
                   <p className="mt-2 text-xs text-gray-500 flex items-start gap-2">
-                    <FiMapPin className="text-gray-400 mt-0.5" />{" "}
+                    <MapPin className="text-gray-400 mt-0.5" />{" "}
                     <span className="truncate">
                       {userAddress}
                       {userState ? `, ${userState}` : ""}
@@ -815,11 +813,11 @@ export default function AdminBookingDetailsPage() {
             <h4 className="text-sm font-medium text-gray-700">Schedule</h4>
             <div className="mt-3 text-sm text-gray-900">
               <div className="flex items-center gap-2">
-                <FiCalendar className="text-gray-400" />{" "}
+                <Calendar className="text-gray-400" />{" "}
                 <span>{bookingDate ? formatDate(bookingDate) : "—"}</span>
               </div>
               <div className="flex items-center gap-2 mt-2">
-                <FiClock className="text-gray-400" />{" "}
+                <Clock className="text-gray-400" />{" "}
                 <span>{bookingTime ? formatTime(bookingTime) : "—"}</span>
               </div>
               {getField(booking, "start_time") &&

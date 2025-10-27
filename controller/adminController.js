@@ -1,12 +1,13 @@
 const { db } = require("../config/db");
+const asyncHandler = require("express-async-handler");
 const adminQueries = require("../config/adminQueries");
 const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
+const { sendVendorAssignedPackagesEmail } = require("../config/mailer");
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -14,6 +15,90 @@ const transporter = nodemailer.createTransport({
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
+});
+
+const getAdminProfile = asyncHandler(async (req, res) => {
+    const admin_id = req.user.admin_id;
+    try {
+        // Assuming you have middleware that sets req.adminId
+        if (!admin_id) {
+            return res.status(401).json({ message: "Unauthorized: Admin ID missing" });
+        }
+
+        const rows = await db.query(
+            `SELECT
+                admin_id, 
+                email, 
+                name, 
+                created_at
+             FROM admin
+             WHERE admin_id = ?`,
+            [admin_id]
+        );
+
+        if (!rows.length) {
+            return res.status(404).json({ message: "Admin not found" });
+        }
+
+        res.status(200).json({
+            message: "Admin profile fetched successfully",
+            admin: rows[0],
+        });
+    } catch (error) {
+        console.error("Error fetching admin profile:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+const editAdminProfile = asyncHandler(async (req, res) => {
+    const admin_id = req.user.admin_id;
+    const { name, email, fcmToken } = req.body;
+
+    if (!admin_id) {
+        return res.status(401).json({ message: "Unauthorized: Admin ID missing" });
+    }
+
+    if (!name && !email && !fcmToken) {
+        return res.status(400).json({ message: "No fields to update" });
+    }
+
+    try {
+        // Build dynamic SQL
+        const fields = [];
+        const values = [];
+
+        if (name) {
+            fields.push("name = ?");
+            values.push(name);
+        }
+
+        if (email) {
+            fields.push("email = ?");
+            values.push(email);
+        }
+
+        values.push(admin_id);
+
+        const sql = `
+            UPDATE admin 
+            SET ${fields.join(", ")} 
+            WHERE admin_id = ?
+        `;
+
+        const [result] = await db.query(sql, values);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Admin not found" });
+        }
+
+        res.status(200).json({
+            message: "Profile updated successfully"
+        });
+
+    } catch (error) {
+        console.error("Error updating admin profile:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
 });
 
 const getVendor = asyncHandler(async (req, res) => {
@@ -761,27 +846,23 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         );
         if (vendorExists.length === 0) throw new Error(`Vendor ID ${vendor_id} does not exist.`);
 
-        // ✅ Fetch vendor details for email
+        // ✅ Fetch vendor details
         const [vendorDetails] = await connection.query(
-            `
-            SELECT v.vendor_id, v.vendorType,
-                   COALESCE(i.name, c.companyName) AS vendorName,
-                   COALESCE(i.email, c.companyEmail) AS vendorEmail
-            FROM vendors v
-            LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
-            LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-            WHERE v.vendor_id = ?
-            `,
+            `SELECT v.vendor_id, v.vendorType,
+                    COALESCE(i.name, c.companyName) AS vendorName,
+                    COALESCE(i.email, c.companyEmail) AS vendorEmail
+             FROM vendors v
+             LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+             LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+             WHERE v.vendor_id = ?`,
             [vendor_id]
         );
         const vendorData = vendorDetails[0];
-
         const newlyAssigned = [];
 
         for (const pkg of selectedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
-            // ✅ Get packageName
             const [pkgRow] = await connection.query(
                 `SELECT package_id, packageName FROM packages WHERE package_id = ?`,
                 [package_id]
@@ -789,43 +870,25 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             if (pkgRow.length === 0) throw new Error(`Package ID ${package_id} does not exist.`);
             const packageName = pkgRow[0].packageName;
 
-            // ✅ Check if package is already assigned
-            const [existingPackage] = await connection.query(
-                `SELECT vendor_packages_id FROM vendor_packages WHERE vendor_id = ? AND package_id = ?`,
-                [vendor_id, package_id]
-            );
-
-            let vendor_packages_id;
-            if (existingPackage.length > 0) {
-                vendor_packages_id = existingPackage[0].vendor_packages_id;
-            } else {
-                // Insert new package assignment
-                const [insertResult] = await connection.query(
-                    `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
-                    [vendor_id, package_id]
-                );
-                vendor_packages_id = insertResult.insertId;
-            }
-
-            // ✅ Insert sub-packages if not already assigned
             const selectedSubPackages = [];
+
             for (const sub of sub_packages) {
                 const subpackage_id = sub.sub_package_id;
 
-                const [subExisting] = await connection.query(
-                    `SELECT vendor_package_item_id  FROM vendor_package_items WHERE vendor_packages_id = ? AND package_item_id = ?`,
-                    [vendor_packages_id, subpackage_id]
+                // Check if already exists
+                const [exists] = await connection.query(
+                    `SELECT 1 FROM vendor_package_items_flat WHERE vendor_id = ? AND package_id = ? AND package_item_id = ?`,
+                    [vendor_id, package_id, subpackage_id]
                 );
 
-                if (subExisting.length === 0) {
+                if (exists.length === 0) {
                     await connection.query(
-                        `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
-                         VALUES (?, ?, ?, ?)`,
-                        [vendor_packages_id, vendor_id, package_id, subpackage_id]
+                        `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
+                         VALUES (?, ?, ?)`,
+                        [vendor_id, package_id, subpackage_id]
                     );
                 }
 
-                // Add for email
                 const [subRow] = await connection.query(
                     `SELECT itemName FROM package_items WHERE item_id = ?`,
                     [subpackage_id]
@@ -839,7 +902,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
             newlyAssigned.push({
                 package_id,
                 packageName,
-                vendor_packages_id,
                 selected_subpackages: selectedSubPackages
             });
         }
@@ -847,45 +909,11 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         await connection.commit();
         connection.release();
 
-        // ✅ Send vendor notification email
-        try {
-            const transporter = nodemailer.createTransport({
-                service: "gmail",
-                auth: {
-                    user: process.env.EMAIL_USER,
-                    pass: process.env.EMAIL_PASS
-                }
-            });
+        // ✅ Trigger helper function in background (no await)
+        sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned })
+            .catch(err => console.error("⚠️ Email send failed (background):", err.message));
 
-            const emailHtml = `
-                <p>Dear ${vendorData.vendorName},</p>
-                <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
-                <ul>
-                    ${newlyAssigned.map(p => `
-                        <li>
-                            <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
-                            <strong>Sub-Packages:</strong>
-                            ${p.selected_subpackages.length > 0
-                    ? p.selected_subpackages.map(sp => `${sp.name} (ID: ${sp.id})`).join(", ")
-                    : "None"}
-                        </li>
-                    `).join("")}
-                </ul>
-                <p>You can now manage and offer these packages from your dashboard.</p>
-            `;
-
-            await transporter.sendMail({
-                from: `"Admin Team" <${process.env.EMAIL_USER}>`,
-                to: vendorData.vendorEmail,
-                subject: "New Packages Assigned to You",
-                html: emailHtml
-            });
-
-            console.log("✅ Vendor notification email sent successfully.");
-        } catch (mailErr) {
-            console.error("⚠️ Failed to send vendor email:", mailErr.message);
-        }
-
+        // ✅ Respond immediately
         res.status(200).json({
             message: "Packages successfully assigned to vendor"
         });
@@ -1003,13 +1031,19 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     }
                 }
 
-
                 // --- Addons ---
                 if (Array.isArray(sub.addons)) {
                     const submittedAddonIds = [];
                     for (let k = 0; k < sub.addons.length; k++) {
                         const addon = sub.addons[k];
+
+                        // Ensure addonTime is either a valid integer or null
+                        const addonTime = addon.time_required && !isNaN(addon.time_required)
+                            ? parseInt(addon.time_required)
+                            : null;
+
                         if (addon.addon_id) {
+                            // Update existing addon
                             const [oldAddon] = await connection.query(
                                 `SELECT * FROM package_addons WHERE addon_id = ?`,
                                 [addon.addon_id]
@@ -1018,34 +1052,37 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                             await connection.query(
                                 `UPDATE package_addons
-                                 SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
-                                 WHERE addon_id = ? AND package_item_id = ?`,
+                                SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
+                                WHERE addon_id = ? AND package_item_id = ?`,
                                 [
                                     addon.addon_name ?? oldAddon[0].addonName,
                                     addon.description ?? oldAddon[0].addonDescription,
                                     addon.price ?? oldAddon[0].addonPrice,
-                                    addon.time_required ?? oldAddon[0].addonTime,
+                                    addonTime ?? oldAddon[0].addonTime ?? null,
                                     addon.addon_id,
                                     sub_package_id
                                 ]
                             );
                             submittedAddonIds.push(addon.addon_id);
+
                         } else {
+                            // Insert new addon
                             const [newAddon] = await connection.query(
                                 `INSERT INTO package_addons
-                                 (package_item_id, addonName, addonDescription, addonPrice, addonTime)
-                                 VALUES (?, ?, ?, ?, ?)`,
+                                (package_item_id, addonName, addonDescription, addonPrice, addonTime)
+                                VALUES (?, ?, ?, ?, ?)`,
                                 [
                                     sub_package_id,
                                     addon.addon_name,
                                     addon.description,
                                     addon.price,
-                                    addon.time_required,
+                                    addonTime,
                                 ]
                             );
                             submittedAddonIds.push(newAddon.insertId);
                         }
                     }
+
 
                     await connection.query(
                         `DELETE FROM package_addons WHERE package_item_id = ? AND addon_id NOT IN (?)`,
@@ -1420,7 +1457,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Application not found" });
         }
 
-        // ✅ If approved, transfer and delete from application tables
+        // ✅ If approved, transfer data into flattened table
         if (Number(status) === 1) {
             // Get application details
             const [appRows] = await connection.query(
@@ -1431,36 +1468,35 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 
             const { vendor_id, package_id } = appRows[0];
 
-            // Insert into vendor_packages
-            const [vpResult] = await connection.query(
-                `INSERT INTO vendor_packages (vendor_id, package_id) VALUES (?, ?)`,
-                [vendor_id, package_id]
-            );
-            const vendor_packages_id = vpResult.insertId;
-
-            // Get sub-package items from vendor_package_item_applications
+            // Get sub-package items from vendor_package_item_application
             const [subPkgRows] = await connection.query(
                 `SELECT package_item_id FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
             );
 
-            // Insert sub-packages into vendor_package_items
-            if (subPkgRows.length > 0) {
-                const insertSubPackages = subPkgRows.map(sp => [
-                    vendor_packages_id,
-                    vendor_id,
-                    package_id,
-                    sp.package_item_id
-                ]);
+            // Insert into flattened table
+            const flattenedData = subPkgRows.map(sp => [
+                vendor_id,
+                package_id,
+                sp.package_item_id
+            ]);
 
+            if (flattenedData.length > 0) {
                 await connection.query(
-                    `INSERT INTO vendor_package_items (vendor_packages_id, vendor_id, package_id, package_item_id)
+                    `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
                      VALUES ?`,
-                    [insertSubPackages]
+                    [flattenedData]
+                );
+            } else {
+                // If no sub-packages, still insert the package with null/0 sub-package
+                await connection.query(
+                    `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
+                     VALUES (?, ?, ?)`,
+                    [vendor_id, package_id, 0]
                 );
             }
 
-            // ✅ Delete transferred entries from application tables
+            // ✅ Delete application entries
             await connection.query(
                 `DELETE FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
@@ -1475,7 +1511,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: `Application ${application_id} status updated to ${status} successfully and data transferred.`
+            message: `Application ${application_id} status updated to ${status} successfully and data transferred to flattened table.`
         });
 
     } catch (err) {
@@ -1923,6 +1959,8 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+    getAdminProfile,
+    editAdminProfile,
     getVendor,
     getAllServiceType,
     getUsers,

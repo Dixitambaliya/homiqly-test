@@ -1,7 +1,7 @@
 // PlatformTax.jsx
 import React, { useEffect, useState } from "react";
 import api from "../../../lib/axiosConfig"; // adjust path if needed
-import { Trash2, Edit2, Plus } from "lucide-react";
+import { Trash, Edit2, Plus } from "lucide-react";
 import { Button, IconButton } from "../../../shared/components/Button";
 import Modal from "../../../shared/components/Modal/Modal";
 import { FormInput } from "../../../shared/components/Form";
@@ -67,7 +67,7 @@ function TaxesTable({ taxes = [], isLoading = false, onEdit, onDelete }) {
             tooltip="Edit"
           />
           <IconButton
-            icon={<Trash2 className="w-4 h-4" />}
+            icon={<Trash className="w-4 h-4" />}
             variant="lightDanger"
             size="sm"
             onClick={(e) => {

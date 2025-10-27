@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import { FiRefreshCw } from "react-icons/fi";
+import { FiEye, FiRefreshCw } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { useNavigate } from "react-router-dom";
 import Button from "../../shared/components/Button/Button";
 import BookingsTable from "../components/Tables/BookingsTable";
 import { FormInput, FormSelect } from "../../shared/components/Form";
-import { Search } from "lucide-react";
+import { RefreshCcw, Search } from "lucide-react";
 
 const Bookings = () => {
   // data + load/error
@@ -208,15 +208,14 @@ const Bookings = () => {
         <h2 className="text-2xl font-bold text-gray-800">
           Admin Booking Management
         </h2>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={fetchBookings}
-            variant="lightInherit"
-            className="flex items-center"
-          >
-            <FiRefreshCw className="mr-2" /> Refresh
-          </Button>
-        </div>
+        <Button
+          onClick={fetchBookings}
+          variant="lightInherit"
+          className="flex items-center"
+        >
+          <FiRefreshCw className="mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {/* Filters */}

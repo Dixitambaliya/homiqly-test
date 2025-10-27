@@ -1,6 +1,6 @@
 // components/PromosTable.jsx
 import React from "react";
-import { Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash } from "lucide-react";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
 
@@ -102,7 +102,7 @@ const PromosTable = ({ promos = [], isLoading = false, onEdit, onDelete }) => {
             tooltip="Edit promo"
           />
           <IconButton
-            icon={<Trash2 className="w-4 h-4" />}
+            icon={<Trash className="w-4 h-4" />}
             variant="lightDanger"
             size="sm"
             onClick={(e) => {

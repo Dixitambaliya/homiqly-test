@@ -1,30 +1,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import {
-  FiCalendar,
-  FiClock,
-  FiUser,
-  FiMapPin,
-  FiCheckCircle,
-  FiXCircle,
-  FiChevronLeft,
-  FiChevronRight,
-} from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import StatusBadge from "../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../shared/utils/dateUtils";
 import { toast } from "react-toastify";
-
-/**
- * Calendar (refreshed UI)
- * - Keeps your existing data shape & handlers
- * - Left: calendar grid / views
- * - Right: selected-day details slide-over panel
- *
- * Notes:
- * - I preserved your handlers and state names so integration is minimal.
- * - Small utility changes (count badges, chips, truncated texts).
- */
+import { ArrowLeft, ArrowRight, CheckCircle, Clock, User, XCircle } from "lucide-react";
 
 const Calendar = () => {
   const [bookings, setBookings] = useState([]);
@@ -173,7 +153,7 @@ const Calendar = () => {
               className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
               aria-label="Previous period"
             >
-              <FiChevronLeft className="text-gray-600" />
+              <ArrowLeft className="text-gray-600" />
             </button>
 
             <div className="text-left">
@@ -186,12 +166,12 @@ const Calendar = () => {
               className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
               aria-label="Next period"
             >
-              <FiChevronRight className="text-gray-600" />
+              <ArrowRight className="text-gray-600" />
             </button>
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-            <FiCalendar />
+            <Calendar />
             <span>{viewMode.toUpperCase()}</span>
           </div>
         </div>
@@ -390,12 +370,12 @@ const Calendar = () => {
                 <div className="flex justify-between items-start">
                   <div className="min-w-0">
                     <div className="flex items-center text-gray-500 text-sm mb-1 gap-2">
-                      <FiClock className="mr-1" />
+                      <Clock className="mr-1" />
                       <span>{formatTime(booking.bookingTime)}</span>
                     </div>
                     <h4 className="font-medium text-gray-800 truncate">{booking.serviceName}</h4>
                     <div className="flex items-center text-sm text-gray-600 mt-1 gap-2">
-                      <FiUser className="mr-1" />
+                      <User className="mr-1" />
                       <span>{booking.userName}</span>
                     </div>
                   </div>
@@ -413,7 +393,7 @@ const Calendar = () => {
                       }
                       className="flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-200"
                     >
-                      <FiCheckCircle className="mr-2" />
+                      <CheckCircle className="mr-2" />
                       Accept
                     </button>
 
@@ -423,7 +403,7 @@ const Calendar = () => {
                       }
                       className="flex items-center px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200"
                     >
-                      <FiXCircle className="mr-2" />
+                      <XCircle className="mr-2" />
                       Reject
                     </button>
                   </div>
@@ -543,7 +523,7 @@ const Calendar = () => {
               className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
               aria-label="Close"
             >
-              <FiXCircle className="text-gray-600" />
+              <XCircle className="text-gray-600" />
             </button>
           </div>
         </div>
@@ -572,7 +552,7 @@ const Calendar = () => {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 text-sm text-gray-500">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium">
-                              <FiClock className="mr-1" />
+                              <Clock className="mr-1" />
                               <span className="whitespace-nowrap">{formatTime(booking.bookingTime)}</span>
                             </span>
 
@@ -602,7 +582,7 @@ const Calendar = () => {
                             className="inline-flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-200"
                             aria-label={`Accept booking for ${booking.userName}`}
                           >
-                            <FiCheckCircle className="mr-2" />
+                            <CheckCircle className="mr-2" />
                             Accept
                           </button>
 
@@ -613,7 +593,7 @@ const Calendar = () => {
                             className="inline-flex items-center px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200"
                             aria-label={`Reject booking for ${booking.userName}`}
                           >
-                            <FiXCircle className="mr-2" />
+                            <XCircle className="mr-2" />
                             Reject
                           </button>
                         </div>

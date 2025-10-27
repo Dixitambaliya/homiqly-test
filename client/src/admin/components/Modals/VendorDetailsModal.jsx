@@ -3,7 +3,7 @@ import Modal from "../../../shared/components/Modal/Modal";
 import { Button, IconButton } from "../../../shared/components/Button";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import api from "../../../lib/axiosConfig";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { toast } from "react-toastify";
 
 const VendorDetailsModal = ({
@@ -356,7 +356,7 @@ const VendorDetailsModal = ({
 
                                 <IconButton
                                   variant="lightDanger"
-                                  icon={<Trash2 className="w-4 h-4" />}
+                                  icon={<Trash className="w-4 h-4" />}
                                   onClick={() =>
                                     handleDeleteService(pkg.vendor_packages_id)
                                   }

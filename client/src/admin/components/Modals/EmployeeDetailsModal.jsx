@@ -3,6 +3,7 @@ import Modal from "../../../shared/components/Modal/Modal"; // adjust path if ne
 import { FormInput } from "../../../shared/components/Form";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { Button } from "../../../shared/components/Button";
 
 const Field = ({ label, children }) => (
   <div>
@@ -30,7 +31,7 @@ const EmployeeDetailsModal = ({ employee, isOpen, onClose, onUpdated }) => {
     email: "",
   });
 
-  console.log(employee)
+  console.log(employee);
 
   // initialize form when employee or isOpen changes
   useEffect(() => {
@@ -160,44 +161,19 @@ const EmployeeDetailsModal = ({ employee, isOpen, onClose, onUpdated }) => {
         <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
-              {employee.employee_name || employee.employee_name_full || "Employee"}
+              {employee.employee_name ||
+                employee.employee_name_full ||
+                "Employee"}
             </h3>
             <p className="text-xs text-gray-500 mt-1">{employee.email}</p>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusBadge}`}>
+            <span
+              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusBadge}`}
+            >
               {employee.is_active ? "Active" : "Inactive"}
             </span>
-
-            {/* Edit / Save / Cancel buttons */}
-            {!isEditing ? (
-              <button
-                onClick={handleEditClick}
-                className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-              >
-                Edit
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={handleCancel}
-                  type="button"
-                  className="px-3 py-1 rounded bg-gray-200 text-sm hover:bg-gray-300"
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  type="button"
-                  className="px-3 py-1 rounded bg-green-600 text-white text-sm hover:bg-green-700"
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </>
-            )}
           </div>
         </div>
 
@@ -207,7 +183,9 @@ const EmployeeDetailsModal = ({ employee, isOpen, onClose, onUpdated }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Employee ID - not editable */}
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-50">
-                <Field label="Employee ID">{employee.employee_id ?? "N/A"}</Field>
+                <Field label="Employee ID">
+                  {employee.employee_id ?? "N/A"}
+                </Field>
               </div>
 
               {/* Company - not editable */}
@@ -273,6 +251,26 @@ const EmployeeDetailsModal = ({ employee, isOpen, onClose, onUpdated }) => {
                     : "N/A"}
                 </Field>
               </div>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              {!isEditing ? (
+                <Button onClick={handleEditClick}>Edit</Button>
+              ) : (
+                <>
+                  <Button onClick={handleSave} type="button" disabled={saving}>
+                    {saving ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    onClick={handleCancel}
+                    type="button"
+                    variant="ghost"
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </form>

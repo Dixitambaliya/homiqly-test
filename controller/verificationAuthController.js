@@ -4,6 +4,7 @@ const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer")
 const bcrypt = require("bcryptjs");
 const generator = require('generate-password');
+const { sendVendorApprovalMail, sendVendorRejectionMail } = require("../config/mailer");
 
 const transport = nodemailer.createTransport({
     service: "gmail",
@@ -29,56 +30,60 @@ const approveVendor = asyncHandler(async (req, res) => {
     await conn.beginTransaction();
 
     try {
-        const [vendorCheck] = await conn.query(verificationQueries.vendorCheck, [vendor_id]);
-        if (!vendorCheck.length) {
+        // ✅ Fetch vendor info with join to details tables
+        const [vendorRows] = await conn.query(`
+            SELECT v.vendor_id, v.vendorType, 
+                   i.name AS individual_name, c.companyName, 
+                   i.email AS individual_email, c.companyEmail 
+            FROM vendors v
+            LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+            LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+            WHERE v.vendor_id = ?
+            LIMIT 1
+        `, [vendor_id]);
+
+        if (!vendorRows.length) {
             return res.status(404).json({ error: "Vendor not found" });
         }
 
-        const vendor_type = vendorCheck[0].vendorType;
-        let email;
-        let plainPassword = null;
+        const vendor = vendorRows[0];
+        const vendor_type = vendor.vendorType;
+        let email, vendorName, plainPassword = null;
 
-        // 1️⃣ Fetch vendor email and generate password if company
         if (vendor_type === "company") {
-            const [result] = await conn.query(verificationQueries.getCompanyEmail, [vendor_id]);
-            email = result[0]?.companyEmail;
+            vendorName = vendor.companyName;
+            email = vendor.companyEmail;
 
             if (is_authenticated === 1) {
-                plainPassword = generator.generate({
-                    length: 10,
-                    numbers: true,
-                    uppercase: true,
-                    lowercase: true
-                });
+                plainPassword = generator.generate({ length: 10, numbers: true, uppercase: true, lowercase: true });
                 const hashedPassword = await bcrypt.hash(plainPassword, 10);
                 await conn.query(verificationQueries.addVendorPassword, [hashedPassword, vendor_id]);
             }
 
         } else if (vendor_type === "individual") {
-            const [result] = await conn.query(verificationQueries.getIndividualEmail, [vendor_id]);
-            email = result[0]?.email;
+            vendorName = vendor.individual_name;
+            email = vendor.individual_email;
         } else {
             return res.status(400).json({ error: "Email not found for vendor" });
         }
 
-        // 2️⃣ Update vendor approval status
+        // ✅ Update vendor approval status
         await conn.query(verificationQueries.vendorApprove, [is_authenticated, vendor_id]);
 
-        // 3️⃣ If approved, transfer packages and sub-packages
+        // ✅ Transfer approved packages and sub-packages
         if (is_authenticated === 1) {
             const [applications] = await conn.query(`
                 SELECT * FROM vendor_package_applications WHERE vendor_id = ? AND status = 0
             `, [vendor_id]);
 
             for (const app of applications) {
-                // Insert into vendor_packages
                 const [vpRes] = await conn.query(`
                     INSERT INTO vendor_packages (vendor_id, package_id, serviceLocation)
                     VALUES (?, ?, ?)
                 `, [vendor_id, app.package_id, app.serviceLocation]);
+
                 const vendorPackageId = vpRes.insertId;
 
-                // Fetch sub-packages from application
                 const [subItems] = await conn.query(`
                     SELECT package_item_id FROM vendor_package_item_application
                     WHERE application_id = ?
@@ -90,13 +95,11 @@ const approveVendor = asyncHandler(async (req, res) => {
                         VALUES (?, ?, ?, ?)
                     `, [vendorPackageId, sub.package_item_id, vendor_id, app.package_id]);
                 }
-                // Clear application tables
+
                 await conn.query(`DELETE FROM vendor_package_item_application WHERE application_id = ?`, [app.application_id]);
                 await conn.query(`DELETE FROM vendor_package_applications WHERE application_id = ?`, [app.application_id]);
             }
 
-
-            // ✅ Initialize vendor_settings
             await conn.query(`
                 INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled, start_datetime, end_datetime)
                 VALUES (?, 1, NULL, NULL)
@@ -106,40 +109,27 @@ const approveVendor = asyncHandler(async (req, res) => {
 
         await conn.commit();
 
-        // 4️⃣ Send notification email
-        const message = is_authenticated === 1 ? "Vendor approved" : "Vendor rejected";
-        const subject = is_authenticated === 1 ? "Your account has been approved" : "Your account has been rejected";
-
-        let text;
-        if (is_authenticated === 1 && vendor_type === "company") {
-            text = `Your company account has been approved.\n\nYou can now log in to your dashboard - https://ts-homiqly-adminpanel.vercel.app/vendor/login .\n\nYour password: ${plainPassword}\n\n NOTE:- You can change your password after logging in.`;
-        } else if (is_authenticated === 1) {
-            text = `Your account has been approved. You can now log in to your dashboard - https://ts-homiqly-adminpanel.vercel.app/vendor/login`;
+        // ✅ Send email asynchronously (fire-and-forget)
+        if (is_authenticated === 1) {
+            sendVendorApprovalMail({ vendorName, vendorEmail: email, plainPassword })
+                .catch(err => console.error("Approval email failed:", err));
         } else {
-            text = `Your account has been rejected. You may contact support if you believe this is a mistake.`;
+            sendVendorRejectionMail({ vendorName, vendorEmail: email })
+                .catch(err => console.error("Rejection email failed:", err));
         }
 
-        try {
-            await transport.sendMail({
-                from: `"Support" <${process.env.EMAIL_USER}>`,
-                to: email,
-                subject,
-                text,
-            });
-            res.status(200).json({ message: `${message} and email sent.` });
-
-        } catch (emailErr) {
-            console.error("Email sending failed:", emailErr);
-            res.status(500).json({ error: `${message}, but failed to send email`, emailError: emailErr.message });
-        }
+        const message = is_authenticated === 1 ? "Vendor approved" : "Vendor rejected";
+        res.status(200).json({ message, vendorName });
 
     } catch (err) {
         await conn.rollback();
+        console.error("❌ Database error in approveVendor:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     } finally {
         conn.release();
     }
 });
+
 
 const approveServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;

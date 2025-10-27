@@ -1,4 +1,4 @@
-import { FiX } from "react-icons/fi";
+import { X } from "lucide-react";
 
 export const ImagePreview = ({ src, onRemove, className = "" }) => (
   <div className={`relative inline-block ${className}`}>
@@ -12,7 +12,7 @@ export const ImagePreview = ({ src, onRemove, className = "" }) => (
       onClick={onRemove}
       className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
     >
-      <FiX className="w-4 h-4" />
+      <X className="w-4 h-4" />
     </button>
   </div>
 );

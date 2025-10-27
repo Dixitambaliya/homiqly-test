@@ -7,7 +7,7 @@ import {
   FormTextarea,
   FormFileInput,
 } from "../../../shared/components/Form";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiPlus, FiTrash } from "react-icons/fi";
 import axios from "axios";
 
 const AddServiceTypeModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
@@ -176,7 +176,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
                         onClick={() => removePackage(index)}
                         className="text-red-500 hover:text-red-700"
                       >
-                        <FiTrash2 className="h-4 w-4" />
+                        <FiTrash className="h-4 w-4" />
                       </button>
                     )}
                   </div>

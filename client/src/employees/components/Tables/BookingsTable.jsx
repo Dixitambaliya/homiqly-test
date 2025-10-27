@@ -1,11 +1,10 @@
-import React from "react";
-import { FiEye, FiCheckCircle, FiXCircle } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import { useNavigate } from "react-router-dom";
 import PaymentBadge from "../../../shared/components/PaymentBadge";
+import { CheckCircle, Eye, XCircle } from "lucide-react";
 
 const BookingsTable = ({
   bookings,
@@ -77,7 +76,7 @@ const BookingsTable = ({
       render: (row) => (
         <div className="flex items-center justify-end space-x-2">
           <IconButton
-            icon={<FiEye className="h-4 w-4" />}
+            icon={<Eye className="h-4 w-4" />}
             variant="ghost"
             size="sm"
             onClick={() => handleViewDetails(row)}
@@ -86,7 +85,7 @@ const BookingsTable = ({
           {row.bookingStatus === 0 && (
             <>
               <IconButton
-                icon={<FiCheckCircle className="h-4 w-4" />}
+                icon={<CheckCircle className="h-4 w-4" />}
                 variant="success"
                 size="sm"
                 onClick={(e) => {
@@ -96,7 +95,7 @@ const BookingsTable = ({
                 tooltip="Accept"
               />
               <IconButton
-                icon={<FiXCircle className="h-4 w-4" />}
+                icon={<XCircle className="h-4 w-4" />}
                 variant="danger"
                 size="sm"
                 onClick={(e) => {

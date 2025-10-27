@@ -13,10 +13,10 @@ import {
   BarElement,
   Title,
 } from "chart.js";
-import { FiDownload, FiRefreshCw } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatCurrency } from "../../shared/utils/formatUtils";
 import { Button } from "../../shared/components/Button";
+import { Download, RefreshCcw } from "lucide-react";
 
 // Register ChartJS components
 ChartJS.register(
@@ -215,13 +215,13 @@ const Analytics = () => {
         </h2>
         <div className="flex space-x-2">
           <Button onClick={exportAnalyticsData}>
-            <FiDownload className="mr-2" />
+            <Download className="mr-2" />
             Export Data
           </Button>
           <Button
             onClick={fetchAnalyticsData}
             variant="ghost"
-            icon={<FiRefreshCw />}
+            icon={<RefreshCcw />}
           >
             Refresh 
           </Button>

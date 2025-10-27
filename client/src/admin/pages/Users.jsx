@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiRefreshCw, FiEdit, FiSearch } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import UsersTable from "../components/Tables/UsersTable"; // Adjust path as needed
 import FormInput from "../../shared/components/Form/FormInput"; // Adjust path as needed
@@ -9,6 +8,7 @@ import { Button, IconButton } from "../../shared/components/Button";
 import FormSelect from "../../shared/components/Form/FormSelect";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 import Modal from "../../shared/components/Modal/Modal";
+import { Edit, RefreshCcw, Search } from "lucide-react";
 
 const Users = () => {
   const [users, setUsers] = useState([]);
@@ -209,13 +209,13 @@ const Users = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by first name, last name or email..."
-              icon={<FiSearch />}
+              icon={<Search />}
             />
           </div>
 
           {/* Refresh */}
           <Button onClick={fetchUsers} variant="ghost">
-            <FiRefreshCw className="mr-2" />
+            <RefreshCcw className="mr-2" />
             Refresh
           </Button>
         </div>
@@ -390,7 +390,7 @@ const Users = () => {
                     variant="ghost"
                     className="flex items-center"
                   >
-                    <FiEdit className="mr-2" />
+                    <Edit className="mr-2" />
                     Edit
                   </Button>
                 </>

@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
 import api from "../../lib/axiosConfig";
-import {
-  FiUsers,
-  FiUserCheck,
-  FiShoppingBag,
-  FiDollarSign,
-} from "react-icons/fi";
 import { Line, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -21,6 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import Loader from "../../components/Loader";
 import LoadingSlider from "../../shared/components/LoadingSpinner";
+import { DollarSign, ShoppingBag, UserCheck, Users } from "lucide-react";
 
 // Register ChartJS components
 ChartJS.register(
@@ -130,7 +125,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
           <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-            <FiUsers className="h-6 w-6" />
+            <Users className="h-6 w-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Users</p>
@@ -140,7 +135,7 @@ const Dashboard = () => {
 
         <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
           <div className="p-3 rounded-full bg-green-100 text-green-600">
-            <FiUserCheck className="h-6 w-6" />
+            <UserCheck className="h-6 w-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Vendors</p>
@@ -150,7 +145,7 @@ const Dashboard = () => {
 
         <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
           <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-            <FiShoppingBag className="h-6 w-6" />
+            <ShoppingBag className="h-6 w-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Completed Bookings</p>
@@ -160,7 +155,7 @@ const Dashboard = () => {
 
         <div className="bg-white rounded-lg shadow p-6 flex items-center space-x-4">
           <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-            <FiDollarSign className="h-6 w-6" />
+            <DollarSign className="h-6 w-6" />
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Revenue</p>

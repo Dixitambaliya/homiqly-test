@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button, IconButton } from "../../shared/components/Button";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
 import AddServiceTypeModal from "../components/Modals/AddServiceTypeModal";
 import api from "../../lib/axiosConfig";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import EditPackageModal from "../components/Modals/EditPackageModal";
 import FormSelect from "../../shared/components/Form/FormSelect";
 import { FormInput } from "../../shared/components/Form";
-import { Search, X } from "lucide-react";
+import { Plus, Search, Trash, X } from "lucide-react";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 
 /* ---------- small helpers ---------- */
@@ -568,7 +567,7 @@ export default function Packages() {
           <Button
             onClick={() => setShowAddModal(true)}
             variant="primary"
-            icon={<FiPlus className="mr-2" />}
+            icon={<Plus className="mr-2" />}
           >
             Add Service Type
           </Button>
@@ -676,7 +675,7 @@ export default function Packages() {
                                           id: pkg.package_id,
                                         })
                                       }
-                                      icon={<FiTrash2 />}
+                                      icon={<Trash />}
                                     >
                                       Delete
                                     </Button>

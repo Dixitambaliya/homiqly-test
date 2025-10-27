@@ -1,19 +1,6 @@
-import React from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Button from "../../../shared/components/Button/Button";
-import {
-  FiArrowLeft,
-  FiClock,
-  FiDollarSign,
-  FiPackage,
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiHash,
-  FiCheckCircle,
-  FiXCircle,
-  FiImage,
-} from "react-icons/fi";
+import { ArrowLeft, CheckCircle, Clock, Hash, Mail, Package, Phone, User, XCircle } from "lucide-react";
 
 const StatusBadge = ({ status }) => {
   const map = {
@@ -35,7 +22,7 @@ const StatusBadge = ({ status }) => {
     <span
       className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${s.class}`}
     >
-      {status === 1 ? <FiCheckCircle /> : status === 2 ? <FiXCircle /> : null}
+      {status === 1 ? <CheckCircle /> : status === 2 ? <XCircle /> : null}
       {s.label}
     </span>
   );
@@ -117,7 +104,7 @@ const VendorApplicationDetails = () => {
             onClick={() => navigate(-1)}
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
           >
-            <FiArrowLeft /> Back
+            <ArrowLeft /> Back
           </button>
           <h2 className="text-2xl font-bold text-gray-900">
             Application #{app.application_id}
@@ -174,8 +161,8 @@ const VendorApplicationDetails = () => {
 
             {/* Chips and details */}
             <div className="mt-4 flex flex-wrap gap-2">
-              <StatChip icon={FiClock} label={app.totalTime || "—"} />
-              <StatChip icon={FiPackage} label={`${itemsCount} items`} />
+              <StatChip icon={Clock} label={app.totalTime || "—"} />
+              <StatChip icon={Package} label={`${itemsCount} items`} />
             </div>
 
             {/* Divider */}
@@ -195,17 +182,17 @@ const VendorApplicationDetails = () => {
 
                   <div className="mt-4 space-y-3">
                     <InfoRow
-                      icon={FiUser}
+                      icon={User}
                       label="Name"
                       value={app.vendorName || "—"}
                     />
                     <InfoRow
-                      icon={FiMail}
+                      icon={Mail}
                       label="Email"
                       value={app.vendorEmail || "—"}
                     />
                     <InfoRow
-                      icon={FiPhone}
+                      icon={Phone}
                       label="Phone"
                       value={app.vendorPhone || "—"}
                     />
@@ -220,22 +207,22 @@ const VendorApplicationDetails = () => {
                   </p>
                   <div className="grid grid-cols-1 gap-3">
                     <InfoRow
-                      icon={FiHash}
+                      icon={Hash}
                       label="Application ID"
                       value={app.application_id || "—"}
                     />
                     <InfoRow
-                      icon={FiHash}
+                      icon={Hash}
                       label="Vendor ID"
                       value={app.vendor_id || "—"}
                     />
                     <InfoRow
-                      icon={FiHash}
+                      icon={Hash}
                       label="Package ID"
                       value={app.package_id || "—"}
                     />
                     <InfoRow
-                      icon={FiClock}
+                      icon={Clock}
                       label="Applied At"
                       value={formatDateTime(app.applied_at) || "—"}
                     />
@@ -273,7 +260,7 @@ const VendorApplicationDetails = () => {
                     {sp.itemName}
                   </p>
                   <div className="mt-2 flex justify-between items-center">
-                    <StatChip icon={FiClock} label={`${sp.timeRequired} Mins` || "—"} />
+                    <StatChip icon={Clock} label={`${sp.timeRequired} Mins` || "—"} />
                     <p className="text-sm font-semibold text-gray-900">
                       {formatMoney(sp.price)}
                     </p>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
-import { FiSave, FiLock, FiBell } from 'react-icons/fi';
 import { Card } from '../../shared/components/Card';
 import { Button } from '../../shared/components/Button';
 import { FormInput, FormSelect, FormCheckbox } from '../../shared/components/Form';
 import { useVendorAuth } from '../contexts/VendorAuthContext';
+import { Bell, Lock, Save } from 'lucide-react';
 
 const Settings = () => {
   const { currentUser } = useVendorAuth();
@@ -82,7 +82,7 @@ const Settings = () => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
       
-      {/* <Card title="General Settings" icon={<FiSave className="w-5 h-5" />}>
+      <Card title="General Settings" icon={<Save className="h-5 w-5" />}>
         <form onSubmit={saveGeneralSettings}>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <FormSelect
@@ -121,9 +121,9 @@ const Settings = () => {
             </Button>
           </div>
         </form>
-      </Card> */}
+      </Card> 
       
-      <Card title="Notification Preferences" icon={<FiBell className="w-5 h-5" />}>
+      <Card title="Notification Preferences" icon={<Bell className="h-5 w-5" />}>
         <form>
           <div className="space-y-3">
             <FormCheckbox
@@ -161,7 +161,7 @@ const Settings = () => {
         </form>
       </Card>
       
-      <Card title="Change Password" icon={<FiLock className="w-5 h-5" />}>
+      <Card title="Change Password" icon={<Lock className="h-5 w-5" />}>
         <form onSubmit={changePassword}>
           <div className="space-y-4">
             <FormInput

@@ -1,10 +1,9 @@
 import React, { useState, useCallback } from "react";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
-import { FiTrash2 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { IconButton, Button } from "../../../shared/components/Button";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash } from "lucide-react";
 
 /**
  * EmployeesTable
@@ -97,7 +96,7 @@ const EmployeesTable = ({ employees, isLoading, onDelete, onEdit }) => {
             className="text-red-600 hover:text-red-800 p-1"
             onClick={() => openDeleteModal(row)}
             title="Delete employee"
-            icon={<FiTrash2 className="h-4 w-4" />}
+            icon={<Trash className="h-4 w-4" />}
             variant="lightDanger"
           />
           <IconButton
@@ -168,7 +167,7 @@ const EmployeesTable = ({ employees, isLoading, onDelete, onEdit }) => {
                     isLoading={deleting}
                     className="inline-flex items-center"
                   >
-                    <FiTrash2 className="mr-2" />
+                    <Trash className="mr-2" />
                     Delete
                   </Button>
                 </div>

@@ -56,7 +56,7 @@ const IconButton = ({
   const sizeClasses = {
     xs: "p-1 text-xs",
     sm: "p-1.5 text-sm",
-    md: "p-2 text-base",
+    md: "p-2 text-base ",
     lg: "p-2.5 text-lg",
     xl: "p-3 text-xl",
   };

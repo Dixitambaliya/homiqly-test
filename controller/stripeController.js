@@ -130,10 +130,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   // ✅ Fetch cart details
   const [cartRows] = await db.query(
-    `SELECT sc.*, p.packageName
-     FROM service_cart sc
-     LEFT JOIN packages p ON sc.package_id = p.package_id
-     WHERE sc.cart_id = ?`,
+    `SELECT sc.* FROM service_cart sc WHERE sc.cart_id = ?`,
     [cart_id]
   );
 
@@ -141,9 +138,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   const cart = cartRows[0];
 
   if (!cart.bookingDate || !cart.bookingTime) {
-    return res.status(400).json({
-      error: "Incomplete booking details. Please select booking date and time."
-    });
+    return res.status(400).json({ error: "Incomplete booking details. Please select booking date and time." });
   }
 
   // ✅ Fetch sub-packages
@@ -173,70 +168,19 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     [cart_id]
   );
 
-  // ✅ Fetch promo if exists
-  let appliedPromo = null;
+  // ✅ Fetch service tax (active)
+  const [serviceTaxRows] = await db.query(
+    `SELECT taxName, taxPercentage 
+     FROM service_taxes 
+     WHERE status = '1' 
+     ORDER BY created_at ASC LIMIT 1`
+  );
 
-  if (cart.user_promo_code_id) {
-
-    const [userPromoRows] = await db.query(
-      `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
-      [cart.user_id, cart.user_promo_code_id]
-    );
-
-    if (userPromoRows.length) {
-      const promo = userPromoRows[0];
-
-      if (promo.source_type === "admin" && promo.promo_id) {
-        const [adminPromoRows] = await db.query(
-          `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
-          [promo.promo_id]
-        );
-
-        if (adminPromoRows.length) {
-          appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
-        }
-      }
-
-      if (!appliedPromo && promo.source_type === "system") {
-        const [systemPromoRows] = await db.query(
-          `SELECT sc.*, 
-                st.discount_type, 
-                st.discountValue, 
-                st.minSpend, 
-                st.maxUse, 
-                st.code
-           FROM system_promo_codes sc
-           JOIN system_promo_code_templates st 
-             ON sc.template_id = st.system_promo_code_template_id
-          WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-          [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
-        );
-
-        if (systemPromoRows.length) {
-          appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-        }
-      }
-    } else {
-      const [systemPromoRows] = await db.query(
-        `SELECT sc.*, 
-              st.discount_type, 
-              st.discountValue, 
-              st.minSpend, 
-              st.maxUse, 
-              st.code
-         FROM system_promo_codes sc
-         JOIN system_promo_code_templates st 
-           ON sc.template_id = st.system_promo_code_template_id
-        WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-        [cart.user_promo_code_id, cart.user_id]
-      );
-
-      if (systemPromoRows.length) {
-        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-      } else {
-        console.log("🚫 No matching promo found in system_promo_codes either");
-      }
-    }
+  let taxPercentage = 0;
+  let taxName = '';
+  if (serviceTaxRows.length) {
+    taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
+    taxName = serviceTaxRows[0].taxName || 'Service Tax';
   }
 
   // ✅ Calculate subtotal including sub-packages, addons, preferences
@@ -262,20 +206,85 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
   });
 
-  // ✅ Apply discount (percentage or fixed)
-  let discountAmount = 0;
-  let totalAmount = subtotal;
+  // ✅ Calculate service tax
+  const taxAmount = subtotal * (taxPercentage / 100);
+  let totalAmount = subtotal + taxAmount;
 
-  if (appliedPromo && (!appliedPromo.minSpend || subtotal >= appliedPromo.minSpend)) {
+  metadata[`service_tax_name`] = taxName;
+  metadata[`service_tax_percentage`] = taxPercentage;
+  metadata[`service_tax_amount`] = taxAmount.toFixed(2);
+
+  // ✅ Fetch promo if exists
+  let appliedPromo = null;
+
+  if (cart.user_promo_code_id) {
+    // 1️⃣ Check user_promo_codes first
+    const [userPromoRows] = await db.query(
+      `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+      [cart.user_id, cart.user_promo_code_id]
+    );
+
+    if (userPromoRows.length) {
+      const promo = userPromoRows[0];
+
+      // Admin promo via user_promo_codes
+      if (promo.source_type === "admin" && promo.promo_id) {
+        const [adminPromoRows] = await db.query(
+          `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
+          [promo.promo_id]
+        );
+
+        if (adminPromoRows.length) {
+          appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
+        }
+      }
+
+      // System promo via user_promo_codes
+      if (!appliedPromo && promo.source_type === "system") {
+        const [systemPromoRows] = await db.query(
+          `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
+         FROM system_promo_codes sc
+         JOIN system_promo_code_templates st
+           ON sc.template_id = st.system_promo_code_template_id
+         WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+          [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
+        );
+
+        if (systemPromoRows.length) {
+          appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+        }
+      }
+    }
+
+    // 2️⃣ If no promo from user_promo_codes, check system_promo_codes directly
+    if (!appliedPromo) {
+      const [systemPromoRows] = await db.query(
+        `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
+       FROM system_promo_codes sc
+       JOIN system_promo_code_templates st
+         ON sc.template_id = st.system_promo_code_template_id
+       WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+        [cart.user_promo_code_id, cart.user_id]
+      );
+
+      if (systemPromoRows.length) {
+        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+      }
+    }
+  }
+
+  // ✅ Apply discount
+  let discountAmount = 0;
+  if (appliedPromo && (!appliedPromo.minSpend || totalAmount >= appliedPromo.minSpend)) {
     const discountValue = parseFloat(appliedPromo.discountValue || 0);
     const discountType = appliedPromo.discount_type || "percentage";
 
     if (discountType === "fixed") {
       discountAmount = discountValue;
-      totalAmount = Math.max(0, subtotal - discountValue);
+      totalAmount = Math.max(0, totalAmount - discountValue);
     } else {
-      discountAmount = subtotal * (discountValue / 100);
-      totalAmount = subtotal - discountAmount;
+      discountAmount = totalAmount * (discountValue / 100);
+      totalAmount -= discountAmount;
     }
 
     metadata.promo_code = appliedPromo.code;
@@ -284,7 +293,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     metadata.discount = discountAmount.toFixed(2);
   }
 
-  metadata.subtotal = subtotal;
+  metadata.subtotal = subtotal.toFixed(2);
   metadata.totalAmount = totalAmount.toFixed(2);
 
   if (totalAmount <= 0) return res.status(400).json({ error: "Total amount must be greater than 0" });
@@ -299,13 +308,11 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
   if (existingPayment.length > 0) {
     try {
-      // ⚡ Cancel old PaymentIntent if it exists
       await stripe.paymentIntents.cancel(existingPayment[0].payment_intent_id);
     } catch (err) {
       console.warn("⚠️ Failed to cancel old PaymentIntent:", err.message);
     }
 
-    // ⚡ Create new PaymentIntent
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -314,7 +321,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
-    // ✅ Update DB with new PaymentIntent
     await db.query(
       `UPDATE payments 
        SET payment_intent_id = ?, amount = ?, currency = 'cad', status = 'pending' 
@@ -323,7 +329,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     );
 
   } else {
-    // ⚡ Create new PaymentIntent
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -332,7 +337,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
-    // ✅ Insert into DB
     await db.query(
       `INSERT INTO payments (user_id, payment_intent_id, cart_id, amount, currency, status)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -347,6 +351,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     paymentIntentId: paymentIntent.id,
   });
 });
+
 
 // ✅ stripeWebhook.js
 exports.stripeWebhook = asyncHandler(async (req, res) => {
@@ -372,8 +377,10 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     const paymentIntent = event.data.object;
     const paymentIntentId = paymentIntent.id;
 
-    if (event.type !== "payment_intent.amount_capturable_updated" &&
-      event.type !== "charge.captured") {
+    if (
+      event.type !== "payment_intent.amount_capturable_updated" &&
+      event.type !== "charge.captured"
+    ) {
       console.log("ℹ️ Ignored event type:", event.type);
       return;
     }
@@ -388,7 +395,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       if (event.type === "payment_intent.amount_capturable_updated") {
         // 🔎 Find payment + cart
         const [paymentRows] = await connection.query(
-          `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.package_id, sc.bookingDate, sc.bookingTime, 
+          `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime, 
                   sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
            FROM payments p
            LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
@@ -410,7 +417,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const { cart_id, user_id, status, user_promo_code_id } = cart;
 
         if (status === "completed") {
-          console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
+          console.log(
+            `ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`
+          );
           await connection.commit();
           return;
         }
@@ -437,22 +446,21 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         // ✅ Create main booking
         const [insertBooking] = await connection.query(
           `INSERT INTO service_booking 
-            (user_id, service_id, bookingDate, bookingTime, package_id, vendor_id, notes, bookingMedia, 
+            (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia, 
              bookingStatus, payment_status, payment_intent_id, user_promo_code_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             user_id,
             cart.service_id,
             cart.bookingDate,
             cart.bookingTime,
-            cart.package_id,
             cart.vendor_id,
             cart.notes,
             cart.bookingMedia,
             0,
             "pending",
             paymentIntentId,
-            user_promo_code_id || null
+            user_promo_code_id || null,
           ]
         );
 
@@ -462,8 +470,19 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         // ==================================
         // Move cart data to booking tables
         // ==================================
+        let totalBookingTime = 0; // 🕒 total time accumulator
+
         for (const pkg of cartPackages) {
           const { sub_package_id, service_type_id, price, quantity } = pkg;
+
+          // 🕓 Fetch time from package_items table
+          const [[itemTimeRow]] = await connection.query(
+            `SELECT timeRequired FROM package_items WHERE item_id = ?`,
+            [sub_package_id]
+          );
+
+          const itemTime = (itemTimeRow?.timeRequired || 0) * (quantity || 1);
+          totalBookingTime += itemTime;
 
           await connection.query(
             `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, service_type_id, price, quantity)
@@ -476,12 +495,24 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             `SELECT addon_id, price FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
             [cart_id, sub_package_id]
           );
+
           for (const addon of addons) {
             await connection.query(
               `INSERT INTO service_booking_addons (booking_id, sub_package_id, addon_id, price)
                VALUES (?, ?, ?, ?)`,
               [booking_id, sub_package_id, addon.addon_id, addon.price]
             );
+
+            // 🕓 Fetch addon time and multiply by sub-package quantity
+            const [[addonTimeRow]] = await connection.query(
+              `SELECT addonTime FROM package_addons WHERE addon_id = ?`,
+              [addon.addon_id]
+            );
+
+            const addonTime = addonTimeRow?.addonTime
+              ? Number(addonTimeRow.addonTime) * (quantity || 1)
+              : 0;
+            totalBookingTime += addonTime;
           }
 
           // Preferences
@@ -511,10 +542,22 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
 
-        // ✅ Promo usage (for both user & system promo codes)
-        // ✅ Promo usage logic
+        // ✅ Safely update total time
+        const safeTotalTime = Number.isFinite(totalBookingTime)
+          ? Math.round(totalBookingTime)
+          : 0;
+
+        await connection.query(
+          `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
+          [safeTotalTime, booking_id]
+        );
+
+        console.log(
+          `🕒 Total booking time for booking #${booking_id}: ${safeTotalTime} minutes`
+        );
+
+        // ✅ Promo usage
         if (user_promo_code_id) {
-          // 1️⃣ Try finding in user promo chain
           const [[userPromo]] = await connection.query(
             `SELECT upc.user_promo_code_id, upc.usedCount, pc.maxUse
               FROM user_promo_codes upc
@@ -523,7 +566,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [user_promo_code_id]
           );
 
-          // 2️⃣ Try finding in system promo chain
           const [[systemPromo]] = await connection.query(
             `SELECT 
               spc.system_promo_code_id, 
@@ -535,7 +577,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [user_promo_code_id]
           );
 
-          // 3️⃣ Update accordingly
           if (userPromo) {
             if (userPromo.usedCount < userPromo.maxUse) {
               await connection.query(
@@ -544,9 +585,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                   WHERE user_promo_code_id = ?`,
                 [user_promo_code_id]
               );
-              console.log(`✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`);
+              console.log(
+                `✅ Promo usage incremented in user_promo_codes for ID ${user_promo_code_id}`
+              );
             } else {
-              console.warn(`⚠️ user_promo_code_id ${user_promo_code_id} reached its max usage (${userPromo.maxUse})`);
+              console.warn(
+                `⚠️ user_promo_code_id ${user_promo_code_id} reached its max usage (${userPromo.maxUse})`
+              );
             }
           } else if (systemPromo) {
             if (systemPromo.usage_count < systemPromo.maxUse) {
@@ -556,15 +601,20 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                   WHERE system_promo_code_id = ?`,
                 [user_promo_code_id]
               );
-              console.log(`✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`);
+              console.log(
+                `✅ Promo usage incremented in system_promo_codes for ID ${user_promo_code_id}`
+              );
             } else {
-              console.warn(`⚠️ system_promo_code_id ${user_promo_code_id} reached its max usage (${systemPromo.maxUse})`);
+              console.warn(
+                `⚠️ system_promo_code_id ${user_promo_code_id} reached its max usage (${systemPromo.maxUse})`
+              );
             }
           } else {
-            console.warn(`⚠️ No matching promo found for user_promo_code_id ${user_promo_code_id}`);
+            console.warn(
+              `⚠️ No matching promo found for user_promo_code_id ${user_promo_code_id}`
+            );
           }
         }
-
 
         // ✅ Capture payment
         await stripe.paymentIntents.capture(paymentIntentId);
@@ -581,11 +631,23 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         );
 
         // ✅ Clear cart
-        await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
-        await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
+        await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [
+          cart_id,
+        ]);
+        await connection.query(
+          `DELETE FROM cart_preferences WHERE cart_id = ?`,
+          [cart_id]
+        );
+        await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [
+          cart_id,
+        ]);
+        await connection.query(
+          `DELETE FROM cart_package_items WHERE cart_id = ?`,
+          [cart_id]
+        );
+        await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [
+          cart_id,
+        ]);
 
         await connection.commit();
         console.log(`✅ Booking transaction completed for booking #${booking_id}`);
@@ -602,7 +664,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         if (receiptUrl && paymentIntentId) {
           console.log("🧾 Captured receipt from Stripe webhook:", receiptUrl);
 
-          // Update payment & booking
           await connection.query(
             `UPDATE payments SET receipt_url = ?, status = 'completed' WHERE payment_intent_id = ?`,
             [receiptUrl, paymentIntentId]
@@ -612,7 +673,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [paymentIntentId]
           );
 
-          // 1️⃣ Fetch booking details + packages + nested data
           const [[booking]] = await connection.query(
             `SELECT 
               sb.booking_id,
@@ -626,11 +686,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
               u.lastName AS userLastName,
               u.email AS userEmail,
               u.phone AS userPhone,
-
               COALESCE(pc.code, spt.code) AS promo_code,
               COALESCE(pc.discountValue, spt.discountValue) AS promo_discount,
               sb.user_promo_code_id
-
             FROM service_booking sb
             LEFT JOIN users u ON sb.user_id = u.user_id
             LEFT JOIN user_promo_codes upc ON sb.user_promo_code_id = upc.user_promo_code_id
@@ -646,7 +704,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             return;
           }
 
-          // 2️⃣ Fetch packages for this booking
           const [packages] = await connection.query(
             `SELECT 
               pk.package_id,
@@ -663,7 +720,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [booking.booking_id]
           );
 
-          // 3️⃣ Fetch addons, preferences, consents per booking item
           const [addons] = await connection.query(
             `SELECT sba.sub_package_id, a.addon_id, a.addonName, sba.price
             FROM service_booking_addons sba
@@ -688,15 +744,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [booking.booking_id]
           );
 
-          // 4️⃣ Build nested package structure
           const packageMap = {};
-
-          packages.forEach(pkg => {
+          packages.forEach((pkg) => {
             if (!packageMap[pkg.package_id]) {
               packageMap[pkg.package_id] = {
                 package_id: pkg.package_id,
                 packageName: pkg.packageName,
-                sub_packages: []
+                sub_packages: [],
               };
             }
 
@@ -708,20 +762,24 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
               quantity: pkg.quantity,
               addons: [],
               preferences: [],
-              consents: []
+              consents: [],
             });
           });
 
-          // Attach addons, preferences, consents to correct sub-packages
-          Object.values(packageMap).forEach(pkg => {
-            pkg.sub_packages.forEach(sub => {
-              sub.addons = addons.filter(a => a.sub_package_id === sub.sub_package_id);
-              sub.preferences = preferences.filter(p => p.sub_package_id === sub.sub_package_id);
-              sub.consents = consents.filter(c => c.sub_package_id === sub.sub_package_id);
+          Object.values(packageMap).forEach((pkg) => {
+            pkg.sub_packages.forEach((sub) => {
+              sub.addons = addons.filter(
+                (a) => a.sub_package_id === sub.sub_package_id
+              );
+              sub.preferences = preferences.filter(
+                (p) => p.sub_package_id === sub.sub_package_id
+              );
+              sub.consents = consents.filter(
+                (c) => c.sub_package_id === sub.sub_package_id
+              );
             });
           });
 
-          // 5️⃣ Final booking object ready for email
           const bookingDetails = {
             booking_id: booking.booking_id,
             user_id: booking.user_id,
@@ -735,19 +793,26 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             userPhone: booking.userPhone,
             promo_code: booking.promo_code,
             promo_discount: booking.promo_discount,
-            packages: Object.values(packageMap)
+            packages: Object.values(packageMap),
           };
 
-          // ✅ Send emails
           if (bookingDetails) {
-            await sendBookingEmail(booking.user_id, { ...bookingDetails, receiptUrl });
+            await sendBookingEmail(booking.user_id, {
+              ...bookingDetails,
+              receiptUrl,
+            });
             console.log("📧 Booking email sent with receipt");
 
             if (bookingDetails.vendor_id) {
-              await sendVendorBookingEmail(bookingDetails.vendor_id, { ...bookingDetails, receiptUrl });
+              await sendVendorBookingEmail(bookingDetails.vendor_id, {
+                ...bookingDetails,
+                receiptUrl,
+              });
               console.log("📧 Vendor booking email sent");
             } else {
-              console.warn("⚠️ No vendor_id found in booking, skipping vendor email.");
+              console.warn(
+                "⚠️ No vendor_id found in booking, skipping vendor email."
+              );
             }
           }
         }
@@ -756,7 +821,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       console.error("❌ Webhook processing error:", err.message);
       await connection.rollback();
       try {
-        await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "abandoned" });
+        await stripe.paymentIntents.cancel(paymentIntentId, {
+          cancellation_reason: "abandoned",
+        });
         await connection.query(
           `UPDATE payments SET status = 'failed', notes = 'Processing error' WHERE payment_intent_id = ? `,
           [paymentIntentId]
@@ -767,8 +834,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     } finally {
       connection.release();
     }
-  })(); // end background task
+  })();
 });
+
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.body;

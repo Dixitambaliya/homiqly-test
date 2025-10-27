@@ -710,52 +710,52 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
     try {
-        // ✅ Fetch packages assigned to vendor
-        const [packages] = await db.query(
+        // ✅ Fetch all package-subpackage pairs assigned to vendor
+        const [assignedRows] = await db.query(
             `SELECT 
-                vp.vendor_packages_id,
-                vp.package_id
-            FROM vendor_packages vp
-            JOIN packages p ON vp.package_id = p.package_id
-            WHERE vp.vendor_id = ?`,
+                vpf.package_id,
+                vpf.package_item_id,
+                p.packageName,
+                pi.itemName AS sub_package_name,
+                pi.itemMedia,
+                pi.description
+             FROM vendor_package_items_flat vpf
+             JOIN packages p ON vpf.package_id = p.package_id
+             LEFT JOIN package_items pi ON vpf.package_item_id = pi.item_id
+             WHERE vpf.vendor_id = ?`,
             [vendorId]
         );
 
-        if (packages.length === 0) {
+        if (assignedRows.length === 0) {
             return res.status(200).json({
                 message: "No packages assigned to this vendor",
                 result: []
             });
         }
 
-        // ✅ Fetch sub-packages for these packages
-        const vendorPackageIds = packages.map(p => p.vendor_packages_id);
-        const [subPackages] = await db.query(
-            `SELECT 
-             vpi.vendor_packages_id, 
-             vpi.package_item_id, 
-             pi.itemName AS sub_package_name,
-             pi.itemMedia,
-             pi.description
-                FROM vendor_package_items vpi
-                JOIN package_items pi ON vpi.package_item_id = pi.item_id
-                WHERE vpi.vendor_packages_id IN (?)`,
-            [vendorPackageIds]
-        );
+        // ✅ Group sub-packages by package_id
+        const grouped = {};
+        assignedRows.forEach(row => {
+            if (!grouped[row.package_id]) {
+                grouped[row.package_id] = {
+                    package_id: row.package_id,
+                    package_name: row.packageName,
+                    sub_packages: []
+                };
+            }
 
-        // ✅ Map sub-packages to their parent packages
-        const result = packages.map(pkg => ({
-            vendor_packages_id: pkg.vendor_packages_id,
-            package_id: pkg.package_id,
-            sub_packages: subPackages
-                .filter(sp => sp.vendor_packages_id === pkg.vendor_packages_id)
-                .map(sp => ({
-                    sub_package_id: sp.package_item_id,
-                    sub_package_name: sp.sub_package_name,
-                    sub_package_media: sp.itemMedia,
-                    sub_package_description: sp.description,
-                }))
-        }));
+            // Only add sub-package if package_item_id is not 0 (placeholder for no sub-packages)
+            if (row.package_item_id && row.package_item_id !== 0) {
+                grouped[row.package_id].sub_packages.push({
+                    sub_package_id: row.package_item_id,
+                    sub_package_name: row.sub_package_name || "Unknown",
+                    sub_package_media: row.itemMedia || null,
+                    sub_package_description: row.description || null
+                });
+            }
+        });
+
+        const result = Object.values(grouped);
 
         res.status(200).json({
             message: "Vendor packages fetched successfully",
@@ -893,7 +893,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
     }
 });
 
-const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
+const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     if (!vendor_id) {
@@ -901,52 +901,79 @@ const getVendorFullPaymentHistory = asyncHandler(async (req, res) => {
     }
 
     try {
-        const [[vendorRow]] = await db.query(
-            bookingGetQueries.getVendorIdForBooking,
+        // ✅ Fetch all payout records for this vendor
+        const [payoutRows] = await db.query(
+            vendorGetQueries.getVendorPayoutHistory,
             [vendor_id]
         );
-        const vendorType = vendorRow?.vendorType || null;
 
-        // ✅ Get latest platform fee for vendorType
-        const [platformSettings] = await db.query(
-            bookingGetQueries.getPlateFormFee,
-            [vendorType]
-        );
-        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-
-        const [bookings] = await db.query(vendorGetQueries.getVendorFullPayment,
-            [platformFee, vendor_id]
-        );
-
-        const enriched = [];
-
-        for (const booking of bookings) {
-
-            enriched.push({
-                ...booking,
-                totalPrice: booking.totalPrice !== null
-                    ? parseFloat(booking.totalPrice)
-                    : null
+        if (!payoutRows.length) {
+            return res.status(200).json({
+                vendor_id,
+                totalBookings: 0,
+                totalPayout: 0,
+                pendingPayout: 0,
+                paidPayout: 0,
+                allPayouts: []
             });
         }
 
+        // ✅ Normalize and parse values
+        const allPayouts = payoutRows.map(row => ({
+            ...row,
+            gross_amount: parseFloat(parseFloat(row.gross_amount || 0).toFixed(2)),
+            payout_amount: parseFloat(parseFloat(row.payout_amount || 0).toFixed(2)),
+            payout_status:
+                typeof row.payout_status === "string"
+                    ? row.payout_status.toLowerCase()
+                    : row.payout_status
+        }));
+
+        // ✅ Totals
+        const totalPayout = parseFloat(
+            allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
+        );
+
+        const pendingPayout = parseFloat(
+            allPayouts
+                .filter(b => b.payout_status === 0 || b.payout_status === "pending")
+                .reduce((sum, b) => sum + b.payout_amount, 0)
+                .toFixed(2)
+        );
+
+        const paidPayout = parseFloat(
+            allPayouts
+                .filter(b => b.payout_status === 3 || b.payout_status === "paid")
+                .reduce((sum, b) => sum + b.payout_amount, 0)
+                .toFixed(2)
+        );
+
+        // ✅ Response
         res.status(200).json({
             vendor_id,
-            total: enriched.length,
-            bookings: enriched
+            totalBookings: allPayouts.length,
+            totalPayout,
+            pendingPayout,
+            paidPayout,
+            allPayouts
         });
 
     } catch (err) {
-        console.error("Error fetching vendor history:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+        console.error("❌ Error fetching vendor payout history:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
     }
 });
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { booking_id, status } = req.body;
+    const { booking_id, status } = req.body;    
 
-    // ✅ Validate input
+    console.log(vendor_id);
+    
+    // ✅ Validate input    
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
     }
@@ -987,11 +1014,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        // if (payment_status !== 'completed') {
-        //     return res.status(400).json({ message: "Cannot start or complete service. Payment is not complete." });
-        // }
-
-
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
 
@@ -1004,11 +1026,11 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         if (status === 4) {
             notificationTitle = "Your service has been completed";
             notificationBody = `Your service for booking ID ${booking_id} has been completed. Please take a moment to rate your experience.`;
-            const ratingLink = `https://homiqly-h81s.vercel.app/checkout/rating`;
+            const ratingLink = `https://homiqly-h81s.vercel.app/Profile/history`;
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, action_link, is_read, sent_at)
-         VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody, ratingLink]
             );
         } else {
@@ -1017,10 +1039,59 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, is_read, sent_at)
-         VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
         }
+
+        if (status === 4) {
+            // ✅ Fetch payment + platform fee details
+            const [[paymentInfo]] = await db.query(
+                `SELECT 
+                    p.amount, 
+                    p.currency, 
+                    p.status AS payment_status,
+                    v.vendorType
+                FROM payments p
+                JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+                JOIN vendors v ON v.vendor_id = sb.vendor_id
+                WHERE sb.booking_id = ? LIMIT 1`,
+                [booking_id]
+            );
+
+            if (paymentInfo && paymentInfo.payment_status === 'completed') {
+                // ✅ Get platform fee for this vendor type
+                const [feeRows] = await db.query(
+                    `SELECT platform_fee_percentage 
+                    FROM platform_settings 
+                    WHERE vendor_type = ? LIMIT 1`,
+                    [paymentInfo.vendorType]
+                );
+
+                const platform_fee_percentage = Number(feeRows?.[0]?.platform_fee_percentage ?? 0);
+                const gross_amount = Number(paymentInfo.amount || 0);
+                const payout_amount = Number(
+                    (gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2)
+                );
+
+                // ✅ Insert payout entry if not already exists
+                await db.query(
+                    `INSERT INTO vendor_payouts 
+                    (booking_id, vendor_id, user_id, package_id, payment_intent_id,
+                    gross_amount, platform_fee_percentage, payout_amount, currency)
+                    SELECT 
+                        sb.booking_id, sb.vendor_id, sb.user_id, sb.package_id, sb.payment_intent_id,
+                        ?, ?, ?, ?
+                    FROM service_booking sb
+                    WHERE sb.booking_id = ?
+                    ON DUPLICATE KEY UPDATE 
+                    payout_amount = VALUES(payout_amount),
+                    platform_fee_percentage = VALUES(platform_fee_percentage)`,
+                    [gross_amount, platform_fee_percentage, payout_amount, paymentInfo.currency, booking_id]
+                );
+            }
+        }
+
 
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
@@ -1255,7 +1326,7 @@ module.exports = {
     addRatingToPackages,
     toggleManualVendorAssignment,
     getManualAssignmentStatus,
-    getVendorFullPaymentHistory,
+    getVendorPayoutHistory,
     updateBookingStatusByVendor,
     getVendorDashboardStats,
     removeVendorPackage,

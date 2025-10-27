@@ -227,22 +227,23 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
     }
 });
 
-cron.schedule('*/10 * * * *', async () => {
-    try {
-        const [rows] = await db.query(`
-            UPDATE vendor_settings
-            SET manual_assignment_enabled = 0
-            WHERE manual_assignment_enabled = 1
-              AND end_datetime IS NOT NULL
-              AND NOW() > end_datetime
-        `);
-        if (rows.affectedRows > 0) {
-            console.log(`[${new Date().toISOString()}] Auto-disabled ${rows.affectedRows} vendor(s) manual assignment`);
-        }
-    } catch (err) {
-        console.error("Cron error:", err);
-    }
-});
+// cron.schedule('*/10 * * * *', async () => {
+//     try {
+//         const [rows] = await db.query(`
+//             UPDATE vendor_settings
+//             SET manual_assignment_enabled = 0
+//             WHERE manual_assignment_enabled = 1
+//               AND end_datetime IS NOT NULL
+//               AND NOW() > end_datetime
+//         `);
+//         if (rows.affectedRows > 0) {
+//             console.log(`[${new Date().toISOString()}] Auto-disabled ${rows.affectedRows} vendor(s) manual assignment`);
+//         }
+//     } catch (err) {
+//         console.error("Cron error:", err);
+//     }
+// });
+
 
 // Email function (non-blocking)
 const sendPromoEmail = async (userEmail, promoCode, discountValue) => {

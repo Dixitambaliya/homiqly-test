@@ -1,6 +1,6 @@
 // FILE: src/components/subcomponents/SubPackageSection.jsx
 import React, { useState, useEffect } from "react";
-import { FiTrash2, FiPlus } from "react-icons/fi";
+import { FiTrash, FiPlus } from "react-icons/fi";
 import CollapsibleSectionCard from "../../../../shared/components/Card/CollapsibleSectionCard";
 // import ItemCard from "../../../shared/components/Card/ItemCard";
 import { Button, IconButton } from "../../../../shared/components/Button";
@@ -46,7 +46,7 @@ const SubPackageSection = ({
     >
       <div className="flex justify-end mb-4">
         <IconButton
-          icon={<FiTrash2 />}
+          icon={<FiTrash />}
           variant="lightDanger"
           onClick={onRemove}
         />

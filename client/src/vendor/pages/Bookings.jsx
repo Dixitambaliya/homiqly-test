@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { FiRefreshCw } from "react-icons/fi";
 import BookingsTable from "../components/Tables/BookingsTable";
 import { Button } from "../../shared/components/Button";
 import { FormSelect, FormInput } from "../../shared/components/Form";
@@ -8,6 +7,7 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 
 const VendorBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -301,7 +301,7 @@ const VendorBookings = () => {
               fetchEmployees();
             }}
             variant="outline"
-            icon={<FiRefreshCw className="mr-2" />}
+            icon={<RefreshCcw className="mr-2" />}
           >
             Refresh
           </Button>

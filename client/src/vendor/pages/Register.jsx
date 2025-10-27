@@ -2,18 +2,10 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
 import { toast } from "react-toastify";
-import {
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiLock,
-  FiLoader,
-  FiChevronRight,
-  FiChevronLeft,
-} from "react-icons/fi";
 import axios from "axios";
 import Button from "../../shared/components/Button/Button";
 import { FormInput, FormSelect } from "../../shared/components/Form";
+import { ArrowLeft, ArrowRight, Loader, Lock, Mail, Phone, User } from "lucide-react";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -306,7 +298,7 @@ const Register = () => {
                   <>
                     <FormInput
                       id="name"
-                      icon={<FiUser />}
+                      icon={<User />}
                       label="Full Name*"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -315,7 +307,7 @@ const Register = () => {
                     />
                     <FormInput
                       id="email"
-                      icon={<FiMail />}
+                      icon={<Mail />}
                       label="Email*"
                       type="email"
                       value={email}
@@ -325,7 +317,7 @@ const Register = () => {
                     />
                     <FormInput
                       id="phone"
-                      icon={<FiPhone />}
+                      icon={<Phone />}
                       label="Phone*"
                       type="tel"
                       value={phone}
@@ -335,7 +327,7 @@ const Register = () => {
                     />
                     <FormInput
                       id="password"
-                      icon={<FiLock />}
+                      icon={<Lock />}
                       label="Password*"
                       type="password"
                       value={password}
@@ -410,7 +402,7 @@ const Register = () => {
 
               <div className="flex justify-end mt-6">
                 <Button onClick={handleNextStep}>
-                  Next <FiChevronRight className="ml-2" />
+                  Next <ArrowRight className="ml-2" />
                 </Button>
               </div>
             </div>
@@ -426,7 +418,7 @@ const Register = () => {
               <div className="mb-4">
                 {citiesLoading ? (
                   <div className="flex items-center">
-                    <FiLoader className="w-5 h-5 mr-2 animate-spin text-primary" />
+                    <Loader className="animate-spin h-5 w-5 text-primary mr-2" />
                     <span>Loading cities...</span>
                   </div>
                 ) : (
@@ -447,7 +439,7 @@ const Register = () => {
 
               {serviceLoading ? (
                 <div className="flex justify-center py-8">
-                  <FiLoader className="w-8 h-8 animate-spin text-primary" />
+                  <Loader className="animate-spin h-8 w-8 text-primary" />
                 </div>
               ) : (
                 <div className="pr-2 space-y-6 overflow-y-auto max-h-96">
@@ -524,10 +516,10 @@ const Register = () => {
 
               <div className="flex justify-between mt-6">
                 <Button variant="ghost" onClick={handlePrevStep}>
-                  <FiChevronLeft className="mr-2" /> Previous
+                  <ArrowLeft className="mr-2" /> Previous
                 </Button>
                 <Button onClick={handleNextStep}>
-                  Next <FiChevronRight className="ml-2" />
+                  Next <ArrowRight className="ml-2" />
                 </Button>
               </div>
             </div>
@@ -776,7 +768,7 @@ const Register = () => {
                       type="button"
                       onClick={handlePrevStep}
                     >
-                      <FiChevronLeft className="w-4 h-4" />
+                      <ArrowLeft className="h-4 w-4" />
                       Previous
                     </Button>
 
@@ -787,7 +779,7 @@ const Register = () => {
                     >
                       {loading ? (
                         <>
-                          <FiLoader className="w-4 h-4 animate-spin" />{" "}
+                          <Loader className="animate-spin h-4 w-4" />{" "}
                           Registering...
                         </>
                       ) : (

@@ -11,7 +11,11 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 // ---- Send OTP via SMS ----
 const sendOtp = asyncHandler(async (req, res) => {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: "Phone is required" });
+    const user_id = req.user?.user_id || req.body.user_id; // get current user ID from token or request body
+
+    if (!phone) {
+        return res.status(400).json({ message: "Phone is required" });
+    }
 
     try {
         // 🔎 Check if phone already exists in DB
@@ -20,9 +24,11 @@ const sendOtp = asyncHandler(async (req, res) => {
             [phone]
         );
 
-        if (existingUser) {
+        if (existingUser && existingUser.user_id !== user_id) {
+            // ❌ Someone else is using this number
             return res.status(400).json({
-                message: "This phone number is already registered. Please use another number or login."
+                message:
+                    "This phone number is already registered with another account. Please use another number.",
             });
         }
 
@@ -30,13 +36,13 @@ const sendOtp = asyncHandler(async (req, res) => {
         const otp = generateOTP();
 
         // 🔐 Create JWT containing phone + OTP (expires in 5 minutes)
-        const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: '5m' });
+        const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "5m" });
 
         // 📩 Send OTP via SMS (Twilio)
         await client.messages.create({
             body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
-            from: process.env.TWILIO_PHONE_NUMBER, // Your Twilio number
-            to: phone
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: phone,
         });
 
         res.json({ message: "OTP sent via SMS", token });
@@ -45,6 +51,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
 });
+
 
 
 

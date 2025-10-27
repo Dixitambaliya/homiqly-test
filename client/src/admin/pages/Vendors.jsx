@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiRefreshCw } from "react-icons/fi";
 import VendorsTable from "../components/Tables/VendorsTable";
 import VendorDetailsModal from "../components/Modals/VendorDetailsModal";
 import { Button } from "../../shared/components/Button";
 import { FormInput, FormSelect } from "../../shared/components/Form";
-import { Search } from "lucide-react";
+import { RefreshCcw, Search } from "lucide-react";
 
 const Vendors = () => {
   const [vendors, setVendors] = useState([]);
@@ -145,7 +144,7 @@ const Vendors = () => {
             <Button
               onClick={fetchVendors}
               variant="outline"
-              icon={<FiRefreshCw className="mr-2" />}
+              icon={<RefreshCcw className="mr-2" />}
               aria-label="Refresh vendors"
             >
               Refresh

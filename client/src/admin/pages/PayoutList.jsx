@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import api from "../../lib/axiosConfig";
 import PayoutsTable from "../components/Tables/PayoutsTable";
 import { toast } from "react-toastify";
-import { FiDownload } from "react-icons/fi";
 
 const PayoutList = () => {
   const [payouts, setPayouts] = useState([]);

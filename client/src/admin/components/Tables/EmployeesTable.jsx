@@ -1,9 +1,7 @@
 import React from "react";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
-import { FiDelete, FiEye } from "react-icons/fi";
-import { Trash2 } from "lucide-react";
-import { MdDelete } from "react-icons/md";
+import { Eye, Trash } from "lucide-react";
 
 const EmployeesTable = ({
   employees,
@@ -37,9 +35,7 @@ const EmployeesTable = ({
             </div>
           )}
           <div className="text-sm font-medium text-gray-900">
-            {row.first_name}
-            {" "}
-            {row.last_name}
+            {row.first_name} {row.last_name}
           </div>
         </div>
       ),
@@ -80,14 +76,14 @@ const EmployeesTable = ({
       render: (row) => (
         <div className="space-x-2">
           <IconButton
-            icon={<FiEye />}
+            icon={<Eye />}
             variant="ghost"
             size="sm"
             onClick={() => onViewEmployee(row)}
             tooltip="View details"
           />
           <IconButton
-            icon={<MdDelete />}
+            icon={<Trash />}
             variant="lightDanger"
             size="sm"
             onClick={() => onDeleteEmployee(row)}

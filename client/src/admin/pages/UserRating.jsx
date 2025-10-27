@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FiStar, FiUser, FiCalendar, FiTrash2 } from "react-icons/fi";
 import LoadingSlider from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import IconButton from "../../shared/components/Button/IconButton";
 import { FormInput, FormSelect } from "../../shared/components/Form";
+import { Calendar, Star, Trash, User } from "lucide-react";
 
 const UserRating = () => {
   const [ratings, setRatings] = useState([]);
@@ -135,7 +135,7 @@ const UserRating = () => {
               return (
                 <div key={rating} className="flex items-center mb-2">
                   <div className="flex items-center text-yellow-400 mr-2">
-                    {rating} <FiStar className="ml-1" />
+                    {rating} <Star className="ml-1" />
                   </div>
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
@@ -204,7 +204,7 @@ const UserRating = () => {
                 {/* Delete Button */}
                 <IconButton
                   aria-label="Delete Rating"
-                  icon={<FiTrash2 className="h-5 w-5" />}
+                  icon={<Trash className="h-5 w-5" />}
                   variant="danger"
                   onClick={() => handleDelete(rating.rating_id)}
                   className="absolute bottom-3 right-3 "
@@ -214,14 +214,14 @@ const UserRating = () => {
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center">
                     <div className="mr-3 bg-gray-100 rounded-full p-2">
-                      <FiUser className="h-5 w-5 text-gray-500" />
+                      <User className="h-5 w-5 text-gray-500" />
                     </div>
                     <div>
                       <h4 className="font-medium text-gray-900">
                         {rating.userName}
                       </h4>
                       <div className="flex items-center text-sm text-gray-500">
-                        <FiCalendar className="mr-1" />
+                        <Calendar className="mr-1" />
                         {formatDate(rating.created_at)}
                       </div>
                     </div>

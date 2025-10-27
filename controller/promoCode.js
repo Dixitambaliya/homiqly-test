@@ -303,6 +303,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 spc.system_promo_code_id,
                 spc.user_id,
                 spc.source_type,
+                spct.minSpend,
                 spct.code AS userCode,
                 spct.discount_type,
                 spct.maxUse AS promoMaxUse,
@@ -338,6 +339,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             promoCode: p.userCode,
             promoMaxUse: p.promoMaxUse,
             usedCount: p.usedCount,
+            minSpend: p.minSpend,
             discountType: p.discount_type,
             userDiscountValue: p.userDiscountValue,
             promoUsed: p.usedCount >= p.promoMaxUse ? 1 : 0  // ✅ new column
@@ -346,7 +348,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
         const allPromos = [...normalizedUserPromos, ...normalizedSystemPromos];
 
         if (allPromos.length === 0) {
-            return res.status(404).json({ message: "No promo codes assigned to this user" });
+            return res.status(200).json({ message: "No promo code available" });
         }
 
         res.status(200).json({
@@ -359,6 +361,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Server error", details: err.message });
     }
 });
+
 
 const assignWelcomeCode = async (user_id, user_email) => {
     try {

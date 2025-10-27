@@ -7,12 +7,12 @@ import {
   FormTextarea,
   FormCheckbox,
 } from "../../../shared/components/Form";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import { CustomFileInput } from "../../../shared/components/CustomFileInput";
 import ItemCard from "../../../shared/components/Card/ItemCard";
 import { CollapsibleSectionCard } from "../../../shared/components/Card/CollapsibleSectionCard";
+import { Plus, Trash } from "lucide-react";
 
 const makeEmptyPreferenceItem = () => ({
   preference_id: undefined,
@@ -345,13 +345,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     });
 
   // remove sub consent form item (allow deleting last item)
- const removeSubConsentForm = (pkgIndex, subIndex, consentIndex) =>
-   updatePackages((packages) => {
-     const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
-     if (!sub) return;
-     sub.consentForm = sub.consentForm || [];
-     sub.consentForm.splice(consentIndex, 1);
-   });
+  const removeSubConsentForm = (pkgIndex, subIndex, consentIndex) =>
+    updatePackages((packages) => {
+      const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
+      if (!sub) return;
+      sub.consentForm = sub.consentForm || [];
+      sub.consentForm.splice(consentIndex, 1);
+    });
 
   // -------------------
   // File & image helpers (top-level package media)
@@ -637,7 +637,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       <div className="flex justify-end mb-4">
                         {pkg.sub_packages.length > 1 && (
                           <IconButton
-                            icon={<FiTrash2 />}
+                            icon={<Trash />}
                             variant="lightDanger"
                             onClick={() => removeSubPackage(pkgIndex, subIndex)}
                           />
@@ -898,7 +898,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
 
                       <Button
                         variant="outline"
-                        icon={<FiPlus />}
+                        icon={<Plus />}
                         className="w-full border-dashed mt-4"
                         onClick={() => addPreferenceGroup(pkgIndex, subIndex)}
                       >
@@ -975,7 +975,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                         ))}
                         <Button
                           variant="outline"
-                          icon={<FiPlus />}
+                          icon={<Plus />}
                           className="w-full border-dashed mt-2"
                           onClick={() => addAddon(pkgIndex, subIndex)}
                         >
@@ -1039,7 +1039,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                             onClick={() =>
                               addSubConsentForm(pkgIndex, subIndex)
                             }
-                            icon={<FiPlus />}
+                            icon={<Plus />}
                             className="w-full border-dashed"
                           >
                             Add Consent Item
@@ -1052,7 +1052,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                   <div className="mt-4">
                     <Button
                       variant="outline"
-                      icon={<FiPlus />}
+                      icon={<Plus />}
                       className="w-full border-dashed"
                       onClick={() => addSubPackage(pkgIndex)}
                     >

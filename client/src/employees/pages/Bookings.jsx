@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiRefreshCw } from "react-icons/fi";
 import BookingsTable from "../components/Tables/BookingsTable";
 import { Button } from "../../shared/components/Button";
 import { FormSelect } from "../../shared/components/Form";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { RefreshCcw } from "lucide-react";
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -78,7 +78,7 @@ const Bookings = () => {
           <Button
             onClick={fetchBookings}
             variant="outline"
-            icon={<FiRefreshCw className="mr-2" />}
+            icon={<RefreshCcw className="mr-2" />}
           >
             Refresh
           </Button>

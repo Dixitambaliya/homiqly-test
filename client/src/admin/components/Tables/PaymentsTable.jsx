@@ -1,9 +1,9 @@
 import React from "react";
-import { FiCheck, FiEye } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
 import { formatCurrency } from "../../../shared/utils/formatUtils";
 import { formatDate } from "../../../shared/utils/dateUtils";
+import { Eye } from "lucide-react";
 
 const PaymentsTable = ({ payouts, isLoading, onViewPayment }) => {
   const columns = [
@@ -79,7 +79,7 @@ const PaymentsTable = ({ payouts, isLoading, onViewPayment }) => {
       align: "right",
       render: (row) => (
         <IconButton
-          icon={<FiEye className="h-4 w-4" />}
+          icon={<Eye className="h-4 w-4" />}
           variant="ghost"
           size="sm"
           onClick={(e) => {
