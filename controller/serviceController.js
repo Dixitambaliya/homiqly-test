@@ -736,7 +736,8 @@ const deleteCategory = asyncHandler(async (req, res) => {
 })
 
 const editServiceCity = asyncHandler(async (req, res) => {
-    const { service_city_id, newCityName } = req.body;
+    const { service_city_id } = req.params
+    const { newCityName } = req.body;
 
     if (!service_city_id || !newCityName || newCityName.trim() === '') {
         return res.status(400).json({ message: "City ID and new name are required" });
