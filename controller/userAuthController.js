@@ -532,7 +532,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
             // New user → require details
             if (!firstName || !lastName) {
                 return res.status(200).json({
-                    message: "New user — please provide name (and optionally email/password)",
+                    message: "Welcome — please provide name (and optionally email/password)",
                     requireDetails: true
                 });
             }
