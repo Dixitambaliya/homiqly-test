@@ -118,7 +118,7 @@ const Payments = () => {
       setApplyLoading(true);
       const payload = { requested_amount: Math.round(amt) }; // API in screenshot used integer amounts
       const res = await axios.post("/api/payment/applypayout", payload);
-  
+
       setApplySuccess(res.data?.message || "Payout requested successfully.");
       // refresh the list/stats
     } catch (err) {
@@ -168,12 +168,12 @@ const Payments = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4">
+    <div className="space-y-6 p-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 sm:grid-cols-4 gap-4">
         <div className="bg-white p-4 shadow rounded">
           <p className="text-gray-500 text-sm">Pending Payout</p>
           <p className="text-xl font-bold text-gray-800">
@@ -204,49 +204,77 @@ const Payments = () => {
         </div>
       </div>
 
-      <div>
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <FormSelect
-            value={filter}
-            className="w-"
-            onChange={handleFilterChange}
-            options={[
-              { value: "all", label: "All" },
-              { value: "pending", label: "Pending" },
-              { value: "paid", label: "Paid" },
-              { value: "completed", label: "Completed" },
-            ]}
-          />
+      <>
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mb-4 w-full">
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="payout-filter" className="sr-only">
+              Filter payouts
+            </label>
+            <FormSelect
+              id="payout-filter"
+              label="Filter"
+              value={filter}
+              className="min-w-[150px] w-full sm:w-auto"
+              onChange={handleFilterChange}
+              options={[
+                { value: "all", label: "All" },
+                { value: "pending", label: "Pending" },
+                { value: "paid", label: "Paid" },
+                { value: "completed", label: "Completed" },
+              ]}
+              aria-label="Filter payouts"
+            />
 
-          <div className="flex items-center gap-2">
-            <FormInput
-              type="date"
-              name="startDate"
-              value={dateRange.startDate}
-              onChange={handleDateChange}
-            />
-            <FormInput
-              type="date"
-              name="endDate"
-              value={dateRange.endDate}
-              onChange={handleDateChange}
-            />
+            <div className="flex items-center gap-2">
+              <label htmlFor="start-date" className="sr-only">
+                Start date
+              </label>
+              <FormInput
+                id="start-date"
+                type="date"
+                name="startDate"
+                label="Start Date"
+                value={dateRange.startDate}
+                onChange={handleDateChange}
+                className="max-w-[160px] w-full sm:w-auto"
+                aria-label="Start date"
+              />
+
+              <label htmlFor="end-date" className="sr-only">
+                End date
+              </label>
+              <FormInput
+                id="end-date"
+                type="date"
+                name="endDate"
+                label="End Date"
+                value={dateRange.endDate}
+                onChange={handleDateChange}
+                className="max-w-[160px] w-full sm:w-auto"
+                aria-label="End date"
+              />
+            </div>
           </div>
 
-          {/* Request payout button */}
-          <div className="ml-4">
-            <Button onClick={openApplyModal} size="sm" variant="primary">
+          {/* Right: Request payout button */}
+          <div className="flex items-center sm:ml-4">
+            <Button
+              onClick={openApplyModal}
+              size="sm"
+              variant="primary"
+              className="w-full sm:w-auto"
+              aria-label="Request payout"
+            >
               Request Payout
             </Button>
           </div>
         </div>
-
         <PaymentsTable
           bookings={filteredBookings}
           isLoading={loading}
           filteredStatus={filter}
         />
-      </div>
+      </>
 
       {/* Modal */}
       {isModalOpen && (

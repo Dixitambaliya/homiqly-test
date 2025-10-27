@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
@@ -13,35 +13,117 @@ const Payments = () => {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // filters
   const [filter, setFilter] = useState("all"); // all, individual, company
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // pagination
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalPayments, setTotalPayments] = useState(0);
+
   const navigate = useNavigate();
 
+  // debounce search (500ms) -> update debouncedSearch and reset page
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // whenever filter or dateRange changes reset to first page
+  useEffect(
+    () => setPage(1),
+    [filter, dateRange.startDate, dateRange.endDate, limit]
+  );
+
+  const fetchPayments = useCallback(
+    async (opts = {}) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const qPage = opts.page ?? page;
+        const qLimit = opts.limit ?? limit;
+        const qSearch = opts.search ?? debouncedSearch;
+        const qFilter = opts.filter ?? filter;
+        const qStart = opts.startDate ?? dateRange.startDate;
+        const qEnd = opts.endDate ?? dateRange.endDate;
+
+        const params = {
+          page: qPage,
+          limit: qLimit,
+        };
+
+        if (qSearch) params.search = qSearch;
+
+        // map filter to vendorType param if backend expects that name
+        if (qFilter && qFilter !== "all") params.vendorType = qFilter;
+
+        if (qStart) params.startDate = qStart;
+        if (qEnd) params.endDate = qEnd;
+
+        const response = await axios.get("/api/admin/getpayments", { params });
+        const data = response.data || {};
+
+        // set payments array (common key: payments)
+        setPayments(data.payments ?? data.data ?? []);
+
+        // pagination fields (support multiple possible names)
+        setPage(data.page ?? qPage);
+        setLimit(data.limit ?? qLimit);
+        setTotalPages(data.totalPages ?? data.totalPages ?? 1);
+        setTotalPayments(
+          data.totalPayments ??
+            data.total ??
+            data.count ??
+            (Array.isArray(data.payments) ? data.payments.length : 0)
+        );
+      } catch (err) {
+        console.error("Error fetching payments:", err);
+        setError("Failed to load payment history");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      page,
+      limit,
+      debouncedSearch,
+      filter,
+      dateRange.startDate,
+      dateRange.endDate,
+    ]
+  );
+
+  // initial + reactive fetch when page/limit/debouncedSearch/filter/dateRange change
   useEffect(() => {
     fetchPayments();
-  }, []);
-
-  const fetchPayments = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/admin/getpayments");
-      setPayments(response.data.payments || []);
-    } catch (error) {
-      console.error("Error fetching payments:", error);
-      setError("Failed to load payment history");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [
+    fetchPayments,
+    page,
+    limit,
+    debouncedSearch,
+    filter,
+    dateRange.startDate,
+    dateRange.endDate,
+  ]);
 
   const handleFilterChange = (e) => {
     setFilter(e.target.value);
+    setPage(1);
   };
 
   const handleDateChange = (e) => {
     const { name, value } = e.target;
     setDateRange((prev) => ({ ...prev, [name]: value }));
+    setPage(1);
   };
 
   const normalize = (v) =>
@@ -80,82 +162,46 @@ const Payments = () => {
     );
   };
 
-  const filteredPayments = payments.filter((payment) => {
-    if (filter !== "all" && payment.vendorType !== filter) return false;
+  // Allow a small client-side filter on top of server results for better UX (search already server-backed, but safe)
+  const filteredPayments = useMemo(() => {
+    return payments.filter((payment) => {
+      if (filter !== "all" && payment.vendorType !== filter) return false;
 
-    if (dateRange.startDate && dateRange.endDate) {
-      const paymentDate = new Date(
-        payment.created_at || payment.createdAt || payment.date
-      );
-      const startDate = new Date(dateRange.startDate);
-      const endDate = new Date(dateRange.endDate);
-      endDate.setHours(23, 59, 59, 999);
-      if (isNaN(paymentDate.getTime())) return false;
-      if (paymentDate < startDate || paymentDate > endDate) return false;
-    }
+      if (dateRange.startDate && dateRange.endDate) {
+        const paymentDate = new Date(
+          payment.created_at || payment.createdAt || payment.date
+        );
+        const startDate = new Date(dateRange.startDate);
+        const endDate = new Date(dateRange.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        if (isNaN(paymentDate.getTime())) return false;
+        if (paymentDate < startDate || paymentDate > endDate) return false;
+      }
 
-    if (!matchesSearch(payment, searchTerm)) return false;
+      // We use debouncedSearch here (server requested same) so this is mostly safe
+      if (!matchesSearch(payment, debouncedSearch)) return false;
 
-    return true;
-  });
+      return true;
+    });
+  }, [
+    payments,
+    filter,
+    dateRange.startDate,
+    dateRange.endDate,
+    debouncedSearch,
+  ]);
 
-  // const exportToCSV = () => {
-  //   const headers = [
-  //     "Payment ID",
-  //     "User",
-  //     "Vendor",
-  //     "Package",
-  //     "Amount",
-  //     "Currency",
-  //     "Date",
-  //   ];
-  //   const rows = filteredPayments.map((payment) => [
-  //     payment.payment_id,
-  //     `${payment.user_firstname || ""} ${payment.user_lastname || ""}`.trim(),
-  //     payment.individual_name ||
-  //       payment.company_name ||
-  //       payment.vendor_name ||
-  //       "",
-  //     payment.packageName || payment.package_name || payment.productName || "",
-  //     payment.amount,
-  //     (payment.currency || "").toUpperCase(),
-  //     new Date(
-  //       payment.created_at || payment.createdAt || payment.date
-  //     ).toLocaleDateString(),
-  //   ]);
-  //   const csvContent = [
-  //     headers.join(","),
-  //     ...rows.map((row) =>
-  //       row
-  //         .map((cell) => {
-  //           // escape commas and quotes in cells
-  //           if (cell === null || cell === undefined) return "";
-  //           const cellStr = String(cell);
-  //           if (
-  //             cellStr.includes(",") ||
-  //             cellStr.includes('"') ||
-  //             cellStr.includes("\n")
-  //           ) {
-  //             return `"${cellStr.replace(/"/g, '""')}"`;
-  //           }
-  //           return cellStr;
-  //         })
-  //         .join(",")
-  //     ),
-  //   ].join("\n");
-  //   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  //   const url = URL.createObjectURL(blob);
-  //   const link = document.createElement("a");
-  //   link.setAttribute("href", url);
-  //   link.setAttribute(
-  //     "download",
-  //     `payment_history_${new Date().toISOString().split("T")[0]}.csv`
-  //   );
-  //   link.style.visibility = "hidden";
-  //   document.body.appendChild(link);
-  //   link.click();
-  //   document.body.removeChild(link);
-  // };
+  // Pagination helpers
+  const goToPage = (p) => {
+    if (!p || p < 1) p = 1;
+    if (p > totalPages) p = totalPages;
+    setPage(p);
+  };
+
+  const onChangeLimit = (newLimit) => {
+    setLimit(Number(newLimit));
+    setPage(1);
+  };
 
   if (loading) {
     return (
@@ -179,16 +225,11 @@ const Payments = () => {
         <h2 className="text-2xl font-bold text-gray-800">
           Admin Payment History
         </h2>
-        {/* <Button onClick={exportToCSV}>
-          <FiDownload className="mr-2" />
-          Export CSV
-        </Button> */}
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-          {/* Search (bigger on md) */}
           <div className="md:col-span-2">
             <FormInput
               icon={<Search className="w-4 h-4" />}
@@ -202,7 +243,6 @@ const Payments = () => {
             />
           </div>
 
-          {/* Vendor Type */}
           <div className="md:col-span-1">
             <FormSelect
               label="Vendor Type"
@@ -219,7 +259,6 @@ const Payments = () => {
             />
           </div>
 
-          {/* Start Date */}
           <div className="md:col-span-1">
             <FormInput
               label="Start Date"
@@ -233,7 +272,6 @@ const Payments = () => {
             />
           </div>
 
-          {/* End Date */}
           <div className="md:col-span-1">
             <FormInput
               type="date"
@@ -247,7 +285,6 @@ const Payments = () => {
             />
           </div>
 
-          {/* Actions */}
           <div className="md:col-span-1 flex justify-start md:justify-end space-x-2">
             <Button
               variant="ghost"
@@ -255,6 +292,7 @@ const Payments = () => {
               onClick={() => {
                 setFilter("all");
                 setDateRange({ startDate: "", endDate: "" });
+                setSearchTerm("");
               }}
               aria-label="Clear filters"
             >
@@ -268,6 +306,8 @@ const Payments = () => {
                 setSearchTerm("");
                 setFilter("all");
                 setDateRange({ startDate: "", endDate: "" });
+                setLimit(10);
+                setPage(1);
               }}
               aria-label="Reset all"
             >
@@ -286,8 +326,97 @@ const Payments = () => {
           })
         }
       />
+
+      {/* Pagination controls */}
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">
+            Showing page {page} of {totalPages} • {totalPayments} payments
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1 || loading}
+            className="px-3 py-1 rounded border disabled:opacity-50"
+          >
+            Prev
+          </button>
+
+          <PaginationNumbers
+            page={page}
+            totalPages={totalPages}
+            onGoToPage={goToPage}
+          />
+
+          <button
+            onClick={() => goToPage(page + 1)}
+            disabled={page >= totalPages || loading}
+            className="px-3 py-1 rounded border disabled:opacity-50"
+          >
+            Next
+          </button>
+
+          <select
+            value={limit}
+            onChange={(e) => onChangeLimit(e.target.value)}
+            className="ml-3 border rounded px-2 py-1"
+            aria-label="Items per page"
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
     </div>
   );
 };
 
 export default Payments;
+
+/* ------------------------
+   PaginationNumbers component
+   ------------------------ */
+function PaginationNumbers({ page, totalPages, onGoToPage }) {
+  const pages = [];
+
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    let left = Math.max(2, page - 2);
+    let right = Math.min(totalPages - 1, page + 2);
+
+    if (left > 2) pages.push("left-ellipsis");
+    for (let i = left; i <= right; i++) pages.push(i);
+    if (right < totalPages - 1) pages.push("right-ellipsis");
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {pages.map((p, idx) =>
+        typeof p === "number" ? (
+          <button
+            key={idx}
+            onClick={() => onGoToPage(p)}
+            disabled={p === page}
+            className={`px-3 py-1 rounded border ${
+              p === page ? "font-bold bg-gray-100" : ""
+            }`}
+          >
+            {p}
+          </button>
+        ) : (
+          <span key={idx} className="px-2">
+            ...
+          </span>
+        )
+      )}
+    </div>
+  );
+}

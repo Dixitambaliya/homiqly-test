@@ -283,7 +283,7 @@ const VendorBookings = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-3">
+    <div className="space-y-6 p-3">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">
           Vendor Booking Management
@@ -301,7 +301,7 @@ const VendorBookings = () => {
               fetchEmployees();
             }}
             variant="outline"
-            icon={<RefreshCcw className="mr-2" />}
+            icon={<RefreshCcw className="mr-2 h-4 w-4" />}
           >
             Refresh
           </Button>
@@ -342,26 +342,24 @@ const VendorBookings = () => {
 
           {/* Start Date */}
           <div className="md:col-span-1">
-            <input
+            <FormInput
               id="startDate"
               name="startDate"
               value={dateRange.startDate}
               onChange={handleDateChange}
               type="date"
-              className="w-full border rounded px-3 py-2"
               aria-label="Start date"
             />
           </div>
 
           {/* End Date */}
           <div className="md:col-span-1">
-            <input
+            <FormInput
               id="endDate"
               name="endDate"
               value={dateRange.endDate}
               onChange={handleDateChange}
               type="date"
-              className="w-full border rounded px-3 py-2"
               aria-label="End date"
             />
           </div>
