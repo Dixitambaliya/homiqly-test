@@ -1,5 +1,5 @@
 // pages/vendor/Payments.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
@@ -7,18 +7,29 @@ import PaymentsTable from "../components/Tables/PaymentsTable";
 import { FormInput, FormSelect } from "../../shared/components/Form";
 import { Button } from "../../shared/components/Button";
 
+const PAGE_SIZES = [10, 25, 50];
+
 const Payments = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // filters & pagination
   const [filter, setFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(PAGE_SIZES[0]);
+
+  // stats coming from server / computed
   const [stats, setStats] = useState({
     pendingPayout: 0,
     totalBookings: 0,
     totalPayout: 0,
     paidPayout: 0,
   });
+
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // modal state for apply payout
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,35 +38,58 @@ const Payments = () => {
   const [applyError, setApplyError] = useState(null);
   const [applySuccess, setApplySuccess] = useState(null);
 
-  useEffect(() => {
-    fetchBookings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // helper to build params for API
+  const buildParams = useCallback(() => {
+    const params = {
+      page,
+      limit,
+    };
+    if (filter && filter !== "all") params.status = filter;
+    if (dateRange.startDate) params.startDate = dateRange.startDate;
+    if (dateRange.endDate) params.endDate = dateRange.endDate;
+    return params;
+  }, [page, limit, filter, dateRange]);
 
-  const fetchBookings = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/vendor/getpaymenthistory");
-      const resp = response.data || {};
-      console.log(resp);
+  const fetchBookings = useCallback(
+    async (opts = {}) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const payouts = Array.isArray(resp.allPayouts) ? resp.allPayouts : [];
+        // allow override of page/limit if provided (useful after apply payout)
+        const p = opts.page ?? page;
+        const l = opts.limit ?? limit;
 
-      setBookings(
-        payouts.map((p) => ({
-          ...p,
-          bookingDate: p.bookingDate || p.created_at || null,
-          bookingStatus: p.payout_status || p.bookingStatus || null,
-        }))
-      );
+        const params = {
+          page: p,
+          limit: l,
+        };
+        if (filter && filter !== "all") params.status = filter;
+        if (dateRange.startDate) params.startDate = dateRange.startDate;
+        if (dateRange.endDate) params.endDate = dateRange.endDate;
 
-      setStats({
-        totalPayout:
+        const response = await axios.get("/api/vendor/getpaymenthistory", {
+          params,
+        });
+        const resp = response.data || {};
+
+        // server payload structure fallback
+        const payouts = Array.isArray(resp.allPayouts) ? resp.allPayouts : [];
+
+        setBookings(
+          payouts.map((p) => ({
+            ...p,
+            bookingDate: p.bookingDate || p.created_at || null,
+            bookingStatus: p.payout_status || p.bookingStatus || null,
+          }))
+        );
+
+        // Stats: prefer server-provided numbers, else compute
+        const computedTotalPayout =
           resp.totalPayout ??
-          payouts.reduce((a, b) => a + (Number(b.payout_amount) || 0), 0),
-        totalBookings: resp.totalBookings ?? payouts.length,
-        pendingPayout:
-          resp.pendingPayout ??
+          payouts.reduce((a, b) => a + (Number(b.payout_amount) || 0), 0);
+
+        const computedPendingPayout =
           resp.pendingPayout ??
           payouts.reduce(
             (a, b) =>
@@ -64,29 +98,60 @@ const Payments = () => {
                 ? Number(b.payout_amount || 0)
                 : 0),
             0
-          ),
-        paidPayout: resp.paidPayout ?? 0,
-      });
+          );
 
-      setLoading(false);
-    } catch (err) {
-      console.error("Failed to fetch payments:", err);
-      setError("Failed to load payment history");
-      setLoading(false);
-    }
-  };
+        setStats({
+          totalPayout: computedTotalPayout,
+          totalBookings:
+            resp.totalBookings ?? resp.totalRecords ?? payouts.length,
+          pendingPayout: computedPendingPayout,
+          paidPayout: resp.paidPayout ?? 0,
+        });
 
+        // pagination meta (from API if present)
+        setTotalPages(
+          resp.totalPages ??
+            Math.max(1, Math.ceil((resp.totalRecords ?? payouts.length) / l))
+        );
+        setTotalRecords(
+          resp.totalRecords ?? resp.totalBookings ?? payouts.length
+        );
+
+        setLoading(false);
+      } catch (err) {
+        console.error("Failed to fetch payments:", err);
+        setError("Failed to load payment history");
+        setLoading(false);
+      }
+    },
+    [page, limit, filter, dateRange]
+  );
+
+  // initial load + refetch when page/limit/filter/dateRange change
+  useEffect(() => {
+    fetchBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit, filter, dateRange]);
+
+  // handlers
   const handleFilterChange = (e) => {
     setFilter(e.target.value);
+    setPage(1); // reset page when filter changes
   };
 
   const handleDateChange = (e) => {
     const { name, value } = e.target;
     setDateRange((prev) => ({ ...prev, [name]: value }));
+    setPage(1);
+  };
+
+  const handleLimitChange = (e) => {
+    const newLimit = Number(e.target.value);
+    setLimit(newLimit);
+    setPage(1);
   };
 
   const openApplyModal = () => {
-    // default requested amount to the pending payout value (rounded to 2 dec)
     setRequestAmount(Number(stats.pendingPayout || 0).toFixed(2));
     setApplyError(null);
     setApplySuccess(null);
@@ -107,7 +172,6 @@ const Payments = () => {
       return;
     }
 
-    // optionally prevent requesting more than pending payout:
     const pending = Number(stats.pendingPayout || 0);
     if (amt > pending) {
       setApplyError("Requested amount cannot be greater than pending payout.");
@@ -116,44 +180,72 @@ const Payments = () => {
 
     try {
       setApplyLoading(true);
-      const payload = { requested_amount: Math.round(amt) }; // API in screenshot used integer amounts
+      const payload = { requested_amount: Math.round(amt) }; // API expects integer
       const res = await axios.post("/api/payment/applypayout", payload);
 
       setApplySuccess(res.data?.message || "Payout requested successfully.");
-      // refresh the list/stats
     } catch (err) {
       console.error("Apply payout error:", err);
-      // try to surface server message
       const msg =
         err?.response?.data?.message || "Failed to submit payout request.";
       setApplyError(msg);
     } finally {
       setApplyLoading(false);
-      // keep modal open briefly to show success, then close
+      // Refresh the list & stats after submit and keep modal open to show result briefly
+      await fetchBookings({ page, limit });
       setTimeout(() => {
         setIsModalOpen(false);
-      }, 1000);
-      await fetchBookings();
+      }, 900);
     }
   };
 
-  const filteredBookings = bookings.filter((booking) => {
-    if (filter !== "all") {
-      const status = String(
-        booking.payout_status ?? booking.bookingStatus ?? ""
-      ).toLowerCase();
-      if (status !== String(filter).toLowerCase()) return false;
+  // client-side filtering fallback (keeps PaymentsTable's props compatible)
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((booking) => {
+      if (filter !== "all") {
+        const status = String(
+          booking.payout_status ?? booking.bookingStatus ?? ""
+        ).toLowerCase();
+        if (status !== String(filter).toLowerCase()) return false;
+      }
+
+      if (dateRange.startDate && dateRange.endDate && booking.bookingDate) {
+        const date = new Date(booking.bookingDate);
+        const start = new Date(dateRange.startDate);
+        const end = new Date(dateRange.endDate);
+        end.setHours(23, 59, 59, 999);
+        if (date < start || date > end) return false;
+      }
+      return true;
+    });
+  }, [bookings, filter, dateRange]);
+
+  // pagination controls helpers
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const goFirst = () => setPage(1);
+  const goPrev = () => setPage((p) => Math.max(1, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const goLast = () => setPage(totalPages);
+  const goToPage = (p) => setPage(p);
+
+  // compute visible page numbers (max 5)
+  const visiblePages = useMemo(() => {
+    const maxButtons = 5;
+    const pages = [];
+
+    let start = Math.max(1, page - Math.floor(maxButtons / 2));
+    let end = start + maxButtons - 1;
+
+    if (end > totalPages) {
+      end = totalPages;
+      start = Math.max(1, end - maxButtons + 1);
     }
 
-    if (dateRange.startDate && dateRange.endDate && booking.bookingDate) {
-      const date = new Date(booking.bookingDate);
-      const start = new Date(dateRange.startDate);
-      const end = new Date(dateRange.endDate);
-      end.setHours(23, 59, 59, 999);
-      if (date < start || date > end) return false;
-    }
-    return true;
-  });
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }, [page, totalPages]);
 
   if (loading) {
     return (
@@ -264,16 +356,98 @@ const Payments = () => {
               variant="primary"
               className="w-full sm:w-auto"
               aria-label="Request payout"
+              disabled={Number(stats.pendingPayout || 0) <= 0}
+              title={
+                Number(stats.pendingPayout || 0) <= 0
+                  ? "No pending payout available"
+                  : "Request payout"
+              }
             >
               Request Payout
             </Button>
           </div>
         </div>
+
         <PaymentsTable
           bookings={filteredBookings}
           isLoading={loading}
           filteredStatus={filter}
         />
+
+        {/* pagination bar */}
+        <div className="flex items-center justify-between mt-4 space-x-4">
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-600">
+              Showing page <strong>{page}</strong> of{" "}
+              <strong>{totalPages}</strong>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="text-sm text-gray-500">Rows:</span>
+              <select
+                value={limit}
+                onChange={handleLimitChange}
+                className="border rounded px-2 py-1"
+              >
+                {PAGE_SIZES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-sm text-gray-500">
+              Total records: <strong>{totalRecords}</strong>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goFirst}
+              disabled={!canPrev}
+              className="px-3 py-1 rounded border disabled:opacity-50"
+            >
+              {"<<"}
+            </button>
+            <button
+              onClick={goPrev}
+              disabled={!canPrev}
+              className="px-3 py-1 rounded border disabled:opacity-50"
+            >
+              Prev
+            </button>
+
+            {/* page numbers */}
+            {visiblePages.map((p) => (
+              <button
+                key={p}
+                onClick={() => goToPage(p)}
+                className={`px-3 py-1 rounded border ${
+                  p === page ? "bg-gray-200" : ""
+                }`}
+                aria-current={p === page ? "page" : undefined}
+              >
+                {p}
+              </button>
+            ))}
+
+            <button
+              onClick={goNext}
+              disabled={!canNext}
+              className="px-3 py-1 rounded border disabled:opacity-50"
+            >
+              Next
+            </button>
+            <button
+              onClick={goLast}
+              disabled={!canNext}
+              className="px-3 py-1 rounded border disabled:opacity-50"
+            >
+              {">>"}
+            </button>
+          </div>
+        </div>
       </>
 
       {/* Modal */}
@@ -297,7 +471,6 @@ const Payments = () => {
               type="number"
               step="0.01"
               min="0"
-              disabled
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.target.value)}
               className="w-full border rounded px-3 py-2 mb-3"
