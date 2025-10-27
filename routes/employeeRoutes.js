@@ -28,14 +28,11 @@ router.post('/login', employeeLogin);
 router.put('/togglechange', authenticationToken, toggleEmployeeStatus);
 router.delete('/remove-employee', authenticationToken, deleteEmployee);
 router.get('/getemployeepackages', authenticationToken, getEmployeesWithPackages);
-
 router.get('/getemployee', authenticationToken, getEmployeesByVendor);
 router.get('/getstatus', authenticationToken, getEmployeeStatus);
 router.get('/getprofile', authenticationToken, getEmployeeProfile);
 router.put('/editprofile', authenticationToken, multiUpload, handleUploads, editEmployeeProfile);
-
 router.put('/updatebookingstatus', authenticationToken, updateBookingStatusByEmployee);
-
 router.put('/changepassword', authenticationToken, changeEmployeePassword);
 router.get('/getbookingemployee', authenticationToken, getEmployeeBookings);
 router.get('/bookinghistory', authenticationToken, getEmployeeBookingHistory);

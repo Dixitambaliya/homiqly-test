@@ -1020,12 +1020,10 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
             pendingPayout,
             paidPayout,
             allPayouts,
-            pagination: {
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-                totalRecords: total
-            }
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            totalRecords: total
         });
     } catch (err) {
         console.error("❌ Error fetching vendor payout history:", err);

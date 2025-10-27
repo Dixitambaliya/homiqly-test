@@ -34,7 +34,6 @@ const multiUpload = upload.any();
 
 router.get("/getprofile", authenticationToken, getAdminProfile)
 router.patch("/editprofile", authenticationToken, editAdminProfile)
-
 router.get("/getvendors", authenticationToken, getVendor)
 router.get("/getallservicetype", authenticationToken, getAllServiceType)
 router.get("/getusers", authenticationToken, getUsers)
@@ -45,13 +44,9 @@ router.post("/addpackages", authenticationToken, multiUpload, handleUploads, cre
 router.post("/assignpackage", authenticationToken, assignPackageToVendor)
 router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
 router.get("/getallemployees", authenticationToken, getAllEmployeesForAdmin)
-
-
 router.get("/getpackagelist", authenticationToken, getPackageList)
 router.get("/getpackagedetails/:package_id", authenticationToken, getPackageDetails)
-
 router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
-
 router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequests)
 router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
 router.get("/getpayments", authenticationToken, getAllPayments)

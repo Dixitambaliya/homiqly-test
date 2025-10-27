@@ -20,16 +20,10 @@ const multiUpload = upload.any();
 
 router.post("/addtocart", authenticationToken, addToCartService)
 router.get('/getcart', authenticationToken, getUserCart);
-
 router.get('/getinquiries', authenticationToken, getAdminInquiries);
-
 router.get('/getcartbyservicetypeid/:service_type_id', authenticationToken, getCartByServiceTypeId);
-
 router.get('/get-cart-count', authenticationToken, getUserCartCount);
-
 router.post('/updatequantity/:cart_package_items_id', authenticationToken, updateCartItemQuantity);
-
-
 router.get('/getcartdetails/:cart_id', authenticationToken, getCartDetails);
 router.patch('/addcartdetails/:cart_id', multiUpload, handleUploads, authenticationToken, updateCartDetails);
 router.delete('/deletecart/:cart_id', authenticationToken, deleteCartItem);

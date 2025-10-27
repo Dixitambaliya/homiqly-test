@@ -4,8 +4,13 @@ const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
 const { assignWelcomeCode } = require("./promoCode");
+const twilio = require('twilio');
 const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail } = require("../config/mailer");
 
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Generate 6-digit OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 const generateResetCode = () =>
@@ -472,7 +477,102 @@ const googleSignup = asyncHandler(async (req, res) => {
     }
 });
 
+// ✅ Step 1: Request OTP
+const sendOtp = asyncHandler(async (req, res) => {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "Phone number required" });
 
+    // 🔢 Generate OTP
+    const otp = generateOTP();
+
+    // 🔐 Create JWT with phone + otp (expires in 5 minutes)
+    const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "5m" });
+
+    // 📩 Send OTP via SMS (Twilio)
+    await client.messages.create({
+        body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: phone,
+    });
+
+    // Send back token (to be included in verify step)
+    res.status(200).json({ message: "OTP sent successfully", token });
+});
+
+// ✅ Step 2: Verify OTP (Handles both Login & Registration)
+const verifyOtp = asyncHandler(async (req, res) => {
+    const { phone, otp, firstName, lastName, email, password } = req.body;
+    const authHeader = req.headers.authorization;
+
+    // Check token in headers
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(400).json({ message: "Authorization token missing or invalid" });
+    }
+
+    const token = authHeader.split(" ")[1]; // Extract token from header
+
+    if (!phone || !otp) {
+        return res.status(400).json({ message: "Phone and OTP are required" });
+    }
+
+    try {
+        // 🔍 Decode JWT token (auto-checks expiration)
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Validate phone + otp
+        if (decoded.phone !== phone || decoded.otp !== otp) {
+            return res.status(400).json({ message: "Invalid OTP or phone number" });
+        }
+
+        // ✅ OTP verified — handle login/registration
+        const [rows] = await db.query(`SELECT * FROM users WHERE phone = ?`, [phone]);
+        const user = rows[0];
+
+        if (!user) {
+            // New user → require details
+            if (!firstName || !lastName) {
+                return res.status(200).json({
+                    message: "New user — please provide name (and optionally email/password)",
+                    requireDetails: true
+                });
+            }
+
+            const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
+            const [result] = await db.query(
+                `INSERT INTO users (firstName, lastName, phone, email, password, created_at)
+                 VALUES (?, ?, ?, ?, ?, NOW())`,
+                [firstName, lastName, phone, email || null, hashedPassword]
+            );
+
+            const user_id = result.insertId;
+
+            const loginToken = jwt.sign({ user_id, phone }, JWT_SECRET, { expiresIn: "7d" });
+
+            return res.status(200).json({
+                message: "Registration successful",
+                user: { user_id, firstName, lastName, phone, email },
+                token: loginToken
+            });
+        }
+
+        // Existing user → login directly
+        const loginToken = jwt.sign({ user_id: user.user_id, phone: user.phone }, JWT_SECRET, { expiresIn: "7d" });
+
+        res.status(200).json({
+            message: "Login successful",
+            user,
+            token: loginToken
+        });
+
+    } catch (err) {
+        // Handle token expiration or tampering
+        if (err.name === "TokenExpiredError") {
+            return res.status(400).json({ message: "OTP expired. Please request a new one." });
+        }
+        return res.status(400).json({ message: "Invalid or tampered OTP token." });
+    }
+});
 
 
 module.exports = {
@@ -484,5 +584,7 @@ module.exports = {
     verifyResetCode,
     resetPassword,
     googleLogin,
-    googleSignup
+    googleSignup,
+    sendOtp,
+    verifyOtp
 };

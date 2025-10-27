@@ -1373,7 +1373,6 @@ const getAllPayments = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
         const [packages] = await db.query(`

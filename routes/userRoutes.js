@@ -31,9 +31,7 @@ router.get("/getdata", authenticationToken, getUserData)
 router.delete("/deletebookings/:booking_id", authenticationToken, deleteBooking)
 router.get("/getpackagedetails/:service_type_id", getPackagesDetails)
 router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
-
 router.get("/getdatawithcart/:cart_id", authenticationToken, getUserProfileWithCart)
-
 router.get("/services/:service_type_id/getpackageimages", getPackagesByServiceType)
 router.get("/services/:package_id/getpackagedetails", getPackageDetailsById)
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
