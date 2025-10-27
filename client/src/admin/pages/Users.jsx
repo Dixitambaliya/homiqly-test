@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
@@ -41,24 +41,75 @@ const Users = () => {
   const [deleteAction, setDeleteAction] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null); // object for desc
 
+  // Search + pagination
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
 
+  // Debounce search input (500ms)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch((prev) => {
+        // only set and reset page when actual change happens
+        if (prev !== searchTerm.trim()) {
+          setPage(1);
+        }
+        return searchTerm.trim();
+      });
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  // Fetch users from server (uses page, limit, debouncedSearch)
+  const fetchUsers = useCallback(
+    async (opts = {}) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // allow overrides via opts (useful for Refresh button)
+        const qPage = opts.page ?? page;
+        const qLimit = opts.limit ?? limit;
+        const qSearch = opts.search ?? debouncedSearch;
+
+        const params = {
+          page: qPage,
+          limit: qLimit,
+        };
+
+        if (qSearch) params.search = qSearch;
+
+        const response = await axios.get("/api/admin/getusers", { params });
+        const data = response.data || {};
+
+        // Try to read common shapes:
+        // - users array might be under data.users or data.data
+        // - pagination fields: count, limit, page, totalPages, totalUsers (per your sample)
+        setUsers(data.users ?? data.data ?? []);
+        setPage(data.page ?? qPage);
+        setLimit(data.limit ?? qLimit);
+        setTotalPages(data.totalPages ?? data.totalPages ?? 1);
+        // some APIs use totalUsers or total
+        setTotalUsers(data.totalUsers ?? data.total ?? data.count ?? 0);
+      } catch (err) {
+        console.error("Failed to load users", err);
+        setError("Failed to load users");
+        toast.error("Failed to load users");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [page, limit, debouncedSearch]
+  );
+
+  // Initial fetch and whenever page/limit/debouncedSearch changes
   useEffect(() => {
     fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/admin/getusers");
-      setUsers(response.data.users || []);
-    } catch (err) {
-      setError("Failed to load users");
-      toast.error("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchUsers, page, limit, debouncedSearch]);
 
   useEffect(() => {
     if (selectedUser) {
@@ -92,6 +143,7 @@ const Users = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // keep numeric-ish values as-is; convert to number where appropriate before submit if needed
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -171,9 +223,12 @@ const Users = () => {
     });
   };
 
-  // Filtered users derived from searchTerm
+  // NOTE: we now rely on server-side search/pagination; keep client-side filtering only for interim UX if desired.
+  // Here, we show the server-provided users list and still allow local text filter on top if you prefer:
   const filteredUsers = useMemo(() => {
-    const term = (searchTerm || "").trim().toLowerCase();
+    const term = (debouncedSearch || "").trim().toLowerCase();
+    // Because we're querying server with search, it's safe to return the server data directly.
+    // However, keep this in case you want to further locally filter the single page.
     if (!term) return users;
     return users.filter((u) => {
       const first = (u.firstName || "").toLowerCase();
@@ -186,12 +241,24 @@ const Users = () => {
         `${first} ${last}`.includes(term)
       );
     });
-  }, [users, searchTerm]);
+  }, [users, debouncedSearch]);
 
   // description for delete modal (safe-check)
   const deleteDesc = deletingUser
     ? `Are you sure you want to delete “${deletingUser.firstName} ${deletingUser.lastName}” (User ID: ${deletingUser.user_id})? This action cannot be undone.`
     : "Are you sure you want to delete this user?";
+
+  // Pagination helpers
+  const goToPage = (p) => {
+    if (!p || p < 1) p = 1;
+    if (p > totalPages) p = totalPages;
+    setPage(p);
+  };
+
+  const onChangeLimit = (newLimit) => {
+    setLimit(Number(newLimit));
+    setPage(1);
+  };
 
   return (
     <>
@@ -214,7 +281,10 @@ const Users = () => {
           </div>
 
           {/* Refresh */}
-          <Button onClick={fetchUsers} variant="ghost">
+          <Button
+            onClick={() => fetchUsers({ page: 1, limit })}
+            variant="ghost"
+          >
             <RefreshCcw className="mr-2" />
             Refresh
           </Button>
@@ -230,12 +300,60 @@ const Users = () => {
           <p className="text-red-500">{error}</p>
         </div>
       ) : (
-        <UsersTable
-          users={filteredUsers}
-          isLoading={loading}
-          onEditUser={(user) => openUserModal(user)}
-          onDelete={handleDeleteClick}
-        />
+        <>
+          <UsersTable
+            users={filteredUsers}
+            isLoading={loading}
+            onEditUser={(user) => openUserModal(user)}
+            onDelete={handleDeleteClick}
+          />
+
+          {/* Pagination controls */}
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">
+                Showing page {page} of {totalPages} • {totalUsers} users
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page <= 1 || loading}
+                className="px-3 py-1 rounded border disabled:opacity-50"
+              >
+                Prev
+              </button>
+
+              <PaginationNumbers
+                page={page}
+                totalPages={totalPages}
+                onGoToPage={goToPage}
+              />
+
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages || loading}
+                className="px-3 py-1 rounded border disabled:opacity-50"
+              >
+                Next
+              </button>
+
+              <select
+                value={limit}
+                onChange={(e) => onChangeLimit(e.target.value)}
+                className="ml-3 border rounded px-2 py-1"
+                aria-label="Items per page"
+              >
+                {[5, 10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Combined View/Edit User Modal */}
@@ -360,14 +478,16 @@ const Users = () => {
                       Joined On
                     </label>
                     <p className="text-gray-900">
-                      {new Date(formData.created_at).toLocaleDateString(
-                        "en-US",
-                        {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        }
-                      )}
+                      {formData.created_at
+                        ? new Date(formData.created_at).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )
+                        : "-"}
                     </p>
                   </div>
                 </div>
@@ -439,3 +559,46 @@ const Users = () => {
 };
 
 export default Users;
+
+/* ------------------------
+   PaginationNumbers component
+   ------------------------ */
+function PaginationNumbers({ page, totalPages, onGoToPage }) {
+  const pages = [];
+
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    let left = Math.max(2, page - 2);
+    let right = Math.min(totalPages - 1, page + 2);
+
+    if (left > 2) pages.push("left-ellipsis");
+    for (let i = left; i <= right; i++) pages.push(i);
+    if (right < totalPages - 1) pages.push("right-ellipsis");
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {pages.map((p, idx) =>
+        typeof p === "number" ? (
+          <button
+            key={idx}
+            onClick={() => onGoToPage(p)}
+            disabled={p === page}
+            className={`px-3 py-1 rounded border ${
+              p === page ? "font-bold bg-gray-100" : ""
+            }`}
+          >
+            {p}
+          </button>
+        ) : (
+          <span key={idx} className="px-2">
+            ...
+          </span>
+        )
+      )}
+    </div>
+  );
+}
