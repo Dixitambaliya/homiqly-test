@@ -589,7 +589,7 @@ async function sendUserVerificationMail({ firstname, userEmail, code }) {
       </div>
     `;
 
-    const data = await transporter.send({
+    await transporter.sendMail({
       from: `"Homiqly" <${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject: "Verify Your Email - Homiqly Registration",
@@ -681,13 +681,6 @@ async function sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned }) {
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
 
     const emailHtml = `
             <p>Dear ${vendorData.vendorName},</p>
@@ -712,7 +705,7 @@ async function sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned }) {
             <p>You can now manage and offer these packages from your dashboard.</p>
         `;
 
-    await transporter.send({
+    await transporter.sendMail({
       from: `"Admin Team" <${process.env.EMAIL_USER}>`,
       to: vendorData.vendorEmail,
       subject: "New Packages Assigned to You",

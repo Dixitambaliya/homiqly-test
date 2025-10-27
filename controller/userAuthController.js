@@ -30,32 +30,23 @@ const registerUser = asyncHandler(async (req, res) => {
         const [existingUsers] = await db.query(userAuthQueries.userMailCheck, [email, phone]);
 
         if (existingUsers.length > 0) {
-            const existingUser = existingUsers[0];
+            // Find the matching record by checking fields
+            const existingUser = existingUsers.find(
+                (user) => user.email === email || user.phone === phone
+            );
 
-            // 🧩 Case 1: Account created via Google (no password)
-            if (!existingUser.password) {
-                return res.status(400).json({
-                    error: "This email is linked to a Google account. Please log in using Google.",
-                });
+            if (existingUser.email === email) {
+                if (!existingUser.password) {
+                    return res.status(400).json({
+                        error: "This email is linked to a Google account. Please log in using Google.",
+                    });
+                }
+                return res.status(400).json({ error: "This email is already registered." });
             }
 
             if (existingUser.phone === phone) {
-                return res.status(400).json({
-                    error: "This phone number is already exists.",
-                });
+                return res.status(400).json({ error: "This phone number already exists." });
             }
-
-            // 📧 Case 3: Email already exists
-            if (existingUser.email === email) {
-                return res.status(400).json({
-                    error: "This email is already registered.",
-                });
-            }
-
-            // 🧩 Case 2: Account exists with password (normal user)
-            return res.status(400).json({
-                error: "Email already exists. Please log in instead.",
-            });
         }
 
         // 🟢 Create new user (no password yet)
