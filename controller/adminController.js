@@ -1288,12 +1288,12 @@ const getAllPayments = asyncHandler(async (req, res) => {
                 pkg.packageMedia
 
             FROM payments p
-            JOIN users u ON p.user_id = u.user_id
+            LEFT JOIN users u ON p.user_id = u.user_id
             LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
             LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-            JOIN packages pkg ON pkg.package_id = sb.package_id
+            LEFT JOIN packages pkg ON pkg.package_id = sb.package_id
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?;
         `, [limit, offset]);
