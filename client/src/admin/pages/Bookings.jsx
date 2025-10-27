@@ -212,7 +212,7 @@ const Bookings = () => {
           variant="lightInherit"
           className="flex items-center"
         >
-          <RefreshCcw className="mr-2" />
+          <RefreshCcw className="mr-2 w-4 h-4" />
           Refresh
         </Button>
       </div>
