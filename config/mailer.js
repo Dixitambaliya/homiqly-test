@@ -589,7 +589,7 @@ async function sendUserVerificationMail({ firstname, userEmail, code }) {
       </div>
     `;
 
-    const data = await resend.emails.send({
+    const data = await transporter.send({
       from: `"Homiqly" <${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject: "Verify Your Email - Homiqly Registration",
@@ -712,7 +712,7 @@ async function sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned }) {
             <p>You can now manage and offer these packages from your dashboard.</p>
         `;
 
-    await transporter.sendMail({
+    await transporter.send({
       from: `"Admin Team" <${process.env.EMAIL_USER}>`,
       to: vendorData.vendorEmail,
       subject: "New Packages Assigned to You",
