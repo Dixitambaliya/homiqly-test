@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, LogOut, User } from 'lucide-react';
+import { ArrowDown, ChevronDown, LogOut, User } from 'lucide-react';
 
 const HeaderMenu = ({ 
   userName, 
@@ -45,7 +45,7 @@ const HeaderMenu = ({
           </div>
         )}
         <span className="hidden font-medium md:block">{userName}</span>
-        <ArrowDown className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} h-4 w-4 `} />
       </button>
       
       {isOpen && (
