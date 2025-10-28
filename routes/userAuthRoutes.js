@@ -8,7 +8,7 @@ const { registerUser,
     verifyResetCode,
     resetPassword,
     googleLogin,
-    googleSignup,
+    // googleSignup,
     sendOtp,
     verifyOtp
 } = require("../controller/userAuthController")
@@ -26,6 +26,6 @@ router.post("/send-otp", sendOtp);
 router.post("/verify-otp", verifyOtp);
 
 router.post("/google-login", googleLogin)
-router.post("/google-signup", googleSignup)
+// router.post("/google-signup", googleSignup)
 
 module.exports = router;

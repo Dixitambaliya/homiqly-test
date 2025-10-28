@@ -548,7 +548,7 @@ async function sendPasswordResetCodeMail({ userEmail, code }) {
   }
 }
 
-async function sendUserVerificationMail({ firstname, userEmail, code }) {
+async function sendUserVerificationMail({ userEmail, code }) {
   try {
     const logoPath = path.resolve("config/media/homiqly.webp");
     const cidName = "homiqlyLogo";
@@ -565,7 +565,6 @@ async function sendUserVerificationMail({ firstname, userEmail, code }) {
 
           <!-- Body -->
           <div style="padding:25px 30px; font-size:15px; color:#333;">
-            <p>Hello <strong>${firstname}</strong>,</p>
             <p>Welcome to <strong>Homiqly!</strong> We’re thrilled to have you join our community.</p>
             <p>Before we get started, please verify your email address using the code below:</p>
 
