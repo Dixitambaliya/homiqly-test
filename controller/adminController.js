@@ -109,28 +109,28 @@ const getVendor = asyncHandler(async (req, res) => {
         const offset = (page - 1) * limit;
 
         // 🔍 Optional search term
-        const search = req.query.search ? `%${req.query.search.trim()}%` : null;
+        const search = req.query.search?.trim() || null;
+        const searchLike = `%${search}%`;
 
-        // 🧠 Base queries
-        let vendorQuery = adminGetQueries.vendorDetails;
+        // 🧠 Base query templates
+        let baseVendorQuery = adminGetQueries.vendorDetails;
+        let vendorQuery = baseVendorQuery + ` LIMIT ? OFFSET ?`;
         let countQuery = `SELECT COUNT(*) AS totalCount FROM vendors`;
 
-        // 1️⃣ Modify queries if search is provided
+        // ✅ UNIVERSAL SEARCH (ignores pagination)
         if (search) {
             vendorQuery = `
                 SELECT v.*
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS v
-                WHERE (
+                WHERE 
                     v.individual_name LIKE ? OR
                     v.individual_email LIKE ? OR
                     v.individual_phone LIKE ? OR
                     v.company_companyName LIKE ? OR
                     v.company_companyEmail LIKE ? OR
-                    v.company_companyPhone LIKE ?
-                )
-                LIMIT ? OFFSET ?;
+                    v.company_companyPhone LIKE ?;
             `;
 
             countQuery = `
@@ -138,44 +138,41 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS v
-                WHERE (
+                WHERE 
                     v.individual_name LIKE ? OR
                     v.individual_email LIKE ? OR
                     v.individual_phone LIKE ? OR
                     v.company_companyName LIKE ? OR
                     v.company_companyEmail LIKE ? OR
-                    v.company_companyPhone LIKE ?
-                );
+                    v.company_companyPhone LIKE ?;
             `;
         }
 
-        // 2️⃣ Execute queries
+        // 🧾 Query execution
         const queryParams = search
-            ? [search, search, search, search, search, search, limit, offset]
+            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
             : [limit, offset];
 
         const [vendors] = await db.query(vendorQuery, queryParams);
 
         const countParams = search
-            ? [search, search, search, search, search, search]
+            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
             : [];
         const [[{ totalCount }]] = await db.query(countQuery, countParams);
 
-        // 3️⃣ Process vendor data
+        // 🧠 Process each vendor
         const processedVendors = vendors.map(vendor => {
             let packages = [];
             let packageItems = [];
             try { packages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { }
             try { packageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { }
 
-            // Cleanup irrelevant fields
             if (vendor.vendorType === "individual") {
                 for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
             } else {
                 for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
             }
 
-            // Group packages under service
             const serviceMap = {};
             packages.forEach(pkg => {
                 const serviceId = pkg.service_id;
@@ -216,21 +213,23 @@ const getVendor = asyncHandler(async (req, res) => {
             return { ...vendorWithoutStrings, services: servicesWithPackages };
         });
 
-        // 4️⃣ Send response
+        // ✅ Response
         res.status(200).json({
-            message: "Vendor details fetched successfully",
+            message: search
+                ? "Universal search results fetched successfully"
+                : "Vendor details fetched successfully",
             total: totalCount,
-            page,
-            limit,
-            totalPages: Math.ceil(totalCount / limit),
+            page: search ? 1 : page, // universal search shows everything on one page
+            limit: search ? totalCount : limit,
+            totalPages: search ? 1 : Math.ceil(totalCount / limit),
             data: processedVendors
         });
-
     } catch (err) {
         console.error("Error fetching vendor details:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 const getAllServiceType = asyncHandler(async (req, res) => {
