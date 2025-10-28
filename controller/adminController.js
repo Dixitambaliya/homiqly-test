@@ -230,8 +230,6 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getAllServiceType = asyncHandler(async (req, res) => {
 
     try {
@@ -366,6 +364,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getBookings = asyncHandler(async (req, res) => {
     try {
@@ -627,6 +626,7 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1286,7 +1286,6 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
         // 📄 Read pagination and filters from query
@@ -1449,8 +1448,6 @@ const getAllPayments = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {

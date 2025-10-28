@@ -317,30 +317,39 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-    const { email, fcmToken } = req.body;
+    const { email, name, fcmToken } = req.body;
 
     if (!email) {
         return res.status(400).json({ error: "Email is required" });
     }
 
     try {
+        // ✂️ Split full name into first & last name
+        let firstName = "";
+        let lastName = "";
+
+        if (name) {
+            const parts = name.trim().split(" ");
+            firstName = parts[0];
+            lastName = parts.slice(1).join(" ") || ""; // handle single-name users
+        }
+
         // 1️⃣ Check if user exists
         const [existingUsers] = await db.query(userAuthQueries.userMailCheckGoogle, [email]);
         let user, user_id;
-        let is_email_registered = false; // default (false if already registered)
+        let is_email_registered = false; // false = already registered
 
         if (!existingUsers || existingUsers.length === 0) {
             // 2️⃣ Not found → auto-register a new Google user
             const [result] = await db.query(
-                `INSERT INTO users (email, created_at)
-                 VALUES (?, NOW())`,
-                [email]
+                `INSERT INTO users (email, firstName, lastName, loginType, created_at)
+                 VALUES (?, ?, ?, 'google', NOW())`,
+                [email, firstName, lastName]
             );
 
             user_id = result.insertId;
-            user = { user_id, email };
-            is_email_registered = true; // true if this is a new registration
-
+            user = { user_id, email, firstName, lastName };
+            is_email_registered = true; // true for new user
         } else {
             user = existingUsers[0];
             user_id = user.user_id;
@@ -355,7 +364,7 @@ const googleLogin = asyncHandler(async (req, res) => {
             }
         }
 
-        // 4️⃣ Optional: Assign welcome code (ignore failure)
+        // 4️⃣ Assign welcome code (ignore errors)
         try {
             await assignWelcomeCode(user_id, email);
         } catch (err) {
@@ -380,8 +389,10 @@ const googleLogin = asyncHandler(async (req, res) => {
                 : "Account created & logged in via Google",
             user_id,
             email,
+            firstName: user.firstName || firstName,
+            lastName: user.lastName || lastName,
             token,
-            is_email_registered, // 👈 flag added here
+            is_email_registered, // 👈 true if newly created
         });
 
     } catch (err) {
@@ -389,6 +400,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 // const googleSignup = asyncHandler(async (req, res) => {
 //     const { email, name, picture, fcmToken } = req.body;
