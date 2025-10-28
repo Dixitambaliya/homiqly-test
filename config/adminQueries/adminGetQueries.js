@@ -86,7 +86,6 @@ LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
 LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
 GROUP BY v.vendor_id
 ORDER BY v.vendor_id DESC
-LIMIT ? OFFSET ?;
 `,
 
 

@@ -108,11 +108,58 @@ const getVendor = asyncHandler(async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        // 1️⃣ Fetch vendors with pagination
-        const [vendors] = await db.query(adminGetQueries.vendorDetails, [limit, offset]);
+        // 🔍 Optional search term
+        const search = req.query.search ? `%${req.query.search.trim()}%` : null;
 
-        // 2️⃣ Get total count for pagination metadata
-        const [[{ totalCount }]] = await db.query(`SELECT COUNT(*) AS totalCount FROM vendors`);
+        // 🧠 Base queries
+        let vendorQuery = adminGetQueries.vendorDetails;
+        let countQuery = `SELECT COUNT(*) AS totalCount FROM vendors`;
+
+        // 1️⃣ Modify queries if search is provided
+        if (search) {
+            vendorQuery = `
+                SELECT v.*
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS v
+                WHERE (
+                    v.individual_name LIKE ? OR
+                    v.individual_email LIKE ? OR
+                    v.individual_phone LIKE ? OR
+                    v.company_companyName LIKE ? OR
+                    v.company_companyEmail LIKE ? OR
+                    v.company_companyPhone LIKE ?
+                )
+                LIMIT ? OFFSET ?;
+            `;
+
+            countQuery = `
+                SELECT COUNT(*) AS totalCount
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS v
+                WHERE (
+                    v.individual_name LIKE ? OR
+                    v.individual_email LIKE ? OR
+                    v.individual_phone LIKE ? OR
+                    v.company_companyName LIKE ? OR
+                    v.company_companyEmail LIKE ? OR
+                    v.company_companyPhone LIKE ?
+                );
+            `;
+        }
+
+        // 2️⃣ Execute queries
+        const queryParams = search
+            ? [search, search, search, search, search, search, limit, offset]
+            : [limit, offset];
+
+        const [vendors] = await db.query(vendorQuery, queryParams);
+
+        const countParams = search
+            ? [search, search, search, search, search, search]
+            : [];
+        const [[{ totalCount }]] = await db.query(countQuery, countParams);
 
         // 3️⃣ Process vendor data
         const processedVendors = vendors.map(vendor => {
@@ -178,11 +225,13 @@ const getVendor = asyncHandler(async (req, res) => {
             totalPages: Math.ceil(totalCount / limit),
             data: processedVendors
         });
+
     } catch (err) {
         console.error("Error fetching vendor details:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
