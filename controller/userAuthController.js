@@ -327,9 +327,10 @@ const googleLogin = asyncHandler(async (req, res) => {
         // 1️⃣ Check if user exists
         const [existingUsers] = await db.query(userAuthQueries.userMailCheckGoogle, [email]);
         let user, user_id;
+        let is_email_registered = false; // default (false if already registered)
 
         if (!existingUsers || existingUsers.length === 0) {
-            // 2️⃣ If not found → auto register a new Google user
+            // 2️⃣ Not found → auto-register a new Google user
             const [result] = await db.query(
                 `INSERT INTO users (email, loginType, created_at)
                  VALUES (?, 'google', NOW())`,
@@ -338,6 +339,7 @@ const googleLogin = asyncHandler(async (req, res) => {
 
             user_id = result.insertId;
             user = { user_id, email, loginType: "google" };
+            is_email_registered = true; // true if this is a new registration
 
         } else {
             user = existingUsers[0];
@@ -379,7 +381,9 @@ const googleLogin = asyncHandler(async (req, res) => {
             user_id,
             email,
             token,
+            is_email_registered, // 👈 flag added here
         });
+
     } catch (err) {
         console.error("Google Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
