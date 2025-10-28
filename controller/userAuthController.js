@@ -482,10 +482,14 @@ const sendOtp = asyncHandler(async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: "Phone number required" });
 
+    // ✅ Check if phone exists in DB
+    const [existingUser] = await db.query("SELECT * FROM users WHERE phone = ?", [phone]);
+    const is_registered = existingUser.length > 0; // true if user exists
+
     // 🔢 Generate OTP
     const otp = generateOTP();
 
-    // 🔐 Create JWT with phone + otp (expires in 5 minutes)
+    // 🔐 Create JWT with phone + otp (expires in 30 minutes)
     const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "30m" });
 
     // 📩 Send OTP via SMS (Twilio)
@@ -495,9 +499,14 @@ const sendOtp = asyncHandler(async (req, res) => {
         to: phone,
     });
 
-    // Send back token (to be included in verify step)
-    res.status(200).json({ message: "OTP sent successfully", token });
+    // ✅ Send response with registration flag
+    res.status(200).json({
+        message: "OTP sent successfully",
+        token,
+        is_registered, // true if existing user, false if new number
+    });
 });
+
 
 // ✅ Step 2: Verify OTP (Handles both Login & Registration)
 const verifyOtp = asyncHandler(async (req, res) => {
