@@ -103,7 +103,7 @@ export default function AdminBookingDetailsPage() {
   const [selectedVendorId, setSelectedVendorId] = useState("");
 
   useEffect(() => {
-    if (!booking) fetchBooking();
+    if (booking) fetchBooking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 

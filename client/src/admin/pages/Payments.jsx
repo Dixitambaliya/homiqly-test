@@ -46,6 +46,8 @@ const Payments = () => {
   const fetchPayments = useCallback(
     async (opts = {}) => {
       try {
+        // Keep loading true so child table / controls can show inline loaders,
+        // but we will NOT force a full-page spinner unless there are no payments.
         setLoading(true);
         setError(null);
 
@@ -78,7 +80,7 @@ const Payments = () => {
         // pagination fields (support multiple possible names)
         setPage(data.page ?? qPage);
         setLimit(data.limit ?? qLimit);
-        setTotalPages(data.totalPages ?? data.totalPages ?? 1);
+        setTotalPages(data.totalPages ?? data.total_pages ?? 1);
         setTotalPayments(
           data.totalPayments ??
             data.total ??
@@ -203,22 +205,6 @@ const Payments = () => {
     setPage(1);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 p-4 rounded-md">
-        <p className="text-red-500">{error}</p>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -317,61 +303,78 @@ const Payments = () => {
         </div>
       </div>
 
-      <PaymentsTable
-        payouts={filteredPayments}
-        isLoading={loading}
-        onViewPayment={(payment) =>
-          navigate(`/admin/payments/${payment.payment_id}`, {
-            state: { payment },
-          })
-        }
-      />
-
-      {/* Pagination controls */}
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">
-            Showing page {page} of {totalPages} • {totalPayments} payments
-          </span>
+      {/* Error banner (inline) */}
+      {error && (
+        <div className="bg-red-50 p-4 rounded-md mb-4">
+          <p className="text-red-500">{error}</p>
         </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => goToPage(page - 1)}
-            disabled={page <= 1 || loading}
-            className="px-3 py-1 rounded border disabled:opacity-50"
-          >
-            Prev
-          </button>
-
-          <PaginationNumbers
-            page={page}
-            totalPages={totalPages}
-            onGoToPage={goToPage}
+      {/* If it's the very first load and there are no payments yet, show full-page spinner */}
+      {loading && payments.length === 0 ? (
+        <div className="flex justify-center items-center h-64">
+          <LoadingSpinner size="lg" />
+        </div>
+      ) : (
+        <>
+          {/* Payments table. Pass isLoading so the table can show inline skeleton/loader */}
+          <PaymentsTable
+            payouts={filteredPayments}
+            isLoading={loading}
+            onViewPayment={(payment) =>
+              navigate(`/admin/payments/${payment.payment_id}`, {
+                state: { payment },
+              })
+            }
           />
 
-          <button
-            onClick={() => goToPage(page + 1)}
-            disabled={page >= totalPages || loading}
-            className="px-3 py-1 rounded border disabled:opacity-50"
-          >
-            Next
-          </button>
+          {/* Pagination controls */}
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">
+                Showing page {page} of {totalPages} • {totalPayments} payments
+              </span>
+            </div>
 
-          <select
-            value={limit}
-            onChange={(e) => onChangeLimit(e.target.value)}
-            className="ml-3 border rounded px-2 py-1"
-            aria-label="Items per page"
-          >
-            {[5, 10, 20, 50].map((n) => (
-              <option key={n} value={n}>
-                {n} / page
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page <= 1 || loading}
+                className="px-3 py-1 rounded border disabled:opacity-50"
+              >
+                Prev
+              </button>
+
+              <PaginationNumbers
+                page={page}
+                totalPages={totalPages}
+                onGoToPage={goToPage}
+              />
+
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages || loading}
+                className="px-3 py-1 rounded border disabled:opacity-50"
+              >
+                Next
+              </button>
+
+              <select
+                value={limit}
+                onChange={(e) => onChangeLimit(e.target.value)}
+                className="ml-3 border rounded px-2 py-1"
+                aria-label="Items per page"
+              >
+                {[5, 10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

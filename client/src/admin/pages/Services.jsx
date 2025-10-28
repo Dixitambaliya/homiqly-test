@@ -12,7 +12,7 @@ import { ServiceFilterModal } from "../components/Modals/ServiceFilterModal";
 import { CustomFileInput } from "../../shared/components/CustomFileInput";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 import Modal from "../../shared/components/Modal/Modal";
-import { Pen, Plus, RefreshCcw, Trash, X } from "lucide-react";
+import { Pencil, Plus, RefreshCcw, Trash, X } from "lucide-react";
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -499,7 +499,7 @@ const Services = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <IconButton
                           variant="lightInfo"
-                          icon={<Pen />}
+                          icon={<Pencil />}
                           onClick={() =>
                             editCategory({
                               serviceCategoryId: category.serviceCategoryId,
@@ -570,7 +570,7 @@ const Services = () => {
                           <div className="flex items-start space-x-2 ml-4">
                             <IconButton
                               variant="lightInfo"
-                              icon={<Pen />}
+                              icon={<Pencil />}
                               onClick={() => editService(service)}
                             />
                             <IconButton
@@ -630,7 +630,7 @@ const Services = () => {
                       <IconButton
                         variant="lightInfo"
                         size="sm"
-                        icon={<Pen />}
+                        icon={<Pencil />}
                         onClick={() => {
                           setSelectedFilter(filter);
                           setFilterMode("edit");

@@ -38,7 +38,7 @@ const Analytics = () => {
   const [revenueData, setRevenueData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const currency = "CAD";
   useEffect(() => {
     fetchAnalyticsData();
   }, []);
@@ -223,7 +223,7 @@ const Analytics = () => {
             variant="ghost"
             icon={<RefreshCcw />}
           >
-            Refresh 
+            Refresh
           </Button>
         </div>
       </div>
@@ -471,7 +471,7 @@ const Analytics = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {formatCurrency(vendor.total_earnings || 0)}
+                      {formatCurrency(vendor.total_earnings || 0, currency)}
                     </div>
                   </td>
                 </tr>

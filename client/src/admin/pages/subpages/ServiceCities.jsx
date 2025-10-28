@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import Button from "../../../shared/components/Button/Button";
 import { FormInput } from "../../../shared/components/Form";
 import { IconButton } from "../../../shared/components/Button";
-import { Delete, Trash } from "lucide-react";
+import { Trash, Edit2, Pencil } from "lucide-react";
 import UniversalDeleteModal from "../../../shared/components/Modal/UniversalDeleteModal";
 
 const ServiceCities = () => {
@@ -13,6 +13,11 @@ const ServiceCities = () => {
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
+
+  // edit state
+  const [editingCityId, setEditingCityId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editing, setEditing] = useState(false);
 
   // delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -78,6 +83,45 @@ const ServiceCities = () => {
         setDeletingCity(null);
       }
     });
+  };
+
+  // start editing a row inline
+  const startEdit = (city) => {
+    const id = city.service_city_id ?? city.id;
+    const name = city.serviceCity ?? city.city ?? "";
+    setEditingCityId(id);
+    setEditName(name);
+  };
+
+  const cancelEdit = () => {
+    setEditingCityId(null);
+    setEditName("");
+  };
+
+  // submit edit to PUT API
+  const submitEdit = async (city) => {
+    const id = city.service_city_id ?? city.id;
+    const newName = (editName || "").trim();
+    if (!newName) {
+      toast.error("City name cannot be empty");
+      return;
+    }
+
+    try {
+      setEditing(true);
+      await api.put(`/api/service/editservicecity/${id}`, {
+        newCityName: newName,
+      });
+      toast.success("City updated");
+      setEditingCityId(null);
+      setEditName("");
+      await fetchCities();
+    } catch (err) {
+      console.error("edit city error:", err);
+      toast.error(err?.response?.data?.message || "Failed to update city");
+    } finally {
+      setEditing(false);
+    }
   };
 
   useEffect(() => {
@@ -166,24 +210,72 @@ const ServiceCities = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {filtered.map((c, i) => (
-                <tr key={c.service_city_id ?? i}>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {c.service_city_id ?? i + 1}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {c.serviceCity || c.city || "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <IconButton
-                      size="xs"
-                      onClick={() => confirmDeleteCity(c)}
-                      variant="lightDanger"
-                      icon={<Trash className="w-4 h-4" />}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((c, i) => {
+                const id = c.service_city_id ?? c.id ?? i + 1;
+                const displayName = c.serviceCity ?? c.city ?? "-";
+                const isEditingThis = editingCityId === id;
+
+                return (
+                  <tr key={id}>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {c.service_city_id ?? i + 1}
+                    </td>
+
+                    {/* City cell: either editing input or display */}
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {isEditingThis ? (
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={editing}
+                        />
+                      ) : (
+                        displayName
+                      )}
+                    </td>
+
+                    {/* Actions: Save/Cancel when editing else Edit/Delete */}
+                    <td className="px-4 py-3">
+                      {isEditingThis ? (
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => submitEdit(c)}
+                            disabled={editing}
+                            className="px-3 py-1"
+                          >
+                            {editing ? "Saving..." : "Save"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={cancelEdit}
+                            disabled={editing}
+                            className="px-3 py-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <IconButton
+                            size="sm"
+                            onClick={() => startEdit(c)}
+                            variant="light"
+                            icon={<Pencil className="w-4 h-4" />}
+                          />
+                          <IconButton
+                            size="sm"
+                            onClick={() => confirmDeleteCity(c)}
+                            variant="lightDanger"
+                            icon={<Trash className="w-4 h-4" />}
+                          />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
