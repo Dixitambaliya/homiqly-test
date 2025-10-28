@@ -501,16 +501,15 @@ const sendOtp = asyncHandler(async (req, res) => {
     const user = existingUsers[0];
     const is_password = user && user.password && user.password.trim() !== "";
 
-    // ✅ 2. Determine inverted flags
-    const is_phone_registered = !(existingUsers.some(u => u.phone === phone)); // false if exists, true if not
-    const is_email_registered = !(existingUsers.some(u => u.email === email)); // false if exists, true if not
+    // ✅ 2. Correct flag logic (true = registered)
+    const is_phone_registered = existingUsers.some(u => u.phone === phone);
+    const is_email_registered = existingUsers.some(u => u.email === email);
 
     // ⚠️ 3. If user exists with password and not forcing OTP
-    if (email && !is_email_registered && is_password && !forceOtp) {
+    if (email && is_email_registered && is_password && !forceOtp) {
         const responseData = {
             message: `Welcome back, ${user.firstName || "User"}! Please login with your password.`,
-            is_email_registered,
-            is_password,
+            is_email_registered
         };
 
         if (user.firstName) responseData.firstName = user.firstName;
@@ -519,11 +518,10 @@ const sendOtp = asyncHandler(async (req, res) => {
         return res.status(200).json(responseData);
     }
 
-    if (phone && !is_phone_registered && is_password && !forceOtp) {
+    if (phone && is_phone_registered && is_password && !forceOtp) {
         const responseData = {
             message: `Welcome back, ${user.firstName || "User"}! Please login with your password.`,
-            is_phone_registered,
-            is_password,
+            is_phone_registered
         };
 
         if (user.firstName) responseData.firstName = user.firstName;
@@ -570,15 +568,14 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     // ✅ 8. Response message
     const responseMsg =
-        (!is_phone_registered || !is_email_registered)
+        (is_phone_registered || is_email_registered)
             ? `Welcome back, ${user?.firstName || "User"}! We've sent your OTP.`
             : "OTP sent successfully. Please continue registration.";
 
     // ✅ 9. Build dynamic response
     const responseData = {
         message: responseMsg,
-        token,
-        is_password,
+        token
     };
 
     if (phone) responseData.is_phone_registered = is_phone_registered;
