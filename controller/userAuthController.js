@@ -342,8 +342,8 @@ const googleLogin = asyncHandler(async (req, res) => {
         if (!existingUsers || existingUsers.length === 0) {
             // 2️⃣ Not found → auto-register a new Google user
             const [result] = await db.query(
-                `INSERT INTO users (email, firstName, lastName, loginType, created_at)
-                 VALUES (?, ?, ?, 'google', NOW())`,
+                `INSERT INTO users (email, firstName, lastName, created_at)
+                 VALUES (?, ?, ?, NOW())`,
                 [email, firstName, lastName]
             );
 
@@ -377,7 +377,6 @@ const googleLogin = asyncHandler(async (req, res) => {
                 user_id,
                 email,
                 status: user.status || "active",
-                loginType: "google",
             },
             process.env.JWT_SECRET
         );
