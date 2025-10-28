@@ -1287,22 +1287,38 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
-        // 📄 Read pagination parameters from query (defaults)
+        // 📄 Read pagination and filters from query
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
+        const { startDate, endDate } = req.query; // 🆕 Date filters
 
-        // 1️⃣ Get total count for completed payments
-        const [[{ total }]] = await db.query(`
+        // 🧩 Dynamic filter conditions
+        let whereClause = "WHERE p.status = 'completed'";
+        const queryParams = [];
+
+        // If both start and end dates are provided, add to filter
+        if (startDate && endDate) {
+            whereClause += " AND DATE(p.created_at) BETWEEN ? AND ?";
+            queryParams.push(startDate, endDate);
+        }
+
+        // 1️⃣ Get total count for completed payments (with date filter)
+        const [[{ total }]] = await db.query(
+            `
             SELECT COUNT(*) AS total 
-            FROM payments 
-            WHERE status = 'completed'
-        `);
+            FROM payments p
+            ${whereClause}
+            `,
+            queryParams
+        );
 
-        // 2️⃣ Fetch paginated completed payment records
-        const [payments] = await db.query(`
+        // 2️⃣ Fetch paginated completed payment records (with date filter)
+        const [payments] = await db.query(
+            `
             SELECT
                 p.payment_id,
                 p.payment_intent_id,
@@ -1346,10 +1362,12 @@ const getAllPayments = asyncHandler(async (req, res) => {
             LEFT JOIN services s ON sb.service_id = s.service_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-            WHERE p.status = 'completed'
+            ${whereClause}
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?;
-        `, [limit, offset]);
+            `,
+            [...queryParams, limit, offset]
+        );
 
         // 3️⃣ Enhance with Stripe metadata
         const enhancedPayments = await Promise.all(
@@ -1365,7 +1383,11 @@ const getAllPayments = asyncHandler(async (req, res) => {
                         ...payment,
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
                         last4: charge?.payment_method_details?.card?.last4 || "****",
-                        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
+                        receiptEmail:
+                            charge?.receipt_email ||
+                            charge?.billing_details?.email ||
+                            payment.user_email ||
+                            "N/A",
                         chargeId: charge?.id || "N/A",
                         paidAt: charge?.created
                             ? new Date(charge.created * 1000).toLocaleString("en-US", {
@@ -1381,7 +1403,10 @@ const getAllPayments = asyncHandler(async (req, res) => {
                         paymentIntentId: charge?.payment_intent || "N/A",
                     };
                 } catch (stripeError) {
-                    console.error(`❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
+                    console.error(
+                        `❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`,
+                        stripeError.message
+                    );
                     return {
                         ...payment,
                         cardBrand: "N/A",
@@ -1413,13 +1438,20 @@ const getAllPayments = asyncHandler(async (req, res) => {
             totalPayments: total,
             totalPages,
             count: filteredPayments.length,
+            filters: { startDate, endDate },
             payments: filteredPayments,
         });
     } catch (error) {
         console.error("❌ Error fetching completed payments:", error);
-        res.status(500).json({ success: false, message: "Failed to fetch completed payments", error: error.message });
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch completed payments",
+            error: error.message,
+        });
     }
 });
+
+
 
 const getAllPackages = asyncHandler(async (req, res) => {
     try {
@@ -1440,7 +1472,6 @@ const getAllPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
 
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
@@ -1567,7 +1598,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

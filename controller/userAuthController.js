@@ -503,9 +503,9 @@ const sendOtp = asyncHandler(async (req, res) => {
     );
 
     const user = existingUsers[0];
-    const is_password = user && user.password && user.password.trim() !== "";
+    const is_registered = existingUsers.length > 0; // ✅ true if user exists
 
-    // ✅ 2. Determine flags (true if NOT registered)
+    // ✅ 2. Determine flags (true = NOT registered for that specific identifier)
     const is_phone_registered = !existingUsers.some(u => u.phone === phone);
     const is_email_registered = !existingUsers.some(u => u.email === email);
 
@@ -547,7 +547,7 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     // ✅ 7. Response message
     const responseMsg =
-        (!is_phone_registered || !is_email_registered)
+        is_registered
             ? `Welcome back, ${user?.firstName || "User"}! We've sent your OTP.`
             : "OTP sent successfully. Please continue registration.";
 
@@ -555,6 +555,7 @@ const sendOtp = asyncHandler(async (req, res) => {
     const responseData = {
         message: responseMsg,
         token,
+        is_registered, // ✅ New flag
     };
 
     if (email) {
@@ -569,13 +570,6 @@ const sendOtp = asyncHandler(async (req, res) => {
     // ✅ 9. Send response
     res.status(200).json(responseData);
 });
-
-
-
-
-
-
-
 
 // ✅ Step 2: Verify OTP (Handles both Login & Registration)
 const verifyOtp = asyncHandler(async (req, res) => {
