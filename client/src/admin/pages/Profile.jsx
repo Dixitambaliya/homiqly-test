@@ -9,7 +9,7 @@ import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Edit, Lock, Mail, Save, User, X, Shield, Camera } from "lucide-react";
 
 const Profile = () => {
-  const { currentUser } = useAdminAuth();
+  const { currentUser, setCurrentUser } = useAdminAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +97,28 @@ const Profile = () => {
       });
 
       if (res.status >= 200 && res.status < 300) {
-        setProfile((prev) => ({ ...prev, ...payload }));
+        // merge new profile payload into previous profile & context
+        const updatedPayload = {
+          name: formData.name,
+          email: formData.email,
+        };
+
+        // update local component state
+        setProfile((prev) => ({ ...prev, ...updatedPayload }));
+
+        // update auth context so header and other consumers re-render
+        const updatedUser = { ...(currentUser || {}), ...updatedPayload };
+        if (typeof setCurrentUser === "function") {
+          setCurrentUser(updatedUser);
+        }
+
+        // persist to localStorage for cross-tab consistency
+        try {
+          localStorage.setItem("adminData", JSON.stringify(updatedUser));
+        } catch (err) {
+          console.warn("Failed to write adminData to localStorage", err);
+        }
+
         toast.success(res.data?.message || "Profile updated successfully");
         setEditing(false);
       } else {
@@ -203,7 +224,7 @@ const Profile = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex space-x-3">
               {!editing ? (
                 <Button
@@ -236,7 +257,7 @@ const Profile = () => {
                   Profile Information
                 </h2>
               </div>
-              
+
               <form onSubmit={handleSubmit}>
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -329,7 +350,7 @@ const Profile = () => {
                   Profile Details
                 </h2>
               </div>
-              
+
               <div className="space-y-6">
                 <div className="flex items-center p-3 space-x-3 bg-gray-50 rounded-xl">
                   <User className="w-5 h-5 text-gray-400" />
@@ -343,7 +364,9 @@ const Profile = () => {
                   <Mail className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Email Address</p>
-                    <p className="font-medium text-gray-900">{profile?.email}</p>
+                    <p className="font-medium text-gray-900">
+                      {profile?.email}
+                    </p>
                   </div>
                 </div>
               </div>
