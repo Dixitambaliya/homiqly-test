@@ -499,8 +499,8 @@ const sendOtp = asyncHandler(async (req, res) => {
     );
 
     // ✅ 2. Determine flags
-    const is_phone_registered = existingUsers.some(u => u.phone === phone);
-    const is_email_registered = existingUsers.some(u => u.email === email);
+    const is_phone_registered = !existingUsers.some((u => u.phone === phone));
+    const is_email_registered = !existingUsers.some((u => u.email === email));
 
     const user = existingUsers[0];
     const is_password = user && user.password && user.password.trim() !== "";
