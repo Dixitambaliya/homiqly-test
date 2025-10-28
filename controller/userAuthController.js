@@ -332,13 +332,13 @@ const googleLogin = asyncHandler(async (req, res) => {
         if (!existingUsers || existingUsers.length === 0) {
             // 2️⃣ Not found → auto-register a new Google user
             const [result] = await db.query(
-                `INSERT INTO users (email, loginType, created_at)
-                 VALUES (?, 'google', NOW())`,
+                `INSERT INTO users (email, created_at)
+                 VALUES (?, NOW())`,
                 [email]
             );
 
             user_id = result.insertId;
-            user = { user_id, email, loginType: "google" };
+            user = { user_id, email };
             is_email_registered = true; // true if this is a new registration
 
         } else {
