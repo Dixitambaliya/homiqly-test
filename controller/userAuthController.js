@@ -486,7 +486,7 @@ const googleLogin = asyncHandler(async (req, res) => {
 
 // ✅ Step 1: Request OTP
 const sendOtp = asyncHandler(async (req, res) => {
-    const { phone, email, forceOtp = false } = req.body; // 👈 Add `forceOtp` flag for login-with-otp flow
+    const { phone, email, forceOtp = false } = req.body;
 
     if (!phone && !email) {
         return res.status(400).json({ message: "Either phone or email is required" });
@@ -494,36 +494,54 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     // ✅ 1. Check if user exists
     const [existingUsers] = await db.query(
-        "SELECT * FROM users WHERE phone = ? OR email = ?",
+        "SELECT user_id, firstName, lastName, phone, email, password FROM users WHERE phone = ? OR email = ?",
         [phone || null, email || null]
     );
 
+    // ✅ 2. Determine flags
+    const is_phone_registered = existingUsers.some(u => u.phone === phone);
+    const is_email_registered = existingUsers.some(u => u.email === email);
+
     const user = existingUsers[0];
-    const is_registered = !!user;
     const is_password = user && user.password && user.password.trim() !== "";
 
-    // ⚠️ 2. If user exists with email and has password — redirect to password login (unless forceOtp=true)
-    if (email && is_registered && is_password && !forceOtp) {
-        return res.status(200).json({
-            message: "User already registered with password. Redirect to password login.",
-            is_registered: true,
-            is_password: true,
-            can_send_otp: false,
-            redirectToPassword: true
-        });
+    // ⚠️ 3. If user exists with password and not forcing OTP
+    if (email && is_email_registered && is_password && !forceOtp) {
+        const responseData = {
+            message: `Welcome back, ${user.firstName || "User"}! Please login with your password.`,
+            is_email_registered,
+            is_password,
+        };
+
+        if (user.firstName) responseData.firstName = user.firstName;
+        if (user.lastName) responseData.lastName = user.lastName;
+
+        return res.status(200).json(responseData);
     }
 
-    // 🔢 3. Generate OTP
+    if (phone && is_phone_registered && is_password && !forceOtp) {
+        const responseData = {
+            message: `Welcome back, ${user.firstName || "User"}! Please login with your password.`,
+            is_phone_registered,
+            is_password,
+        };
+
+        if (user.firstName) responseData.firstName = user.firstName;
+        if (user.lastName) responseData.lastName = user.lastName;
+
+        return res.status(200).json(responseData);
+    }
+
+    // 🔢 4. Generate OTP
     const otp = generateOTP();
 
-    // 🔐 4. Create JWT (30 minutes)
+    // 🔐 5. Create JWT (30 minutes expiry)
     const tokenPayload = { otp };
     if (phone) tokenPayload.phone = phone;
     if (email) tokenPayload.email = email;
-
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "30m" });
 
-    // 📩 5. Send OTP via SMS (if phone)
+    // 📱 6. Send OTP via SMS
     if (phone) {
         try {
             await client.messages.create({
@@ -537,7 +555,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         }
     }
 
-    // 📧 6. Send OTP via Email (if email)
+    // 📧 7. Send OTP via Email
     if (email) {
         try {
             await sendUserVerificationMail({
@@ -550,16 +568,29 @@ const sendOtp = asyncHandler(async (req, res) => {
         }
     }
 
-    // ✅ 7. Respond
-    res.status(200).json({
-        message: "OTP sent successfully",
+    // ✅ 8. Response message
+    const responseMsg =
+        (is_phone_registered || is_email_registered)
+            ? `Welcome back, ${user?.firstName || "User"}! We've sent your OTP.`
+            : "OTP sent successfully. Please continue registration.";
+
+    // ✅ 9. Build dynamic response
+    const responseData = {
+        message: responseMsg,
         token,
-        is_registered,
         is_password,
-        can_send_otp: true,
-        redirectToPassword: false
-    });
+    };
+
+    if (phone) responseData.is_phone_registered = is_phone_registered;
+    if (email) responseData.is_email_registered = is_email_registered;
+    if (user?.firstName) responseData.firstName = user.firstName;
+    if (user?.lastName) responseData.lastName = user.lastName;
+
+    // ✅ 10. Send response
+    res.status(200).json(responseData);
 });
+
+
 
 
 
@@ -568,14 +599,38 @@ const verifyOtp = asyncHandler(async (req, res) => {
     let { phone, email, otp, firstName, lastName, password } = req.body;
     const authHeader = req.headers.authorization;
 
+    // ✅ Step 1: Lookup user (early check for password-based login)
+    const [rows] = await db.query(
+        `SELECT * FROM users WHERE phone = ? OR email = ?`,
+        [phone || null, email || null]
+    );
+    const user = rows[0];
+
+    // ✅ Step 2: If user has password and provided email + password → direct login
+    if (email && password && user && user.password && user.password.trim() !== "") {
+        const isMatch = await bcrypt.compare(password, user.password || "");
+        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+        const loginToken = jwt.sign(
+            { user_id: user.user_id, phone: user.phone, email: user.email },
+            process.env.JWT_SECRET
+        );
+
+        return res.status(200).json({
+            message: "Login successful via email/password",
+            token: loginToken,
+        });
+    }
+
+    // ✅ Step 3: OTP is required for users without password or phone login
     if (!otp) {
-        return res.status(400).json({ message: "OTP is required" });
+        return res.status(400).json({ message: "OTP is required for the login" });
     }
 
     otp = String(otp);
     let decoded = null;
 
-    // ✅ 1. Verify JWT token from sendOtp API
+    // ✅ Step 4: Verify token from sendOtp API
     if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
         try {
@@ -601,19 +656,10 @@ const verifyOtp = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Authorization token missing" });
     }
 
-    // ✅ 2. Lookup user (by phone or email)
-    const [rows] = await db.query(
-        `SELECT * FROM users WHERE phone = ? OR email = ?`,
-        [phone || null, email || null]
-    );
-    const user = rows[0];
-
-    // ✅ 3. OTP verified successfully
+    // ✅ Step 5: OTP verified successfully
     if (decoded && decoded.otp === otp) {
-        const identifier = decoded.phone || decoded.email;
-
         if (!user) {
-            // 🟢 New User Registration
+            // 🟢 New user registration
             if (!firstName || !lastName) {
                 return res.status(200).json({
                     message: "Welcome — please provide name (and optionally password)",
@@ -651,27 +697,10 @@ const verifyOtp = asyncHandler(async (req, res) => {
         });
     }
 
-    // ✅ 4. Fallback login (email + password)
-    if (email && password) {
-        if (!user) return res.status(404).json({ message: "User not found" });
-
-        const isMatch = await bcrypt.compare(password, user.password || "");
-        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
-
-        const loginToken = jwt.sign(
-            { user_id: user.user_id, phone: user.phone, email: user.email },
-            process.env.JWT_SECRET
-        );
-
-        return res.status(200).json({
-            message: "Login successful via email/password",
-            token: loginToken,
-        });
-    }
-
-    // ✅ 5. Missing credentials
-    return res.status(400).json({ message: "OTP or email/password required to login" });
+    // ✅ Step 6: Fallback (no valid OTP or password)
+    return res.status(400).json({ message: "OTP or valid password required to login" });
 });
+
 
 
 
