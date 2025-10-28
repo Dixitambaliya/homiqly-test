@@ -505,45 +505,20 @@ const sendOtp = asyncHandler(async (req, res) => {
     const user = existingUsers[0];
     const is_password = user && user.password && user.password.trim() !== "";
 
-    // 🔁 2. Reverted flag logic (true = NOT registered)
+    // ✅ 2. Determine flags (true if NOT registered)
     const is_phone_registered = !existingUsers.some(u => u.phone === phone);
     const is_email_registered = !existingUsers.some(u => u.email === email);
 
-    // ⚠️ 3. If user exists with password and not forcing OTP
-    if (email && !is_email_registered && is_password && !forceOtp) {
-        const responseData = {
-            message: `Welcome back, ${user.firstName || "User"}! Please login with your password.`,
-            is_email_registered
-        };
-
-        if (user.firstName) responseData.firstName = user.firstName;
-        if (user.lastName) responseData.lastName = user.lastName;
-
-        return res.status(200).json(responseData);
-    }
-
-    if (phone && !is_phone_registered && is_password && !forceOtp) {
-        const responseData = {
-            message: `Welcome back, ${user.firstName || "User"}! Please login with your password.`,
-            is_phone_registered
-        };
-
-        if (user.firstName) responseData.firstName = user.firstName;
-        if (user.lastName) responseData.lastName = user.lastName;
-
-        return res.status(200).json(responseData);
-    }
-
-    // 🔢 4. Generate OTP
+    // 🔢 3. Generate OTP
     const otp = generateOTP();
 
-    // 🔐 5. Create JWT (30 minutes expiry)
+    // 🔐 4. Create JWT (30 minutes expiry)
     const tokenPayload = { otp };
     if (phone) tokenPayload.phone = phone;
     if (email) tokenPayload.email = email;
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "30m" });
 
-    // 📱 6. Send OTP via SMS
+    // 📱 5. Send OTP via SMS
     if (phone) {
         try {
             await client.messages.create({
@@ -557,7 +532,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         }
     }
 
-    // 📧 7. Send OTP via Email
+    // 📧 6. Send OTP via Email
     if (email) {
         try {
             await sendUserVerificationMail({
@@ -570,26 +545,32 @@ const sendOtp = asyncHandler(async (req, res) => {
         }
     }
 
-    // ✅ 8. Response message
+    // ✅ 7. Response message
     const responseMsg =
         (!is_phone_registered || !is_email_registered)
             ? `Welcome back, ${user?.firstName || "User"}! We've sent your OTP.`
             : "OTP sent successfully. Please continue registration.";
 
-    // ✅ 9. Build dynamic response
+    // ✅ 8. Build response
     const responseData = {
         message: responseMsg,
-        token
+        token,
     };
 
-    if (phone) responseData.is_phone_registered = is_phone_registered;
-    if (email) responseData.is_email_registered = is_email_registered;
+    if (email) {
+        responseData.is_email_registered = is_email_registered;
+    } else if (phone) {
+        responseData.is_phone_registered = is_phone_registered;
+    }
+
     if (user?.firstName) responseData.firstName = user.firstName;
     if (user?.lastName) responseData.lastName = user.lastName;
 
-    // ✅ 10. Send response
+    // ✅ 9. Send response
     res.status(200).json(responseData);
 });
+
+
 
 
 
