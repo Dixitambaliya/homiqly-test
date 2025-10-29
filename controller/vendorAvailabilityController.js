@@ -139,7 +139,7 @@ const deleteAvailability = asyncHandler(async (req, res) => {
     try {
         const vendor_id = req.user.vendor_id;
         const { vendor_availability_id } = req.params;
-        const { startDate, endDate } = req.body;
+        const { startDate, endDate } = req.body || {}; // ensure safe destructure
 
         // 🧩 Fetch existing availability
         const [existingRows] = await db.query(
@@ -155,9 +155,13 @@ const deleteAvailability = asyncHandler(async (req, res) => {
         const start = moment(existing.startDate);
         const end = moment(existing.endDate);
 
-        // 🟢 If no startDate or endDate provided — intend to delete entire availability
-        if (!startDate && !endDate) {
-            // 🚫 Check if bookings exist in the entire availability range
+        // 🟢 If body is empty OR no startDate/endDate provided — delete entire availability
+        const isFullDelete =
+            !startDate && !endDate &&
+            Object.keys(req.body || {}).length === 0;
+
+        if (isFullDelete) {
+            // 🚫 Check for existing bookings
             const [bookings] = await db.query(
                 `
                 SELECT booking_id, bookingDate
@@ -177,17 +181,24 @@ const deleteAvailability = asyncHandler(async (req, res) => {
                 });
             }
 
-            // ✅ Safe to delete
+            // ✅ Safe to delete entire record
             await db.query(
                 "DELETE FROM vendor_availability WHERE vendor_availability_id = ?",
                 [vendor_availability_id]
             );
+
             return res.json({ message: "Entire availability deleted successfully" });
         }
 
         // 🧠 Validate input date range
+        if (!startDate || !moment(startDate, "YYYY-MM-DD", true).isValid()) {
+            return res.status(400).json({ message: "Invalid or missing startDate" });
+        }
+
         const delStart = moment(startDate, "YYYY-MM-DD");
-        const delEnd = endDate ? moment(endDate, "YYYY-MM-DD") : delStart;
+        const delEnd = endDate
+            ? moment(endDate, "YYYY-MM-DD")
+            : delStart;
 
         if (delStart.isBefore(start) || delEnd.isAfter(end)) {
             return res.status(400).json({
