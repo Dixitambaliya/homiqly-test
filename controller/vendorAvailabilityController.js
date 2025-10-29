@@ -137,13 +137,110 @@ const editAvailability = asyncHandler(async (req, res) => {
 
 const deleteAvailability = asyncHandler(async (req, res) => {
     try {
+        const vendor_id = req.user.vendor_id;
         const { vendor_availability_id } = req.params;
-        await db.query("DELETE FROM vendor_availability WHERE vendor_availability_id = ?", [vendor_availability_id]);
-        res.json({ message: "Availability deleted successfully" });
+        const { deleteStartDate, deleteEndDate } = req.body; // 👈 input dates to delete
+
+        if (!deleteStartDate) {
+            return res.status(400).json({ message: "deleteStartDate is required" });
+        }
+
+        // If deleteEndDate not provided, treat it as single day deletion
+        const delStart = moment(deleteStartDate, "YYYY-MM-DD");
+        const delEnd = deleteEndDate ? moment(deleteEndDate, "YYYY-MM-DD") : delStart;
+
+        // Fetch existing record
+        const [existingRows] = await db.query(
+            "SELECT * FROM vendor_availability WHERE vendor_availability_id = ? AND vendor_id = ?",
+            [vendor_availability_id, vendor_id]
+        );
+
+        if (existingRows.length === 0) {
+            return res.status(404).json({ message: "Availability not found or not authorized" });
+        }
+
+        const existing = existingRows[0];
+        const start = moment(existing.startDate);
+        const end = moment(existing.endDate);
+
+        // ❌ Check if delete range falls within existing range
+        if (delStart.isBefore(start) || delEnd.isAfter(end)) {
+            return res.status(400).json({
+                message: "Delete range must be within existing availability period"
+            });
+        }
+
+        // 🧩 Case 1: Delete entire range
+        if (delStart.isSame(start) && delEnd.isSame(end)) {
+            await db.query(
+                "DELETE FROM vendor_availability WHERE vendor_availability_id = ?",
+                [vendor_availability_id]
+            );
+            return res.json({ message: "Entire availability deleted successfully" });
+        }
+
+        // 🧩 Case 2: Delete beginning part (e.g. deleting 01-10-2025 → 03-10-2025)
+        if (delStart.isSame(start) && delEnd.isBefore(end)) {
+            const newStart = delEnd.clone().add(1, "day").format("YYYY-MM-DD");
+            await db.query(
+                "UPDATE vendor_availability SET startDate = ? WHERE vendor_availability_id = ?",
+                [newStart, vendor_availability_id]
+            );
+            return res.json({
+                message: "Availability updated after partial deletion (beginning trimmed)",
+                updatedRange: { startDate: newStart, endDate: existing.endDate }
+            });
+        }
+
+        // 🧩 Case 3: Delete ending part (e.g. deleting 08-10-2025 → 10-10-2025)
+        if (delStart.isAfter(start) && delEnd.isSame(end)) {
+            const newEnd = delStart.clone().subtract(1, "day").format("YYYY-MM-DD");
+            await db.query(
+                "UPDATE vendor_availability SET endDate = ? WHERE vendor_availability_id = ?",
+                [newEnd, vendor_availability_id]
+            );
+            return res.json({
+                message: "Availability updated after partial deletion (ending trimmed)",
+                updatedRange: { startDate: existing.startDate, endDate: newEnd }
+            });
+        }
+
+        // 🧩 Case 4: Delete middle part (split into two)
+        if (delStart.isAfter(start) && delEnd.isBefore(end)) {
+            const leftRangeEnd = delStart.clone().subtract(1, "day").format("YYYY-MM-DD");
+            const rightRangeStart = delEnd.clone().add(1, "day").format("YYYY-MM-DD");
+
+            // Update existing to left part
+            await db.query(
+                "UPDATE vendor_availability SET endDate = ? WHERE vendor_availability_id = ?",
+                [leftRangeEnd, vendor_availability_id]
+            );
+
+            // Create new right part
+            await db.query(
+                `
+                INSERT INTO vendor_availability (vendor_id, startDate, endDate, startTime, endTime)
+                VALUES (?, ?, ?, ?, ?)
+                `,
+                [vendor_id, rightRangeStart, existing.endDate, existing.startTime, existing.endTime]
+            );
+
+            return res.json({
+                message: "Availability split successfully after partial deletion",
+                newRanges: [
+                    { startDate: existing.startDate, endDate: leftRangeEnd },
+                    { startDate: rightRangeStart, endDate: existing.endDate }
+                ]
+            });
+        }
+
+        return res.status(400).json({ message: "Invalid delete range" });
     } catch (error) {
+        console.error("Error deleting availability:", error);
         res.status(500).json({ message: "Error deleting availability", error });
     }
 });
+
 
 
 module.exports = {
