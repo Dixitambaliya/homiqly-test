@@ -75,9 +75,9 @@ const editAvailability = asyncHandler(async (req, res) => {
         const formattedStartTime = moment(startTime, ["HH:mm", "hh:mm A"]).format("HH:mm:ss");
         const formattedEndTime = moment(endTime, ["HH:mm", "hh:mm A"]).format("HH:mm:ss");
 
-        // ✅ Check if availability exists
+        // 🧾 1️⃣ Fetch existing availability
         const [existing] = await db.query(
-            "SELECT * FROM vendor_availability WHERE vendor_availability_id = ? AND vendor_id = ?",
+            `SELECT * FROM vendor_availability WHERE vendor_availability_id = ? AND vendor_id = ?`,
             [vendor_availability_id, vendor_id]
         );
 
@@ -85,7 +85,10 @@ const editAvailability = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Availability not found or not authorized" });
         }
 
-        // ✅ Check for booked dates in the new range
+        const oldStartDate = existing[0].startDate;
+        const oldEndDate = existing[0].endDate;
+
+        // 🧾 2️⃣ Fetch all bookings in the old availability range
         const [bookings] = await db.query(
             `
             SELECT DATE(bookingDate) AS bookedDate
@@ -94,18 +97,24 @@ const editAvailability = asyncHandler(async (req, res) => {
               AND bookingStatus NOT IN ('2', '4') -- exclude cancelled/completed
               AND bookingDate BETWEEN ? AND ?
             `,
-            [vendor_id, startDate, endDate]
+            [vendor_id, oldStartDate, oldEndDate]
         );
 
-        if (bookings.length > 0) {
-            const bookedDates = bookings.map(b => moment(b.bookedDate).format("YYYY-MM-DD"));
+        // 🧩 3️⃣ Check if any existing booked date falls outside new availability
+        const restrictedDates = bookings.filter(b => {
+            const bookedDate = new Date(b.bookedDate);
+            return bookedDate < new Date(startDate) || bookedDate > new Date(endDate);
+        });
+
+        if (restrictedDates.length > 0) {
+            const bookedDates = restrictedDates.map(b => moment(b.bookedDate).format("YYYY-MM-DD"));
             return res.status(400).json({
-                message: "Cannot update availability — there are existing bookings within the selected range.",
+                message: "Cannot update — You have bookings within the selected time slot",
                 bookedDates
             });
         }
 
-        // ✅ Safe to update (no bookings in this range)
+        // ✅ 4️⃣ Update safely (no conflict with booked dates)
         await db.query(
             `
             UPDATE vendor_availability
@@ -115,7 +124,11 @@ const editAvailability = asyncHandler(async (req, res) => {
             [startDate, endDate, formattedStartTime, formattedEndTime, vendor_availability_id, vendor_id]
         );
 
-        res.json({ message: "Availability updated successfully", updatedRange: { startDate, endDate } });
+        res.json({
+            message: "Availability updated successfully",
+            updatedRange: { startDate, endDate, startTime: formattedStartTime, endTime: formattedEndTime }
+        });
+
     } catch (error) {
         console.error("Error updating availability:", error);
         res.status(500).json({ message: "Error updating availability", error });
