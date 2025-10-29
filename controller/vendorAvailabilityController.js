@@ -139,17 +139,9 @@ const deleteAvailability = asyncHandler(async (req, res) => {
     try {
         const vendor_id = req.user.vendor_id;
         const { vendor_availability_id } = req.params;
-        const { deleteStartDate, deleteEndDate } = req.body; // 👈 input dates to delete
+        const { startDate, endDate } = req.body;
 
-        if (!deleteStartDate) {
-            return res.status(400).json({ message: "deleteStartDate is required" });
-        }
-
-        // If deleteEndDate not provided, treat it as single day deletion
-        const delStart = moment(deleteStartDate, "YYYY-MM-DD");
-        const delEnd = deleteEndDate ? moment(deleteEndDate, "YYYY-MM-DD") : delStart;
-
-        // Fetch existing record
+        // 🧩 Fetch existing availability
         const [existingRows] = await db.query(
             "SELECT * FROM vendor_availability WHERE vendor_availability_id = ? AND vendor_id = ?",
             [vendor_availability_id, vendor_id]
@@ -163,15 +155,29 @@ const deleteAvailability = asyncHandler(async (req, res) => {
         const start = moment(existing.startDate);
         const end = moment(existing.endDate);
 
-        // ❌ Check if delete range falls within existing range
-        if (delStart.isBefore(start) || delEnd.isAfter(end)) {
-            return res.status(400).json({
-                message: "Delete range must be within existing availability period"
-            });
-        }
+        // 🟢 If no startDate or endDate provided — intend to delete entire availability
+        if (!startDate && !endDate) {
+            // 🚫 Check if bookings exist in the entire availability range
+            const [bookings] = await db.query(
+                `
+                SELECT booking_id, bookingDate
+                FROM service_booking
+                WHERE vendor_id = ?
+                  AND bookingStatus NOT IN ('2', '4')
+                  AND bookingDate BETWEEN ? AND ?
+                `,
+                [vendor_id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")]
+            );
 
-        // 🧩 Case 1: Delete entire range
-        if (delStart.isSame(start) && delEnd.isSame(end)) {
+            if (bookings.length > 0) {
+                const bookedDates = bookings.map(b => moment(b.bookingDate).format("YYYY-MM-DD"));
+                return res.status(400).json({
+                    message: "Cannot delete entire availability — bookings exist within this date range.",
+                    bookedDates
+                });
+            }
+
+            // ✅ Safe to delete
             await db.query(
                 "DELETE FROM vendor_availability WHERE vendor_availability_id = ?",
                 [vendor_availability_id]
@@ -179,67 +185,101 @@ const deleteAvailability = asyncHandler(async (req, res) => {
             return res.json({ message: "Entire availability deleted successfully" });
         }
 
-        // 🧩 Case 2: Delete beginning part (e.g. deleting 01-10-2025 → 03-10-2025)
-        if (delStart.isSame(start) && delEnd.isBefore(end)) {
+        // 🧠 Validate input date range
+        const delStart = moment(startDate, "YYYY-MM-DD");
+        const delEnd = endDate ? moment(endDate, "YYYY-MM-DD") : delStart;
+
+        if (delStart.isBefore(start) || delEnd.isAfter(end)) {
+            return res.status(400).json({
+                message: "Delete range must fall within the existing availability period"
+            });
+        }
+
+        // 🛑 Step 1: Check for active bookings within delete range
+        const [bookings] = await db.query(
+            `
+            SELECT booking_id, bookingDate
+            FROM service_booking
+            WHERE vendor_id = ?
+              AND bookingStatus NOT IN ('2', '4')
+              AND bookingDate BETWEEN ? AND ?
+            `,
+            [vendor_id, delStart.format("YYYY-MM-DD"), delEnd.format("YYYY-MM-DD")]
+        );
+
+        if (bookings.length > 0) {
+            const bookedDates = bookings.map(b => moment(b.bookingDate).format("YYYY-MM-DD"));
+            return res.status(400).json({
+                message: "Cannot delete availability — bookings exist within this date range.",
+                bookedDates
+            });
+        }
+
+        // 🧩 Step 2: Handle partial deletion logic
+        if (delStart.isSame(start) && delEnd.isSame(end)) {
+            await db.query(
+                "DELETE FROM vendor_availability WHERE vendor_availability_id = ?",
+                [vendor_availability_id]
+            );
+            return res.json({ message: "Entire availability deleted successfully" });
+
+        } else if (delStart.isSame(start) && delEnd.isBefore(end)) {
             const newStart = delEnd.clone().add(1, "day").format("YYYY-MM-DD");
             await db.query(
                 "UPDATE vendor_availability SET startDate = ? WHERE vendor_availability_id = ?",
                 [newStart, vendor_availability_id]
             );
             return res.json({
-                message: "Availability updated after partial deletion (beginning trimmed)",
+                message: "Availability updated (beginning trimmed)",
                 updatedRange: { startDate: newStart, endDate: existing.endDate }
             });
-        }
 
-        // 🧩 Case 3: Delete ending part (e.g. deleting 08-10-2025 → 10-10-2025)
-        if (delStart.isAfter(start) && delEnd.isSame(end)) {
+        } else if (delStart.isAfter(start) && delEnd.isSame(end)) {
             const newEnd = delStart.clone().subtract(1, "day").format("YYYY-MM-DD");
             await db.query(
                 "UPDATE vendor_availability SET endDate = ? WHERE vendor_availability_id = ?",
                 [newEnd, vendor_availability_id]
             );
             return res.json({
-                message: "Availability updated after partial deletion (ending trimmed)",
+                message: "Availability updated (ending trimmed)",
                 updatedRange: { startDate: existing.startDate, endDate: newEnd }
             });
-        }
 
-        // 🧩 Case 4: Delete middle part (split into two)
-        if (delStart.isAfter(start) && delEnd.isBefore(end)) {
-            const leftRangeEnd = delStart.clone().subtract(1, "day").format("YYYY-MM-DD");
-            const rightRangeStart = delEnd.clone().add(1, "day").format("YYYY-MM-DD");
+        } else if (delStart.isAfter(start) && delEnd.isBefore(end)) {
+            const leftEnd = delStart.clone().subtract(1, "day").format("YYYY-MM-DD");
+            const rightStart = delEnd.clone().add(1, "day").format("YYYY-MM-DD");
 
-            // Update existing to left part
             await db.query(
                 "UPDATE vendor_availability SET endDate = ? WHERE vendor_availability_id = ?",
-                [leftRangeEnd, vendor_availability_id]
+                [leftEnd, vendor_availability_id]
             );
 
-            // Create new right part
             await db.query(
                 `
                 INSERT INTO vendor_availability (vendor_id, startDate, endDate, startTime, endTime)
                 VALUES (?, ?, ?, ?, ?)
                 `,
-                [vendor_id, rightRangeStart, existing.endDate, existing.startTime, existing.endTime]
+                [vendor_id, rightStart, existing.endDate, existing.startTime, existing.endTime]
             );
 
             return res.json({
                 message: "Availability split successfully after partial deletion",
-                // newRanges: [
-                //     { startDate: existing.startDate, endDate: leftRangeEnd },
-                //     { startDate: rightRangeStart, endDate: existing.endDate }
-                // ]
+                newRanges: [
+                    { startDate: existing.startDate, endDate: leftEnd },
+                    { startDate: rightStart, endDate: existing.endDate }
+                ]
             });
         }
 
         return res.status(400).json({ message: "Invalid delete range" });
+
     } catch (error) {
         console.error("Error deleting availability:", error);
         res.status(500).json({ message: "Error deleting availability", error });
     }
 });
+
+
 
 
 
