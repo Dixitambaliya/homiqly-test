@@ -1,5 +1,7 @@
 import React, { useMemo } from "react";
 import PropTypes from "prop-types";
+import { Button } from "./Button";
+import { FormSelect } from "./Form";
 
 /**
  * Pagination
@@ -39,19 +41,14 @@ const Pagination = ({
     <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-4 border-t bg-white">
       <div className="flex items-center gap-3">
         <label className="text-sm">Show</label>
-        <select
-          aria-label="Rows per page"
+        <FormSelect
+          className=""
+          dropdownDirection="auto"
           value={limit}
           onChange={(e) => onLimit(Number(e.target.value))}
-          className="border rounded px-2 py-1 bg-white text-sm"
-        >
-          {limitOptions.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-        <span className="ml-2 text-sm text-gray-600">
+          options={limitOptions.map((opt) => ({ value: opt, label: opt }))}
+        />
+        <span className="ml-2 text-sm text-gray-600 flex gap-1">
           {total === 0 ? (
             "No entries"
           ) : (
@@ -65,35 +62,37 @@ const Pagination = ({
       </div>
 
       <div className="flex items-center gap-2">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => onPage(1)}
           disabled={page === 1}
           className="px-3 py-1 border rounded disabled:opacity-50"
           aria-label="First page"
         >
           First
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => {
             onPrev?.();
             onPage(page - 1);
           }}
+          variant="ghost"
           disabled={page === 1}
           className="px-3 py-1 border rounded disabled:opacity-50"
           aria-label="Previous page"
         >
           Prev
-        </button>
+        </Button>
 
         <div className="flex items-center gap-1">
           {getWindow[0] > 1 && (
             <>
-              <button
+              <Button
                 onClick={() => onPage(1)}
                 className="px-3 py-1 border rounded text-sm"
               >
                 1
-              </button>
+              </Button>
               {showStartEllipsis && (
                 <span className="px-2 text-sm text-gray-500">…</span>
               )}
@@ -105,8 +104,8 @@ const Pagination = ({
               key={p}
               onClick={() => onPage(p)}
               aria-current={p === page ? "page" : undefined}
-              className={`px-3 py-1 border rounded text-sm ${
-                p === page ? "bg-gray-100 font-semibold" : ""
+              className={`px-3 py-1 border rounded-md  ${
+                p === page ? "bg-gray-100 font-bold" : ""
               }`}
             >
               {p}
@@ -116,17 +115,18 @@ const Pagination = ({
           {showEndEllipsis && (
             <>
               <span className="px-2 text-sm text-gray-500">…</span>
-              <button
+              <Button
                 onClick={() => onPage(totalPages)}
                 className="px-3 py-1 border rounded text-sm"
               >
                 {totalPages}
-              </button>
+              </Button>
             </>
           )}
         </div>
 
-        <button
+        <Button
+          variant="ghost"
           onClick={() => {
             onNext?.();
             onPage(page + 1);
@@ -136,16 +136,17 @@ const Pagination = ({
           aria-label="Next page"
         >
           Next
-        </button>
+        </Button>
 
-        <button
+        <Button
+          variant="ghost"
           onClick={() => onPage(totalPages)}
           disabled={page === totalPages}
           className="px-3 py-1 border rounded disabled:opacity-50"
           aria-label="Last page"
         >
           Last
-        </button>
+        </Button>
       </div>
     </div>
   );

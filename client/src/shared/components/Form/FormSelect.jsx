@@ -14,6 +14,9 @@ const FormSelect = ({
   icon,
   className = "",
   id,
+  // NEW props:
+  dropdownDirection = "down", // "down" | "up" | "auto"
+  dropdownMaxHeight = 150, // px, matches Tailwind max-h-56 (14rem = 224px)
   ...rest
 }) => {
   const containerRef = useRef(null);
@@ -25,8 +28,9 @@ const FormSelect = ({
   const [dropdownPos, setDropdownPos] = useState({
     top: 0,
     left: 0,
-    width: 0,
+    // width: 0,
   });
+  const [resolvedDirection, setResolvedDirection] = useState("down"); // actual chosen direction
 
   // Normalize options: ensure { label, value }
   const normOptions = options.map((opt) =>
@@ -42,17 +46,53 @@ const FormSelect = ({
     if (!open) setHighlightIndex(-1);
   }, [open, options.length]);
 
-  // Measure dropdown position when open
+  // Determine dropdown position + direction when opening
   useEffect(() => {
-    if (open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPos({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
+    if (!open || !buttonRef.current) return;
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const scrollY = window.scrollY || window.pageYOffset;
+    const scrollX = window.scrollX || window.pageXOffset;
+
+    // space below and above trigger (viewport coordinates)
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Decide direction
+    let dir = dropdownDirection;
+    if (dropdownDirection === "auto") {
+      // prefer down if there's enough space below else choose above if above has more room
+      if (spaceBelow >= dropdownMaxHeight) dir = "down";
+      else if (spaceAbove >= dropdownMaxHeight) dir = "up";
+      else {
+        // none fits fully, choose side with more space
+        dir = spaceBelow >= spaceAbove ? "down" : "up";
+      }
     }
-  }, [open]);
+
+    // compute top coordinate based on chosen direction
+    // if down -> place at bottom of trigger (rect.bottom + scrollY)
+    // if up -> place so the dropdown's bottom aligns to rect.top (rect.top - dropdownHeight + scrollY)
+    // because we don't yet know actual height, we align bottom to rect.top and let max-height handle scrolling
+    let top;
+    if (dir === "down") {
+      top = rect.bottom + scrollY;
+    } else {
+      // align dropdown bottom with rect.top
+      // we set top = rect.top + scrollY - dropdownMaxHeight so dropdown's bottom is at rect.top
+      // when actual content height is less than dropdownMaxHeight, the dropdown will be shorter and sit a bit lower — acceptable.
+      top = rect.top + scrollY - dropdownMaxHeight;
+      // If top goes above document (negative), clamp to 0
+      if (top < 0) top = 0;
+    }
+
+    setResolvedDirection(dir);
+    setDropdownPos({
+      top,
+      left: rect.left + scrollX,
+      width: rect.width,
+    });
+  }, [open, dropdownDirection, dropdownMaxHeight]);
 
   // Close on outside click (including portal)
   useEffect(() => {
@@ -193,17 +233,20 @@ const FormSelect = ({
         createPortal(
           <div
             ref={listRef}
-            className="absolute z-50 rounded-lg ring-1 ring-black ring-opacity-5 bg-white shadow-lg overflow-auto max-h-56"
+            className={`absolute z-50 rounded-lg ring-1 ring-black ring-opacity-5 bg-white shadow-lg overflow-auto w-fit`}
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
-              width: dropdownPos.width,
+              // width: dropdownPos.width,
               position: "absolute",
+              maxHeight: dropdownMaxHeight,
             }}
             role="listbox"
             tabIndex={-1}
+            // add an attribute for styling if needed (e.g. add a little arrow)
+            data-direction={resolvedDirection}
           >
-            <ul className="max-h-56 overflow-auto focus:outline-none">
+            <ul className="max-h-full overflow-auto focus:outline-none">
               {normOptions.length === 0 ? (
                 <li className="px-4 py-3 text-sm text-gray-500">No options</li>
               ) : (
@@ -227,7 +270,7 @@ const FormSelect = ({
                       <span className="truncate">{opt.label}</span>
                       {active && (
                         <span className="ml-auto text-xs text-green-700 font-semibold">
-                          Selected
+                          {/* Selected */}
                         </span>
                       )}
                     </li>

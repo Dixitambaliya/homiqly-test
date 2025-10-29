@@ -13,10 +13,7 @@ import useServerPagination from "../../shared/hooks/useServerPagination";
 import Pagination from "../../shared/components/Pagination";
 
 const fetchVendorApplications = async (params) => {
-  // params: { page, limit, search, status... }
-  // adapt this if you prefer calling axios directly in the page
   const res = await api.get("/api/admin/getvendorapplication", { params });
-  // return raw response so hook can normalize
   return res.data;
 };
 
@@ -96,8 +93,10 @@ const VendorApplications = () => {
 
       {/* Filters */}
       <div className="mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-          <div className="md:col-span-2">
+        {/* container becomes column on small screens and row on md+ */}
+        <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 justify-between">
+          {/* left: search — grows to fill available space */}
+          <div className="flex-1 min-w-0">
             <FormInput
               icon={<Search className="w-4 h-4" />}
               id="search"
@@ -106,42 +105,55 @@ const VendorApplications = () => {
               placeholder="Search by applicant, package or ID"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="w-full"
+              inputClassName="h-10" 
             />
           </div>
 
-          <div className="md:col-span-1">
-            <FormSelect
-              id="status"
-              label="Status"
-              value={filters?.status ?? "all"}
-              onChange={(e) => onStatusChange(e.target.value)}
-              options={[
-                { value: "all", label: "All" },
-                { value: "0", label: "Pending" },
-                { value: "1", label: "Approved" },
-                { value: "2", label: "Rejected" },
-              ]}
-            />
-          </div>
+          {/* right: filters + actions */}
+          <div className="w-full md:w-auto flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 items-stretch">
+            {/* status select */}
+            <div className="w-full sm:w-40">
+              <FormSelect
+                id="status"
+                label="Status"
+                value={filters?.status ?? "all"}
+                onChange={(e) => onStatusChange(e.target.value)}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "0", label: "Pending" },
+                  { value: "1", label: "Approved" },
+                  { value: "2", label: "Rejected" },
+                ]}
+                dropdownDirection="auto" // recommended
+                dropdownMaxHeight={280} // optional tweak
+                className="w-full"
+              />
+            </div>
 
-          <div className="md:col-span-3 flex justify-end space-x-2">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setFilters({ status: "all" });
-                setPage(1);
-              }}
-            >
-              Clear
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                reset();
-              }}
-            >
-              Reset All
-            </Button>
+            {/* buttons group: horizontal on >=sm, stacked on xs */}
+            <div className="flex items-center space-x-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setFilters({ status: "all" });
+                  setPage(1);
+                }}
+                className="h-10 px-3"
+              >
+                Clear
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  reset();
+                }}
+                className="h-10 px-3"
+              >
+                Reset All
+              </Button>
+            </div>
           </div>
         </div>
       </div>

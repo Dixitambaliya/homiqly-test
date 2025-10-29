@@ -284,8 +284,8 @@ const Users = () => {
           <Button
             onClick={() => fetchUsers({ page: 1, limit })}
             variant="ghost"
+            icon={<RefreshCcw />}
           >
-            <RefreshCcw className="mr-2" />
             Refresh
           </Button>
         </div>

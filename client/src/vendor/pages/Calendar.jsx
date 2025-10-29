@@ -10,6 +10,8 @@ import {
   Calendar as CalendarIcon,
   Clock,
   User,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import StatusBadge from "../../shared/components/StatusBadge";
@@ -19,21 +21,31 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const Calendar = () => {
   const [bookings, setBookings] = useState([]);
+  const [availabilities, setAvailabilities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingAvail, setLoadingAvail] = useState(false);
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState("week");
+  const [viewMode, setViewMode] = useState("month");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedBookings, setSelectedBookings] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creatingBooking, setCreatingBooking] = useState({
-    time: "09:00",
-    serviceName: "",
-    userName: "",
-  });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedAvailToEdit, setSelectedAvailToEdit] = useState(null);
+
+  // create / edit form state for availability
+  const emptyForm = {
+    startDate: "",
+    endDate: "",
+    startTime: "09:00",
+    endTime: "18:00",
+  };
+  const [availabilityForm, setAvailabilityForm] = useState(emptyForm);
 
   useEffect(() => {
     fetchBookings();
+    fetchAvailabilities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchBookings = async () => {
@@ -48,36 +60,62 @@ const Calendar = () => {
     }
   };
 
-  const handleUpdateStatus = async (bookingId, status) => {
+  const fetchAvailabilities = async () => {
     try {
-      const response = await axios.put("/api/booking/approveorrejectbooking", {
-        booking_id: bookingId,
-        status,
-      });
-      if (response.status === 200) {
-        setBookings((prev) =>
-          prev.map((booking) =>
-            booking.booking_id === bookingId || booking.bookingId === bookingId
-              ? { ...booking, bookingStatus: status }
-              : booking
-          )
-        );
-        if (selectedBookings.length > 0) {
-          setSelectedBookings((prev) =>
-            prev.map((booking) =>
-              booking.booking_id === bookingId ||
-              booking.bookingId === bookingId
-                ? { ...booking, bookingStatus: status }
-                : booking
-            )
-          );
-        }
-        toast.success(
-          `Booking ${status === 1 ? "approved" : "rejected"} successfully`
-        );
-      }
+      setLoadingAvail(true);
+      const res = await axios.get("/api/vendor/get-availability");
+      // assuming response shape { vendor_id, availabilities: [...] }
+      setAvailabilities(res.data.availabilities || []);
+      setLoadingAvail(false);
     } catch (err) {
-      toast.error("Failed to update booking status");
+      setLoadingAvail(false);
+      toast.error("Failed to load availabilities");
+    }
+  };
+
+  const createAvailability = async (payload) => {
+    try {
+      const res = await axios.post("/api/vendor/set-availability", payload);
+      toast.success(res.data.message || "Availability set successfully");
+      setShowCreateModal(false);
+      setAvailabilityForm(emptyForm);
+      await fetchAvailabilities();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message || "Failed to create availability";
+      toast.error(msg);
+    }
+  };
+
+  const updateAvailability = async (id, payload) => {
+    try {
+      const res = await axios.put(
+        `/api/vendor/edit-availability/${id}`,
+        payload
+      );
+      toast.success(res.data.message || "Availability updated successfully");
+      setShowEditModal(false);
+      setSelectedAvailToEdit(null);
+      setAvailabilityForm(emptyForm);
+      await fetchAvailabilities();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message || "Failed to update availability";
+      toast.error(msg);
+    }
+  };
+
+  const removeAvailability = async (id) => {
+    if (!window.confirm("Delete this availability?")) return;
+    try {
+      const res = await axios.delete(`/api/vendor/delete-availability/${id}`);
+      toast.success(res.data.message || "Availability deleted successfully");
+      // if side panel showing this availability, clear selection
+      await fetchAvailabilities();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message || "Failed to delete availability";
+      toast.error(msg);
     }
   };
 
@@ -97,6 +135,18 @@ const Calendar = () => {
     return e;
   };
   const isSameDay = (a, b) => a.toDateString() === b.toDateString();
+
+  // check if a date falls inside availability range (inclusive)
+  const isDateInAvailability = (date, av) => {
+    if (!av) return false;
+    // normalize date-only comparisons
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const s = new Date(av.startDate);
+    const e = new Date(av.endDate);
+    const start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const end = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    return d >= start && d <= end;
+  };
 
   // Navigation
   const handlePreviousPeriod = () => {
@@ -163,32 +213,68 @@ const Calendar = () => {
     return map;
   }, [bookings]);
 
-  // Interactions
+  // interactions
   const handleDateClick = (date) => {
     setSelectedDate(date);
     const key = date.toDateString();
     setSelectedBookings(bookingsByDay[key] || []);
   };
-  const handleQuickCreate = () => setShowCreateModal(true);
-  const submitQuickCreate = async () => {
-    try {
-      const date = selectedDate || new Date();
-      const newBooking = {
-        booking_id: `tmp-${Date.now()}`,
-        bookingDate: date.toISOString(),
-        bookingTime: creatingBooking.time,
-        serviceName: creatingBooking.serviceName || "Service",
-        userName: creatingBooking.userName || "Guest",
-        bookingStatus: 0,
-        notes: "Created from quick create",
-      };
-      setBookings((prev) => [newBooking, ...prev]);
-      setShowCreateModal(false);
-      toast.success("Booking created locally (wire to API if needed)");
-    } catch (err) {
-      toast.error("Failed to create booking");
-    }
+
+  const openCreateModalForDate = (date) => {
+    const iso = date ? formatDate(date) : "";
+    setAvailabilityForm({
+      startDate: iso || "",
+      endDate: iso || "",
+      startTime: "09:00",
+      endTime: "18:00",
+    });
+    setShowCreateModal(true);
   };
+
+  const submitCreateAvailability = async () => {
+    // basic validation
+    const { startDate, endDate, startTime, endTime } = availabilityForm;
+    if (!startDate || !endDate || !startTime || !endTime) {
+      toast.error("All fields are required");
+      return;
+    }
+    // payload shape matching your API screenshot
+    await createAvailability({ startDate, endDate, startTime, endTime });
+  };
+
+  const openEditModal = (av) => {
+    setSelectedAvailToEdit(av);
+    setAvailabilityForm({
+      startDate: av.startDate,
+      endDate: av.endDate,
+      startTime: av.startTime || "09:00",
+      endTime: av.endTime || "18:00",
+    });
+    setShowEditModal(true);
+  };
+
+  const submitEditAvailability = async () => {
+    if (!selectedAvailToEdit) return;
+    const { startDate, endDate, startTime, endTime } = availabilityForm;
+    if (!startDate || !endDate || !startTime || !endTime) {
+      toast.error("All fields are required");
+      return;
+    }
+    await updateAvailability(selectedAvailToEdit.vendor_availability_id, {
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+    });
+  };
+
+  // selected date -> availabilities shown in side panel
+  const selectedDateAvailabilities = useMemo(() => {
+    if (!selectedDate) return [];
+    return availabilities.filter((av) =>
+      isDateInAvailability(selectedDate, av)
+    );
+  }, [selectedDate, availabilities]);
 
   // --- UI Renders ---
   const renderHeader = () => {
@@ -256,12 +342,14 @@ const Calendar = () => {
             </button>
           ))}
         </div>
-        <button
-          onClick={handleQuickCreate}
-          className="ml-3 px-2 py-1 flex items-center gap-2 bg-blue-600 text-white rounded-full shadow hover:bg-blue-700 transition"
-        >
-          <Plus size={16} /> New
-        </button>
+        <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <button
+            onClick={() => openCreateModalForDate(selectedDate || new Date())}
+            className="ml-3 px-2 py-1 flex items-center gap-2 bg-blue-600 text-white rounded-full shadow hover:bg-blue-700 transition"
+          >
+            <Plus size={16} /> New Availability
+          </button>
+        </div>
       </div>
     );
   };
@@ -286,6 +374,11 @@ const Calendar = () => {
               const dayBookings = bookingsByDay[key] || [];
               const isCurrentMonth = day.getMonth() === currentDate.getMonth();
               const isToday = isSameDay(day, new Date());
+              // find any availabilities for this day
+              const dayAvs = availabilities.filter((av) =>
+                isDateInAvailability(day, av)
+              );
+              const avCount = dayAvs.length;
               return (
                 <div
                   key={key}
@@ -297,7 +390,8 @@ const Calendar = () => {
                       isToday
                         ? "border-blue-600 border-2 bg-blue-50"
                         : "border-gray-200"
-                    } rounded-md hover:bg-blue-100`}
+                    }
+                    rounded-md hover:bg-blue-100`}
                 >
                   <div className="flex justify-between items-center">
                     <div
@@ -307,6 +401,13 @@ const Calendar = () => {
                     >
                       {day.getDate()}
                     </div>
+
+                    {avCount > 0 && (
+                      <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-2 rounded-full">
+                        Av: {avCount}
+                      </span>
+                    )}
+
                     {dayBookings.length > 0 && (
                       <span className="ml-1 text-[10px] bg-blue-100 text-blue-600 px-2 rounded-full">
                         {dayBookings.length}
@@ -314,7 +415,30 @@ const Calendar = () => {
                     )}
                   </div>
                   <div className="mt-2 space-y-1 max-h-[60px] overflow-hidden">
-                    {dayBookings.slice(0, 3).map((b) => (
+                    {/* show some availabilities first */}
+                    {dayAvs.slice(0, 2).map((a) => (
+                      <div
+                        key={
+                          a.vendor_availability_id || `${key}-${a.startTime}`
+                        }
+                        className="text-xs py-1 px-2 rounded truncate bg-green-50 text-green-800"
+                      >
+                        {a.startTime ? a.startTime.substring(0, 5) : ""} -{" "}
+                        {a.endTime ? a.endTime.substring(0, 5) : ""} •{" "}
+                        {a.startDate === a.endDate
+                          ? formatDate(new Date(a.startDate))
+                          : `${formatDate(
+                              new Date(a.startDate)
+                            )} → ${formatDate(new Date(a.endDate))}`}
+                      </div>
+                    ))}
+                    {dayAvs.length > 2 && (
+                      <div className="text-xs text-right text-green-500">
+                        +{dayAvs.length - 2} more
+                      </div>
+                    )}
+                    {/* then bookings */}
+                    {dayBookings.slice(0, 2).map((b) => (
                       <div
                         key={b.booking_id || b.bookingId}
                         className={`text-xs py-1 px-2 rounded truncate
@@ -333,11 +457,6 @@ const Calendar = () => {
                         {b.userName}
                       </div>
                     ))}
-                    {dayBookings.length > 3 && (
-                      <div className="text-xs text-right text-gray-400">
-                        +{dayBookings.length - 3} more
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -393,13 +512,38 @@ const Calendar = () => {
           {weekDays.map((d) => {
             const key = d.toDateString();
             const dayBookings = bookingsByDay[key] || [];
+            const dayAvs = availabilities.filter((av) =>
+              isDateInAvailability(d, av)
+            );
             return (
               <div
                 key={key}
                 className={`min-h-full p-2 relative ${
                   isSameDay(d, new Date()) ? "bg-blue-50" : ""
                 }`}
+                onClick={() => handleDateClick(d)}
               >
+                {/* show availabilities as thin blocks at top */}
+                {dayAvs.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                    {dayAvs.map((a) => (
+                      <div
+                        key={
+                          a.vendor_availability_id || `${key}-${a.startTime}`
+                        }
+                        className="text-[11px] px-2 py-1 rounded bg-green-50 text-green-800 shadow-sm truncate"
+                      >
+                        {a.startTime?.substring(0, 5)} -{" "}
+                        {a.endTime?.substring(0, 5)} •{" "}
+                        {a.startDate === a.endDate
+                          ? formatDate(new Date(a.startDate))
+                          : `${formatDate(
+                              new Date(a.startDate)
+                            )} → ${formatDate(new Date(a.endDate))}`}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {dayBookings.length > 0 ? (
                   dayBookings.map((b) => {
                     const hour =
@@ -446,6 +590,9 @@ const Calendar = () => {
   const renderDayMain = () => {
     const key = currentDate.toDateString();
     const dayBookings = bookingsByDay[key] || [];
+    const dayAvs = availabilities.filter((av) =>
+      isDateInAvailability(currentDate, av)
+    );
     return (
       <div className="rounded-xl bg-white shadow-md border overflow-hidden">
         <div className="p-5 border-b bg-gray-50">
@@ -458,54 +605,82 @@ const Calendar = () => {
             })}
           </h3>
         </div>
-        <div className="divide-y">
-          {dayBookings.length > 0 ? (
-            dayBookings.map((b) => (
-              <div
-                key={b.booking_id || b.bookingId}
-                className="p-4 flex items-start justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-2 mb-1 text-sm text-gray-500">
-                    <Clock size={16} /> <span>{formatTime(b.bookingTime)}</span>
-                  </div>
-                  <h4 className="font-bold text-gray-700 truncate">
-                    {b.serviceName}
-                  </h4>
-                  <div className="text-sm text-gray-600 mt-1">
-                    <User size={16} className="inline" /> {b.userName}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end">
-                  <StatusBadge status={b.bookingStatus} />
-                  {b.bookingStatus === 0 && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() =>
-                          handleUpdateStatus(b.booking_id || b.bookingId, 1)
-                        }
-                        className="px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-xs hover:bg-green-100"
-                      >
-                        <CheckCircle className="mr-1" size={16} /> Accept
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleUpdateStatus(b.booking_id || b.bookingId, 2)
-                        }
-                        className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs hover:bg-red-100"
-                      >
-                        <XCircle className="mr-1" size={16} /> Reject
-                      </button>
+        <div className="p-4">
+          {dayAvs.length > 0 ? (
+            <div className="mb-4 space-y-2">
+              {dayAvs.map((a) => (
+                <div
+                  key={a.vendor_availability_id}
+                  className="flex items-center justify-between bg-green-50 p-3 rounded"
+                >
+                  <div>
+                    <div className="text-sm font-medium">
+                      {a.startTime} - {a.endTime}
                     </div>
-                  )}
+                    <div className="text-xs text-gray-600">
+                      {a.startDate}{" "}
+                      {a.startDate !== a.endDate && `→ ${a.endDate}`}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           ) : (
-            <div className="p-8 text-center text-gray-400">
-              No bookings scheduled for this day
+            <div className="mb-4 text-sm text-gray-500">
+              No availability for this day
             </div>
           )}
+
+          <div className="divide-y">
+            {dayBookings.length > 0 ? (
+              dayBookings.map((b) => (
+                <div
+                  key={b.booking_id || b.bookingId}
+                  className="p-4 flex items-start justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 text-sm text-gray-500">
+                      <Clock size={16} />{" "}
+                      <span>{formatTime(b.bookingTime)}</span>
+                    </div>
+                    <h4 className="font-bold text-gray-700 truncate">
+                      {b.serviceName}
+                    </h4>
+                    <div className="text-sm text-gray-600 mt-1">
+                      <User size={16} className="inline" /> {b.userName}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <StatusBadge status={b.bookingStatus} />
+                    {b.bookingStatus === 0 && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() =>
+                            handleUpdateStatus(b.booking_id || b.bookingId, 1)
+                          }
+                          className="px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-xs hover:bg-green-100"
+                        >
+                          <CheckCircle className="mr-1" size={16} /> Accept
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleUpdateStatus(b.booking_id || b.bookingId, 2)
+                          }
+                          className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs hover:bg-red-100"
+                        >
+                          <XCircle className="mr-1" size={16} /> Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-400">
+                No bookings scheduled for this day
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -516,10 +691,11 @@ const Calendar = () => {
       return (
         <div className="hidden lg:block p-8 border-l bg-white rounded-xl shadow-md">
           <div className="text-center text-gray-400">
-            Select a day to view bookings
+            Select a day to view bookings & availability
           </div>
         </div>
       );
+
     return (
       <aside className="w-full lg:w-[340px] p-5 bg-white border-l rounded-xl shadow-md">
         <div className="flex items-start justify-between mb-2">
@@ -534,7 +710,9 @@ const Calendar = () => {
             </h3>
             <p className="mt-1 text-sm text-gray-500">
               {selectedBookings.length} booking
-              {selectedBookings.length !== 1 ? "s" : ""}
+              {selectedBookings.length !== 1 ? "s" : ""} •{" "}
+              {selectedDateAvailabilities.length} availability
+              {selectedDateAvailabilities.length !== 1 ? "s" : ""}
             </p>
           </div>
           <button
@@ -547,94 +725,116 @@ const Calendar = () => {
             <XCircle className="text-gray-600" />
           </button>
         </div>
-        <div className="mt-4 divide-y">
-          {selectedBookings.length > 0 ? (
-            selectedBookings
-              .slice()
-              .sort((a, b) =>
-                (a.bookingTime || "").localeCompare(b.bookingTime || "")
-              )
-              .map((b) => (
-                <div key={b.booking_id || b.bookingId} className="py-3">
-                  <div className="flex gap-3">
-                    <div className="flex items-center justify-center w-10 h-10 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full">
-                      {b.userName
-                        ? b.userName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .slice(0, 2)
-                            .join("")
-                            .toUpperCase()
-                        : "U"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium">
-                          <Clock className="w-3 h-3 mr-1" />{" "}
-                          <span>{formatTime(b.bookingTime)}</span>
-                        </span>
-                        <span className="ml-2 text-sm font-medium truncate">
-                          {b.serviceName}
-                        </span>
+
+        <div className="mt-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-semibold">Availabilities</h4>
+            <button
+              onClick={() => openCreateModalForDate(selectedDate)}
+              className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded"
+            >
+              Add
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {selectedDateAvailabilities.length > 0 ? (
+              selectedDateAvailabilities
+                .slice()
+                .sort((a, b) =>
+                  (a.startTime || "").localeCompare(b.startTime || "")
+                )
+                .map((a) => (
+                  <div
+                    key={a.vendor_availability_id}
+                    className="p-3 rounded border bg-green-50 flex items-start justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">
+                        {a.startTime} - {a.endTime}
                       </div>
-                      <h4 className="text-sm font-semibold text-gray-800 truncate">
-                        {b.userName}
-                      </h4>
-                      {b.notes && (
-                        <p className="mt-2 text-sm text-gray-600">
-                          <span className="font-medium">Notes:</span> {b.notes}
-                        </p>
-                      )}
+                      <div className="text-xs text-gray-600 truncate">
+                        {a.startDate}{" "}
+                        {a.startDate !== a.endDate && `→ ${a.endDate}`}
+                      </div>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <StatusBadge status={b.bookingStatus} />
+                    <div className="ml-3 flex flex-col gap-2">
+                      <button
+                        onClick={() => openEditModal(a)}
+                        className="p-1 rounded border text-xs"
+                        title="Edit"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          removeAvailability(a.vendor_availability_id)
+                        }
+                        className="p-1 rounded border text-xs"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
-                  {b.bookingStatus === 0 && (
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() =>
-                          handleUpdateStatus(b.booking_id || b.bookingId, 1)
-                        }
-                        className="px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-xs"
-                      >
-                        <CheckCircle className="mr-2" size={16} /> Accept
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleUpdateStatus(b.booking_id || b.bookingId, 2)
-                        }
-                        className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs"
-                      >
-                        <XCircle className="mr-2" size={16} /> Reject
-                      </button>
+                ))
+            ) : (
+              <div className="py-3 text-sm text-gray-500">No availability</div>
+            )}
+          </div>
+
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold mb-2">Bookings</h4>
+            <div className="divide-y">
+              {selectedBookings.length > 0 ? (
+                selectedBookings
+                  .slice()
+                  .sort((a, b) =>
+                    (a.bookingTime || "").localeCompare(b.bookingTime || "")
+                  )
+                  .map((b) => (
+                    <div
+                      key={b.booking_id || b.bookingId}
+                      className="py-3 flex items-start justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {b.serviceName}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {b.bookingTime} • {b.userName}
+                        </div>
+                      </div>
+                      <div className="ml-3 text-right">
+                        <StatusBadge status={b.bookingStatus} />
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))
-          ) : (
-            <div className="py-8 text-center text-gray-400">
-              No bookings scheduled for this day
+                  ))
+              ) : (
+                <div className="py-6 text-sm text-gray-500">No bookings</div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </aside>
     );
   };
 
   //--- Main Render
-  if (loading)
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     );
-  if (error)
+  }
+  if (error) {
     return (
       <div className="p-4 rounded-md bg-red-50">
         <p className="text-red-500">{error}</p>
       </div>
     );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-7">
@@ -652,12 +852,12 @@ const Calendar = () => {
         </div>
       </div>
 
-      {/* Create Modal */}
+      {/* Create Availability Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-8">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">New Booking</h3>
+              <h3 className="text-lg font-bold">New Availability</h3>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="p-2 rounded-full hover:bg-gray-100"
@@ -665,46 +865,74 @@ const Calendar = () => {
                 <XCircle />
               </button>
             </div>
+
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-600">Time</label>
+                <label className="block text-xs text-gray-600">
+                  Start date
+                </label>
                 <input
-                  value={creatingBooking.time}
+                  value={availabilityForm.startDate}
                   onChange={(e) =>
-                    setCreatingBooking((s) => ({ ...s, time: e.target.value }))
-                  }
-                  className="w-full border rounded p-2 text-sm"
-                  type="time"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600">Service</label>
-                <input
-                  value={creatingBooking.serviceName}
-                  onChange={(e) =>
-                    setCreatingBooking((s) => ({
+                    setAvailabilityForm((s) => ({
                       ...s,
-                      serviceName: e.target.value,
+                      startDate: e.target.value,
                     }))
                   }
                   className="w-full border rounded p-2 text-sm"
-                  placeholder="Service name"
+                  type="date"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600">Customer</label>
+                <label className="block text-xs text-gray-600">End date</label>
                 <input
-                  value={creatingBooking.userName}
+                  value={availabilityForm.endDate}
                   onChange={(e) =>
-                    setCreatingBooking((s) => ({
+                    setAvailabilityForm((s) => ({
                       ...s,
-                      userName: e.target.value,
+                      endDate: e.target.value,
                     }))
                   }
                   className="w-full border rounded p-2 text-sm"
-                  placeholder="Customer name"
+                  type="date"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600">
+                    Start time
+                  </label>
+                  <input
+                    value={availabilityForm.startTime}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        startTime: e.target.value,
+                      }))
+                    }
+                    className="w-full border rounded p-2 text-sm"
+                    type="time"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600">
+                    End time
+                  </label>
+                  <input
+                    value={availabilityForm.endTime}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        endTime: e.target.value,
+                      }))
+                    }
+                    className="w-full border rounded p-2 text-sm"
+                    type="time"
+                  />
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowCreateModal(false)}
@@ -713,11 +941,125 @@ const Calendar = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={submitQuickCreate}
+                  onClick={submitCreateAvailability}
                   className="px-3 py-1 text-sm rounded bg-blue-600 text-white"
                 >
                   Create
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Availability Modal */}
+      {showEditModal && selectedAvailToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Edit Availability</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                <XCircle />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-600">
+                  Start date
+                </label>
+                <input
+                  value={availabilityForm.startDate}
+                  onChange={(e) =>
+                    setAvailabilityForm((s) => ({
+                      ...s,
+                      startDate: e.target.value,
+                    }))
+                  }
+                  className="w-full border rounded p-2 text-sm"
+                  type="date"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600">End date</label>
+                <input
+                  value={availabilityForm.endDate}
+                  onChange={(e) =>
+                    setAvailabilityForm((s) => ({
+                      ...s,
+                      endDate: e.target.value,
+                    }))
+                  }
+                  className="w-full border rounded p-2 text-sm"
+                  type="date"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600">
+                    Start time
+                  </label>
+                  <input
+                    value={availabilityForm.startTime}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        startTime: e.target.value,
+                      }))
+                    }
+                    className="w-full border rounded p-2 text-sm"
+                    type="time"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600">
+                    End time
+                  </label>
+                  <input
+                    value={availabilityForm.endTime}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        endTime: e.target.value,
+                      }))
+                    }
+                    className="w-full border rounded p-2 text-sm"
+                    type="time"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div>
+                  <button
+                    onClick={() =>
+                      removeAvailability(
+                        selectedAvailToEdit.vendor_availability_id
+                      )
+                    }
+                    className="px-3 py-1 text-sm rounded border text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="px-3 py-1 text-sm rounded border"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitEditAvailability}
+                    className="px-3 py-1 text-sm rounded bg-blue-600 text-white"
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
             </div>
           </div>
