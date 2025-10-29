@@ -593,8 +593,8 @@ const verifyOtp = asyncHandler(async (req, res) => {
     );
     const user = rows[0];
 
-    // ✅ Step 2: If user has password and provided email + password → direct login
-    if (email && password && user && user.password && user.password.trim() !== "") {
+    // ✅ Step 2: Direct password-based login (email OR phone)
+    if ((email || phone) && password && user && user.password && user.password.trim() !== "") {
         const isMatch = await bcrypt.compare(password, user.password || "");
         if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
@@ -604,23 +604,9 @@ const verifyOtp = asyncHandler(async (req, res) => {
         );
 
         return res.status(200).json({
-            message: "Login successful via email/password",
-            token: loginToken,
-        });
-    }
-
-    // ✅ Step 3: If user has password and provided email + password → direct login
-    if (phone && password && user && user.password && user.password.trim() !== "") {
-        const isMatch = await bcrypt.compare(password, user.password || "");
-        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
-
-        const loginToken = jwt.sign(
-            { user_id: user.user_id, phone: user.phone, email: user.email },
-            process.env.JWT_SECRET
-        );
-
-        return res.status(200).json({
-            message: "Login successful via phone/password",
+            message: email
+                ? "Login successful via email/password"
+                : "Login successful via phone/password",
             token: loginToken,
         });
     }

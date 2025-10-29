@@ -35,7 +35,7 @@ const getAvailability = asyncHandler(async (req, res) => {
         const vendor_id = req.user.vendor_id;
 
         const [availability] = await db.query(
-            "SELECT * FROM vendor_availability WHERE vendor_id = ? ORDER BY start_date ASC",
+            "SELECT * FROM vendor_availability WHERE vendor_id = ? ORDER BY startDate ASC",
             [vendor_id]
         );
 
