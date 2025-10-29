@@ -227,10 +227,10 @@ const deleteAvailability = asyncHandler(async (req, res) => {
 
             return res.json({
                 message: "Availability split successfully after partial deletion",
-                newRanges: [
-                    { startDate: existing.startDate, endDate: leftRangeEnd },
-                    { startDate: rightRangeStart, endDate: existing.endDate }
-                ]
+                // newRanges: [
+                //     { startDate: existing.startDate, endDate: leftRangeEnd },
+                //     { startDate: rightRangeStart, endDate: existing.endDate }
+                // ]
             });
         }
 
