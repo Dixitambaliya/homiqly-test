@@ -1,5 +1,6 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
+const moment = require('moment-timezone');
 
 const setAvailability = asyncHandler(async (req, res) => {
     try {
@@ -39,14 +40,83 @@ const getAvailability = asyncHandler(async (req, res) => {
             [vendor_id]
         );
 
-        res.json({ vendor_id: vendor_id, availabilities: availability });
+        // 🧠 Format date and time nicely using Moment
+        const formattedAvailability = availability.map((item) => ({
+            ...item,
+            startDate: moment(item.startDate).format("YYYY-MM-DD"),
+            endDate: moment(item.endDate).format("YYYY-MM-DD"),
+            startTime: moment(item.startTime, "HH:mm:ss").format("HH:mm"),
+            endTime: moment(item.endTime, "HH:mm:ss").format("HH:mm"),
+            created_at: moment(item.created_at).format("YYYY-MM-DD HH:mm"),
+            updated_at: moment(item.updated_at).format("YYYY-MM-DD HH:mm"),
+        }));
+
+        res.json({ vendor_id, availabilities: formattedAvailability });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: "Error fetching availability", error });
+    }
+});
+
+const editAvailability = asyncHandler(async (req, res) => {
+    try {
+        const vendor_id = req.user.vendor_id;
+        const { vendor_availability_id } = req.params;
+        const { startDate, endDate, startTime, endTime } = req.body;
+
+        // 🧾 Validate input
+        if (!startDate || !endDate || !startTime || !endTime) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        if (new Date(startDate) > new Date(endDate)) {
+            return res.status(400).json({ message: "Start date cannot be after end date" });
+        }
+
+        // 🕓 Format time to proper 24-hour format
+        const formattedStartTime = moment(startTime, ["HH:mm", "hh:mm A"]).format("HH:mm:ss");
+        const formattedEndTime = moment(endTime, ["HH:mm", "hh:mm A"]).format("HH:mm:ss");
+
+        // ✅ Check if availability belongs to vendor
+        const [existing] = await db.query(
+            "SELECT * FROM vendor_availability WHERE vendor_availability_id = ? AND vendor_id = ?",
+            [vendor_availability_id, vendor_id]
+        );
+
+        if (existing.length === 0) {
+            return res.status(404).json({ message: "Availability not found or not authorized" });
+        }
+
+        // 🧩 Update record
+        await db.query(
+            `UPDATE vendor_availability 
+             SET startDate = ?, endDate = ?, startTime = ?, endTime = ? 
+             WHERE vendor_availability_id = ? AND vendor_id = ?`,
+            [startDate, endDate, formattedStartTime, formattedEndTime, vendor_availability_id, vendor_id]
+        );
+
+        res.json({ message: "Availability updated successfully" });
+
+    } catch (error) {
+        console.error("Error updating availability:", error);
+        res.status(500).json({ message: "Error updating availability", error });
+    }
+});
+
+const deleteAvailability = asyncHandler(async (req, res) => {
+    try {
+        const { vendor_availability_id } = req.params;
+        await db.query("DELETE FROM vendor_availability WHERE vendor_availability_id = ?", [vendor_availability_id]);
+        res.json({ message: "Availability deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Error deleting availability", error });
     }
 });
 
 
 module.exports = {
     setAvailability,
-    getAvailability
+    getAvailability,
+    deleteAvailability,
+    editAvailability
 };
