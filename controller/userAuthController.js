@@ -5,9 +5,9 @@ const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
 const { assignWelcomeCode } = require("./promoCode");
 const twilio = require('twilio');
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail } = require("../config/mailer");
 
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 // Generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
@@ -550,7 +550,6 @@ const sendOtp = asyncHandler(async (req, res) => {
                 userEmail: email,
                 code: otp,
             });
-            console.log(`📧 OTP sent via Email to ${email}`);
         } catch (error) {
             console.error("❌ Failed to send email OTP:", error.message);
         }
@@ -610,7 +609,23 @@ const verifyOtp = asyncHandler(async (req, res) => {
         });
     }
 
-    // ✅ Step 3: OTP is required for users without password or phone login
+    // ✅ Step 3: If user has password and provided email + password → direct login
+    if (phone && password && user && user.password && user.password.trim() !== "") {
+        const isMatch = await bcrypt.compare(password, user.password || "");
+        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+        const loginToken = jwt.sign(
+            { user_id: user.user_id, phone: user.phone, email: user.email },
+            process.env.JWT_SECRET
+        );
+
+        return res.status(200).json({
+            message: "Login successful via phone/password",
+            token: loginToken,
+        });
+    }
+
+    // ✅ Step 4: OTP is required for users without password or phone login
     if (!otp) {
         return res.status(400).json({ message: "OTP is required for the login" });
     }
