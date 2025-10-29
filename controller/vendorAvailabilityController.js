@@ -64,7 +64,6 @@ const editAvailability = asyncHandler(async (req, res) => {
         const { vendor_availability_id } = req.params;
         const { startDate, endDate, startTime, endTime } = req.body;
 
-        // 🧾 Validate input
         if (!startDate || !endDate || !startTime || !endTime) {
             return res.status(400).json({ message: "All fields are required" });
         }
@@ -73,11 +72,10 @@ const editAvailability = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Start date cannot be after end date" });
         }
 
-        // 🕓 Format time to proper 24-hour format
         const formattedStartTime = moment(startTime, ["HH:mm", "hh:mm A"]).format("HH:mm:ss");
         const formattedEndTime = moment(endTime, ["HH:mm", "hh:mm A"]).format("HH:mm:ss");
 
-        // ✅ Check if availability belongs to vendor
+        // ✅ Check if availability exists
         const [existing] = await db.query(
             "SELECT * FROM vendor_availability WHERE vendor_availability_id = ? AND vendor_id = ?",
             [vendor_availability_id, vendor_id]
@@ -87,16 +85,37 @@ const editAvailability = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Availability not found or not authorized" });
         }
 
-        // 🧩 Update record
+        // ✅ Check for booked dates in the new range
+        const [bookings] = await db.query(
+            `
+            SELECT DATE(bookingDate) AS bookedDate
+            FROM service_booking
+            WHERE vendor_id = ?
+              AND bookingStatus NOT IN ('2', '4') -- exclude cancelled/completed
+              AND bookingDate BETWEEN ? AND ?
+            `,
+            [vendor_id, startDate, endDate]
+        );
+
+        if (bookings.length > 0) {
+            const bookedDates = bookings.map(b => moment(b.bookedDate).format("YYYY-MM-DD"));
+            return res.status(400).json({
+                message: "Cannot update availability — there are existing bookings within the selected range.",
+                bookedDates
+            });
+        }
+
+        // ✅ Safe to update (no bookings in this range)
         await db.query(
-            `UPDATE vendor_availability 
-             SET startDate = ?, endDate = ?, startTime = ?, endTime = ? 
-             WHERE vendor_availability_id = ? AND vendor_id = ?`,
+            `
+            UPDATE vendor_availability
+            SET startDate = ?, endDate = ?, startTime = ?, endTime = ?
+            WHERE vendor_availability_id = ? AND vendor_id = ?
+            `,
             [startDate, endDate, formattedStartTime, formattedEndTime, vendor_availability_id, vendor_id]
         );
 
-        res.json({ message: "Availability updated successfully" });
-
+        res.json({ message: "Availability updated successfully", updatedRange: { startDate, endDate } });
     } catch (error) {
         console.error("Error updating availability:", error);
         res.status(500).json({ message: "Error updating availability", error });
