@@ -337,7 +337,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         // 1️⃣ Check if user exists
         const [existingUsers] = await db.query(userAuthQueries.userMailCheckGoogle, [email]);
         let user, user_id;
-        let is_google_register = true; // false = already registered
+        let is_google_register = false; // false = already registered
 
         if (!existingUsers || existingUsers.length === 0) {
             // 2️⃣ Not found → auto-register a new Google user
@@ -349,7 +349,7 @@ const googleLogin = asyncHandler(async (req, res) => {
 
             user_id = result.insertId;
             user = { user_id, email, firstName, lastName };
-            is_google_register = false; // true for new user
+            is_google_register = true; // true for new user
         } else {
             user = existingUsers[0];
             user_id = user.user_id;
