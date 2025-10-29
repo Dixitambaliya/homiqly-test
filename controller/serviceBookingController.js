@@ -418,7 +418,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -1087,93 +1086,134 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
     try {
         const { date, time, package_id, sub_package_id, totalTime } = req.query;
 
+        // 🧩 Basic validations
         if (!date || !time || !package_id || !sub_package_id || !totalTime) {
             return res.status(400).json({ message: "All required parameters are needed" });
         }
 
-        const cartTotalTime = Number(totalTime); // requested booking duration in minutes
-        const vendorBreakMinutes = 60; // break after each booking
+        const vendorBreakMinutes = 60;
+        const cartTotalTime = Number(totalTime);
 
-        // Convert package/sub-package IDs to arrays
         const packageIds = package_id.split(",").map(Number).filter(Boolean);
         const subPackageIds = sub_package_id.split(",").map(Number).filter(Boolean);
 
         if (!packageIds.length || !subPackageIds.length) {
-            return res.status(400).json({ message: "At least one valid package_id and sub_package_id is required" });
+            return res.status(400).json({ message: "Invalid package or sub-package IDs" });
         }
 
-        // Build all package+sub-package pairs
-        const pairs = [];
-        packageIds.forEach(pkgId => subPackageIds.forEach(subId => pairs.push({ package_id: pkgId, sub_package_id: subId })));
+        // 🧠 Step 1: Get vendors that have ANY of the given packages/subpackages
+        const [vendorPackages] = await db.query(`
+      SELECT 
+          v.vendor_id,
+          v.vendorType,
+          IF(v.vendorType='company', cdet.companyName, idet.name) AS vendorName,
+          IF(v.vendorType='company', cdet.companyEmail, idet.email) AS vendorEmail,
+          IF(v.vendorType='company', cdet.companyPhone, idet.phone) AS vendorPhone,
+          IF(v.vendorType='company', cdet.profileImage, idet.profileImage) AS profileImage,
+          vpf.package_id,
+          vpf.package_item_id
+      FROM vendors v
+      INNER JOIN vendor_package_items_flat vpf ON vpf.vendor_id = v.vendor_id
+      LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
+      LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
+      LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
+      WHERE (vpf.package_id IN (?) OR vpf.package_item_id IN (?))
+      AND vst.manual_assignment_enabled = 1
+    `, [packageIds, subPackageIds]);
 
-        const pairPlaceholders = pairs.map(() => `(?, ?)`).join(",");
-        const pairValues = pairs.map(p => [p.package_id, p.sub_package_id]).flat();
+        if (!vendorPackages.length) {
+            return res.status(200).json({ message: "No vendors found for given packages", vendors: [] });
+        }
 
-        const sql = `
-            SELECT 
-                v.vendor_id,
-                v.vendorType,
-                IF(v.vendorType='company', cdet.companyName, idet.name) AS vendorName,
-                IF(v.vendorType='company', cdet.companyEmail, idet.email) AS vendorEmail,
-                IF(v.vendorType='company', cdet.companyPhone, idet.phone) AS vendorPhone,
-                IF(v.vendorType='company', cdet.profileImage, idet.profileImage) AS profileImage,
-                IFNULL(AVG(r.rating), 0) AS avgRating,
-                COUNT(r.rating_id) AS totalReviews,
-                GROUP_CONCAT(DISTINCT vpf.package_id) AS package_ids,
-                GROUP_CONCAT(DISTINCT vpf.package_item_id) AS package_item_ids
-            FROM vendors v
-            LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
-            LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
-            LEFT JOIN vendor_settings vst ON vst.vendor_id = v.vendor_id
-            INNER JOIN (
-                SELECT vendor_id
-                FROM vendor_package_items_flat
-                WHERE (package_id, package_item_id) IN (${pairPlaceholders})
-                GROUP BY vendor_id
-                HAVING COUNT(DISTINCT CONCAT(package_id, '-', IFNULL(package_item_id,0))) = ?
-            ) vpf_filtered ON vpf_filtered.vendor_id = v.vendor_id
-            INNER JOIN vendor_package_items_flat vpf ON vpf.vendor_id = v.vendor_id
-            LEFT JOIN service_booking sb_rating ON sb_rating.vendor_id = v.vendor_id
-            LEFT JOIN ratings r ON r.booking_id = sb_rating.booking_id AND r.package_id = vpf.package_id
-            WHERE vst.manual_assignment_enabled = 1
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM service_booking sb
-                  WHERE sb.vendor_id = v.vendor_id
-                    AND sb.bookingDate = ?
-                    AND (
-                        -- Requested booking start < existing booking end (including vendor break)
-                        STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
-                          < DATE_ADD(STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'), INTERVAL sb.totalTime + ${vendorBreakMinutes} MINUTE)
-                        AND
-                        -- Existing booking start < requested booking end (including break)
-                        STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')
-                          < DATE_ADD(STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s'), INTERVAL ? + ${vendorBreakMinutes} MINUTE)
-                    )
-              )
-            GROUP BY v.vendor_id
-            ORDER BY vendorName ASC
-        `;
+        // 🧩 Step 2: Group by vendor and check that they have *all* required packages/subpackages
+        const requiredPackages = new Set(packageIds);
+        const requiredItems = new Set(subPackageIds);
+        const vendorMap = {};
 
-        const params = [
-            ...pairValues,
-            pairs.length,
-            date,              // bookingDate in NOT EXISTS
-            date, time,        // requested start
-            date, time, cartTotalTime // requested end + break
-        ];
+        for (const vp of vendorPackages) {
+            if (!vendorMap[vp.vendor_id]) {
+                vendorMap[vp.vendor_id] = {
+                    vendor: {
+                        vendor_id: vp.vendor_id,
+                        vendorType: vp.vendorType,
+                        vendorName: vp.vendorName,
+                        vendorEmail: vp.vendorEmail,
+                        vendorPhone: vp.vendorPhone,
+                        profileImage: vp.profileImage
+                    },
+                    packages: new Set(),
+                    items: new Set()
+                };
+            }
+            vendorMap[vp.vendor_id].packages.add(vp.package_id);
+            vendorMap[vp.vendor_id].items.add(vp.package_item_id);
+        }
 
-        const [vendors] = await db.query(sql, params);
+        const matchingVendors = Object.values(vendorMap).filter(v => {
+            const hasAllPackages = [...requiredPackages].every(p => v.packages.has(p));
+            const hasAllItems = [...requiredItems].every(i => v.items.has(i));
+            return hasAllPackages && hasAllItems;
+        });
 
-        const vendorsWithPackageArray = vendors.map(v => ({
-            ...v,
-            package_ids: v.package_ids ? v.package_ids.split(',').map(Number) : [],
-            package_item_ids: v.package_item_ids ? v.package_item_ids.split(',').map(Number) : [],
-        }));
+        if (!matchingVendors.length) {
+            return res.status(200).json({ message: "No vendors found matching all packages/subpackages", vendors: [] });
+        }
 
+        // 🕒 Step 3: Check availability and booking conflicts
+        const availableVendors = [];
+
+        for (const v of matchingVendors) {
+            const vendorId = v.vendor.vendor_id;
+
+            // ✅ Check vendor availability
+            const [[isAvailable]] = await db.query(`
+        SELECT COUNT(*) AS available
+        FROM vendor_availability va
+        WHERE va.vendor_id = ?
+        AND ? BETWEEN va.startDate AND va.endDate
+        AND TIME(?) BETWEEN va.startTime AND va.endTime
+      `, [vendorId, date, time]);
+
+            if (!isAvailable.available) continue;
+
+            // ❌ Check booking overlap
+            const [[isBooked]] = await db.query(`
+        SELECT COUNT(*) AS overlap
+        FROM service_booking sb
+        WHERE sb.vendor_id = ?
+        AND sb.bookingDate = ?
+        AND (
+          STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
+            < DATE_ADD(STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'), INTERVAL sb.totalTime + ${vendorBreakMinutes} MINUTE)
+          AND
+          STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')
+            < DATE_ADD(STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s'), INTERVAL ? + ${vendorBreakMinutes} MINUTE)
+        )
+      `, [vendorId, date, date, time, date, time, cartTotalTime]);
+
+            if (isBooked.overlap > 0) continue;
+
+            // ⭐ Step 4: Get average rating + total reviews
+            const [[rating]] = await db.query(`
+        SELECT 
+          IFNULL(AVG(r.rating), 0) AS avgRating,
+          COUNT(r.rating_id) AS totalReviews
+        FROM ratings r
+        INNER JOIN service_booking sb ON sb.booking_id = r.booking_id
+        WHERE sb.vendor_id = ?
+      `, [vendorId]);
+
+            availableVendors.push({
+                ...v.vendor,
+                avgRating: Number(rating.avgRating),
+                totalReviews: rating.totalReviews
+            });
+        }
+
+        // ✅ Final response
         res.status(200).json({
             message: "Available vendors fetched successfully",
-            vendors: vendorsWithPackageArray
+            vendors: availableVendors
         });
 
     } catch (err) {
@@ -1181,6 +1221,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 
 
