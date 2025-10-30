@@ -96,7 +96,7 @@ export default function Pagination({
   return (
     <div
       className={
-        "flex flex-row items-center justify-end gap-3 p-4  " +
+        "flex flex-col sm:flex-row items-center justify-between gap-3 p-4 w-full" +
         className
       }
     >
