@@ -57,83 +57,39 @@ const VendorBookings = () => {
     }
   }, []);
 
-  // fetch bookings with pagination & filters
-  const fetchBookings = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+const fetchBookings = useCallback(async () => {
+  try {
+    setLoading(true);
+    setError(null);
 
-      const params = {
-        page,
-        limit,
-        status: filter !== "all" ? filter : undefined,
-        search: debouncedSearch || undefined,
-        start_date: dateRange.startDate || undefined,
-        end_date: dateRange.endDate || undefined,
-      };
+    const params = {
+      page,
+      limit,
+      status: filter !== "all" ? filter : undefined,
+      search: debouncedSearch || undefined,
+      start_date: dateRange.startDate || undefined,
+      end_date: dateRange.endDate || undefined,
+    };
 
-      // This endpoint in your screenshot: /api/booking/vendorassignedservices
-      const res = await axios.get("/api/booking/vendorassignedservices", {
-        params,
-      });
+    const res = await axios.get("/api/booking/vendorassignedservices", { params });
 
-      // bookings array - adapt to backend shape
-      const pageData =
-        res?.data?.bookings ??
-        res?.data?.data ??
-        res?.data?.rows ??
-        res?.data?.results ??
-        [];
+    const { bookings, currentPage, totalPages, totalRecords, limit: apiLimit } = res.data;
 
-      // Read pagination info from backend when available
-      const apiCurrentPage =
-        typeof res?.data?.currentPage !== "undefined"
-          ? Number(res.data.currentPage)
-          : undefined;
-      const apiTotalPages =
-        typeof res?.data?.totalPages !== "undefined"
-          ? Number(res.data.totalPages)
-          : undefined;
-      const apiTotalRecords =
-        typeof res?.data?.totalRecords !== "undefined"
-          ? Number(res.data.totalRecords)
-          : typeof res?.data?.total !== "undefined"
-            ? Number(res.data.total)
-            : pageData.length;
-      const apiLimit =
-        typeof res?.data?.limit !== "undefined"
-          ? Number(res.data.limit)
-          : undefined;
+    setBookings(bookings);
+    setPage(currentPage);
+    setLimit(apiLimit);
+    setTotal(totalRecords);
+    setTotalPages(totalPages);
+  } catch (err) {
+    setError("Failed to load bookings");
+    setBookings([]);
+    setTotal(0);
+    setTotalPages(1);
+  } finally {
+    setLoading(false);
+  }
+}, [page, limit, filter, debouncedSearch, dateRange]);
 
-      setBookings(pageData);
-      setTotal(Number(apiTotalRecords) || pageData.length);
-
-      if (apiLimit && apiLimit !== limit) setLimit(apiLimit);
-      if (typeof apiCurrentPage !== "undefined" && apiCurrentPage !== page)
-        setPage(apiCurrentPage);
-
-      if (apiTotalPages) {
-        setTotalPages(apiTotalPages);
-      } else {
-        setTotalPages(
-          Math.max(
-            1,
-            Math.ceil(
-              (apiTotalRecords || pageData.length) / (apiLimit || limit)
-            )
-          )
-        );
-      }
-    } catch (err) {
-      console.error("Error fetching bookings:", err);
-      setError(err?.response?.data?.message || "Failed to load bookings");
-      setBookings([]);
-      setTotal(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit, filter, debouncedSearch, dateRange]);
 
   useEffect(() => {
     fetchBookings();
@@ -239,10 +195,6 @@ const VendorBookings = () => {
     setSearchTerm(e.target.value);
   };
 
-  const handleLimitChange = (newLimit) => {
-    setLimit(Number(newLimit));
-    setPage(1);
-  };
 
   const resetAll = () => {
     setSearchTerm("");
@@ -383,7 +335,7 @@ const VendorBookings = () => {
         />
 
         {/* Pagination bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t bg-white">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <Pagination
             page={page}
             totalPages={totalPages}
@@ -394,7 +346,6 @@ const VendorBookings = () => {
             limit={limit}
             onLimitChange={(n) => { setLimit(n); setPage(1); }}
 
-            // use your custom select
             renderLimitSelect={({ value, onChange, options }) => (
               <FormSelect
                 id="limit"
