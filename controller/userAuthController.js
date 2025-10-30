@@ -611,7 +611,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         });
     }
 
-    // ✅ Step 4: OTP is required for users without password or phone login
+    // ✅ Step 3: OTP required
     if (!otp) {
         return res.status(400).json({ message: "OTP is required for the login" });
     }
@@ -658,10 +658,13 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
             const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
+            // ✅ If phone is provided, mark is_approved = 1 automatically
+            const isApproved = phone ? 1 : 0;
+
             const [result] = await db.query(
-                `INSERT INTO users (firstName, lastName, phone, email, password, created_at)
-                 VALUES (?, ?, ?, ?, ?, NOW())`,
-                [firstName, lastName, phone || null, email || null, hashedPassword]
+                `INSERT INTO users (firstName, lastName, phone, email, password, is_approved, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+                [firstName, lastName, phone || null, email || null, hashedPassword, isApproved]
             );
 
             const user_id = result.insertId;
@@ -669,7 +672,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
             return res.status(200).json({
                 message: "Registration successful",
-                user: { user_id, firstName, lastName, phone, email },
+                user: { user_id, firstName, lastName, phone, email, is_approved: isApproved },
                 token: loginToken,
             });
         }
@@ -689,6 +692,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
     // ✅ Step 6: Fallback (no valid OTP or password)
     return res.status(400).json({ message: "OTP or valid password required to login" });
 });
+
 
 
 
