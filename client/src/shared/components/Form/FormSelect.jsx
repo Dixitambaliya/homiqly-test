@@ -94,9 +94,9 @@ const FormSelect = ({
     });
   }, [open, dropdownDirection, dropdownMaxHeight]);
 
-  // Close on outside click (including portal)
+  // Close on outside click and scroll (including portal)
   useEffect(() => {
-    const onDocClick = (e) => {
+    const handleOutsideClick = (e) => {
       if (
         !containerRef.current?.contains(e.target) &&
         !listRef.current?.contains(e.target)
@@ -104,9 +104,24 @@ const FormSelect = ({
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
+
+    const handleScroll = () => {
+      // Close dropdown when user scrolls
+      setOpen(false);
+    };
+
+    if (open) {
+      document.addEventListener("mousedown", handleOutsideClick);
+      document.addEventListener("scroll", handleScroll, true); // Use capture phase to catch all scroll events
+      window.addEventListener("scroll", handleScroll, true);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [open]);
 
   // Keyboard handlers for accessibility
   useEffect(() => {
@@ -168,7 +183,7 @@ const FormSelect = ({
           className="block mb-1 text-sm font-medium text-gray-700"
         >
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="ml-1 text-red-500">*</span>}
         </label>
       )}
 
@@ -196,7 +211,7 @@ const FormSelect = ({
             icon ? "pl-2" : "px-3"
           } ${disabled ? "text-gray-400 bg-gray-50" : "text-gray-900"}`}
         >
-          <span className="truncate text-sm">
+          <span className="text-sm truncate">
             {selectedOption ? (
               selectedOption.label
             ) : (
@@ -204,7 +219,7 @@ const FormSelect = ({
             )}
           </span>
 
-          <span className="ml-auto text-gray-400 text-xs select-none">
+          <span className="ml-auto text-xs text-gray-400 select-none">
             {/* chevron */}
             <svg
               className={`w-4 h-4 transform transition-transform ${
@@ -225,7 +240,7 @@ const FormSelect = ({
 
       {/* error message */}
       {error && (
-        <p className="text-sm text-red-500 mt-1 font-medium">{error}</p>
+        <p className="mt-1 text-sm font-medium text-red-500">{error}</p>
       )}
 
       {/* dropdown rendered via portal */}
@@ -262,14 +277,14 @@ const FormSelect = ({
                         active
                           ? "bg-green-50 text-green-700 font-medium"
                           : "text-gray-800"
-                      } ${highlighted ? "bg-gray-100" : ""} hover:bg-gray-100`}
+                      } ${highlighted ? "bg-gray-100" : ""} hover:bg-gray-100`} 
                       onMouseEnter={() => setHighlightIndex(idx)}
                       onMouseLeave={() => setHighlightIndex(-1)}
                       onClick={() => triggerChange(opt.value)}
                     >
                       <span className="truncate">{opt.label}</span>
                       {active && (
-                        <span className="ml-auto text-xs text-green-700 font-semibold">
+                        <span className="ml-auto text-xs font-semibold text-green-700">
                           {/* Selected */}
                         </span>
                       )}
