@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
-const { sendBookingEmail, sendVendorBookingEmail } = require("../config/mailer")
+const { sendBookingEmail, sendVendorBookingEmail } = require("../config/utils/email/mailer"); 
 
 // 1. Vendor creates Stripe account
 exports.createStripeAccount = asyncHandler(async (req, res) => {

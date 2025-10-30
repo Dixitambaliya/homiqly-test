@@ -1,7 +1,7 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const bookingPostQueries = require('../config/bookingQueries/bookingPostQueries');
-const sendEmail = require('../config/mailer');
+const sendEmail = require("../config/utils/email/mailer");
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const {
     sendServiceBookingNotification,

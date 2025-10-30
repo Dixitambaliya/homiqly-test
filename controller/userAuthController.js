@@ -3,10 +3,10 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const asyncHandler = require("express-async-handler");
-const { assignWelcomeCode } = require("./promoCode");
+const { assignWelcomeCode } = require("../config/utils/email/mailer");
 const twilio = require('twilio');
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail } = require("../config/mailer");
+const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail, sendUserWelcomeMail } = require("../config/utils/email/mailer");
 
 
 // Generate 6-digit OTP
@@ -143,80 +143,80 @@ const setPassword = asyncHandler(async (req, res) => {
     }
 });
 
-const loginUser = asyncHandler(async (req, res) => {
-    const { email, password, fcmToken } = req.body;
+// const loginUser = asyncHandler(async (req, res) => {
+//     const { email, password, fcmToken } = req.body;
 
-    if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required" });
-    }
+//     if (!email || !password) {
+//         return res.status(400).json({ error: "Email and password are required" });
+//     }
 
-    try {
-        const [loginUser] = await db.query(userAuthQueries.userLogin, [email]);
+//     try {
+//         const [loginUser] = await db.query(userAuthQueries.userLogin, [email]);
 
-        if (!loginUser || loginUser.length === 0) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
+//         if (!loginUser || loginUser.length === 0) {
+//             return res.status(401).json({ error: "Invalid credentials" });
+//         }
 
-        const user = loginUser[0];
+//         const user = loginUser[0];
 
-        // 🧩 Check if user registered via Google (no password stored)
-        if (!user.password) {
-            return res.status(400).json({
-                error: "This account was created using Google. Please log in using Google.",
-            });
-        }
+//         // 🧩 Check if user registered via Google (no password stored)
+//         if (!user.password) {
+//             return res.status(400).json({
+//                 error: "This account was created using Google. Please log in using Google.",
+//             });
+//         }
 
-        // 🧩 Compare password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
+//         // 🧩 Compare password
+//         const isPasswordValid = await bcrypt.compare(password, user.password);
+//         if (!isPasswordValid) {
+//             return res.status(401).json({ error: "Invalid credentials" });
+//         }
 
-        // 🧩 Update FCM token if needed
-        if (fcmToken && typeof fcmToken === "string" && fcmToken.trim() !== "") {
-            const trimmedToken = fcmToken.trim();
+//         // 🧩 Update FCM token if needed
+//         if (fcmToken && typeof fcmToken === "string" && fcmToken.trim() !== "") {
+//             const trimmedToken = fcmToken.trim();
 
-            if (user.fcmToken !== trimmedToken) {
-                try {
-                    await db.query(
-                        "UPDATE users SET fcmToken = ? WHERE user_id = ?",
-                        [trimmedToken, user.user_id]
-                    );
-                } catch (err) {
-                    console.error("❌ FCM token update error:", err.message);
-                }
-            }
-        }
+//             if (user.fcmToken !== trimmedToken) {
+//                 try {
+//                     await db.query(
+//                         "UPDATE users SET fcmToken = ? WHERE user_id = ?",
+//                         [trimmedToken, user.user_id]
+//                     );
+//                 } catch (err) {
+//                     console.error("❌ FCM token update error:", err.message);
+//                 }
+//             }
+//         }
 
-        // 🧩 Assign welcome code if not already assigned
-        let welcomeCode = null;
-        try {
-            welcomeCode = await assignWelcomeCode(user.user_id, user.email);
-        } catch (err) {
-            console.error("❌ Auto-assign welcome code error:", err.message);
-        }
+//         // 🧩 Assign welcome code if not already assigned
+//         let welcomeCode = null;
+//         try {
+//             welcomeCode = await assignWelcomeCode(user.user_id, user.email);
+//         } catch (err) {
+//             console.error("❌ Auto-assign welcome code error:", err.message);
+//         }
 
-        // 🧩 Generate JWT
-        const token = jwt.sign(
-            {
-                user_id: user.user_id,
-                email: user.email,
-                status: user.status,
-            },
-            process.env.JWT_SECRET
-        );
+//         // 🧩 Generate JWT
+//         const token = jwt.sign(
+//             {
+//                 user_id: user.user_id,
+//                 email: user.email,
+//                 status: user.status,
+//             },
+//             process.env.JWT_SECRET
+//         );
 
-        res.status(200).json({
-            message: "Login successful",
-            user_id: user.user_id,
-            token,
-            ...(welcomeCode && { welcomeCode }),
-        });
-    } catch (err) {
-        console.error("Login Error:", err);
-        res.status(500).json({ error: "Server error", details: err.message });
-    }
-});
+//         res.status(200).json({
+//             message: "Login successful",
+//             user_id: user.user_id,
+//             token,
+//             ...(welcomeCode && { welcomeCode }),
+//         });
+//     } catch (err) {
+//         console.error("Login Error:", err);
+//         res.status(500).json({ error: "Server error", details: err.message });
+//     }
+// });
 
 const requestReset = asyncHandler(async (req, res) => {
     const { email } = req.body;
@@ -331,7 +331,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         if (name) {
             const parts = name.trim().split(" ");
             firstName = parts[0];
-            lastName = parts.slice(1).join(" ") || ""; // handle single-name users
+            lastName = parts.slice(1).join(" ") || "";
         }
 
         // 1️⃣ Check if user exists
@@ -355,23 +355,7 @@ const googleLogin = asyncHandler(async (req, res) => {
             user_id = user.user_id;
         }
 
-        // 3️⃣ Update FCM token if provided
-        if (fcmToken && fcmToken !== user.fcmToken) {
-            try {
-                await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
-            } catch (err) {
-                console.error("❌ FCM token update error:", err.message);
-            }
-        }
-
-        // 4️⃣ Assign welcome code (ignore errors)
-        try {
-            await assignWelcomeCode(user_id, email);
-        } catch (err) {
-            console.error("❌ Auto-assign welcome code error:", err.message);
-        }
-
-        // 5️⃣ Generate JWT
+        // 3️⃣ Generate JWT first (so we can respond quickly)
         const token = jwt.sign(
             {
                 user_id,
@@ -381,7 +365,7 @@ const googleLogin = asyncHandler(async (req, res) => {
             process.env.JWT_SECRET
         );
 
-        // 6️⃣ Return response
+        // 4️⃣ Respond immediately (don’t wait for background updates)
         res.status(200).json({
             message: existingUsers.length > 0
                 ? "Login successful via Google"
@@ -393,6 +377,28 @@ const googleLogin = asyncHandler(async (req, res) => {
             token,
             is_google_register, // 👈 true if newly created
         });
+
+        // 🧩 5️⃣ Fire & forget: update FCM token
+        if (fcmToken && fcmToken !== user.fcmToken) {
+            (async () => {
+                try {
+                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
+                    console.log(`📱 FCM token updated for user ${user_id}`);
+                } catch (err) {
+                    console.error("❌ FCM token update error:", err.message);
+                }
+            })();
+        }
+
+        // 🎁 6️⃣ Fire & forget: assign welcome code
+        (async () => {
+            try {
+                await assignWelcomeCode(user_id, email);
+                console.log(`🎁 Welcome code assigned for ${email}`);
+            } catch (err) {
+                console.error("❌ Auto-assign welcome code error:", err.message);
+            }
+        })();
 
     } catch (err) {
         console.error("Google Login Error:", err);
@@ -514,7 +520,7 @@ const sendOtp = asyncHandler(async (req, res) => {
     );
 
     const user = existingUsers[0];
-    const is_registered = existingUsers.length > 0; // ✅ true if user exists
+    const is_registered = existingUsers.length > 0;
 
     // ✅ 2. Determine flags (true = NOT registered for that specific identifier)
     const is_phone_registered = !existingUsers.some(u => u.phone === phone);
@@ -529,43 +535,56 @@ const sendOtp = asyncHandler(async (req, res) => {
     if (email) tokenPayload.email = email;
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "30m" });
 
-    // 📱 5. Send OTP via SMS
+    // 📱 5. Send OTP via SMS (non-blocking)
     if (phone) {
-        try {
-            await client.messages.create({
-                body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
-                from: process.env.TWILIO_PHONE_NUMBER,
-                to: phone,
-            });
-            console.log(`📱 OTP sent via SMS to ${phone}`);
-        } catch (error) {
-            console.error("❌ Failed to send SMS OTP:", error.message);
-        }
+        (async () => {
+            try {
+                const smsMessage = is_registered
+                    ? `Welcome back to Homiqly! Your verification code is ${otp}. It expires in 5 minutes. Never share this code.`
+                    : `Welcome to Homiqly! Your verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
+
+                await client.messages.create({
+                    body: smsMessage,
+                    from: process.env.TWILIO_PHONE_NUMBER,
+                    to: phone,
+                });
+
+                console.log(`📱 OTP sent via SMS to ${phone}`);
+            } catch (error) {
+                console.error("❌ Failed to send SMS OTP:", error.message);
+            }
+        })();
     }
 
-    // 📧 6. Send OTP via Email
+    // 📧 6. Send OTP via Email (non-blocking)
     if (email) {
-        try {
-            await sendUserVerificationMail({
-                userEmail: email,
-                code: otp,
-            });
-        } catch (error) {
-            console.error("❌ Failed to send email OTP:", error.message);
-        }
+        (async () => {
+            try {
+                await sendUserVerificationMail({
+                    userEmail: email,
+                    code: otp,
+                    subject: is_registered
+                        ? "Welcome back to the Homiqly community"
+                        : "Welcome to the Homiqly community",
+                });
+
+                console.log(`📧 OTP email sent to ${email}`);
+            } catch (error) {
+                console.error("❌ Failed to send email OTP:", error.message);
+            }
+        })();
     }
 
     // ✅ 7. Response message
-    const responseMsg =
-        is_registered
-            ? `Welcome back, ${user?.firstName || "User"}! We've sent your OTP.`
-            : "OTP sent successfully. Please continue registration.";
+    const responseMsg = is_registered
+        ? `Welcome back, ${user?.firstName || "User"}! We've sent your OTP.`
+        : "OTP sent successfully. Please continue registration.";
 
     // ✅ 8. Build response
     const responseData = {
         message: responseMsg,
         token,
-        is_registered, // ✅ New flag
+        is_registered,
     };
 
     if (email) {
@@ -577,31 +596,38 @@ const sendOtp = asyncHandler(async (req, res) => {
     if (user?.firstName) responseData.firstName = user.firstName;
     if (user?.lastName) responseData.lastName = user.lastName;
 
-    // ✅ 9. Send response
+    // ✅ 9. Send response immediately (no waiting for SMS/email)
     res.status(200).json(responseData);
 });
+
 
 // ✅ Step 2: Verify OTP (Handles both Login & Registration)
 const verifyOtp = asyncHandler(async (req, res) => {
     let { phone, email, otp, firstName, lastName, password } = req.body;
     const authHeader = req.headers.authorization;
 
-    // ✅ Step 1: Lookup user (early check for password-based login)
+    // 🧩 Step 1: Lookup existing user
     const [rows] = await db.query(
-        `SELECT * FROM users WHERE phone = ? OR email = ?`,
+        "SELECT * FROM users WHERE phone = ? OR email = ?",
         [phone || null, email || null]
     );
     const user = rows[0];
 
-    // ✅ Step 2: Direct password-based login (email OR phone)
-    if ((email || phone) && password && user && user.password && user.password.trim() !== "") {
-        const isMatch = await bcrypt.compare(password, user.password || "");
-        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+    // 🧩 Step 2: Direct password-based login (email/phone + password)
+    if ((email || phone) && password && user && user.password?.trim() !== "") {
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
 
         const loginToken = jwt.sign(
             { user_id: user.user_id, phone: user.phone, email: user.email },
             process.env.JWT_SECRET
         );
+
+        // Fire and forget welcome code assignment
+        assignWelcomeCode({ user_id: user.user_id, user_email: user.email })
+            .catch((err) => console.error("❌ Auto-assign welcome code error:", err.message));
 
         return res.status(200).json({
             message: email
@@ -611,7 +637,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         });
     }
 
-    // ✅ Step 3: OTP required
+    // 🧩 Step 3: OTP is mandatory when no password login
     if (!otp) {
         return res.status(400).json({ message: "OTP is required for the login" });
     }
@@ -619,8 +645,8 @@ const verifyOtp = asyncHandler(async (req, res) => {
     otp = String(otp);
     let decoded = null;
 
-    // ✅ Step 4: Verify token from sendOtp API
-    if (authHeader && authHeader.startsWith("Bearer ")) {
+    // 🧩 Step 4: Validate OTP token (from sendOtp)
+    if (authHeader?.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
         try {
             decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -645,10 +671,10 @@ const verifyOtp = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Authorization token missing" });
     }
 
-    // ✅ Step 5: OTP verified successfully
+    // 🧩 Step 5: OTP verified successfully
     if (decoded && decoded.otp === otp) {
         if (!user) {
-            // 🟢 New user registration
+            // 🟢 New User Registration
             if (!firstName || !lastName) {
                 return res.status(200).json({
                     message: "Welcome — please provide name (and optionally password)",
@@ -657,8 +683,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
             }
 
             const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
-
-            // ✅ If phone is provided, mark is_approved = 1 automatically
             const isApproved = phone ? 1 : 0;
 
             const [result] = await db.query(
@@ -670,6 +694,25 @@ const verifyOtp = asyncHandler(async (req, res) => {
             const user_id = result.insertId;
             const loginToken = jwt.sign({ user_id, phone, email }, process.env.JWT_SECRET);
 
+            // 🔹 Send Welcome Email (non-blocking)
+            if (email) {
+                (async () => {
+                    try {
+                        await sendUserWelcomeMail({
+                            userEmail: email,
+                            firstName,
+                        });
+                        console.log(`📧 Welcome email sent to ${email}`);
+                    } catch (error) {
+                        console.error("❌ Failed to send welcome email:", error.message);
+                    }
+                })();
+            }
+
+            // 🔹 Fire-and-forget welcome code assignment
+            assignWelcomeCode({ user_id, user_email: email })
+                .catch((err) => console.error("❌ Auto-assign welcome code error:", err.message));
+
             return res.status(200).json({
                 message: "Registration successful",
                 user: { user_id, firstName, lastName, phone, email, is_approved: isApproved },
@@ -677,11 +720,14 @@ const verifyOtp = asyncHandler(async (req, res) => {
             });
         }
 
-        // 🟢 Existing user — login successful via OTP
+        // 🟢 Existing user — Login success via OTP
         const loginToken = jwt.sign(
             { user_id: user.user_id, phone: user.phone, email: user.email },
             process.env.JWT_SECRET
         );
+
+        assignWelcomeCode({ user_id: user.user_id, user_email: user.email })
+            .catch((err) => console.error("❌ Auto-assign welcome code error:", err.message));
 
         return res.status(200).json({
             message: "Login successful via OTP",
@@ -689,7 +735,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         });
     }
 
-    // ✅ Step 6: Fallback (no valid OTP or password)
+    // 🧩 Step 6: Default fallback
     return res.status(400).json({ message: "OTP or valid password required to login" });
 });
 
@@ -699,9 +745,11 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
 
 
+
+
 module.exports = {
     registerUser,
-    loginUser,
+    // loginUser,
     verifyCode,
     setPassword,
     requestReset,

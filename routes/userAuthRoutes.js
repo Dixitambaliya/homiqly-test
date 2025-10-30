@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const { registerUser,
-    loginUser,
+    // loginUser,
     verifyCode,
     setPassword,
     requestReset,
@@ -14,7 +14,7 @@ const { registerUser,
 } = require("../controller/userAuthController")
 
 router.post("/register", registerUser)
-router.post("/login", loginUser)
+// router.post("/login", loginUser)
 router.post('/verify', verifyCode);
 router.post('/setpassword', setPassword);
 

@@ -6,7 +6,7 @@ const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
 const { sendVendorRegistrationNotification } = require("./adminNotification");
-const { sendAdminVendorRegistrationMail, sendPasswordUpdatedMail } = require("../config/mailer");
+const { sendAdminVendorRegistrationMail, sendPasswordUpdatedMail } = require("../config/utils/email/mailer");
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 

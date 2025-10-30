@@ -1,7 +1,8 @@
-// utils/mailer.js
 const nodemailer = require("nodemailer");
-const { db } = require('../config/db');
-const path = require('path');
+const { db } = require('../../db');
+const path = require('path')
+const { sendMail } = require('../email/templates/nodemailer');
+
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -11,72 +12,108 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+//done
+const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
+  if (!userEmail) return console.warn("⚠️ No email provided for welcome mail");
 
+  const subject = "Welcome to the Homiqly community";
 
-async function sendAdminVendorRegistrationMail({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) {
+  const bodyHtml = `
+  <div style="padding: 35px 30px; font-size: 15px; color: #333; max-width: 480px;">
+    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 10px;">
+      Welcome to Homiqly, ${firstName || "there"}!
+    </h2>
+
+    <p style="font-size: 15px; line-height: 1.6; color: #444;">
+      We’re thrilled to have you join our community. Discover trusted vendors, explore personalized services, and make your life easier — all from one platform.
+    </p>
+
+    <p style="font-size: 14px; color: #555; margin-top: 15px;">
+      Start exploring now and enjoy exclusive offers curated just for you.
+    </p>
+
+    <div style="text-align: center; margin-top: 25px;">
+      <a href="https://www.homiqly.com" style="background:#000000;color:white;padding:12px 24px;border-radius:5px;text-decoration:none;font-weight:600;display:inline-block;">
+        Explore Homiqly
+      </a>
+    </div>
+
+    <p style="font-size: 14px; color: #555; margin-top: 20px;">
+      Thanks for joining us,<br/>
+      <strong>The Homiqly Team</strong>
+    </p>
+    </div>
+  `;
+
+  await sendMail({
+    to: userEmail,
+    subject,
+    bodyHtml,
+  });
+};
+
+//done
+const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) => {
   try {
-    // Fetch admin emails
+    // 📬 1. Fetch admin emails
     const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
     if (!adminEmails.length) return console.warn("⚠️ No admin emails found.");
 
-    const emailAddresses = adminEmails.map(row => row.email);
+    const emailAddresses = adminEmails.map((row) => row.email);
 
-    // Logo file path and CID
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
+    // 🧩 2. Build email content (body only, header/footer added by sendMail)
+    const bodyHtml = `
+      <div style="padding: 35px 30px; font-size: 15px; color: #333; max-width: 480px">
+        <h2 style="font-size: 20px; color: #222; text-align: o; margin-bottom: 20px;">
+          New Vendor Registration
+        </h2>
 
-    const htmlBody = `
-      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
-        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+        <p style="margin-bottom: 15px;">
+          Hello <strong>Homiqly Admin Team</strong>,
+        </p>
 
-          <!-- Header with logo -->
-          <div style="background:#4CAF50; padding:20px; text-align:center;">
-            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
-            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">New Vendor Registration</h1>
-          </div>
+        <p style="margin-bottom: 15px;">
+          A new service provider has just registered on <strong>Homiqly</strong>!
+        </p>
 
-          <!-- Body content -->
-          <div style="padding:25px 30px; font-size:15px; color:#333;">
-            <p>Hello Homiqly Team,</p>
-            <p>A new service provider has just registered on Homiqly!</p>
-            <p><strong>Details:</strong></p>
-            <ul>
-                <li><strong>Name:</strong> ${vendorName}</li>
-                <li><strong>Email:</strong> ${vendorEmail}</li>
-                <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
-                <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
-            </ul>
-            <p>Please review their profile and documentation to proceed with verification.</p>
-          </div>
-
-          <!-- Footer -->
-          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
-            <p style="margin:4px 0;">Best regards,</p>
-            <p style="margin:4px 0;">Homiqly Team</p>
-          </div>
+        <div style="background: #f9f9f9; border-radius: 8px; padding: 15px 20px; margin: 20px 0;">
+          <p style="font-weight: 600; margin-bottom: 8px;">Vendor Details:</p>
+          <ul style="line-height: 1.8; padding-left: 20px; margin: 0;">
+            <li><strong>Type:</strong> ${vendorType}</li>
+            <li><strong>Name:</strong> ${vendorName}</li>
+            <li><strong>Email:</strong> ${vendorEmail}</li>
+            <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
+            <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
+          </ul>
         </div>
+
+        <p style="margin-top: 20px;">
+          Please review their profile and documentation to proceed with verification.
+        </p>
+
+        <p style="margin-top: 25px;">
+          Best regards,<br/>
+          <strong>The Homiqly Team</strong>
+        </p>
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+    // ✉️ 3. Send mail through common utility (adds header/footer + logo automatically)
+    await sendMail({
       to: emailAddresses,
-      subject: "New Service Provider Registration on Homiqly",
-      html: htmlBody,
-      attachments: [
-        { filename: 'homiqly.webp', path: logoPath, cid: cidName, contentDisposition: "inline" }
-      ]
+      subject: "New Service Provider Registred on Homiqly",
+      bodyHtml,
     });
 
     console.log(`📧 Admin notified about new vendor: ${vendorName}`);
   } catch (error) {
     console.error("❌ Failed to send admin vendor registration email:", error.message);
   }
-}
+};
 
-async function sendBookingEmail(user_id, bookingDetails) {
+
+const sendBookingEmail = async ({ user_id, bookingDetails }) => {
   try {
-
     const [[user]] = await db.query(
       `SELECT CONCAT(firstName, ' ', lastName) AS name, email 
        FROM users 
@@ -99,8 +136,9 @@ async function sendBookingEmail(user_id, bookingDetails) {
       receiptUrl
     } = bookingDetails;
 
-    const pngPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
+    // ✅ Use reusable header/footer
+    const { html: headerHtml, logoPath, cidName } = emailHeader();
+    const { html: footerHtml, footerLogoPath, cidFooterLogo } = emailFooter();
 
     // 🧾 Create dynamic HTML for all packages
     const packagesHtml = packages.map(pkg => {
@@ -138,17 +176,15 @@ async function sendBookingEmail(user_id, bookingDetails) {
       `;
     }).join("");
 
-    // 📄 Build the full email HTML
+    // 📄 Combine all HTML sections
     const htmlBody = `
       <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
         <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
           
-          <div style="background:#4CAF50; padding:20px; text-align:center;">
-            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
-            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Booking Confirmed!</h1>
-          </div>
+          ${headerHtml}
 
           <div style="padding:25px 30px;">
+            <h2 style="color:#4CAF50; text-align:center;">Booking Confirmed!</h2>
             <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
             <p style="font-size:15px; color:#555;">Your booking <strong>#${booking_id}</strong> has been successfully confirmed. Below are your details:</p>
 
@@ -168,21 +204,19 @@ async function sendBookingEmail(user_id, bookingDetails) {
               </div>` : ""}
           </div>
 
-          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
-            <p style="margin:4px 0;">Thank you for choosing Homiqly!</p>
-            <p style="margin:4px 0;">— The Homiqly Team</p>
-          </div>
+          ${footerHtml}
         </div>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: `Booking Confirmation #${booking_id}`,
       html: htmlBody,
       attachments: [
-        { filename: 'homiqly.webp', path: pngPath, cid: cidName, contentDisposition: "inline" }
+        { filename: "homiqly.png", path: logoPath, cid: cidName, contentDisposition: "inline" },
+        { filename: "Homiqly_Transparent_White.png", path: footerLogoPath, cid: cidFooterLogo, contentDisposition: "inline" },
       ]
     });
 
@@ -190,9 +224,10 @@ async function sendBookingEmail(user_id, bookingDetails) {
   } catch (err) {
     console.error("❌ Failed to send booking email:", err);
   }
-}
+};
 
-async function sendVendorBookingEmail(vendor_id, bookingDetails) {
+
+const sendVendorBookingEmail = async ({ vendor_id, bookingDetails }) => {
   try {
     // 🔍 Fetch vendor info dynamically based on type
     const [[vendor]] = await db.query(
@@ -287,7 +322,7 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
 
     // ---------- Send email ----------
     await transporter.sendMail({
-      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: vendor.email,
       subject: `New Booking Assigned #${booking_id}`,
       html: htmlBody,
@@ -307,77 +342,71 @@ async function sendVendorBookingEmail(vendor_id, bookingDetails) {
   }
 }
 
-async function sendVendorApprovalMail({ vendorName, vendorEmail, plainPassword }) {
+const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }) => {
   try {
-    // Logo path and CID
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
-
-    // Dynamically include password only if it exists (company vendors)
+    // 🧩 Conditionally include login credentials (for company vendors)
     const passwordSection = plainPassword
       ? `
-        <ul style="margin:10px 0 20px 15px;">
-          <li><strong>Vendor Email:</strong> ${vendorEmail}</li>
-          <li><strong>Password:</strong> ${plainPassword}</li>
-        </ul>
-        <p style="color:#555;">Please reset your password after you log in to your profile.</p>
+        <div style="background:#f9f9f9; border-radius:8px; padding:15px 20px; margin:20px 0;">
+          <p style="margin:0 0 10px 0; font-weight:600;">Your Login Credentials:</p>
+          <ul style="line-height:1.8; padding-left:20px; margin:0;">
+            <li><strong>Email:</strong> ${vendorEmail}</li>
+            <li><strong>Password:</strong> ${plainPassword}</li>
+          </ul>
+        </div>
+        <p style="color:#555; margin-top:10px;">Please reset your password after your first login for security.</p>
       `
       : `
         <p>You can now log in using your existing credentials and start accepting bookings.</p>
       `;
 
-    const htmlBody = `
-      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
-        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+    // 🧠 Build email body (header/footer are automatically added by sendMail)
+    const bodyHtml = `
+      <div style="padding: 35px 30px; font-size: 15px; color: #333;">
+        <h2 style="font-size: 20px; font-weight: 600; color: #222; text-align: center; margin-bottom: 20px;">
+          🎉 Congratulations, ${vendorName}!
+        </h2>
 
-          <!-- Header with logo -->
-          <div style="background:#4CAF50; padding:20px; text-align:center;">
-            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
-            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Welcome to Homiqly!</h1>
-          </div>
+        <p style="margin-bottom: 15px;">
+          We’re excited to welcome you to <strong>Homiqly</strong> — where beauty and convenience meet!
+        </p>
 
-          <!-- Body content -->
-          <div style="padding:25px 30px; font-size:15px; color:#333;">
-            <p>Hello <strong>${vendorName}</strong>,</p>
-            <p>We’re excited to welcome you to Homiqly, where beauty and convenience meet!</p>
-            <p>Your registration has been approved, and you’re now part of our trusted network of service providers.</p>
-            <p>You can now log in to your dashboard:</p>
-            ${passwordSection}
-            <p><a href="https://glistening-marigold-c9df83.netlify.app/vendor/login" style="color:#4CAF50; text-decoration:none;">Login to Dashboard</a></p>
-            <p>Before you begin, make sure your profile, service details, and availability are updated.</p>
-            <p>Welcome aboard!</p>
-          </div>
+        <p>Your registration has been <strong>approved</strong>, and you’re now part of our trusted network of service providers.</p>
 
-          <!-- Footer -->
-          <div style="background:#f8f8f8; text-align:center; font-size:13px; color:#777; padding:15px;">
-            <p style="margin:4px 0;">Team Homiqly</p>
-          </div>
-        </div>
+        ${passwordSection}
+
+        <p style="margin:20px 0;">
+          <a href="https://glistening-marigold-c9df83.netlify.app/vendor/login"
+            style="background:#4CAF50; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
+            Login to Dashboard
+          </a>
+        </p>
+
+        <p style="margin-top:20px;">
+          Before you begin, make sure your <strong>profile</strong>, <strong>service details</strong>, and <strong>availability</strong> are updated.
+        </p>
+
+        <p style="margin-top:25px;">
+          Welcome aboard and we’re thrilled to have you on the Homiqly platform!<br/>
+          <strong>— The Homiqly Team</strong>
+        </p>
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+    // ✉️ Send via global sendMail utility (adds header + footer automatically)
+    await sendMail({
       to: vendorEmail,
-      subject: "Welcome to Homiqly! Your Application Has Been Approved",
-      html: htmlBody,
-      attachments: [
-        {
-          filename: "homiqly.webp",
-          path: logoPath,
-          cid: cidName,
-          contentDisposition: "inline",
-        },
-      ],
+      subject: "Welcome to Homiqly community! Your Application Has Been Approved",
+      bodyHtml,
     });
 
     console.log(`📧 Vendor approval email sent to: ${vendorName} (${vendorEmail})`);
   } catch (error) {
     console.error("❌ Failed to send vendor approval email:", error.message);
   }
-}
+};
 
-async function sendVendorRejectionMail({ vendorName, vendorEmail }) {
+const sendVendorRejectionMail = async ({ vendorName, vendorEmail }) => {
   try {
     const logoPath = path.resolve("config/media/homiqly.webp");
     const cidName = "homiqlyLogo";
@@ -409,7 +438,7 @@ async function sendVendorRejectionMail({ vendorName, vendorEmail }) {
     `;
 
     await transporter.sendMail({
-      from: `"Homiqly Support" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: vendorEmail,
       subject: "Your Homiqly Application Has Been Rejected",
       html: htmlBody,
@@ -424,7 +453,7 @@ async function sendVendorRejectionMail({ vendorName, vendorEmail }) {
   }
 }
 
-async function sendPasswordUpdatedMail({ userName, userEmail }) {
+const sendPasswordUpdatedMail = async ({ userName, userEmail }) => {
   try {
     const logoPath = path.resolve("config/media/homiqly.webp");
     const cidName = "homiqlyLogo";
@@ -466,7 +495,7 @@ async function sendPasswordUpdatedMail({ userName, userEmail }) {
     `;
 
     await transporter.sendMail({
-      from: `"Homiqly Security" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject: "Password Updated Successfully",
       html: htmlBody,
@@ -486,7 +515,7 @@ async function sendPasswordUpdatedMail({ userName, userEmail }) {
   }
 }
 
-async function sendPasswordResetCodeMail({ userEmail, code }) {
+const sendPasswordResetCodeMail = async ({ userEmail, code }) => {
   try {
     const logoPath = path.resolve("config/media/homiqly.webp");
     const cidName = "homiqlyLogo";
@@ -528,7 +557,7 @@ async function sendPasswordResetCodeMail({ userEmail, code }) {
     `;
 
     await transporter.sendMail({
-      from: `"Homiqly Support" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject: "Your Homiqly Password Reset Code",
       html: htmlBody,
@@ -548,68 +577,64 @@ async function sendPasswordResetCodeMail({ userEmail, code }) {
   }
 }
 
-async function sendUserVerificationMail({ userEmail, code }) {
+//done
+const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
   try {
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
+    const bodyHtml = `
+      <div style="padding: 30px 34px; text-align:left; max-width: 480px;">
+        <h2 style="font-size: 20px; font-weight: 600; color: #000;">
+          ${subject?.toLowerCase().includes("back")
+        ? "Welcome back to the Homiqly community"
+        : "Welcome to the Homiqly community"
+      }
+        </h2>
 
-    const htmlBody = `
-      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
-        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+        <p style="font-size: 15px; line-height: 1.6; color: #444; text-align:left">
+          We’re thrilled to have you join us! Please verify your account using the code below.
+        </p>
 
-          <!-- Header -->
-          <div style="background:#007BFF; padding:20px; text-align:center;">
-            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
-            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Verify Your Email</h1>
-          </div>
-
-          <!-- Body -->
-          <div style="padding:25px 30px; font-size:15px; color:#333;">
-            <p>Welcome to <strong>Homiqly!</strong> We’re thrilled to have you join our community.</p>
-            <p>Before we get started, please verify your email address using the code below:</p>
-
-            <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px;
-                        text-align:center; padding:15px; font-size:24px; font-weight:bold; color:#007BFF; letter-spacing:3px;">
-              ${code}
-            </div>
-
-            <p style="margin-top:15px;">⚠️ This code is valid for <strong>5 minutes</strong>. If you didn’t request this verification, you can ignore this email.</p>
-            <p style="margin-top:20px;">Once verified, you’ll be ready to explore personalized beauty and lifestyle services on Homiqly.</p>
-
-            <p style="margin-top:20px;">Cheers,<br><strong>Team Homiqly</strong></p>
-          </div>
-
-          <!-- Footer -->
-          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
-            <p style="margin:4px 0;">Need help? Contact <a href="mailto:support@homiqly.com" style="color:#007BFF; text-decoration:none;">support@homiqly.com</a></p>
-            <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
+        <!-- OTP Box -->
+        <div style="text-align:left; margin: 20px 0;">
+          <div style="
+            display: inline-block;
+            font-size: 16px;
+            font-weight: 600;
+            color: #000;
+            letter-spacing: 3px;
+            padding: 6px 14px;
+            border: 1.3px dotted #000;
+            border-radius: 6px;
+          ">
+            ${code}
           </div>
         </div>
+
+        <p style="font-size: 14px; color: #555; margin-top: 20px;">
+          This code is valid for <strong>5 minutes</strong>. If you didn’t request this, you can safely ignore this email.
+        </p>
+
+        <p style="font-size: 14px; color: #555; margin-top: 25px;">
+          Thanks for being part of our community,<br/>
+          <strong>The Homiqly Team</strong>
+        </p>
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+    // ✉️ Send the mail using your reusable wrapper
+    await sendMail({
       to: userEmail,
-      subject: "Verify Your Email - Homiqly Registration",
-      html: htmlBody,
-      attachments: [
-        {
-          filename: "homiqly.webp",
-          path: logoPath,
-          cid: cidName,
-          contentDisposition: "inline",
-        },
-      ],
+      subject,
+      bodyHtml,
     });
 
-    console.log(`📧 Verification email sent to: ${userEmail}`);
+    console.log(`📧 Verification email sent to ${userEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send verification email:", error.message);
+    console.error("❌ Error sending verification mail:", error.message);
   }
-}
+};
 
-async function sendReviewRequestMail({ userName, userEmail, serviceName, vendorName }) {
+
+const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorName }) => {
   try {
     const logoPath = path.resolve("config/media/homiqly.webp");
     const cidName = "homiqlyLogo";
@@ -652,7 +677,7 @@ async function sendReviewRequestMail({ userName, userEmail, serviceName, vendorN
     `;
 
     await transporter.sendMail({
-      from: `"Homiqly" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject: "How Was Your Homiqly Experience? 👉",
       html: htmlBody,
@@ -672,8 +697,124 @@ async function sendReviewRequestMail({ userName, userEmail, serviceName, vendorN
   }
 }
 
+//done
+const assignWelcomeCode = async ({ user_id, user_email }) => {
+  try {
+    // ✅ 1. Check if auto-assign is enabled
+    const [setting] = await db.query(
+      "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
+    );
 
-async function sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned }) {
+    if (!setting[0] || setting[0].setting_value != 1) {
+      console.log("⚙️ Auto-assign welcome code is disabled");
+      return null;
+    }
+
+    // ✅ 2. Check if user already has a promo assigned
+    const [existing] = await db.query(
+      "SELECT * FROM system_promo_codes WHERE user_id = ?",
+      [user_id]
+    );
+
+    if (existing.length > 0) {
+      console.log("ℹ️ User already has a promo code assigned");
+      return null;
+    }
+
+    // ✅ 3. Get the active welcome promo template
+    const [templates] = await db.query(
+      "SELECT * FROM system_promo_code_templates WHERE is_active = 1 AND source_type = 'system' LIMIT 1"
+    );
+
+    if (!templates || templates.length === 0) {
+      console.log("⚠️ No active promo template found");
+      return null;
+    }
+
+    const template = templates[0];
+    const { system_promo_code_template_id, code, discountValue, maxUse } = template;
+
+    console.log("Assigning template:", { user_id, system_promo_code_template_id, code });
+
+    // ✅ 4. Assign promo to user
+    await db.query(
+      `INSERT INTO system_promo_codes (user_id, template_id, usage_count)
+       VALUES (?, ?, 0)`,
+      [user_id, system_promo_code_template_id]
+    );
+
+    console.log(`✅ Promo template '${code}' assigned to user ID: ${user_id}`);
+
+    // ✅ 5. Send email (using sendMail helper)
+    if (user_email) {
+      const subject = "Welcome to Homiqly community! Your Promo Code Inside";
+      const bodyHtml = `
+              <div style="padding: 30px; font-size: 15px; color: #333; text-align: left;">
+                <h2 style="font-weight: 600; margin-bottom: 10px; font-size: 20px; color: #111;">
+                  We're excited to have you onboard!
+                </h2>
+
+                <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px; color: #333;">
+                  As a warm welcome, here’s your exclusive promo code:
+                </h3>
+
+                <div style="text-align: center; margin: 25px 0;">
+                  <div style="
+                  display: inline-block;
+                  font-size: 16px;
+                  font-weight: 600;
+                  color: #000;
+                  letter-spacing: 3px;
+                  padding: 6px 14px;
+                  border: 1.3px dotted #000;
+                  border-radius: 6px;
+                  ">
+                   ${code}
+                  </div>
+                </div>
+
+                <p style="font-size: 15px; color: #555; margin-top: 10px; line-height: 1.6;">
+                  <strong>Discount:</strong> ${discountValue}%<br/>
+                  <strong>Max Use:</strong> ${maxUse}
+                </p>
+
+                <p style="font-size: 14px; color: #555; margin-top: 15px; line-height: 1.6;">
+                  Use this code on your next booking and enjoy great savings on our platform.
+                </p>
+
+                <div style="text-align: center; margin-top: 30px;">
+                  <a href="https://www.homiqly.com"
+                    style="background: #000; color: #fff; padding: 12px 28px; border-radius: 5px;
+                          text-decoration: none; font-weight: 600; display: inline-block;">
+                    Explore Homiqly
+                  </a>
+                </div>
+
+                <p style="font-size: 14px; color: #555; margin-top: 25px; line-height: 1.6;">
+                  Thanks for being part of the Homiqly community,<br/>
+                  <strong>The Homiqly Team</strong>
+                </p>
+              </div>
+`;
+
+
+      await sendMail({
+        to: user_email,
+        subject,
+        bodyHtml,
+      });
+
+      console.log(`📧 Welcome promo email sent to ${user_email}`);
+    }
+
+    return code;
+  } catch (err) {
+    console.error("❌ Error assigning welcome promo code:", err.message);
+    return null;
+  }
+};
+
+const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) => {
   if (!vendorData?.vendorEmail) {
     console.warn("⚠️ No vendor email found, skipping email notification.");
     return;
@@ -705,7 +846,7 @@ async function sendVendorAssignedPackagesEmail({ vendorData, newlyAssigned }) {
         `;
 
     await transporter.sendMail({
-      from: `"Admin Team" <${process.env.EMAIL_USER}>`,
+      from: `<${process.env.EMAIL_USER}>`,
       to: vendorData.vendorEmail,
       subject: "New Packages Assigned to You",
       html: emailHtml
@@ -727,6 +868,8 @@ module.exports = {
   sendPasswordResetCodeMail,
   sendUserVerificationMail,
   sendReviewRequestMail,
-  sendVendorAssignedPackagesEmail
+  assignWelcomeCode,
+  sendVendorAssignedPackagesEmail,
+  sendUserWelcomeMail
 
 };

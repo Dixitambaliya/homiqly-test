@@ -1,13 +1,12 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
-const adminQueries = require("../config/adminQueries");
 const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const nodemailer = require("nodemailer");
-const { sendVendorAssignedPackagesEmail } = require("../config/mailer");
+const { sendVendorAssignedPackagesEmail } = require("../config/utils/email/mailer");
 
 const transporter = nodemailer.createTransport({
     service: "gmail",

@@ -1,5 +1,5 @@
 const { db } = require("../config/db");
-const { sendAdminVendorRegistrationMail } = require("../config/mailer");
+const { sendAdminVendorRegistrationMail } = require("../config/utils/email/mailer");
 
 
 const registerVendorLogin = async (req, res) => {
