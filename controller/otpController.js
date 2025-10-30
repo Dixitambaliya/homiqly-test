@@ -10,8 +10,9 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
 // ---- Send OTP via SMS ----
 const sendOtp = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id  // get current user ID from token or request body
     const { phone } = req.body;
-    const { user_id } = req.user.user_id  // get current user ID from token or request body
+    console.log(user_id);
 
     if (!phone) {
         return res.status(400).json({ message: "Phone is required" });

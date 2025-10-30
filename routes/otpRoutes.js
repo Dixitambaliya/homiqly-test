@@ -5,7 +5,7 @@ const { sendOtp, verifyOtp } = require('../controller/otpController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 
 // Route to send OTP
-router.post('/send-otp', sendOtp);
+router.post('/send-otp', authenticationToken, sendOtp);
 
 // Route to verify OTP
 router.post('/verify-otp', authenticationToken, verifyOtp);
