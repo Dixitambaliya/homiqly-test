@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { RefreshCcw } from "lucide-react";
+import Pagination from "../../shared/components/Pagination";
 
 const VendorBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -97,8 +98,8 @@ const VendorBookings = () => {
         typeof res?.data?.totalRecords !== "undefined"
           ? Number(res.data.totalRecords)
           : typeof res?.data?.total !== "undefined"
-          ? Number(res.data.total)
-          : pageData.length;
+            ? Number(res.data.total)
+            : pageData.length;
       const apiLimit =
         typeof res?.data?.limit !== "undefined"
           ? Number(res.data.limit)
@@ -167,10 +168,10 @@ const VendorBookings = () => {
         prev.map((b) =>
           b.booking_id === bookingId
             ? {
-                ...b,
-                employeeName:
-                  assignedEmployee?.employee_name || assignedEmployee?.name,
-              }
+              ...b,
+              employeeName:
+                assignedEmployee?.employee_name || assignedEmployee?.name,
+            }
             : b
         )
       );
@@ -238,12 +239,6 @@ const VendorBookings = () => {
     setSearchTerm(e.target.value);
   };
 
-  // pagination helpers
-  const goToPage = (p) => {
-    const bounded = Math.max(1, Math.min(totalPages, p));
-    if (bounded !== page) setPage(bounded);
-  };
-
   const handleLimitChange = (newLimit) => {
     setLimit(Number(newLimit));
     setPage(1);
@@ -255,18 +250,6 @@ const VendorBookings = () => {
     setDateRange({ startDate: "", endDate: "" });
     setLimit(10);
     setPage(1);
-  };
-
-  const getPageWindow = () => {
-    const windowSize = 5;
-    let start = Math.max(1, page - Math.floor(windowSize / 2));
-    let end = Math.min(totalPages, start + windowSize - 1);
-    if (end - start + 1 < windowSize) {
-      start = Math.max(1, end - windowSize + 1);
-    }
-    const arr = [];
-    for (let p = start; p <= end; p++) arr.push(p);
-    return arr;
   };
 
   // render states
@@ -383,7 +366,7 @@ const VendorBookings = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded shadow overflow-hidden">
+      <div className="overflow-hidden">
         <BookingsTable
           bookings={bookings.map((b) => ({
             ...b,
@@ -400,83 +383,33 @@ const VendorBookings = () => {
         />
 
         {/* Pagination bar */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-4 border-t">
-          <div className="flex items-center gap-3">
-            <div>
-              <label className="text-sm mr-2">Show</label>
-              <select
-                value={limit}
-                onChange={(e) => handleLimitChange(Number(e.target.value))}
-                className="border rounded px-2 py-1"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-              <span className="ml-2 text-sm text-gray-600">entries</span>
-            </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t bg-white">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={(p) => setPage(p)}
+            disabled={loading}
+            keepVisibleOnSinglePage={true}
+            totalRecords={total}          // for "Showing A–B of N"
+            limit={limit}
+            onLimitChange={(n) => { setLimit(n); setPage(1); }}
 
-            <div className="text-sm text-gray-600">
-              {total === 0 ? (
-                "No entries"
-              ) : (
-                <>
-                  Showing{" "}
-                  <strong>{Math.min((page - 1) * limit + 1, total)}</strong> to{" "}
-                  <strong>{Math.min(page * limit, total)}</strong> of{" "}
-                  <strong>{total}</strong> entries
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(1)}
-              disabled={page === 1}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              First
-            </button>
-            <button
-              onClick={() => goToPage(page - 1)}
-              disabled={page === 1}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Prev
-            </button>
-
-            <div className="flex items-center gap-1">
-              {getPageWindow().map((p) => (
-                <button
-                  key={p}
-                  onClick={() => goToPage(p)}
-                  className={`px-3 py-1 border rounded ${
-                    p === page ? "bg-gray-200 font-semibold" : ""
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => goToPage(page + 1)}
-              disabled={page === totalPages}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Next
-            </button>
-            <button
-              onClick={() => goToPage(totalPages)}
-              disabled={page === totalPages}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Last
-            </button>
-          </div>
+            // use your custom select
+            renderLimitSelect={({ value, onChange, options }) => (
+              <FormSelect
+                id="limit"
+                name="limit"
+                dropdownDirection="auto"
+                value={value}
+                onChange={(e) => onChange(Number(e.target.value))}
+                options={options.map((v) => ({ value: v, label: String(v) }))}
+              />
+            )}
+            pageSizeOptions={[5, 10, 20, 50]}
+          />
         </div>
+
+
       </div>
     </div>
   );

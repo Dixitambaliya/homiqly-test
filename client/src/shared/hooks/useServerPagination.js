@@ -1,10 +1,8 @@
+// src/shared/hooks/useServerPagination.js
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
- * useServerPagination
- * - fetcher: async (params) => { data, total, page, totalPages, limit } OR various common shapes
- * - initial: { page, limit, search, filters }
- * - options: { debounceMs, preserveDataOnFetch }
+ * useServerPagination - robust normalization
  */
 export default function useServerPagination(
   fetcher,
@@ -20,8 +18,8 @@ export default function useServerPagination(
 
   const { debounceMs = 350, preserveDataOnFetch = false } = options;
 
-  const [page, setPage] = useState(Number(initialPage));
-  const [limit, setLimit] = useState(Number(initialLimit));
+  const [page, setPageState] = useState(Number(initialPage));
+  const [limit, setLimitState] = useState(Number(initialLimit));
   const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState(initialFilters);
 
@@ -38,8 +36,7 @@ export default function useServerPagination(
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch((s) => (s === search ? s : search));
-      // reset page on search change
-      setPage(1);
+      setPageState(1);
     }, debounceMs);
     return () => clearTimeout(t);
   }, [search, debounceMs]);
@@ -62,23 +59,35 @@ export default function useServerPagination(
         if (!preserveDataOnFetch) setData([]);
         const res = await fetcher(normalizedParams);
 
-        // Try to normalize different common API shapes
-        // Expect either: { data, total, page, totalPages, limit } OR { rows, total, currentPage }
+        // payload might be res, res.data, or already normalized
         const payload = res?.data ?? res ?? {};
 
-        // find array payload
+        // detect page array in common fields (data, rows, applications, items, etc.)
         const pageData =
-          payload?.rows ??
-          payload?.data ??
-          payload?.items ??
-          payload?.applications ??
-          payload;
+          Array.isArray(payload?.data) && payload.data.length >= 0
+            ? payload.data
+            : Array.isArray(payload?.rows) && payload.rows.length >= 0
+            ? payload.rows
+            : Array.isArray(payload?.applications) &&
+              payload.applications.length >= 0
+            ? payload.applications
+            : Array.isArray(payload?.items) && payload.items.length >= 0
+            ? payload.items
+            : Array.isArray(payload)
+            ? payload
+            : [];
 
-        // total records
+        // Prefer explicit totals from server; fallback to length of pageData
         const apiTotal =
-          Number(payload?.totalRecords ?? payload?.total ?? payload?.count) ||
-          (Array.isArray(pageData) ? pageData.length : 0);
+          Number(
+            payload?.total ?? payload?.totalRecords ?? payload?.count ?? -1
+          ) >= 0
+            ? Number(payload?.total ?? payload?.totalRecords ?? payload?.count)
+            : Array.isArray(pageData)
+            ? pageData.length
+            : 0;
 
+        // page and limit from payload or from requested params
         const apiPage =
           typeof payload?.currentPage !== "undefined"
             ? Number(payload.currentPage)
@@ -91,20 +100,24 @@ export default function useServerPagination(
             ? Number(payload.limit)
             : Number(normalizedParams.limit);
 
+        // totalPages: prefer server-provided, else compute defensively
         const apiTotalPages =
           typeof payload?.totalPages !== "undefined"
             ? Number(payload.totalPages)
-            : Math.max(1, Math.ceil(apiTotal / (apiLimit || apiLimit)));
+            : apiLimit > 0
+            ? Math.max(1, Math.ceil((apiTotal || 0) / apiLimit))
+            : 1;
 
+        // commit state
         setData(Array.isArray(pageData) ? pageData : []);
         setTotal(Number(apiTotal) || 0);
         setTotalPages(Number(apiTotalPages) || 1);
 
-        // keep page/limit in sync with server if changed
+        // sync page/limit with server where appropriate
         if (!opts.keepPage) {
-          if (apiPage && apiPage !== page) setPage(apiPage);
+          if (apiPage && apiPage !== page) setPageState(Number(apiPage));
         }
-        if (apiLimit && apiLimit !== limit) setLimit(apiLimit);
+        if (apiLimit && apiLimit !== limit) setLimitState(Number(apiLimit));
       } catch (err) {
         setError(err);
         setData([]);
@@ -114,7 +127,7 @@ export default function useServerPagination(
         setLoading(false);
       }
     },
-    [fetcher, normalizedParams, preserveDataOnFetch, page, limit]
+    [fetcher, normalizedParams, preserveDataOnFetch] // avoid including page/limit here; normalizedParams changes when needed
   );
 
   // auto fetch when relevant params change
@@ -124,13 +137,13 @@ export default function useServerPagination(
 
   // helpers
   const goToPage = (p) => {
-    const bounded = Math.max(1, Math.min(totalPages, Number(p)));
-    if (bounded !== page) setPage(bounded);
+    const bounded = Math.max(1, Math.min(totalPages || 1, Number(p)));
+    if (bounded !== page) setPageState(bounded);
   };
 
   const changeLimit = (newLimit) => {
-    setLimit(Number(newLimit));
-    setPage(1);
+    setLimitState(Number(newLimit));
+    setPageState(1);
   };
 
   const refresh = () => fetchPage({ keepPage: true });
@@ -138,8 +151,8 @@ export default function useServerPagination(
   const reset = (opts = {}) => {
     setSearch(initialSearch);
     setFilters(initialFilters);
-    setLimit(initialLimit);
-    setPage(initialPage);
+    setLimitState(Number(initialLimit));
+    setPageState(Number(initialPage));
     if (opts.fetch !== false) fetchPage();
   };
 
