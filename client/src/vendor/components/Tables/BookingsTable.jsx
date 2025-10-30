@@ -172,7 +172,7 @@ const BookingsTable = ({
       data={filteredBookings}
       isLoading={isLoading}
       emptyMessage="No bookings found."
-      // onRowClick={onViewBooking}
+      onRowClick={onViewBooking}
     />
   );
 };
