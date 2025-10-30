@@ -106,7 +106,6 @@ const VendorApplications = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full"
-              inputClassName="h-10" 
             />
           </div>
 
