@@ -138,7 +138,7 @@ const DashboardLayout = () => {
 
       {/* Sidebar */}
       <aside
-        className={`bg-background text-text-primary fixed inset-y-0 left-0 z-30 transform transition-all duration-300 ease-in-out lg:static lg:inset-0 ${
+        className={`bg-background text-text-primary fixed inset-y-0 left-0 z-10 transform transition-all duration-300 ease-in-out lg:static lg:inset-0 ${
           sidebarOpen ? "w-64" : "w-20"
         } ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
