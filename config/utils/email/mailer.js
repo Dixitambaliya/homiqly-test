@@ -2,6 +2,7 @@ const nodemailer = require("nodemailer");
 const { db } = require('../../db');
 const path = require('path')
 const { sendMail } = require('../email/templates/nodemailer');
+const moment = require('moment-timezone');
 
 
 const transporter = nodemailer.createTransport({
@@ -112,235 +113,297 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
 };
 
 
-const sendBookingEmail = async ({ user_id, bookingDetails }) => {
+const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
   try {
+    // 🧩 Fetch user info
     const [[user]] = await db.query(
-      `SELECT CONCAT(firstName, ' ', lastName) AS name, email 
-       FROM users 
-       WHERE user_id = ? LIMIT 1`,
+      `SELECT CONCAT(firstName, ' ', lastName) AS name, email
+       FROM users WHERE user_id = ? LIMIT 1`,
       [user_id]
     );
-
     if (!user) {
-      console.warn(`⚠️ No user found for user_id ${user_id}, skipping email.`);
+      console.warn(`⚠️ No user found for user_id ${user_id}`);
       return;
     }
 
-    const {
-      booking_id,
-      bookingDate,
-      bookingTime,
-      packages = [],
-      promo_code,
-      promo_discount,
-      receiptUrl
-    } = bookingDetails;
+    const [[booking]] = await db.query(
+      `
+        SELECT 
+          sb.booking_id,
+          sb.bookingDate,
+          sb.bookingTime,
+          sb.totalTime,
+          sb.payment_status,
+          sb.notes,
+          sb.created_at,
+          p.amount AS totalAmount,
 
-    // ✅ Use reusable header/footer
-    const { html: headerHtml, logoPath, cidName } = emailHeader();
-    const { html: footerHtml, footerLogoPath, cidFooterLogo } = emailFooter();
-
-    // 🧾 Create dynamic HTML for all packages
-    const packagesHtml = packages.map(pkg => {
-      const subPackagesHtml = pkg.sub_packages.map(sub => {
-        const addonsHtml = sub.addons?.length
-          ? sub.addons.map(a => `<li>${a.addonName} <span style="color:#555;">(₹${a.price})</span></li>`).join("")
-          : "<li>None</li>";
-
-        const prefsHtml = sub.preferences?.length
-          ? sub.preferences.map(p => `<li>${p.preferenceValue} <span style="color:#555;">(₹${p.preferencePrice})</span></li>`).join("")
-          : "<li>None</li>";
-
-        const consentsHtml = sub.consents?.length
-          ? sub.consents.map(c => `<li>${c.question}: <strong>${c.answer}</strong></li>`).join("")
-          : "<li>None</li>";
-
-        return `
-          <div style="padding:12px 15px; margin:10px 0; background:#fafafa; border-radius:8px; border:1px solid #eee;">
-            <p style="margin:0 0 8px;"><strong>${sub.itemName}</strong> (${sub.timeRequired})</p>
-            <table style="width:100%; font-size:14px; color:#333;">
-              <tr><td style="width:150px;"><strong>Price:</strong></td><td>₹${sub.price}</td></tr>
-              <tr><td><strong>Addons:</strong></td><td><ul>${addonsHtml}</ul></td></tr>
-              <tr><td><strong>Preferences:</strong></td><td><ul>${prefsHtml}</ul></td></tr>
-              <tr><td><strong>Consents:</strong></td><td><ul>${consentsHtml}</ul></td></tr>
-            </table>
-          </div>
-        `;
-      }).join("");
-
-      return `
-        <div style="margin-bottom:25px;">
-          <h3 style="color:#2c3e50; border-bottom:2px solid #4CAF50; padding-bottom:5px;">${pkg.packageName}</h3>
-          ${subPackagesHtml}
-        </div>
-      `;
-    }).join("");
-
-    // 📄 Combine all HTML sections
-    const htmlBody = `
-      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
-        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+          -- 🧩 Vendor Info
+          v.vendor_id,
+          CASE 
+            WHEN v.vendorType = 'individual' THEN i.name
+            ELSE c.companyName
+          END AS vendorName,
           
-          ${headerHtml}
+          CASE 
+            WHEN v.vendorType = 'individual' THEN i.email
+            ELSE c.companyEmail
+          END AS vendorEmail,
 
-          <div style="padding:25px 30px;">
-            <h2 style="color:#4CAF50; text-align:center;">Booking Confirmed!</h2>
-            <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
-            <p style="font-size:15px; color:#555;">Your booking <strong>#${booking_id}</strong> has been successfully confirmed. Below are your details:</p>
+          CASE 
+            WHEN v.vendorType = 'individual' THEN i.phone
+            ELSE c.companyPhone
+          END AS vendorPhone,
 
-            <table style="width:100%; margin-top:15px; border-collapse:collapse; font-size:15px;">
-              <tr><td style="padding:5px 0;"><strong>Date:</strong></td><td>${new Date(bookingDate).toLocaleDateString()}</td></tr>
-              <tr><td style="padding:5px 0;"><strong>Time:</strong></td><td>${bookingTime}</td></tr>
-              <tr><td style="padding:5px 0;"><strong>Promo Code:</strong></td><td>${promo_code || "None"}</td></tr>
-              <tr><td style="padding:5px 0;"><strong>Promo Discount:</strong></td><td>₹${promo_discount || 0}</td></tr>
-            </table>
+          -- 🧩 Service Info
+          s.serviceName,
+          sc.serviceCategory
 
-            <h2 style="margin-top:25px; font-size:18px; color:#2c3e50;">Your Packages</h2>
-            ${packagesHtml || "<p>No packages found.</p>"}
+        FROM service_booking sb
+        LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+        LEFT JOIN individual_details i ON v.vendor_id = i.id
+        LEFT JOIN company_details c ON v.vendor_id = c.id
+        LEFT JOIN services s ON sb.service_id = s.service_id
+        LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+        WHERE sb.booking_id = ?
+        LIMIT 1
+  `,
+      [booking_id]
+    );
 
-            ${receiptUrl ? `
-              <div style="text-align:center; margin:30px 0 10px;">
-                <a href="${receiptUrl}" style="background:#4CAF50; color:#fff; text-decoration:none; padding:12px 24px; font-size:16px; font-weight:600; border-radius:8px;">View Payment Receipt</a>
-              </div>` : ""}
-          </div>
 
-          ${footerHtml}
-        </div>
+    if (!booking) {
+      console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
+      return;
+    }
+
+    // 🧩 Fetch booked sub-packages and addons
+    const [items] = await db.query(
+      `SELECT pi.itemName, sbs.price, sbs.quantity
+       FROM service_booking_sub_packages sbs
+       JOIN package_items pi ON sbs.sub_package_id = pi.item_id
+       WHERE sbs.booking_id = ?`,
+      [booking_id]
+    );
+
+    const [addons] = await db.query(
+      `SELECT pa.addonName, sba.price
+       FROM service_booking_addons sba
+       JOIN package_addons pa ON sba.addon_id = pa.addon_id
+       WHERE sba.booking_id = ?`,
+      [booking_id]
+    );
+
+    // 🧩 Build HTML for items
+    const itemRows = items
+      .map(
+        (i) =>
+          `<tr>
+             <td>${i.itemName}</td>
+             <td>${i.quantity}</td>
+             <td>₹${i.price}</td>
+           </tr>`
+      )
+      .join("");
+
+    const addonRows =
+      addons.length > 0
+        ? addons
+          .map(
+            (a) =>
+              `<tr>
+                   <td colspan="2">${a.addonName}</td>
+                   <td>₹${a.price}</td>
+                 </tr>`
+          )
+          .join("")
+        : `<tr><td colspan="3">No Addons Selected</td></tr>`;
+
+    // 🧩 Email HTML body
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 30px;">
+        <h2 style="text-align:center; color:#333;">Booking Confirmed 🎉</h2>
+        <p>Hi ${user.name},</p>
+        <p>Your booking with <strong>${booking.vendorName + " " + booking.vendorEmail + "" + booking.phone}</strong> is confirmed!</p>
+
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
+          <tr>
+            <td><strong>Service:</strong></td><td>${booking.service_name}</td>
+          </tr>
+          <tr>
+            <td><strong>Category:</strong></td><td>${booking.category_name}</td>
+          </tr>
+          <tr>
+            <td><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td>
+          </tr>
+          <tr>
+            <td><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td>
+          </tr>
+          <tr>
+            <td><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td>
+          </tr>
+          <tr>
+            <td><strong>Status:</strong></td><td>${booking.payment_status}</td>
+          </tr>
+        </table>
+
+        <h3 style="margin-top:25px;">Selected Packages</h3>
+        <table style="width:100%; border:1px solid #ddd; border-collapse: collapse;">
+          <tr style="background:#f9f9f9;">
+            <th>Item</th><th>Qty</th><th>Price</th>
+          </tr>
+          ${itemRows}
+        </table>
+
+        <h3 style="margin-top:25px;">Addons</h3>
+        <table style="width:100%; border:1px solid #ddd; border-collapse: collapse;">
+          <tr style="background:#f9f9f9;">
+            <th colspan="2">Addon</th><th>Price</th>
+          </tr>
+          ${addonRows}
+        </table>
+
+        <p style="margin-top:20px; font-size: 16px;">
+          <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
+        </p>
+
+        ${receiptUrl
+        ? `<p>You can view your payment receipt <a href="${receiptUrl}" style="color:#007bff;">here</a>.</p>`
+        : ""
+      }
+
+        <p style="margin-top:30px;">Thank you for booking with <strong>Homiqly</strong>!</p>
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
+    await sendMail({
       to: user.email,
-      subject: `Booking Confirmation #${booking_id}`,
-      html: htmlBody,
-      attachments: [
-        { filename: "homiqly.png", path: logoPath, cid: cidName, contentDisposition: "inline" },
-        { filename: "Homiqly_Transparent_White.png", path: footerLogoPath, cid: cidFooterLogo, contentDisposition: "inline" },
-      ]
+      subject: "Your Booking is Confirmed",
+      bodyHtml
     });
 
-    console.log(`📧 Booking confirmation email sent to ${user.email}`);
+    console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
   } catch (err) {
-    console.error("❌ Failed to send booking email:", err);
+    console.error("⚠️ Failed to send booking email:", err.message);
   }
 };
 
 
-const sendVendorBookingEmail = async ({ vendor_id, bookingDetails }) => {
+const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
   try {
-    // 🔍 Fetch vendor info dynamically based on type
+    // 🧩 Fetch vendor info
     const [[vendor]] = await db.query(
       `
-  SELECT 
-        v.vendor_id,
-        v.vendorType,
-        CASE 
-          WHEN v.vendorType = 'individual' THEN id.name
-          WHEN v.vendorType = 'company' THEN cd.companyName
-          ELSE 'Unknown Vendor'
-        END AS name,
-        CASE 
-          WHEN v.vendorType = 'individual' THEN id.email
-          WHEN v.vendorType = 'company' THEN cd.companyEmail
-          ELSE NULL
-        END AS email
-    FROM vendors v
-    LEFT JOIN individual_details id ON v.vendor_id = id.vendor_id
-    LEFT JOIN company_details cd ON v.vendor_id = cd.vendor_id
-    WHERE v.vendor_id = ? 
-    LIMIT 1
-  `,
+          SELECT 
+            CASE 
+              WHEN v.vendorType = 'individual' THEN i.email 
+              ELSE c.companyEmail 
+            END AS email,
+
+            CASE 
+              WHEN v.vendorType = 'individual' THEN i.name 
+              ELSE c.companyName 
+            END AS name
+          FROM vendors v
+          LEFT JOIN individual_details i ON v.vendor_id = i.id
+          LEFT JOIN company_details c ON v.vendor_id = c.id
+          WHERE v.vendor_id = ?
+          LIMIT 1`,
       [vendor_id]
     );
 
-    if (!vendor || !vendor.email) {
-      console.warn(`⚠️ No vendor found or missing email for vendor_id ${vendor_id}, skipping vendor email.`);
+    if (!vendor) {
+      console.warn(`⚠️ No vendor found for vendor_id ${vendor_id}`);
       return;
     }
 
+    // 🧩 Fetch booking + user + service details
+    const [[booking]] = await db.query(
+      `SELECT sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes, sb.created_at,
+              u.firstName AS userFirstName, u.lastName AS userLastName, u.email AS userEmail,
+              s.serviceName, sc.serviceCategory, p.amount AS totalAmount
+       FROM service_booking sb
+       LEFT JOIN users u ON sb.user_id = u.user_id
+       LEFT JOIN services s ON sb.service_id = s.service_id
+       LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id 
+       LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+       WHERE sb.booking_id = ? LIMIT 1`,
+      [booking_id]
+    );
 
-    const {
-      booking_id,
-      userName,
-      userEmail,
-      userPhone,
-      bookingDate,
-      bookingTime,
-      packageName,
-      sub_packages,
-      addons,
-      preferences,
-      consents
-    } = bookingDetails;
+    if (!booking) {
+      console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
+      return;
+    }
 
-    // ---------- Load logo ----------
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidLogo = "homiqlyLogo";
+    // 🧩 Fetch booked items
+    const [items] = await db.query(
+      `SELECT pi.itemName, sbs.price, sbs.quantity
+       FROM service_booking_sub_packages sbs
+       JOIN package_items pi ON sbs.sub_package_id = pi.item_id
+       WHERE sbs.booking_id = ?`,
+      [booking_id]
+    );
 
-    // ---------- Email HTML ----------
-    const htmlBody = `
-        <div style="font-family:Arial,sans-serif;padding:20px;max-width:650px;margin:auto;background:#f9f9f9;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.1);color:#333;">
-          <div style="text-align:center;margin-bottom:30px;">
-            <img src="cid:${cidLogo}" alt="Homiqly Logo" style="width:200px;height:auto;display:block;margin:0 auto;"/>
-          </div>
+    const itemRows = items
+      .map(
+        (i) =>
+          `<tr>
+             <td>${i.itemName}</td>
+             <td>${i.quantity}</td>
+             <td>₹${i.price}</td>
+           </tr>`
+      )
+      .join("");
 
-          <h2 style="text-align:center;color:#2c3e50;">New Booking Assigned</h2>
-          <p style="font-size:16px;text-align:center;">
-            Hi <strong>${vendor.name}</strong>, you’ve received a new booking (<strong>#${booking_id}</strong>).
-          </p>
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 30px;">
+        <h2 style="text-align:center; color:#333;">New Booking Received</h2>
+        <p>Hi ${vendor.name},</p>
+        <p>You’ve received a new booking from <strong>${booking.userFirstName} ${booking.userLastName}</strong>.</p>
 
-          <!-- Booking Info -->
-          <div style="background:#fff;padding:20px;border-radius:10px;margin:20px 0;border:1px solid #e0e0e0;">
-            <h3 style="color:#2c3e50;border-bottom:1px solid #e0e0e0;padding-bottom:8px;">Booking Details</h3>
-            <ul style="list-style:none;padding-left:0;line-height:1.8;font-size:15px;">
-              <li><strong>Date:</strong> ${bookingDate}</li>
-              <li><strong>Time:</strong> ${bookingTime}</li>
-              <li><strong>Package:</strong> ${packageName || "N/A"}</li>
-              <li><strong>Sub-Packages:</strong> ${sub_packages || "None"}</li>
-              <li><strong>Addons:</strong> ${addons || "None"}</li>
-              <li><strong>Preferences:</strong> ${preferences || "None"}</li>
-              <li><strong>Consents:</strong> ${consents || "None"}</li>
-            </ul>
-          </div>
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
+          <tr><td><strong>Service:</strong></td><td>${booking.service_name}</td></tr>
+          <tr><td><strong>Category:</strong></td><td>${booking.category_name}</td></tr>
+          <tr><td><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
+          <tr><td><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
+          <tr><td><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td></tr>
+        </table>
 
-          <!-- Customer Info -->
-          <div style="background:#fff;padding:20px;border-radius:10px;margin:20px 0;border:1px solid #e0e0e0;">
-            <h3 style="color:#2c3e50;border-bottom:1px solid #e0e0e0;padding-bottom:8px;">Customer Details</h3>
-            <ul style="list-style:none;padding-left:0;line-height:1.8;font-size:15px;">
-              <li><strong>Name:</strong> ${userName || "N/A"}</li>
-              <li><strong>Email:</strong> ${userEmail || "N/A"}</li>
-              <li><strong>Phone:</strong> ${userPhone || "N/A"}</li>
-            </ul>
-          </div>
+        <h3 style="margin-top:25px;">Booked Items</h3>
+        <table style="width:100%; border:1px solid #ddd; border-collapse: collapse;">
+          <tr style="background:#f9f9f9;">
+            <th>Item</th><th>Qty</th><th>Price</th>
+          </tr>
+          ${itemRows}
+        </table>
 
-          <p style="text-align:center;font-size:14px;color:#555;margin-top:30px;">
-            Please prepare accordingly. Thank you for partnering with <strong>Homiqly</strong>!
-          </p>
-        </div>
-        `;
+        <p style="margin-top:20px; font-size: 16px;">
+          <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
+        </p>
 
-    // ---------- Send email ----------
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
+        ${receiptUrl
+        ? `<p>You can view the payment receipt <a href="${receiptUrl}" style="color:#007bff;">here</a>.</p>`
+        : ""
+      }
+
+        <p style="margin-top:30px;">Please prepare for the booking accordingly.</p>
+      </div>
+    `;
+
+    await sendMail({
       to: vendor.email,
-      subject: `New Booking Assigned #${booking_id}`,
-      html: htmlBody,
-      attachments: [
-        {
-          filename: 'homiqly.webp',
-          path: logoPath,
-          cid: cidLogo,
-          contentDisposition: "inline"
-        }
-      ]
+      subject: "You’ve Received a New Booking ",
+      html:bodyHtml
     });
 
-    console.log(`📧 Booking email sent to vendor ${vendor.email}`);
+    console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
   } catch (err) {
-    console.error("❌ Failed to send vendor booking email:", err.message);
+    console.error("⚠️ Failed to send vendor booking email:", err.message);
   }
-}
+};
+
 
 const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }) => {
   try {
