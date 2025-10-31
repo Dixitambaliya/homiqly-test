@@ -328,7 +328,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     await conn.query(
       `INSERT INTO payments (cart_id, user_id, payment_intent_id, amount, currency, status)
       VALUES (?, ?, ?, ?, ?, ?)`,
-      [cart_id, cart.user_id, paymentIntent.id, totalAmount, "cad", "created"]
+      [cart_id, cart.user_id, paymentIntent.id, totalAmount, "cad", "pending"]
     );
 
     // ✅ Commit transaction
