@@ -15,7 +15,7 @@ const { authenticationToken } = require("../middleware/authMiddleware.js")
 const multiUpload = upload.any();
 
 // Vendor registers their bank account with Stripe
-router.post("/register-bank", authenticationToken, registerBankAccount);
+router.post("/register-bank", authenticationToken, multiUpload, handleUploads, registerBankAccount);
 router.get("/get-bank-details", authenticationToken, getBankAccount);
 router.get("/get-vendors-details", authenticationToken, getAllVendorsBankAccounts);
 router.get("/getallpayout", authenticationToken, getAllPayoutRequests);

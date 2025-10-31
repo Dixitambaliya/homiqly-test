@@ -14,18 +14,19 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         legal_name = null,
         dob = null, // for individual
         business_name = null, // for business
-        government_id = null, // optional KYC ID
         preferred_transfer_type = "bank_transfer",
     } = req.body;
 
-    // 🧹 Trim input values to prevent spacing errors
+    const government_id = req.uploadedFiles?.government_id?.[0]?.url || null;
+
+    // 🧹 Trim inputs
     account_holder_name = account_holder_name?.trim();
     bank_name = bank_name?.trim();
     institution_number = institution_number?.trim();
     transit_number = transit_number?.trim();
     account_number = account_number?.trim();
 
-    // 🧩 Basic required field validation
+    // 🧩 Validation
     if (
         !account_holder_name ||
         !bank_name ||
@@ -37,7 +38,6 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "All required fields must be provided." });
     }
 
-    // 🔢 Validate numeric and length formats
     const digitOnly = /^\d+$/;
 
     if (!digitOnly.test(institution_number) || institution_number.length !== 3) {
@@ -52,58 +52,76 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Account Number must be between 7 and 12 digits." });
     }
 
-    // 🔍 Check if vendor already has a bank account
-    const [rows] = await db.query(
-        "SELECT id FROM vendor_bank_accounts WHERE vendor_id = ?",
-        [vendor_id]
-    );
+    // 🧩 Transaction logic starts here
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
 
-    if (rows.length > 0) {
-        // 📝 Update existing record
-        await db.query(
-            `UPDATE vendor_bank_accounts 
-             SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=?
-             WHERE vendor_id=?`,
-            [
-                account_holder_name,
-                bank_name,
-                institution_number,
-                transit_number,
-                account_number,
-                bank_address,
-                email,
-                legal_name,
-                dob,
-                business_name,
-                government_id,
-                preferred_transfer_type,
-                vendor_id,
-            ]
+        // 🔍 Check if vendor already has a bank account
+        const [rows] = await connection.query(
+            "SELECT id FROM vendor_bank_accounts WHERE vendor_id = ? FOR UPDATE",
+            [vendor_id]
         );
-        res.json({ message: "Bank account updated successfully." });
-    } else {
-        // 🏦 Insert new record
-        await db.query(
-            `INSERT INTO vendor_bank_accounts 
-             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                vendor_id,
-                account_holder_name,
-                bank_name,
-                institution_number,
-                transit_number,
-                account_number,
-                bank_address,
-                email,
-                legal_name,
-                dob,
-                business_name,
-                government_id,
-                preferred_transfer_type,
-            ]
-        );
-        res.json({ message: "Bank account saved successfully." });
+
+        if (rows.length > 0) {
+            // 📝 Update existing record
+            await connection.query(
+                `UPDATE vendor_bank_accounts 
+         SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, 
+             bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=?
+         WHERE vendor_id=?`,
+                [
+                    account_holder_name,
+                    bank_name,
+                    institution_number,
+                    transit_number,
+                    account_number,
+                    bank_address,
+                    email,
+                    legal_name,
+                    dob,
+                    business_name,
+                    government_id,
+                    preferred_transfer_type,
+                    vendor_id,
+                ]
+            );
+
+            await connection.commit();
+            res.json({ message: "Bank account updated successfully." });
+        } else {
+            // 🏦 Insert new record
+            await connection.query(
+                `INSERT INTO vendor_bank_accounts 
+         (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, 
+          bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    vendor_id,
+                    account_holder_name,
+                    bank_name,
+                    institution_number,
+                    transit_number,
+                    account_number,
+                    bank_address,
+                    email,
+                    legal_name,
+                    dob,
+                    business_name,
+                    government_id,
+                    preferred_transfer_type,
+                ]
+            );
+
+            await connection.commit();
+            res.json({ message: "Bank account saved successfully." });
+        }
+    } catch (err) {
+        await connection.rollback();
+        console.error("❌ Error saving bank account:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
     }
 });
 
