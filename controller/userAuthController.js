@@ -378,6 +378,8 @@ const googleLogin = asyncHandler(async (req, res) => {
             is_google_register, // 👈 true if newly created
         });
 
+        console.log(user_id);
+        
         // 🧩 5️⃣ Fire & forget: update FCM token
         if (fcmToken && fcmToken !== user.fcmToken) {
             (async () => {
@@ -390,6 +392,7 @@ const googleLogin = asyncHandler(async (req, res) => {
             })();
         }
 
+        console.log(user_id)
         // 🎁 6️⃣ Fire & forget: assign welcome code
         (async () => {
             try {
