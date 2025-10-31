@@ -94,7 +94,7 @@ const Payments = () => {
       // pagination meta (from API if present)
       setTotalPages(
         resp.totalPages ??
-          Math.max(1, Math.ceil((resp.totalRecords ?? payouts.length) / limit))
+        Math.max(1, Math.ceil((resp.totalRecords ?? payouts.length) / limit))
       );
       setTotalRecords(
         resp.totalRecords ?? resp.totalBookings ?? payouts.length
@@ -154,7 +154,7 @@ const Payments = () => {
 
     try {
       setApplyLoading(true);
-      const payload = { requested_amount: Math.round(amt) }; // API expects integer
+      const payload = { requested_amount: amt }; // API expects integer
       const res = await axios.post("/api/payment/applypayout", payload);
 
       setApplySuccess(res.data?.message || "Payout requested successfully.");
@@ -217,7 +217,7 @@ const Payments = () => {
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
-        
+
         <div className="flex items-center space-x-2">
           <div className="hidden mr-2 text-sm text-gray-600 md:block">
             Page {page} of {totalPages}
@@ -267,78 +267,78 @@ const Payments = () => {
 
       {/* Filters */}
       <div className="mb-6">
-<div className="grid items-end grid-cols-1 gap-4 md:grid-cols-6">
-  {/* Filter */}
-  <div className="md:col-span-1">
-    <label htmlFor="filter" className="block mb-1 text-sm font-medium text-gray-700">
-      Filter
-    </label>
-    <FormSelect
-      id="filter"
-      name="filter"
-      value={filter}
-      onChange={handleFilterChange}
-      options={[
-        { value: "all", label: "All Payouts" },
-        { value: "pending", label: "Pending" },
-        { value: "paid", label: "Paid" },
-        { value: "completed", label: "Completed" },
-      ]}
-    />
-  </div>
+        <div className="grid items-end grid-cols-1 gap-4 md:grid-cols-6">
+          {/* Filter */}
+          <div className="md:col-span-1">
+            <label htmlFor="filter" className="block mb-1 text-sm font-medium text-gray-700">
+              Filter
+            </label>
+            <FormSelect
+              id="filter"
+              name="filter"
+              value={filter}
+              onChange={handleFilterChange}
+              options={[
+                { value: "all", label: "All Payouts" },
+                { value: "pending", label: "Pending" },
+                { value: "paid", label: "Paid" },
+                { value: "completed", label: "Completed" },
+              ]}
+            />
+          </div>
 
-  {/* Start Date */}
-  <div className="md:col-span-1">
-    <label htmlFor="startDate" className="block mb-1 text-sm font-medium text-gray-700">
-      Start Date
-    </label>
-    <FormInput
-      id="startDate"
-      name="startDate"
-      value={dateRange.startDate}
-      onChange={handleDateChange}
-      type="date"
-      aria-label="Start date"
-    />
-  </div>
+          {/* Start Date */}
+          <div className="md:col-span-1">
+            <label htmlFor="startDate" className="block mb-1 text-sm font-medium text-gray-700">
+              Start Date
+            </label>
+            <FormInput
+              id="startDate"
+              name="startDate"
+              value={dateRange.startDate}
+              onChange={handleDateChange}
+              type="date"
+              aria-label="Start date"
+            />
+          </div>
 
-  {/* End Date */}
-  <div className="md:col-span-1">
-    <label htmlFor="endDate" className="block mb-1 text-sm font-medium text-gray-700">
-      End Date
-    </label>
-    <FormInput
-      id="endDate"
-      name="endDate"
-      value={dateRange.endDate}
-      onChange={handleDateChange}
-      type="date"
-      aria-label="End date"
-    />
-  </div>
+          {/* End Date */}
+          <div className="md:col-span-1">
+            <label htmlFor="endDate" className="block mb-1 text-sm font-medium text-gray-700">
+              End Date
+            </label>
+            <FormInput
+              id="endDate"
+              name="endDate"
+              value={dateRange.endDate}
+              onChange={handleDateChange}
+              type="date"
+              aria-label="End date"
+            />
+          </div>
 
-  {/* Spacer to push button to right */}
-  <div className="md:col-span-2"></div>
+          {/* Spacer to push button to right */}
+          <div className="md:col-span-2"></div>
 
-  {/* Request Payout Button - Right aligned */}
-  <div className="flex justify-end md:col-span-1">
-    <Button
-      onClick={openApplyModal}
-      size="sm"
-      variant="primary"
-      className="w-full md:w-auto"
-      aria-label="Request payout"
-      disabled={Number(stats.pendingPayout || 0) <= 0}
-      title={
-        Number(stats.pendingPayout || 0) <= 0
-          ? "No pending payout available"
-          : "Request payout"
-      }
-    >
-      Request Payout
-    </Button>
-  </div>
-</div>
+          {/* Request Payout Button - Right aligned */}
+          <div className="flex justify-end md:col-span-1">
+            <Button
+              onClick={openApplyModal}
+              size="sm"
+              variant="primary"
+              className="w-full md:w-auto"
+              aria-label="Request payout"
+              disabled={Number(stats.pendingPayout || 0) <= 0}
+              title={
+                Number(stats.pendingPayout || 0) <= 0
+                  ? "No pending payout available"
+                  : "Request payout"
+              }
+            >
+              Request Payout
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
