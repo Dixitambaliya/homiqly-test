@@ -7,7 +7,7 @@ import VendorApplicationTable from "../components/Tables/VendorApplicationTable"
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import Button from "../../shared/components/Button/Button";
 import { FormInput, FormSelect } from "../../shared/components/Form";
-import { Search } from "lucide-react";
+import { RefreshCcw, Search } from "lucide-react";
 
 import useServerPagination from "../../shared/hooks/useServerPagination";
 import Pagination from "../../shared/components/Pagination";
@@ -72,19 +72,25 @@ const VendorApplications = () => {
   };
 
   return (
-    <div className="p-3">
-      <div className="flex items-center justify-between mb-4">
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold mb-1">Vendor Applications</h2>
+          <h2 className="mb-1 text-2xl font-bold text-gray-800">Vendor Applications</h2>
           <p className="text-sm text-gray-500">
             Review and approve/reject vendor package applications.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center space-x-2">
+          <div className="hidden mr-2 text-sm text-gray-600 md:block">
+            Page {page} of {totalPages}
+          </div>
+
           <Button
+            className="h-9"
             onClick={() => fetchPage({ keepPage: true })}
-            variant="lightInherit"
+            variant="outline"
+            icon={<RefreshCcw className="w-4 h-4 mr-2" />}
           >
             Refresh
           </Button>
@@ -93,10 +99,9 @@ const VendorApplications = () => {
 
       {/* Filters */}
       <div className="mb-6">
-        {/* container becomes column on small screens and row on md+ */}
-        <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 justify-between">
-          {/* left: search — grows to fill available space */}
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end md:gap-6">
+          {/* Search */}
+          <div className="flex-1 min-w-0 md:max-w-xs">
             <FormInput
               icon={<Search className="w-4 h-4" />}
               id="search"
@@ -109,9 +114,9 @@ const VendorApplications = () => {
             />
           </div>
 
-          {/* right: filters + actions */}
-          <div className="w-full md:w-auto flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 items-stretch">
-            {/* status select */}
+          {/* Filters and Actions */}
+          <div className="flex flex-col items-stretch w-full gap-3 md:w-auto sm:flex-row sm:items-end sm:gap-4">
+            {/* Status Select */}
             <div className="w-full sm:w-40">
               <FormSelect
                 id="status"
@@ -124,14 +129,13 @@ const VendorApplications = () => {
                   { value: "1", label: "Approved" },
                   { value: "2", label: "Rejected" },
                 ]}
-                dropdownDirection="auto" // recommended
-                dropdownMaxHeight={280} // optional tweak
+                dropdownDirection="auto"
                 className="w-full"
               />
             </div>
 
-            {/* buttons group: horizontal on >=sm, stacked on xs */}
-            <div className="flex items-center space-x-2 justify-end">
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end space-x-2">
               <Button
                 variant="ghost"
                 onClick={() => {
@@ -157,10 +161,10 @@ const VendorApplications = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded shadow overflow-hidden">
+      {/* Table and Pagination */}
+      <div className="overflow-hidden">
         {loading && applications.length === 0 ? (
-          <div className="flex justify-center items-center h-64">
+          <div className="flex items-center justify-center h-64">
             <LoadingSpinner />
           </div>
         ) : (
@@ -173,18 +177,30 @@ const VendorApplications = () => {
               onView={handleView}
             />
 
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPage={setPage}
-              onNext={() => {}}
-              onPrev={() => {}}
-              limit={limit}
-              onLimit={setLimit}
-              limitOptions={[5, 10, 20, 50]}
-              total={total}
-              windowSize={5}
-            />
+            {/* Pagination */}
+            <div className="flex flex-col items-center justify-between gap-3 mt-4 sm:flex-row">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={(p) => setPage(p)}
+                disabled={loading}
+                keepVisibleOnSinglePage={true}
+                totalRecords={total}
+                limit={limit}
+                onLimitChange={(n) => { setLimit(n); setPage(1); }}
+                renderLimitSelect={({ value, onChange, options }) => (
+                  <FormSelect
+                    id="limit"
+                    name="limit"
+                    dropdownDirection="auto"
+                    value={value}
+                    onChange={(e) => onChange(Number(e.target.value))}
+                    options={options.map((v) => ({ value: v, label: `${v} / page` }))}
+                  />
+                )}
+                pageSizeOptions={[5, 10, 20, 50]}
+              />
+            </div>
           </>
         )}
       </div>

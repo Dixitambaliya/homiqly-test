@@ -6,6 +6,7 @@ import UsersTable from "../components/Tables/UsersTable"; // Adjust path as need
 import FormInput from "../../shared/components/Form/FormInput"; // Adjust path as needed
 import { Button, IconButton } from "../../shared/components/Button";
 import FormSelect from "../../shared/components/Form/FormSelect";
+import Pagination from "../../shared/components/Pagination";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 import Modal from "../../shared/components/Modal/Modal";
 import { Edit, RefreshCcw, Search } from "lucide-react";
@@ -248,30 +249,33 @@ const Users = () => {
     ? `Are you sure you want to delete “${deletingUser.firstName} ${deletingUser.lastName}” (User ID: ${deletingUser.user_id})? This action cannot be undone.`
     : "Are you sure you want to delete this user?";
 
-  // Pagination helpers
-  const goToPage = (p) => {
-    if (!p || p < 1) p = 1;
-    if (p > totalPages) p = totalPages;
-    setPage(p);
-  };
-
-  const onChangeLimit = (newLimit) => {
-    setLimit(Number(newLimit));
-    setPage(1);
-  };
-
   return (
-    <>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Admin User Management
-          </h2>
-        </div>
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Admin User Management
+        </h2>
+        
+        <div className="flex items-center space-x-2">
+          <div className="hidden mr-2 text-sm text-gray-600 md:block">
+            Page {page} of {totalPages}
+          </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Search box */}
-          <div className="w-full sm:w-80">
+          <Button
+            className="h-9"
+            onClick={() => fetchUsers({ page: 1, limit })}
+            variant="outline"
+            icon={<RefreshCcw className="w-4 h-4 mr-2" />}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Search Controls */}
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center w-full gap-3 md:w-auto">
+          <div className="flex-1 min-w-0 md:max-w-xs">
             <FormInput
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -279,28 +283,19 @@ const Users = () => {
               icon={<Search />}
             />
           </div>
-
-          {/* Refresh */}
-          <Button
-            onClick={() => fetchUsers({ page: 1, limit })}
-            variant="ghost"
-            icon={<RefreshCcw />}
-          >
-            Refresh
-          </Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
+        <div className="flex items-center justify-center h-64">
           <LoadingSpinner />
         </div>
       ) : error ? (
-        <div className="bg-red-50 p-4 rounded-md">
+        <div className="p-4 rounded-md bg-red-50">
           <p className="text-red-500">{error}</p>
         </div>
       ) : (
-        <>
+        <div className="overflow-hidden">
           <UsersTable
             users={filteredUsers}
             isLoading={loading}
@@ -308,52 +303,31 @@ const Users = () => {
             onDelete={handleDeleteClick}
           />
 
-          {/* Pagination controls */}
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">
-                Showing page {page} of {totalPages} • {totalUsers} users
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => goToPage(page - 1)}
-                disabled={page <= 1 || loading}
-                className="px-3 py-1 rounded border disabled:opacity-50"
-              >
-                Prev
-              </button>
-
-              <PaginationNumbers
-                page={page}
-                totalPages={totalPages}
-                onGoToPage={goToPage}
-              />
-
-              <button
-                onClick={() => goToPage(page + 1)}
-                disabled={page >= totalPages || loading}
-                className="px-3 py-1 rounded border disabled:opacity-50"
-              >
-                Next
-              </button>
-
-              <select
-                value={limit}
-                onChange={(e) => onChangeLimit(e.target.value)}
-                className="ml-3 border rounded px-2 py-1"
-                aria-label="Items per page"
-              >
-                {[5, 10, 20, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n} / page
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Pagination */}
+          <div className="flex flex-col items-center justify-between gap-3 mt-4 sm:flex-row">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={(p) => setPage(p)}
+              disabled={loading}
+              keepVisibleOnSinglePage={true}
+              totalRecords={totalUsers}
+              limit={limit}
+              onLimitChange={(n) => { setLimit(n); setPage(1); }}
+              renderLimitSelect={({ value, onChange, options }) => (
+                <FormSelect
+                  id="limit"
+                  name="limit"
+                  dropdownDirection="auto"
+                  value={value}
+                  onChange={(e) => onChange(Number(e.target.value))}
+                  options={options.map((v) => ({ value: v, label: `${v} / page` }))}
+                />
+              )}
+              pageSizeOptions={[5, 10, 20, 50]}
+            />
           </div>
-        </>
+        </div>
       )}
 
       {/* Combined View/Edit User Modal */}
@@ -364,18 +338,18 @@ const Users = () => {
           title={isEditing ? "Edit User" : "User Details"}
         >
           <>
-            <div className="p-4 h-auto overflow-y-auto">
+            <div className="h-auto p-4 overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex items-center mb-6">
                   {formData.profileImage ? (
                     <img
                       src={formData.profileImage}
                       alt={`${formData.firstName} ${formData.lastName}`}
-                      className="h-16 w-16 rounded-full mr-4 object-cover"
+                      className="object-cover w-16 h-16 mr-4 rounded-full"
                     />
                   ) : (
-                    <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center mr-4">
-                      <span className="text-gray-500 text-xl">
+                    <div className="flex items-center justify-center w-16 h-16 mr-4 bg-gray-200 rounded-full">
+                      <span className="text-xl text-gray-500">
                         {formData.firstName?.charAt(0)}
                       </span>
                     </div>
@@ -390,7 +364,7 @@ const Users = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <FormInput
                     label="First Name"
                     id="firstName"
@@ -457,7 +431,7 @@ const Users = () => {
                   />
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
                       Status
                     </label>
                     <FormSelect
@@ -474,7 +448,7 @@ const Users = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
                       Joined On
                     </label>
                     <p className="text-gray-900">
@@ -495,7 +469,7 @@ const Users = () => {
             </div>
 
             {/* Footer - always visible */}
-            <div className="sticky bottom-0 bg-white border-t p-4 flex justify-end gap-3">
+            <div className="sticky bottom-0 flex justify-end gap-3 p-4 bg-white border-t">
               {!isEditing ? (
                 <>
                   <Button
@@ -554,51 +528,8 @@ const Users = () => {
         title="Delete User"
         desc={deleteDesc}
       />
-    </>
+    </div>
   );
 };
 
 export default Users;
-
-/* ------------------------
-   PaginationNumbers component
-   ------------------------ */
-function PaginationNumbers({ page, totalPages, onGoToPage }) {
-  const pages = [];
-
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    let left = Math.max(2, page - 2);
-    let right = Math.min(totalPages - 1, page + 2);
-
-    if (left > 2) pages.push("left-ellipsis");
-    for (let i = left; i <= right; i++) pages.push(i);
-    if (right < totalPages - 1) pages.push("right-ellipsis");
-    pages.push(totalPages);
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      {pages.map((p, idx) =>
-        typeof p === "number" ? (
-          <button
-            key={idx}
-            onClick={() => onGoToPage(p)}
-            disabled={p === page}
-            className={`px-3 py-1 rounded border ${
-              p === page ? "font-bold bg-gray-100" : ""
-            }`}
-          >
-            {p}
-          </button>
-        ) : (
-          <span key={idx} className="px-2">
-            ...
-          </span>
-        )
-      )}
-    </div>
-  );
-}

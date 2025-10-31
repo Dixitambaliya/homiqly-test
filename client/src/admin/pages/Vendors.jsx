@@ -5,6 +5,7 @@ import VendorsTable from "../components/Tables/VendorsTable";
 import VendorDetailsModal from "../components/Modals/VendorDetailsModal";
 import { Button } from "../../shared/components/Button";
 import { FormInput, FormSelect } from "../../shared/components/Form";
+import Pagination from "../../shared/components/Pagination";
 import { RefreshCcw, Search } from "lucide-react";
 
 const Vendors = () => {
@@ -120,25 +121,39 @@ const Vendors = () => {
     setShowDetailsModal(true);
   };
 
-  // Pagination helpers
-  const goToPage = (p) => {
-    if (p < 1) p = 1;
-    if (p > totalPages) p = totalPages;
-    setPage(p);
-  };
-
-  const onChangeLimit = (newLimit) => {
-    setLimit(Number(newLimit));
+  // Reset all filters
+  const resetAll = () => {
+    setFilter("all");
+    setSearchTerm("");
     setPage(1);
+    setLimit(10);
   };
 
   return (
-    <div>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Vendor Management</h2>
+        
+        <div className="flex items-center space-x-2">
+          <div className="hidden mr-2 text-sm text-gray-600 md:block">
+            Page {page} of {totalPages}
+          </div>
 
-        <div className="flex w-full md:w-auto items-center gap-3">
-          <div className="flex-1 min-w-0">
+          <Button
+            className="h-9"
+            onClick={fetchVendors}
+            variant="outline"
+            icon={<RefreshCcw className="w-4 h-4 mr-2" />}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Search and Filter Controls */}
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center w-full gap-3 md:w-auto">
+          <div className="flex-1 min-w-0 md:max-w-xs">
             <FormInput
               icon={<Search />}
               type="text"
@@ -166,76 +181,47 @@ const Vendors = () => {
               aria-label="Filter vendors by status"
             />
           </div>
-
-          <div className="flex-shrink-0">
-            <Button
-              onClick={() => fetchVendors()}
-              variant="ghost"
-              icon={<RefreshCcw className="mr-2 w-4 h-4" />}
-              aria-label="Refresh vendors"
-            >
-              Refresh
-            </Button>
-          </div>
         </div>
       </div>
 
-      <VendorsTable
-        refresh={fetchVendors}
-        vendors={vendors}
-        isLoading={loading}
-        onViewVendor={viewVendorDetails}
-        onApproveVendor={(vendorId) => handleApproveVendor(vendorId, 1)}
-        onRejectVendor={(vendorId) => handleApproveVendor(vendorId, 2)}
-      />
+      {/* Vendors Table */}
+      <div className="overflow-hidden">
+        <VendorsTable
+          refresh={fetchVendors}
+          vendors={vendors}
+          isLoading={loading}
+          onViewVendor={viewVendorDetails}
+          onApproveVendor={(vendorId) => handleApproveVendor(vendorId, 1)}
+          onRejectVendor={(vendorId) => handleApproveVendor(vendorId, 2)}
+        />
 
-      {/* Pagination controls */}
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">
-            Showing page {page} of {totalPages} • {total} total
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => goToPage(page - 1)}
-            disabled={page <= 1 || loading}
-            className="px-3 py-1 rounded border disabled:opacity-50"
-          >
-            Prev
-          </button>
-
-          {/* Simple numeric pagination (show up to 7 pages with ellipsis) */}
-          <PaginationNumbers
+        {/* Pagination */}
+        <div className="flex flex-col items-center justify-between gap-3 mt-4 sm:flex-row">
+          <Pagination
             page={page}
             totalPages={totalPages}
-            onGoToPage={goToPage}
+            onPageChange={(p) => setPage(p)}
+            disabled={loading}
+            keepVisibleOnSinglePage={true}
+            totalRecords={total}
+            limit={limit}
+            onLimitChange={(n) => { setLimit(n); setPage(1); }}
+            renderLimitSelect={({ value, onChange, options }) => (
+              <FormSelect
+                id="limit"
+                name="limit"
+                dropdownDirection="auto"
+                value={value}
+                onChange={(e) => onChange(Number(e.target.value))}
+                options={options.map((v) => ({ value: v, label: `${v} / page` }))}
+              />
+            )}
+            pageSizeOptions={[5, 10, 20, 50]}
           />
-
-          <button
-            onClick={() => goToPage(page + 1)}
-            disabled={page >= totalPages || loading}
-            className="px-3 py-1 rounded border disabled:opacity-50"
-          >
-            Next
-          </button>
-
-          <select
-            value={limit}
-            onChange={(e) => onChangeLimit(e.target.value)}
-            className="ml-3 border rounded px-2 py-1"
-            aria-label="Items per page"
-          >
-            {[5, 10, 20, 50].map((n) => (
-              <option key={n} value={n}>
-                {n} / page
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
+      {/* Vendor Details Modal */}
       <VendorDetailsModal
         refresh={fetchVendors}
         isOpen={showDetailsModal}
@@ -249,55 +235,3 @@ const Vendors = () => {
 };
 
 export default Vendors;
-
-/**
- * Small helper component for rendering page numbers with basic ellipses.
- * Keeps the UI tidy for many pages.
- *
- * Props:
- * - page: current page (number)
- * - totalPages: total pages (number)
- * - onGoToPage: function(pageNumber)
- */
-function PaginationNumbers({ page, totalPages, onGoToPage }) {
-  const pages = [];
-
-  // show up to 7 page tokens: first, maybe left ellipsis, two before, current, two after, maybe right ellipsis, last
-  const add = (p) => pages.push(p);
-
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) add(i);
-  } else {
-    add(1);
-    let left = Math.max(2, page - 2);
-    let right = Math.min(totalPages - 1, page + 2);
-
-    if (left > 2) add("left-ellipsis");
-    for (let i = left; i <= right; i++) add(i);
-    if (right < totalPages - 1) add("right-ellipsis");
-    add(totalPages);
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      {pages.map((p, idx) =>
-        typeof p === "number" ? (
-          <button
-            key={idx}
-            onClick={() => onGoToPage(p)}
-            disabled={p === page}
-            className={`px-3 py-1 rounded border ${
-              p === page ? "font-bold bg-gray-100" : ""
-            }`}
-          >
-            {p}
-          </button>
-        ) : p === "left-ellipsis" || p === "right-ellipsis" ? (
-          <span key={idx} className="px-2">
-            ...
-          </span>
-        ) : null
-      )}
-    </div>
-  );
-}

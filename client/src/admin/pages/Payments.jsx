@@ -7,7 +7,8 @@ import { Button } from "../../shared/components/Button";
 import PaymentsTable from "../components/Tables/PaymentsTable";
 import { useNavigate } from "react-router-dom";
 import { FormInput, FormSelect } from "../../shared/components/Form";
-import { Search } from "lucide-react";
+import Pagination from "../../shared/components/Pagination";
+import { RefreshCcw, Search } from "lucide-react";
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -193,29 +194,32 @@ const Payments = () => {
     debouncedSearch,
   ]);
 
-  // Pagination helpers
-  const goToPage = (p) => {
-    if (!p || p < 1) p = 1;
-    if (p > totalPages) p = totalPages;
-    setPage(p);
-  };
-
-  const onChangeLimit = (newLimit) => {
-    setLimit(Number(newLimit));
-    setPage(1);
-  };
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">
           Admin Payment History
         </h2>
+        
+        <div className="flex items-center space-x-2">
+          <div className="hidden mr-2 text-sm text-gray-600 md:block">
+            Page {page} of {totalPages}
+          </div>
+
+          <Button
+            className="h-9"
+            onClick={fetchPayments}
+            variant="outline"
+            icon={<RefreshCcw className="w-4 h-4 mr-2" />}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+      <div className="p-4 mb-6 bg-white rounded-lg shadow">
+        <div className="grid items-end grid-cols-1 gap-4 md:grid-cols-6">
           <div className="md:col-span-2">
             <FormInput
               icon={<Search className="w-4 h-4" />}
@@ -271,7 +275,7 @@ const Payments = () => {
             />
           </div>
 
-          <div className="md:col-span-1 flex justify-start md:justify-end space-x-2">
+          <div className="flex justify-start space-x-2 md:col-span-1 md:justify-end">
             <Button
               variant="ghost"
               className="px-3 py-2"
@@ -305,18 +309,18 @@ const Payments = () => {
 
       {/* Error banner (inline) */}
       {error && (
-        <div className="bg-red-50 p-4 rounded-md mb-4">
+        <div className="p-4 mb-4 rounded-md bg-red-50">
           <p className="text-red-500">{error}</p>
         </div>
       )}
 
       {/* If it's the very first load and there are no payments yet, show full-page spinner */}
       {loading && payments.length === 0 ? (
-        <div className="flex justify-center items-center h-64">
+        <div className="flex items-center justify-center h-64">
           <LoadingSpinner size="lg" />
         </div>
       ) : (
-        <>
+        <div className="overflow-hidden">
           {/* Payments table. Pass isLoading so the table can show inline skeleton/loader */}
           <PaymentsTable
             payouts={filteredPayments}
@@ -328,98 +332,34 @@ const Payments = () => {
             }
           />
 
-          {/* Pagination controls */}
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">
-                Showing page {page} of {totalPages} • {totalPayments} payments
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => goToPage(page - 1)}
-                disabled={page <= 1 || loading}
-                className="px-3 py-1 rounded border disabled:opacity-50"
-              >
-                Prev
-              </button>
-
-              <PaginationNumbers
-                page={page}
-                totalPages={totalPages}
-                onGoToPage={goToPage}
-              />
-
-              <button
-                onClick={() => goToPage(page + 1)}
-                disabled={page >= totalPages || loading}
-                className="px-3 py-1 rounded border disabled:opacity-50"
-              >
-                Next
-              </button>
-
-              <select
-                value={limit}
-                onChange={(e) => onChangeLimit(e.target.value)}
-                className="ml-3 border rounded px-2 py-1"
-                aria-label="Items per page"
-              >
-                {[5, 10, 20, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n} / page
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Pagination */}
+          <div className="flex flex-col items-center justify-between gap-3 mt-4 sm:flex-row">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={(p) => setPage(p)}
+              disabled={loading}
+              keepVisibleOnSinglePage={true}
+              totalRecords={totalPayments}
+              limit={limit}
+              onLimitChange={(n) => { setLimit(n); setPage(1); }}
+              renderLimitSelect={({ value, onChange, options }) => (
+                <FormSelect
+                  id="limit"
+                  name="limit"
+                  dropdownDirection="auto"
+                  value={value}
+                  onChange={(e) => onChange(Number(e.target.value))}
+                  options={options.map((v) => ({ value: v, label: `${v} / page` }))}
+                />
+              )} 
+              pageSizeOptions={[5, 10, 20, 50]}
+            />
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 };
 
 export default Payments;
-
-/* ------------------------
-   PaginationNumbers component
-   ------------------------ */
-function PaginationNumbers({ page, totalPages, onGoToPage }) {
-  const pages = [];
-
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    let left = Math.max(2, page - 2);
-    let right = Math.min(totalPages - 1, page + 2);
-
-    if (left > 2) pages.push("left-ellipsis");
-    for (let i = left; i <= right; i++) pages.push(i);
-    if (right < totalPages - 1) pages.push("right-ellipsis");
-    pages.push(totalPages);
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      {pages.map((p, idx) =>
-        typeof p === "number" ? (
-          <button
-            key={idx}
-            onClick={() => onGoToPage(p)}
-            disabled={p === page}
-            className={`px-3 py-1 rounded border ${
-              p === page ? "font-bold bg-gray-100" : ""
-            }`}
-          >
-            {p}
-          </button>
-        ) : (
-          <span key={idx} className="px-2">
-            ...
-          </span>
-        )
-      )}
-    </div>
-  );
-}
