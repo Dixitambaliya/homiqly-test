@@ -396,7 +396,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         // 🎁 6️⃣ Fire & forget: assign welcome code
         (async () => {
             try {
-                await assignWelcomeCode({ user_id: user.user_id, user_email: user.email });
+                await assignWelcomeCode({ user_id, user_email: user.email });
                 console.log(`🎁 Welcome code assigned for ${email}`);
             } catch (err) {
                 console.error("❌ Auto-assign welcome code error:", err.message);
