@@ -132,10 +132,10 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS vendorEmail,
         CASE WHEN v.vendorType = 'individual' THEN i.phone ELSE c.companyPhone END AS vendorPhone,
         s.serviceName, sc.serviceCategory
-      FROM service_booking sb
+      FROM service_booking sb 
       LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-      LEFT JOIN individual_details i ON v.vendor_id = i.id
-      LEFT JOIN company_details c ON v.vendor_id = c.id
+      LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+      LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
       LEFT JOIN services s ON sb.service_id = s.service_id
       LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
       LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
