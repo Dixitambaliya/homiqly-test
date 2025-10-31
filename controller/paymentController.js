@@ -221,6 +221,7 @@ const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
     res.json(rows);
 });
 
+
 const applyForPayout = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { requested_amount } = req.body;
@@ -229,96 +230,99 @@ const applyForPayout = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Invalid payout amount" });
     }
 
+    const connection = await db.getConnection(); // start a dedicated connection
     try {
-        // 1️⃣ Check if vendor has bank details
-        const [bankDetails] = await db.query(
+        await connection.beginTransaction();
+
+        // 1️⃣ Ensure vendor bank exists
+        const [bankDetails] = await connection.query(
             `SELECT * FROM vendor_bank_accounts WHERE vendor_id = ? LIMIT 1`,
             [vendor_id]
         );
-        ``
+
         if (!bankDetails.length) {
+            await connection.rollback();
             return res.status(400).json({
-                message: "Please add your bank details before requesting a payout."
+                message: "Please add your bank details before requesting a payout.",
             });
         }
 
-        // 2️⃣ Check for existing payout requests in progress
-        const [existingRequest] = await db.query(
-            `SELECT * FROM vendor_payout_requests 
-             WHERE vendor_id = ? AND status = '0'`,
+        // 2️⃣ Ensure no active payout request
+        const [existingRequest] = await connection.query(
+            `SELECT * FROM vendor_payout_requests WHERE vendor_id = ? AND status = '0'`,
             [vendor_id]
         );
 
         if (existingRequest.length > 0) {
+            await connection.rollback();
             return res.status(400).json({
-                message: "You already have a payout request in progress."
+                message: "You already have a payout request in progress.",
             });
         }
 
-        // 3️⃣ Fetch all pending booking payouts
-        const [pendingPayouts] = await db.query(
-            `SELECT * 
-             FROM vendor_payouts 
-             WHERE vendor_id = ? AND payout_status = 'pending'`,
+        // 3️⃣ Fetch pending payouts (FOR UPDATE locks them safely)
+        const [pendingPayouts] = await connection.query(
+            `SELECT * FROM vendor_payouts WHERE vendor_id = ? AND payout_status = 'pending' FOR UPDATE`,
             [vendor_id]
         );
 
         if (!pendingPayouts.length) {
+            await connection.rollback();
             return res.status(400).json({
-                message: "No pending booking payouts available for request."
+                message: "No pending booking payouts available for request.",
             });
         }
 
-        // 4️⃣ Calculate total available payout
+        // 4️⃣ Total available
         const totalAvailable = pendingPayouts.reduce(
-            (sum, row) => sum + parseFloat(row.payout_amount),
+            (sum, p) => sum + parseFloat(p.payout_amount),
             0
         );
 
         if (requested_amount > totalAvailable) {
+            await connection.rollback();
             return res.status(400).json({
-                message: `Requested amount (${requested_amount}) exceeds your available balance (${totalAvailable.toFixed(2)}).`
+                message: `Requested amount (${requested_amount}) exceeds available (${totalAvailable.toFixed(2)}).`,
             });
         }
 
-        // 5️⃣ Lock only the pending payouts
-        const payoutIds = pendingPayouts.map(p => p.payout_id);
-        await db.query(
-            `UPDATE vendor_payouts
-             SET payout_status = 'hold'
-             WHERE payout_id IN (?)`,
-            [payoutIds]
-        );
-
-        // 6️⃣ Insert new payout request
-        const [insertResult] = await db.query(
+        // 5️⃣ Insert payout request
+        const [insertResult] = await connection.query(
             `INSERT INTO vendor_payout_requests (vendor_id, requested_amount)
-             VALUES (?, ?)`,
+       VALUES (?, ?)`,
             [vendor_id, requested_amount]
         );
 
         const payout_request_id = insertResult.insertId;
 
-        // 7️⃣ Link all held payouts to this request
-        await db.query(
+        // 6️⃣ Update all related payouts in one go
+        const payoutIds = pendingPayouts.map(p => p.payout_id);
+
+        await connection.query(
             `UPDATE vendor_payouts
-             SET payout_request_id = ?, payout_status = 'hold'
-             WHERE payout_id IN (?)`,
+       SET payout_request_id = ?, payout_status = 'hold'
+       WHERE payout_id IN (?)`,
             [payout_request_id, payoutIds]
         );
 
+        await connection.commit();
+
         res.status(200).json({
-            message: "Payout request submitted successfully and pending admin approval.",
+            message: "✅ Payout request submitted successfully.",
+            payout_request_id,
             requested_amount,
             totalAvailable,
-            payout_request_id
         });
-
     } catch (err) {
+        await connection.rollback();
         console.error("❌ Error submitting payout request:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
     }
 });
+
+
 
 const getVendorPayoutStatus = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
