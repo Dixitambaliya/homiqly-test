@@ -84,9 +84,10 @@ FROM vendors v
 LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
 LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
 LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
-GROUP BY v.vendor_id;
-
+GROUP BY v.vendor_id
+ORDER BY v.vendor_id DESC
 `,
+
 
     getAllServiceTypes: `
     SELECT
@@ -163,18 +164,19 @@ GROUP BY v.vendor_id;
 
     getAllUserDetails: `
 SELECT 
-    user_id, 
-    firstName, 
-    lastName,
-    profileImage,
-    email,
-    phone,
-    address,
-    state,
-    postalcode,
-    created_at
-    FROM users
-    ORDER BY created_at DESC
+        user_id, 
+        firstName, 
+        lastName,
+        profileImage,
+        email,
+        phone,
+        address,
+        state,
+        postalcode,
+        created_at
+            FROM users
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
 `,
 
     getAllBookings: `

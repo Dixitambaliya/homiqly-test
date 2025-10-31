@@ -94,33 +94,44 @@ const vendorGetQueries = {
     `,
 
   getVendorPayoutHistory: `
-   SELECT 
-    vp.payout_id,
-    vp.booking_id,
-    vp.vendor_id,
-    vp.user_id,
-    vp.package_id,
-    vp.platform_fee_percentage,
-    vp.payout_amount,
-    vp.currency,
-    vp.payout_status,
-    vp.created_at,
+    SELECT 
+        vp.payout_id,
+        vp.booking_id,
+        vp.vendor_id,
+        vp.user_id,
+        vp.platform_fee_percentage,
+        vp.payout_amount,
+        vp.currency,
+        vp.payout_status,
+        vp.created_at,
 
-    sb.bookingDate,
-    sb.bookingTime,
-    pkg.packageName,
-    pkg.packageMedia,
-    CONCAT(u.firstName, ' ', u.lastName) AS user_name,
-    u.email AS user_email,
-    u.phone AS user_phone
+        sb.bookingDate,
+        sb.bookingTime,
+        CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+        u.email AS user_email,
+        u.phone AS user_phone,
 
-FROM vendor_payouts vp
-JOIN service_booking sb ON vp.booking_id = sb.booking_id
-JOIN users u ON vp.user_id = u.user_id
-LEFT JOIN packages pkg ON pkg.package_id = vp.package_id
-WHERE vp.vendor_id = ?
-ORDER BY vp.created_at DESC;
+        sbs.sub_package_id,
+
+        pkg.package_id,
+        pkg.packageName,
+        pkg.packageMedia,
+
+        spi.itemName AS sub_package_name,
+        spi.itemMedia AS sub_package_media,
+        spi.description AS sub_package_description
+
+    FROM vendor_payouts vp
+    JOIN service_booking sb ON vp.booking_id = sb.booking_id
+    JOIN users u ON vp.user_id = u.user_id
+    LEFT JOIN service_booking_sub_packages sbs ON sbs.booking_id = sb.booking_id
+    LEFT JOIN package_items spi ON spi.item_id = sbs.sub_package_id
+    LEFT JOIN packages pkg ON pkg.package_id = spi.package_id
+    WHERE vp.vendor_id = ?
+    ORDER BY vp.created_at DESC
+    LIMIT ? OFFSET ?;
 `,
+
 
 
 

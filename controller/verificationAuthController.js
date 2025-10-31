@@ -4,7 +4,7 @@ const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer")
 const bcrypt = require("bcryptjs");
 const generator = require('generate-password');
-const { sendVendorApprovalMail, sendVendorRejectionMail } = require("../config/mailer");
+const { sendVendorApprovalMail, sendVendorRejectionMail } = require("../config/utils/email/mailer");
 
 const transport = nodemailer.createTransport({
     service: "gmail",

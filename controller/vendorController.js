@@ -1,10 +1,9 @@
 const { db } = require("../config/db");
 const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
-const vendorPostQueries = require("../config/vendorQueries/vendorPostQueries");
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs")
 const asyncHandler = require("express-async-handler");
-const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries")
+const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries");
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
@@ -713,6 +712,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         // ✅ Fetch all package-subpackage pairs assigned to vendor
         const [assignedRows] = await db.query(
             `SELECT 
+                vpf.vendor_packages_id,
                 vpf.package_id,
                 vpf.package_item_id,
                 p.packageName,
@@ -738,6 +738,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         assignedRows.forEach(row => {
             if (!grouped[row.package_id]) {
                 grouped[row.package_id] = {
+                    vendor_packages_id: row.vendor_packages_id,
                     package_id: row.package_id,
                     package_name: row.packageName,
                     sub_packages: []
@@ -900,11 +901,22 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Vendor ID is required" });
     }
 
+    // 🧭 Pagination inputs
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
     try {
-        // ✅ Fetch all payout records for this vendor
+        // 🔢 Count total payouts for vendor
+        const [[{ total }]] = await db.query(
+            `SELECT COUNT(*) AS total FROM vendor_payouts WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        // ✅ Fetch payouts + booking info (paginated)
         const [payoutRows] = await db.query(
             vendorGetQueries.getVendorPayoutHistory,
-            [vendor_id]
+            [vendor_id, limit, offset]
         );
 
         if (!payoutRows.length) {
@@ -914,33 +926,85 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                 totalPayout: 0,
                 pendingPayout: 0,
                 paidPayout: 0,
-                allPayouts: []
+                allPayouts: [],
+                pagination: {
+                    page,
+                    limit,
+                    totalPages: 0,
+                    totalRecords: 0
+                }
             });
         }
 
-        // ✅ Normalize and parse values
-        const allPayouts = payoutRows.map(row => ({
-            ...row,
-            gross_amount: parseFloat(parseFloat(row.gross_amount || 0).toFixed(2)),
-            payout_amount: parseFloat(parseFloat(row.payout_amount || 0).toFixed(2)),
-            payout_status:
-                typeof row.payout_status === "string"
-                    ? row.payout_status.toLowerCase()
-                    : row.payout_status
-        }));
+        // ✅ Group by booking_id
+        const payoutMap = {};
+        payoutRows.forEach(row => {
+            if (!payoutMap[row.booking_id]) {
+                payoutMap[row.booking_id] = {
+                    payout_id: row.payout_id,
+                    booking_id: row.booking_id,
+                    vendor_id: row.vendor_id,
+                    user_id: row.user_id,
+                    platform_fee_percentage: parseFloat(row.platform_fee_percentage || 0),
+                    payout_amount: parseFloat(row.payout_amount || 0),
+                    currency: row.currency,
+                    payout_status:
+                        typeof row.payout_status === "string"
+                            ? row.payout_status.toLowerCase()
+                            : row.payout_status,
+                    created_at: row.created_at,
+                    bookingDate: row.bookingDate,
+                    bookingTime: row.bookingTime,
+                    user_name: row.user_name,
+                    user_email: row.user_email,
+                    user_phone: row.user_phone,
+                    packages: []
+                };
+            }
 
-        // ✅ Totals
+            if (row.package_id && row.sub_package_id) {
+                const pkgIndex = payoutMap[row.booking_id].packages.findIndex(
+                    p => p.package_id === row.package_id
+                );
+                if (pkgIndex === -1) {
+                    // Add new package
+                    payoutMap[row.booking_id].packages.push({
+                        package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
+                        sub_packages: [
+                            {
+                                sub_package_id: row.sub_package_id,
+                                sub_package_name: row.sub_package_name,
+                                sub_package_media: row.sub_package_media,
+                                sub_package_description: row.sub_package_description
+                            }
+                        ]
+                    });
+                } else {
+                    // Append sub_package to existing package
+                    payoutMap[row.booking_id].packages[pkgIndex].sub_packages.push({
+                        sub_package_id: row.sub_package_id,
+                        sub_package_name: row.sub_package_name,
+                        sub_package_media: row.sub_package_media,
+                        sub_package_description: row.sub_package_description
+                    });
+                }
+            }
+        });
+
+        const allPayouts = Object.values(payoutMap);
+
+        // 💰 Calculate totals
         const totalPayout = parseFloat(
             allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
         );
-
         const pendingPayout = parseFloat(
             allPayouts
                 .filter(b => b.payout_status === 0 || b.payout_status === "pending")
                 .reduce((sum, b) => sum + b.payout_amount, 0)
                 .toFixed(2)
         );
-
         const paidPayout = parseFloat(
             allPayouts
                 .filter(b => b.payout_status === 3 || b.payout_status === "paid")
@@ -948,16 +1012,19 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                 .toFixed(2)
         );
 
-        // ✅ Response
+        // 📦 Response with pagination
         res.status(200).json({
             vendor_id,
             totalBookings: allPayouts.length,
             totalPayout,
             pendingPayout,
             paidPayout,
-            allPayouts
+            allPayouts,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            totalRecords: total
         });
-
     } catch (err) {
         console.error("❌ Error fetching vendor payout history:", err);
         res.status(500).json({
@@ -969,10 +1036,10 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { booking_id, status } = req.body;    
+    const { booking_id, status } = req.body;
 
     console.log(vendor_id);
-    
+
     // ✅ Validate input    
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
@@ -1060,7 +1127,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             );
 
             if (paymentInfo && paymentInfo.payment_status === 'completed') {
-                // ✅ Get platform fee for this vendor type
                 const [feeRows] = await db.query(
                     `SELECT platform_fee_percentage 
                     FROM platform_settings 
@@ -1070,24 +1136,26 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
                 const platform_fee_percentage = Number(feeRows?.[0]?.platform_fee_percentage ?? 0);
                 const gross_amount = Number(paymentInfo.amount || 0);
-                const payout_amount = Number(
-                    (gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2)
-                );
+                const payout_amount = Number((gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2));
 
-                // ✅ Insert payout entry if not already exists
-                await db.query(
+                // ✅ Insert payout only using booking_id, vendor_id, user_id, and payment info
+                const [insertResult] = await db.query(
                     `INSERT INTO vendor_payouts 
-                    (booking_id, vendor_id, user_id, package_id, payment_intent_id,
-                    gross_amount, platform_fee_percentage, payout_amount, currency)
-                    SELECT 
-                        sb.booking_id, sb.vendor_id, sb.user_id, sb.package_id, sb.payment_intent_id,
-                        ?, ?, ?, ?
-                    FROM service_booking sb
-                    WHERE sb.booking_id = ?
-                    ON DUPLICATE KEY UPDATE 
+                    (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, platform_fee_percentage, payout_amount, currency)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
                     payout_amount = VALUES(payout_amount),
                     platform_fee_percentage = VALUES(platform_fee_percentage)`,
-                    [gross_amount, platform_fee_percentage, payout_amount, paymentInfo.currency, booking_id]
+                    [
+                        booking_id,
+                        vendor_id,
+                        user_id,
+                        paymentInfo.payment_intent_id,
+                        gross_amount,
+                        platform_fee_percentage,
+                        payout_amount,
+                        paymentInfo.currency
+                    ]
                 );
             }
         }
@@ -1200,7 +1268,7 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
     try {
         // ✅ Ensure the package belongs to the vendor
         const [rows] = await connection.query(
-            `SELECT vendor_packages_id FROM vendor_packages 
+            `SELECT vendor_packages_id FROM vendor_package_items_flat 
              WHERE vendor_packages_id = ? AND vendor_id = ?`,
             [vendor_packages_id, vendorId]
         );
@@ -1210,15 +1278,9 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found or not owned by this vendor" });
         }
 
-        // ✅ Delete related sub-packages first
-        await connection.query(
-            `DELETE FROM vendor_package_items WHERE vendor_packages_id = ?`,
-            [vendor_packages_id]
-        );
-
         // ✅ Delete the vendor package
         await connection.query(
-            `DELETE FROM vendor_packages WHERE vendor_packages_id = ? AND vendor_id = ?`,
+            `DELETE FROM vendor_package_items_flat WHERE vendor_packages_id = ? AND vendor_id = ?`,
             [vendor_packages_id, vendorId]
         );
 

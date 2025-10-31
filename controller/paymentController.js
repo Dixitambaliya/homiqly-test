@@ -1,12 +1,9 @@
 const asyncHandler = require("express-async-handler");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
-const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
-
 
 const registerBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const {
+    let {
         account_holder_name,
         bank_name,
         institution_number,
@@ -15,13 +12,21 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         bank_address = null,
         email = null,
         legal_name = null,
-        dob = null, // if individual
-        business_name = null, // if business
-        government_id = null, // optional KYC ID
-        preferred_transfer_type = 'bank_transfer',
+        dob = null, // for individual
+        business_name = null, // for business
+        preferred_transfer_type = "bank_transfer",
     } = req.body;
 
-    // Validate required fields
+    const government_id = req.uploadedFiles?.government_id?.[0]?.url || null;
+
+    // 🧹 Trim inputs
+    account_holder_name = account_holder_name?.trim();
+    bank_name = bank_name?.trim();
+    institution_number = institution_number?.trim();
+    transit_number = transit_number?.trim();
+    account_number = account_number?.trim();
+
+    // 🧩 Validation
     if (
         !account_holder_name ||
         !bank_name ||
@@ -30,64 +35,96 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         !account_number ||
         !preferred_transfer_type
     ) {
-        return res.status(400).json({ message: "All required fields must be provided" });
+        return res.status(400).json({ message: "All required fields must be provided." });
     }
 
-    // Check if vendor already has a bank account
-    const [rows] = await db.query(
-        "SELECT id FROM vendor_bank_accounts WHERE vendor_id = ?",
-        [vendor_id]
-    );
+    const digitOnly = /^\d+$/;
 
-    if (rows.length > 0) {
-        // Update existing account
-        await db.query(
-            `UPDATE vendor_bank_accounts 
-             SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=? , preferred_transfer_type=?
-             WHERE vendor_id=?`,
-            [
-                account_holder_name,
-                bank_name,
-                institution_number,
-                transit_number,
-                account_number,
-                bank_address,
-                email,
-                legal_name,
-                dob,
-                business_name,
-                government_id,
-                preferred_transfer_type,
-                vendor_id,
+    if (!digitOnly.test(institution_number) || institution_number.length !== 3) {
+        return res.status(400).json({ message: "Institution Number must be a 3-digit numeric code." });
+    }
 
-            ]
+    if (!digitOnly.test(transit_number) || transit_number.length !== 5) {
+        return res.status(400).json({ message: "Transit Number must be a 5-digit numeric code." });
+    }
+
+    if (!digitOnly.test(account_number) || account_number.length < 7 || account_number.length > 12) {
+        return res.status(400).json({ message: "Account Number must be between 7 and 12 digits." });
+    }
+
+    // 🧩 Transaction logic starts here
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 🔍 Check if vendor already has a bank account
+        const [rows] = await connection.query(
+            "SELECT id FROM vendor_bank_accounts WHERE vendor_id = ? FOR UPDATE",
+            [vendor_id]
         );
-        res.json({ message: "Bank account updated successfully" });
-    } else {
-        // Insert new account
-        await db.query(
-            `INSERT INTO vendor_bank_accounts 
-             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id ,preferred_transfer_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                vendor_id,
-                account_holder_name,
-                bank_name,
-                institution_number,
-                transit_number,
-                account_number,
-                bank_address,
-                email,
-                legal_name,
-                dob,
-                business_name,
-                government_id,
-                preferred_transfer_type
-            ]
-        );
-        res.json({ message: "Bank account saved successfully" });
+
+        if (rows.length > 0) {
+            // 📝 Update existing record
+            await connection.query(
+                `UPDATE vendor_bank_accounts 
+         SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, 
+             bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=?
+         WHERE vendor_id=?`,
+                [
+                    account_holder_name,
+                    bank_name,
+                    institution_number,
+                    transit_number,
+                    account_number,
+                    bank_address,
+                    email,
+                    legal_name,
+                    dob,
+                    business_name,
+                    government_id,
+                    preferred_transfer_type,
+                    vendor_id,
+                ]
+            );
+
+            await connection.commit();
+            res.json({ message: "Bank account updated successfully." });
+        } else {
+            // 🏦 Insert new record
+            await connection.query(
+                `INSERT INTO vendor_bank_accounts 
+         (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, 
+          bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    vendor_id,
+                    account_holder_name,
+                    bank_name,
+                    institution_number,
+                    transit_number,
+                    account_number,
+                    bank_address,
+                    email,
+                    legal_name,
+                    dob,
+                    business_name,
+                    government_id,
+                    preferred_transfer_type,
+                ]
+            );
+
+            await connection.commit();
+            res.json({ message: "Bank account saved successfully." });
+        }
+    } catch (err) {
+        await connection.rollback();
+        console.error("❌ Error saving bank account:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
     }
 });
+
 
 // ----------------------------
 // Get bank account details
@@ -211,98 +248,97 @@ const applyForPayout = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Invalid payout amount" });
     }
 
+    const connection = await db.getConnection(); // start a dedicated connection
     try {
-        // 1️⃣ Check if vendor has bank details
-        const [bankDetails] = await db.query(
+        await connection.beginTransaction();
+
+        // 1️⃣ Ensure vendor bank exists
+        const [bankDetails] = await connection.query(
             `SELECT * FROM vendor_bank_accounts WHERE vendor_id = ? LIMIT 1`,
             [vendor_id]
         );
-``
+
         if (!bankDetails.length) {
+            await connection.rollback();
             return res.status(400).json({
-                message: "Please add your bank details before requesting a payout."
+                message: "Please add your bank details before requesting a payout.",
             });
         }
 
-        // 2️⃣ Check for existing payout requests in progress
-        const [existingRequest] = await db.query(
-            `SELECT * FROM vendor_payout_requests 
-             WHERE vendor_id = ? AND status = '0'`,
+        // 2️⃣ Ensure no active payout request
+        const [existingRequest] = await connection.query(
+            `SELECT * FROM vendor_payout_requests WHERE vendor_id = ? AND status = '0'`,
             [vendor_id]
         );
 
         if (existingRequest.length > 0) {
+            await connection.rollback();
             return res.status(400).json({
-                message: "You already have a payout request in progress."
+                message: "You already have a payout request in progress.",
             });
         }
 
-        // 3️⃣ Fetch all pending booking payouts
-        const [pendingPayouts] = await db.query(
-            `SELECT * 
-             FROM vendor_payouts 
-             WHERE vendor_id = ? AND payout_status = 'pending'`,
+        // 3️⃣ Fetch pending payouts (FOR UPDATE locks them safely)
+        const [pendingPayouts] = await connection.query(
+            `SELECT * FROM vendor_payouts WHERE vendor_id = ? AND payout_status = 'pending' FOR UPDATE`,
             [vendor_id]
         );
 
         if (!pendingPayouts.length) {
+            await connection.rollback();
             return res.status(400).json({
-                message: "No pending booking payouts available for request."
+                message: "No pending booking payouts available for request.",
             });
         }
 
-        // 4️⃣ Calculate total available payout
+        // 4️⃣ Total available
         const totalAvailable = pendingPayouts.reduce(
-            (sum, row) => sum + parseFloat(row.payout_amount),
+            (sum, p) => sum + parseFloat(p.payout_amount),
             0
         );
 
         if (requested_amount > totalAvailable) {
+            await connection.rollback();
             return res.status(400).json({
-                message: `Requested amount (${requested_amount}) exceeds your available balance (${totalAvailable.toFixed(2)}).`
+                message: `Requested amount (${requested_amount}) exceeds available (${totalAvailable.toFixed(2)}).`,
             });
         }
 
-        // 5️⃣ Lock only the pending payouts
-        const payoutIds = pendingPayouts.map(p => p.payout_id);
-        await db.query(
-            `UPDATE vendor_payouts
-             SET payout_status = 'hold'
-             WHERE payout_id IN (?)`,
-            [payoutIds]
-        );
-
-        // 6️⃣ Insert new payout request
-        const [insertResult] = await db.query(
+        // 5️⃣ Insert payout request
+        const [insertResult] = await connection.query(
             `INSERT INTO vendor_payout_requests (vendor_id, requested_amount)
-             VALUES (?, ?)`,
+       VALUES (?, ?)`,
             [vendor_id, requested_amount]
         );
 
         const payout_request_id = insertResult.insertId;
 
-        // 7️⃣ Link all held payouts to this request
-        await db.query(
+        // 6️⃣ Update all related payouts in one go
+        const payoutIds = pendingPayouts.map(p => p.payout_id);
+
+        await connection.query(
             `UPDATE vendor_payouts
-             SET payout_request_id = ?, payout_status = 'hold'
-             WHERE payout_id IN (?)`,
+       SET payout_request_id = ?, payout_status = 'hold'
+       WHERE payout_id IN (?)`,
             [payout_request_id, payoutIds]
         );
 
+        await connection.commit();
+
         res.status(200).json({
-            message: "Payout request submitted successfully and pending admin approval.",
+            message: "✅ Payout request submitted successfully.",
+            payout_request_id,
             requested_amount,
             totalAvailable,
-            payout_request_id
         });
-
     } catch (err) {
+        await connection.rollback();
         console.error("❌ Error submitting payout request:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
+    } finally {
+        connection.release();
     }
 });
-
-
 
 
 
@@ -347,7 +383,6 @@ const getVendorPayoutStatus = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllPayoutRequests = asyncHandler(async (req, res) => {
     const [requests] = await db.query(`
         SELECT r.*, 
@@ -368,7 +403,6 @@ const getAllPayoutRequests = asyncHandler(async (req, res) => {
 
     res.status(200).json(requests);
 });
-
 
 const updatePayoutStatus = asyncHandler(async (req, res) => {
     const { payout_request_id } = req.params;

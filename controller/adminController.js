@@ -1,13 +1,12 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
-const adminQueries = require("../config/adminQueries");
 const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const nodemailer = require("nodemailer");
-const { sendVendorAssignedPackagesEmail } = require("../config/mailer");
+const { sendVendorAssignedPackagesEmail } = require("../config/utils/email/mailer");
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -103,23 +102,76 @@ const editAdminProfile = asyncHandler(async (req, res) => {
 
 const getVendor = asyncHandler(async (req, res) => {
     try {
-        const [vendors] = await db.query(adminGetQueries.vendorDetails);
+        // 📄 Pagination setup
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
 
+        // 🔍 Optional search term
+        const search = req.query.search?.trim() || null;
+        const searchLike = `%${search}%`;
+
+        // 🧠 Base query templates
+        let baseVendorQuery = adminGetQueries.vendorDetails;
+        let vendorQuery = baseVendorQuery + ` LIMIT ? OFFSET ?`;
+        let countQuery = `SELECT COUNT(*) AS totalCount FROM vendors`;
+
+        // ✅ UNIVERSAL SEARCH (ignores pagination)
+        if (search) {
+            vendorQuery = `
+                SELECT v.*
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS v
+                WHERE 
+                    v.individual_name LIKE ? OR
+                    v.individual_email LIKE ? OR
+                    v.individual_phone LIKE ? OR
+                    v.company_companyName LIKE ? OR
+                    v.company_companyEmail LIKE ? OR
+                    v.company_companyPhone LIKE ?;
+            `;
+
+            countQuery = `
+                SELECT COUNT(*) AS totalCount
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS v
+                WHERE 
+                    v.individual_name LIKE ? OR
+                    v.individual_email LIKE ? OR
+                    v.individual_phone LIKE ? OR
+                    v.company_companyName LIKE ? OR
+                    v.company_companyEmail LIKE ? OR
+                    v.company_companyPhone LIKE ?;
+            `;
+        }
+
+        // 🧾 Query execution
+        const queryParams = search
+            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
+            : [limit, offset];
+
+        const [vendors] = await db.query(vendorQuery, queryParams);
+
+        const countParams = search
+            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
+            : [];
+        const [[{ totalCount }]] = await db.query(countQuery, countParams);
+
+        // 🧠 Process each vendor
         const processedVendors = vendors.map(vendor => {
-            // Parse packages and package items
             let packages = [];
             let packageItems = [];
             try { packages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { }
             try { packageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { }
 
-            // Cleanup based on vendor type
             if (vendor.vendorType === "individual") {
                 for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
             } else {
                 for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
             }
 
-            // Group packages under their service
             const serviceMap = {};
             packages.forEach(pkg => {
                 const serviceId = pkg.service_id;
@@ -156,17 +208,19 @@ const getVendor = asyncHandler(async (req, res) => {
 
             const servicesWithPackages = Object.values(serviceMap);
 
-            // Return vendor object without the original string fields
             const { packages: _p, package_items: _pi, ...vendorWithoutStrings } = vendor;
-
-            return {
-                ...vendorWithoutStrings,
-                services: servicesWithPackages
-            };
+            return { ...vendorWithoutStrings, services: servicesWithPackages };
         });
 
+        // ✅ Response
         res.status(200).json({
-            message: "Vendor details fetched successfully",
+            message: search
+                ? "Universal search results fetched successfully"
+                : "Vendor details fetched successfully",
+            total: totalCount,
+            page: search ? 1 : page, // universal search shows everything on one page
+            limit: search ? totalCount : limit,
+            totalPages: search ? 1 : Math.ceil(totalCount / limit),
             data: processedVendors
         });
     } catch (err) {
@@ -219,12 +273,28 @@ const getAllServiceType = asyncHandler(async (req, res) => {
 
 const getUsers = asyncHandler(async (req, res) => {
     try {
-        const [users] = await db.query(adminGetQueries.getAllUserDetails);
+        // 📄 Read pagination parameters from query (defaults)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
 
+        // 1️⃣ Get total count for pagination metadata
+        const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM users`);
+
+        const [users] = await db.query(adminGetQueries.getAllUserDetails, [limit, offset]);
+
+        // 3️⃣ Calculate total pages
+        const totalPages = Math.ceil(total / limit);
+
+        // ✅ Send response
         res.status(200).json({
             message: "Users fetched successfully",
+            page,
+            limit,
+            totalUsers: total,
+            totalPages,
             count: users.length,
-            users
+            users,
         });
     } catch (error) {
         console.error("Error fetching users:", error);
@@ -296,7 +366,80 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
 
 const getBookings = asyncHandler(async (req, res) => {
     try {
-        const [rows] = await db.query(`
+        let { page = 1, limit = 10, search = "", status, start_date, end_date } = req.query;
+
+        page = parseInt(page);
+        limit = parseInt(limit);
+        const offset = (page - 1) * limit;
+
+        let filters = " WHERE 1=1 ";
+        const params = [];
+
+        // ===== Search by username, email, or service name =====
+        if (search && search.trim() !== "") {
+            filters += ` AND (
+                CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+                OR u.email LIKE ? 
+                OR s.serviceName LIKE ?
+            )`;
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        // ===== Filter by status =====
+        if (status && [1, 3, 4].includes(Number(status))) {
+            filters += ` AND sb.bookingStatus = ?`;
+            params.push(status);
+        }
+
+        // ===== Filter by date range =====
+        if (start_date && end_date) {
+            filters += ` AND DATE(sb.bookingDate) BETWEEN ? AND ?`;
+            params.push(start_date, end_date);
+        } else if (start_date) {
+            filters += ` AND DATE(sb.bookingDate) >= ?`;
+            params.push(start_date);
+        } else if (end_date) {
+            filters += ` AND DATE(sb.bookingDate) <= ?`;
+            params.push(end_date);
+        }
+
+        // ===== Count total bookings =====
+        const [[{ total }]] = await db.query(
+            `SELECT COUNT(DISTINCT sb.booking_id) AS total
+             FROM service_booking sb
+             LEFT JOIN users u ON sb.user_id = u.user_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
+             ${filters}`,
+            params
+        );
+
+        // ===== Get paginated unique booking IDs =====
+        const [bookingIds] = await db.query(
+            `SELECT DISTINCT sb.booking_id
+             FROM service_booking sb
+             LEFT JOIN users u ON sb.user_id = u.user_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
+             ${filters}
+             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+             LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        if (bookingIds.length === 0) {
+            return res.status(200).json({
+                message: "No bookings found",
+                currentPage: page,
+                totalPages: 0,
+                totalRecords: 0,
+                bookings: [],
+            });
+        }
+
+        const bookingIdList = bookingIds.map(b => b.booking_id);
+
+        // ===== Fetch full booking details =====
+        const [rows] = await db.query(
+            `
             SELECT
                 sb.booking_id,
                 sb.bookingDate,
@@ -346,8 +489,6 @@ const getBookings = asyncHandler(async (req, res) => {
                 sbc.consent_id,
                 pcf.question,
                 sbc.answer
-
-
             FROM service_booking sb
             LEFT JOIN users u ON sb.user_id = u.user_id
             LEFT JOIN services s ON sb.service_id = s.service_id
@@ -356,28 +497,25 @@ const getBookings = asyncHandler(async (req, res) => {
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-
             LEFT JOIN packages pkg ON sb.package_id = pkg.package_id
-
             LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
             LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-
             LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
             LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
-
             LEFT JOIN service_booking_preferences sp ON sb.booking_id = sp.booking_id
             LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-
             LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
             LEFT JOIN package_consent_forms pcf ON sbc.consent_id = pcf.consent_id
-
+            WHERE sb.booking_id IN (?)
             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-        `);
+            `,
+            [bookingIdList]
+        );
 
-        // ===== Group rows by booking_id =====
+        // ===== Group by booking_id =====
         const bookingsMap = new Map();
 
-        rows.forEach(row => {
+        for (const row of rows) {
             let booking = bookingsMap.get(row.booking_id);
             if (!booking) {
                 booking = {
@@ -448,14 +586,14 @@ const getBookings = asyncHandler(async (req, res) => {
                         price: row.addon_price
                     });
                 }
-                // ===== Preferences =====
+
                 if (row.preference_id && !pkg.preferences.find(p => p.preference_id === row.preference_id)) {
                     pkg.preferences.push({
                         preference_id: row.preference_id,
                         preferenceValue: row.preferenceValue
                     });
                 }
-                // ===== concent form =====
+
                 if (row.consent_id && !pkg.concents.find(p => p.consent_id === row.consent_id)) {
                     pkg.concents.push({
                         consent_id: row.consent_id,
@@ -464,64 +602,22 @@ const getBookings = asyncHandler(async (req, res) => {
                     });
                 }
             }
-
-        });
+        }
 
         const enrichedBookings = Array.from(bookingsMap.values());
-
-        // // ===== Stripe Metadata =====
-        // const stripeData = [];
-        // for (const booking of enrichedBookings) {
-        //     if (booking.payment_intent_id) {
-        //         try {
-        //             const charges = await stripe.charges.list({
-        //                 payment_intent: booking.payment_intent_id,
-        //                 limit: 1,
-        //             });
-        //             const charge = charges.data?.[0];
-
-        //             stripeData.push({
-        //                 booking_id: booking.booking_id,
-        //                 cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
-        //                 last4: charge?.payment_method_details?.card?.last4 || "****",
-        //                 receiptEmail: charge?.receipt_email || charge?.billing_details?.email || booking.user_email || "N/A",
-        //                 chargeId: charge?.id || "N/A",
-        //                 paidAt: charge?.created
-        //                     ? new Date(charge.created * 1000).toLocaleString("en-US", {
-        //                         timeZone: "Asia/Kolkata",
-        //                         year: "numeric",
-        //                         month: "long",
-        //                         day: "numeric",
-        //                         hour: "2-digit",
-        //                         minute: "2-digit",
-        //                     })
-        //                     : "N/A",
-        //                 receiptUrl: charge?.receipt_url || null,
-        //                 paymentIntentId: charge?.payment_intent || "N/A",
-        //             });
-        //         } catch (err) {
-        //             console.error(`❌ Stripe fetch failed for booking ${booking.booking_id}:`, err.message);
-        //             stripeData.push({
-        //                 booking_id: booking.booking_id,
-        //                 cardBrand: "N/A",
-        //                 last4: "****",
-        //                 receiptEmail: booking.user_email || "N/A",
-        //                 chargeId: "N/A",
-        //                 paidAt: "N/A",
-        //                 receiptUrl: null,
-        //                 paymentIntentId: booking.payment_intent_id,
-        //             });
-        //         }
-        //     }
-        // }
+        const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
-            message: "All bookings fetched successfully",
+            message: "Bookings fetched successfully",
+            currentPage: page,
+            totalPages,
+            totalRecords: total,
+            limit,
             bookings: enrichedBookings
         });
 
     } catch (error) {
-        console.error("Error fetching all bookings:", error);
+        console.error("Error fetching bookings:", error);
         res.status(500).json({
             message: "Internal server error",
             error: error.message
@@ -1189,86 +1285,104 @@ const deletePackageByAdmin = asyncHandler(async (req, res) => {
 
 const getAllPayments = asyncHandler(async (req, res) => {
     try {
-        const [payments] = await db.query(`
-      SELECT
-    p.payment_id,
-    p.payment_intent_id,
-    p.amount,
-    p.currency,
-    p.created_at,
-    p.status,
+        // 📄 Read pagination and filters from query
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const { startDate, endDate } = req.query; // 🆕 Date filters
 
-    -- User Info
-    u.user_id,
-    u.firstname AS user_firstname,
-    u.lastname AS user_lastname,
-    u.email AS user_email,
-    u.phone AS user_phone,
+        // 🧩 Dynamic filter conditions
+        let whereClause = "WHERE p.status = 'completed'";
+        const queryParams = [];
 
-    -- Vendor Info
-    v.vendor_id,
-    v.vendorType,
+        // If both start and end dates are provided, add to filter
+        if (startDate && endDate) {
+            whereClause += " AND DATE(p.created_at) BETWEEN ? AND ?";
+            queryParams.push(startDate, endDate);
+        }
 
-    -- Individual Vendor Info
-    idet.name AS individual_name,
-    idet.phone AS individual_phone,
-    idet.email AS individual_email,
-    idet.profileImage AS individual_profile_image,
+        // 1️⃣ Get total count for completed payments (with date filter)
+        const [[{ total }]] = await db.query(
+            `
+            SELECT COUNT(*) AS total 
+            FROM payments p
+            ${whereClause}
+            `,
+            queryParams
+        );
 
-    -- Company Vendor Info
-    cdet.companyName,
-    cdet.contactPerson,
-    cdet.companyEmail AS email,
-    cdet.companyPhone AS phone,
-    cdet.profileImage AS company_profile_image,
+        // 2️⃣ Fetch paginated completed payment records (with date filter)
+        const [payments] = await db.query(
+            `
+            SELECT
+                p.payment_id,
+                p.payment_intent_id,
+                p.amount,
+                p.currency,
+                p.created_at,
+                p.status,
 
-    -- Package Info
-    pkg.package_id,
-    pkg.packageName,
-    pkg.packageMedia
+                -- User Info
+                u.user_id,
+                u.firstname AS user_firstname,
+                u.lastname AS user_lastname,
+                u.email AS user_email,
+                u.phone AS user_phone,
 
-FROM payments p
-JOIN users u ON p.user_id = u.user_id
-LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
-LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
-JOIN packages pkg ON pkg.package_id = sb.package_id
-ORDER BY p.created_at DESC;
+                -- Vendor Info
+                v.vendor_id,
+                v.vendorType,
 
-    `);
+                -- Individual Vendor Info
+                idet.name AS individual_name,
+                idet.phone AS individual_phone,
+                idet.email AS individual_email,
+                idet.profileImage AS individual_profile_image,
 
+                -- Company Vendor Info
+                cdet.companyName,
+                cdet.contactPerson,
+                cdet.companyEmail AS email,
+                cdet.companyPhone AS phone,
+                cdet.profileImage AS company_profile_image,
+
+                s.service_id,
+                s.serviceName,
+                s.serviceImage
+
+            FROM payments p
+            LEFT JOIN users u ON p.user_id = u.user_id
+            LEFT JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id AND v.vendorType = 'individual'
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id AND v.vendorType = 'company'
+            ${whereClause}
+            ORDER BY p.created_at DESC
+            LIMIT ? OFFSET ?;
+            `,
+            [...queryParams, limit, offset]
+        );
+
+        // 3️⃣ Enhance with Stripe metadata
         const enhancedPayments = await Promise.all(
-            payments.map(async (payment, index) => {
-                // console.log(`\n🔄 Processing payment [${index + 1}/${payments.length}]`);
-                // console.log(`👉 Payment ID: ${payment.payment_id}`);
-                // console.log(`👉 PaymentIntent ID: ${payment.payment_intent_id}`);
-
+            payments.map(async (payment) => {
                 try {
-                    const paymentIntent = await stripe.paymentIntents.retrieve(payment.payment_intent_id);
-                    // console.log(`✅ Retrieved PaymentIntent: ${paymentIntent.id}`);
-
                     const charges = await stripe.charges.list({
                         payment_intent: payment.payment_intent_id,
                         limit: 1,
                     });
                     const charge = charges.data?.[0];
 
-                    // if (!charge) {
-                    //     console.warn(`⚠️ No charge found for payment_intent: ${payment.payment_intent_id}`);
-                    // } else {
-                    //     console.log(`✅ Retrieved Charge ID: ${charge.id}`);
-                    //     console.log(`💳 Card Brand: ${charge.payment_method_details?.card?.brand}`);
-                    //     console.log(`💳 Last 4: ${charge.payment_method_details?.card?.last4}`);
-                    //     console.log(`📧 Email: ${charge.receipt_email || charge.billing_details?.email}`);
-                    //     console.log(`🧾 Receipt URL: ${charge.receipt_url}`);
-                    //     console.log(`🕒 Paid At (raw): ${charge.created}`);
-                    // }
-
-                    const stripeMetadata = {
+                    return {
+                        ...payment,
                         cardBrand: charge?.payment_method_details?.card?.brand || "N/A",
                         last4: charge?.payment_method_details?.card?.last4 || "****",
-                        receiptEmail: charge?.receipt_email || charge?.billing_details?.email || payment.user_email || "N/A",
+                        receiptEmail:
+                            charge?.receipt_email ||
+                            charge?.billing_details?.email ||
+                            payment.user_email ||
+                            "N/A",
                         chargeId: charge?.id || "N/A",
                         paidAt: charge?.created
                             ? new Date(charge.created * 1000).toLocaleString("en-US", {
@@ -1283,13 +1397,11 @@ ORDER BY p.created_at DESC;
                         receiptUrl: charge?.receipt_url || null,
                         paymentIntentId: charge?.payment_intent || "N/A",
                     };
-
-                    return {
-                        ...payment,
-                        ...stripeMetadata,
-                    };
                 } catch (stripeError) {
-                    console.error(`❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`, stripeError.message);
+                    console.error(
+                        `❌ Stripe metadata fetch failed for ${payment.payment_intent_id}:`,
+                        stripeError.message
+                    );
                     return {
                         ...payment,
                         cardBrand: "N/A",
@@ -1304,21 +1416,33 @@ ORDER BY p.created_at DESC;
             })
         );
 
-        // ✅ Remove null fields from final response
+        // 4️⃣ Remove null or empty fields
         const filteredPayments = enhancedPayments.map((payment) =>
-            Object.fromEntries(
-                Object.entries(payment).filter(([_, value]) => value !== null && value !== "")
-            )
+            Object.fromEntries(Object.entries(payment).filter(([_, v]) => v !== null && v !== ""))
         );
 
+        // 5️⃣ Pagination metadata
+        const totalPages = Math.ceil(total / limit);
 
+        // ✅ Response
         res.status(200).json({
             success: true,
+            message: "Completed payments fetched successfully",
+            page,
+            limit,
+            totalPayments: total,
+            totalPages,
+            count: filteredPayments.length,
+            filters: { startDate, endDate },
             payments: filteredPayments,
         });
     } catch (error) {
-        console.error("❌ Error fetching payments:", error);
-        res.status(500).json({ success: false, message: "Failed to fetch payments" });
+        console.error("❌ Error fetching completed payments:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch completed payments",
+            error: error.message,
+        });
     }
 });
 
@@ -1344,7 +1468,39 @@ const getAllPackages = asyncHandler(async (req, res) => {
 
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
-        // 1️⃣ Fetch all vendor package applications with vendor + package + service info
+        // ✅ Pagination params
+        let page = parseInt(req.query.page) || 1;
+        let limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        // ✅ Optional search keyword
+        const search = req.query.search ? `%${req.query.search}%` : null;
+
+        // ✅ Base WHERE condition
+        let whereClause = "";
+        let params = [];
+
+        if (search) {
+            whereClause = `
+                WHERE 
+                    vpa.application_id LIKE ? OR
+                    IF(v.vendorType = 'company', cdet.companyName, idet.name) LIKE ? OR
+                    IF(v.vendorType = 'company', cdet.companyEmail, idet.email) LIKE ?
+            `;
+            params.push(search, search, search);
+        }
+
+        // 1️⃣ Fetch total count for pagination info (with search filter)
+        const [[{ total }]] = await db.query(`
+            SELECT COUNT(*) AS total
+            FROM vendor_package_applications vpa
+            JOIN vendors v ON vpa.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            ${whereClause}
+        `, params);
+
+        // 2️⃣ Fetch paginated vendor package applications
         const [applications] = await db.query(`
             SELECT
                 vpa.application_id,
@@ -1369,17 +1525,25 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             JOIN packages p ON vpa.package_id = p.package_id
             JOIN service_type st ON p.service_type_id = st.service_type_id
             JOIN services s ON st.service_id = s.service_id
+            ${whereClause}
             ORDER BY vpa.applied_at DESC
-        `);
+            LIMIT ? OFFSET ?
+        `, [...params, limit, offset]);
 
         if (!applications.length) {
             return res.status(200).json({
                 message: "No vendor package requests found",
-                applications: []
+                applications: [],
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
             });
         }
 
-        // 2️⃣ Extract all package_ids to fetch sub-packages (items) in one query
+        // 3️⃣ Extract all package_ids to fetch sub-packages (items) in one query
         const packageIds = applications.map(a => a.package_id);
         const [packageItems] = await db.query(
             `
@@ -1396,23 +1560,27 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             [packageIds]
         );
 
-        // 3️⃣ Group sub-packages by package_id
+        // 4️⃣ Group sub-packages by package_id
         const itemsByPackage = {};
         packageItems.forEach(item => {
             if (!itemsByPackage[item.package_id]) itemsByPackage[item.package_id] = [];
             itemsByPackage[item.package_id].push(item);
         });
 
-        // 4️⃣ Combine everything into structured response
+        // 5️⃣ Combine everything into structured response
         const detailedApplications = applications.map(app => ({
             ...app,
             subPackages: itemsByPackage[app.package_id] || []
         }));
 
-        // 5️⃣ Send final response
+        // 6️⃣ Send final response with pagination info
         res.status(200).json({
-            message: "All vendor package requests fetched successfully with package details",
-            applications: detailedApplications
+            message: "Vendor package requests fetched successfully",
+            applications: detailedApplications,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
         });
 
     } catch (err) {

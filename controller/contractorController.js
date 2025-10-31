@@ -1,7 +1,7 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const contractorGetQueries = require('../config/contractorQueries/contractorGetQueries');
-const  contractorPostQueries = require('../config/contractorQueries/contractorPostQueries');
+const contractorPostQueries = require('../config/contractorQueries/contractorPostQueries');
 
 const createContractor = asyncHandler(async (req, res) => {
     const {

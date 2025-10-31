@@ -1,5 +1,5 @@
 const { db } = require("../config/db");
-const { sendAdminVendorRegistrationMail } = require("../config/mailer");
+const { sendAdminVendorRegistrationMail } = require("../config/utils/email/mailer");
 
 
 const registerVendorLogin = async (req, res) => {
@@ -121,16 +121,28 @@ const registerVendorLogin = async (req, res) => {
 
 const getVendorRegistrations = async (req, res) => {
     try {
-        // 1️⃣ Get all vendor temporary records
+        // 🧮 1️⃣ Get page and limit from query (defaults: page 1, limit 10)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        // 🧩 2️⃣ Get total count for pagination info
+        const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM vendor_temporary_details`);
+
+        // 3️⃣ Get paginated vendor temporary records
         const [vendors] = await db.query(
-            `SELECT * FROM vendor_temporary_details ORDER BY created_at DESC`
+            `SELECT * 
+             FROM vendor_temporary_details 
+             ORDER BY created_at DESC 
+             LIMIT ? OFFSET ?`,
+            [limit, offset]
         );
 
         const result = [];
 
+        // 4️⃣ Process each vendor
         for (const vendor of vendors) {
             let parsedPackages = [];
-
             try {
                 parsedPackages = vendor.packages_json ? JSON.parse(vendor.packages_json) : [];
             } catch {
@@ -161,7 +173,7 @@ const getVendorRegistrations = async (req, res) => {
 
                 let items = [];
 
-                // ✅ Fetch only the sub_packages listed in vendor JSON
+                // ✅ Fetch only sub_packages listed in vendor JSON
                 if (sub_packages.length > 0) {
                     const itemIds = sub_packages.map((sp) => sp.item_id);
                     const [filteredItems] = await db.query(
@@ -201,10 +213,18 @@ const getVendorRegistrations = async (req, res) => {
             });
         }
 
+        // 5️⃣ Send paginated response
         return res.status(200).json({
-            message: "Fetched all vendor registrations successfully",
+            message: "Fetched vendor registrations successfully",
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
             data: result,
         });
+
     } catch (err) {
         console.error("❌ Error fetching vendor registrations:", err);
         res.status(500).json({
@@ -213,6 +233,7 @@ const getVendorRegistrations = async (req, res) => {
         });
     }
 };
+
 
 
 module.exports = { registerVendorLogin, getVendorRegistrations };

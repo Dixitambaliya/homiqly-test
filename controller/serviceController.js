@@ -183,7 +183,6 @@ const getServiceFilters = asyncHandler(async (req, res) => {
     const [filters] = await db.query("SELECT service_filter_id , serviceFilter FROM service_filters ORDER BY serviceFilter ASC");
     res.status(200).json(filters);
 });
-
 // ✅ Update Service Filter
 const updateServiceFilter = asyncHandler(async (req, res) => {
     const { service_filter_id } = req.params;
@@ -205,7 +204,6 @@ const updateServiceFilter = asyncHandler(async (req, res) => {
 
     res.status(200).json({ message: "Service filter updated successfully" });
 });
-
 // ✅ Delete Service Filter
 const deleteServiceFilter = asyncHandler(async (req, res) => {
     const { service_filter_id } = req.params;
@@ -475,7 +473,6 @@ const getService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const searchService = asyncHandler(async (req, res) => {
     try {
         const { query } = req.query; // input from frontend (e.g., ?query=beauty)
@@ -513,8 +510,6 @@ const searchService = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
@@ -741,7 +736,8 @@ const deleteCategory = asyncHandler(async (req, res) => {
 })
 
 const editServiceCity = asyncHandler(async (req, res) => {
-    const { service_city_id, newCityName } = req.body;
+    const { service_city_id } = req.params
+    const { newCityName } = req.body;
 
     if (!service_city_id || !newCityName || newCityName.trim() === '') {
         return res.status(400).json({ message: "City ID and new name are required" });

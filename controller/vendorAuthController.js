@@ -6,7 +6,7 @@ const asyncHandler = require("express-async-handler");
 const nodemailer = require("nodemailer");
 const admin = require("../config/firebaseConfig");
 const { sendVendorRegistrationNotification } = require("./adminNotification");
-const { sendAdminVendorRegistrationMail, sendPasswordUpdatedMail } = require("../config/mailer");
+const { sendAdminVendorRegistrationMail, sendPasswordUpdatedMail } = require("../config/utils/email/mailer");
 const resetCodes = new Map(); // Store reset codes in memory
 const RESET_EXPIRATION = 10 * 60 * 1000;
 
@@ -441,35 +441,40 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const changeVendorPassword = asyncHandler(async (req, res) => {
-    const { newPassword } = req.body;
-    const vendor_id = req.user.vendor_id;
+    const { vendor_id, newPassword, confirmPassword } = req.body;
 
-    if (!vendor_id || !newPassword) {
-        return res.status(400).json({
-            error: "vendor_id (from token) and newPassword are required",
-        });
+    if (!vendor_id || !newPassword || !confirmPassword) {
+        return res.status(400).json({ error: "All fields are required" });
+    }
+
+    if (newPassword !== confirmPassword) {
+        return res.status(400).json({ error: "Passwords do not match" });
     }
 
     try {
-        // Optional: Check if vendor exists
-        const [vendor] = await db.query(vendorAuthQueries.selectPassword, [vendor_id]);
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        if (vendor.length === 0) {
+        // Update the vendor's password
+        const [updateResult] = await db.query(
+            "UPDATE vendors SET password = ? WHERE vendor_id = ?",
+            [hashedPassword, vendor_id]
+        );
+
+        if (updateResult.affectedRows === 0) {
             return res.status(404).json({ error: "Vendor not found" });
         }
 
-        // Hash and update new password
-        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        res.status(200).json({
+            message: "Password changed successfully",
+        });
 
-        await db.query(vendorAuthQueries.resetVendorPassword, [
-            hashedNewPassword,
-            vendor_id,
-        ]);
-
-        res.json({ message: "Password changed successfully" });
     } catch (err) {
-        console.error("Change Password Error:", err);
-        res.status(500).json({ error: "Internal server error", details: err.message });
+        console.error("Change vendor password error:", err);
+        res.status(500).json({
+            error: "Server error",
+            details: err.message,
+        });
     }
 });
 

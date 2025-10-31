@@ -1160,6 +1160,33 @@ const deleteCartItem = asyncHandler(async (req, res) => {
     }
 });
 
+const getUserCartCount = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+
+    try {
+        // 1️⃣ Check if user exists in cart
+        const [[cartCountRow]] = await db.query(`
+            SELECT COUNT(cpi.cart_package_items_id) AS itemCount
+            FROM service_cart sc
+            JOIN cart_package_items cpi ON sc.cart_id = cpi.cart_id
+            WHERE sc.user_id = ?
+        `, [user_id]);
+
+        const count = cartCountRow?.itemCount || 0;
+
+        res.status(200).json({
+            message: "Cart count retrieved successfully",
+            count
+        });
+
+    } catch (error) {
+        console.error("Error retrieving cart count:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
 
 
 module.exports = {
@@ -1171,5 +1198,6 @@ module.exports = {
     getCartByServiceTypeId,
     deleteCartSubPackage,
     getAdminInquiries,
-    updateCartItemQuantity
+    updateCartItemQuantity,
+    getUserCartCount
 };

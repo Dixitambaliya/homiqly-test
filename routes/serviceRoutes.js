@@ -30,7 +30,6 @@ const { authenticationToken } = require("../middleware/authMiddleware")
 
 router.post("/addservice", multiUpload, handleUploads, authenticationToken, addService)
 router.put("/editService", multiUpload, handleUploads, editService);
-
 router.post("/addservicefilter", multiUpload, handleUploads, addServiceFilter);
 router.get("/getservicefilter", authenticationToken, getServiceFilters);
 router.put("/updateservicefilter/:service_filter_id", authenticationToken, updateServiceFilter);
@@ -48,9 +47,8 @@ router.put('/editservice', editService);
 router.delete('/deleteservice', deleteService);
 router.put('/editcategory', editCategory);
 router.delete('/deletecategory', deleteCategory);
-router.put('/editservicecity', editServiceCity);
+router.put('/editservicecity/:service_city_id', editServiceCity);
 router.delete('/deleteservicecity/:service_city_id', deleteServiceCity);
-
 router.get('/searchservice', searchService);
 
 module.exports = router

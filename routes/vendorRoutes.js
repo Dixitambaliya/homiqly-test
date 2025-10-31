@@ -28,7 +28,6 @@ const {
 const multiUpload = upload.any();
 
 router.get("/serviceswithpackages", getServicesWithPackages)
-
 router.get("/getvendorservice", authenticationToken, getVendorAssignedPackages)
 router.get("/getvendorservicetype", authenticationToken, getServiceTypesByVendor);
 router.get("/vendorservice", authenticationToken, getVendorService);
@@ -46,7 +45,6 @@ router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
 router.get("/getpaymenthistory", authenticationToken, getVendorPayoutHistory)
 router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)  
-
 router.put("/employee/:employee_id", multiUpload, handleUploads, authenticationToken, editEmployeeProfileByCompany)
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)
 

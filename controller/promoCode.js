@@ -362,89 +362,6 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
     }
 });
 
-
-const assignWelcomeCode = async (user_id, user_email) => {
-    try {
-        // ✅ 1. Check if auto-assign is enabled
-        const [setting] = await db.query(
-            "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
-        );
-
-        if (!setting[0] || setting[0].setting_value != 1) {
-            console.log("Auto-assign welcome code is disabled");
-            return null;
-        }
-
-        // ✅ 2. Check if user already has a promo assigned
-        const [existing] = await db.query(
-            "SELECT * FROM system_promo_codes WHERE user_id = ?",
-            [user_id]
-        );
-
-        if (existing.length > 0) {
-            console.log("User already has a promo code assigned");
-            return null;
-        }
-
-        // ✅ 3. Get the active welcome promo template
-        const [templates] = await db.query(
-            "SELECT * FROM system_promo_code_templates WHERE is_active = 1 AND source_type = 'system' LIMIT 1"
-        );
-
-        if (!templates || templates.length === 0) {
-            console.log("⚠️ No active promo template found");
-            return null;
-        }
-
-        const template = templates[0];
-        const { system_promo_code_template_id, code, discountValue, maxUse } = template;
-
-        console.log("Assigning template:", { user_id, system_promo_code_template_id, code });
-
-        // ✅ 4. Assign promo to user (link to template)
-        await db.query(
-            `INSERT INTO system_promo_codes (user_id, template_id, usage_count)
-             VALUES (?, ?, 0)`,
-            [user_id, system_promo_code_template_id]
-        );
-
-        console.log(`✅ Promo template ${code} (ID: ${system_promo_code_template_id}) assigned to user ${user_id}`);
-
-        // ✅ 5. Send email to user (errors do NOT affect assignment)
-        if (user_email) {
-            try {
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: user_email,
-                    subject: "Welcome! Your Promo Code Inside 🎉",
-                    html: `
-                        <p>Hello,</p>
-                        <p>Welcome to our platform! 🎉</p>
-                        <p>Your welcome promo code is: <b>${code}</b></p>
-                        <p>Discount: ${discountValue}% | Max Use: ${maxUse}</p>
-                        <p>Use it on your next booking!</p>
-                        <br/>
-                        <p>Thanks,<br/>The Team</p>
-                    `,
-                };
-
-                transport.sendMail(mailOptions, (err, info) => {
-                    if (err) console.error("❌ Error sending promo email:", err.message);
-                    else console.log(`✅ Welcome promo email sent to ${user_email}: ${info.response}`);
-                });
-            } catch (emailErr) {
-                console.error("❌ Unexpected email error:", emailErr.message);
-            }
-        }
-
-        return code;
-
-    } catch (err) {
-        console.error("❌ Error assigning welcome promo code:", err.message);
-        return null;
-    }
-};
-
 // Toggle Auto-Assign Welcome Code
 const toggleAutoAssignWelcomeCode = asyncHandler(async (req, res) => {
     const { enable } = req.body; // expect true/false or 1/0
@@ -506,7 +423,6 @@ module.exports = {
     updatePromoCode,
     deletePromoCode,
     getUserPromoCodes,
-    assignWelcomeCode,
     toggleAutoAssignWelcomeCode,
     getAutoAssignWelcomeCodeStatus
 }
