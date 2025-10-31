@@ -236,10 +236,13 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 10, status, search, start_date, end_date } = req.query;
 
+    console.log(vendor_id);
+    
     try {
         // 1️⃣ Get vendor type
         const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
@@ -249,13 +252,37 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-        // 3️⃣ Build filters dynamically
+        // 3️⃣ Build dynamic filters
         let filterCondition = "WHERE sb.vendor_id = ?";
         const params = [vendor_id];
 
         if (status && !isNaN(status)) {
             filterCondition += " AND sb.bookingStatus = ?";
             params.push(status);
+        }
+
+        // 🔍 Universal search (user name or booking fields)
+        if (search && search.trim() !== "") {
+            filterCondition += ` AND (
+                CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+                OR u.email LIKE ?
+                OR u.phone LIKE ?
+                OR sb.booking_id LIKE ?
+            )`;
+            const searchPattern = `%${search.trim()}%`;
+            params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+        }
+
+        // 📅 Date range filter
+        if (start_date && end_date) {
+            filterCondition += " AND DATE(sb.bookingDate) BETWEEN ? AND ?";
+            params.push(start_date, end_date);
+        } else if (start_date) {
+            filterCondition += " AND DATE(sb.bookingDate) >= ?";
+            params.push(start_date);
+        } else if (end_date) {
+            filterCondition += " AND DATE(sb.bookingDate) <= ?";
+            params.push(end_date);
         }
 
         // 4️⃣ Pagination setup
@@ -265,6 +292,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [[{ totalRecords }]] = await db.query(`
             SELECT COUNT(*) AS totalRecords
             FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
             ${filterCondition}
         `, params);
 
@@ -278,6 +306,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             LIMIT ? OFFSET ?
         `, [...params, Number(limit), Number(offset)]);
 
+        // 7️⃣ Process each booking (same as your original logic)
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
             const rawAmount = Number(booking.payment_amount) || 0;
@@ -290,7 +319,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             delete booking.platform_fee;
             delete booking.net_amount;
 
-            // 🔹 Sub-packages, Addons, Preferences, Consents
+            // 🔹 Fetch related data (sub-packages, addons, etc.)
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
             const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
@@ -320,10 +349,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 });
             });
 
-            // 🔹 Group sub-packages by package_id
             const groupedByPackage = subPackages.reduce((acc, sp) => {
                 const packageId = sp.package_id;
-
                 if (!acc[packageId]) {
                     acc[packageId] = {
                         package_id: packageId,
@@ -394,12 +421,10 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 🔹 Cleanup
             ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(k => delete booking[k]);
             Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
         }
 
-        // ✅ Final paginated response
         res.status(200).json({
             message: "Vendor bookings fetched successfully",
             currentPage: Number(page),
@@ -417,6 +442,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

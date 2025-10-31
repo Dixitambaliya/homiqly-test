@@ -378,8 +378,6 @@ const googleLogin = asyncHandler(async (req, res) => {
             is_google_register,
         });
 
-        console.log(user_id); // ✅ Ensure semicolon before async blocks
-
         // 🧩 5️⃣ Fire & forget: update FCM token
         if (fcmToken && fcmToken !== user.fcmToken) {
             (async () => {
