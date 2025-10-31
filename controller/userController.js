@@ -239,6 +239,7 @@ const getUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, email, phone } = req.body;
@@ -293,13 +294,39 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
-    const { firstName, lastName, phone, parkingInstruction, address, state, postalcode, flatNumber } = req.body;
+    const {
+        firstName,
+        lastName,
+        phone,
+        parkingInstruction,
+        address,
+        state,
+        postalcode,
+        flatNumber,
+    } = req.body;
 
     try {
-        // 1️⃣ Check if user exists and get is_approved status
+        // 1️⃣ Validate required fields
+        if (
+            !firstName?.trim() ||
+            !lastName?.trim() ||
+            !phone?.trim() ||
+            !parkingInstruction?.trim() ||
+            !address?.trim() ||
+            !state?.trim() ||
+            !postalcode?.trim() ||
+            !flatNumber?.trim()
+        ) {
+            return res.status(400).json({
+                message: "All fields are required. Please fill in all user details.",
+            });
+        }
+
+        // 2️⃣ Check if user exists and get is_approved status
         const [userCheck] = await db.query(
             `SELECT user_id, is_approved FROM users WHERE user_id = ?`,
             [user_id]
@@ -311,37 +338,56 @@ const addUserData = asyncHandler(async (req, res) => {
 
         const user = userCheck[0];
 
-        // 2️⃣ Prevent update if user is not approved
+        // 3️⃣ Prevent update if user is not approved
         if (user.is_approved === 0) {
-            return res.status(403).json({ message: "Phone not verified. You cannot update data yet." });
+            return res.status(403).json({
+                message: "Phone not verified. You cannot update data yet.",
+            });
         }
 
-        // 3️⃣ Check if phone number already exists for another user
+        // 4️⃣ Check if phone number already exists for another user
         const [phoneCheck] = await db.query(
             `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
             [phone, user_id]
         );
 
         if (phoneCheck.length > 0) {
-            return res.status(409).json({ message: "Phone number already exists" });
+            return res.status(409).json({
+                message: "Phone number already exists",
+            });
         }
 
-        // 4️⃣ Update user data
+        // 5️⃣ Update user data
         await db.query(
             `UPDATE users 
              SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ? 
              WHERE user_id = ?`,
-            [firstName, lastName, parkingInstruction, phone, address, state, postalcode, flatNumber, user_id]
+            [
+                firstName.trim(),
+                lastName.trim(),
+                parkingInstruction.trim(),
+                phone.trim(),
+                address.trim(),
+                state.trim(),
+                postalcode.trim(),
+                flatNumber.trim(),
+                user_id,
+            ]
         );
 
         res.status(200).json({
-            message: "User data updated successfully"
+            message: "User data updated successfully",
         });
     } catch (err) {
         console.error("Error updating user data:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
+        res.status(500).json({
+            error: "Database error",
+            details: err.message,
+        });
     }
 });
+
+
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;

@@ -114,64 +114,39 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
 
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
   try {
+    // 🧩 Fetch user
     const [[user]] = await db.query(
-      `SELECT CONCAT(firstName, ' ', lastName) AS name, email
-       FROM users WHERE user_id = ? LIMIT 1`,
+      `SELECT CONCAT(firstName, ' ', lastName) AS name, email FROM users WHERE user_id = ? LIMIT 1`,
       [user_id]
     );
-    if (!user) {
-      console.warn(`⚠️ No user found for user_id ${user_id}`);
-      return;
-    }
+    if (!user) return console.warn(`⚠️ No user found for user_id ${user_id}`);
 
+    // 🧩 Fetch booking + vendor + service details
     const [[booking]] = await db.query(
       `
-        SELECT 
-          sb.booking_id,
-          sb.bookingDate,
-          sb.bookingTime,
-          sb.totalTime,
-          sb.payment_status,
-          sb.notes,
-          sb.created_at,
-          p.amount AS totalAmount,
-
-          v.vendor_id,
-          CASE 
-            WHEN v.vendorType = 'individual' THEN i.name
-            ELSE c.companyName
-          END AS vendorName,
-          
-          CASE 
-            WHEN v.vendorType = 'individual' THEN i.email
-            ELSE c.companyEmail
-          END AS vendorEmail,
-
-          CASE 
-            WHEN v.vendorType = 'individual' THEN i.phone
-            ELSE c.companyPhone
-          END AS vendorPhone,
-
-          s.serviceName,
-          sc.serviceCategory
-        FROM service_booking sb
-        LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-        LEFT JOIN individual_details i ON v.vendor_id = i.id
-        LEFT JOIN company_details c ON v.vendor_id = c.id
-        LEFT JOIN services s ON sb.service_id = s.service_id
-        LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-        WHERE sb.booking_id = ?
-        LIMIT 1
+      SELECT 
+        sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.payment_status,
+        sb.notes, sb.created_at, p.amount AS totalAmount,
+        v.vendor_id,
+        CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS vendorName,
+        CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS vendorEmail,
+        CASE WHEN v.vendorType = 'individual' THEN i.phone ELSE c.companyPhone END AS vendorPhone,
+        s.serviceName, sc.serviceCategory
+      FROM service_booking sb
+      LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+      LEFT JOIN individual_details i ON v.vendor_id = i.id
+      LEFT JOIN company_details c ON v.vendor_id = c.id
+      LEFT JOIN services s ON sb.service_id = s.service_id
+      LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+      LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+      WHERE sb.booking_id = ?
+      LIMIT 1
       `,
       [booking_id]
     );
+    if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-    if (!booking) {
-      console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
-      return;
-    }
-
+    // 🧾 Items, Addons, Preferences, and Concerns
     const [items] = await db.query(
       `SELECT pi.itemName, sbs.price, sbs.quantity
        FROM service_booking_sub_packages sbs
@@ -188,119 +163,109 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
       [booking_id]
     );
 
-    // 🧩 Build tabular rows
-    const itemRows =
-      items.length > 0
-        ? items
-          .map(
-            (i) => `
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
-                <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
-                <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
-              </tr>`
-          )
-          .join("")
-        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">No items found</td></tr>`;
+    const [preferences] = await db.query(
+      `SELECT pp.preferenceValue , pp.preferencePrice
+       FROM service_booking_preferences sbp
+       JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
+       WHERE sbp.booking_id = ?`,
+      [booking_id]
+    );
 
-    const addonRows =
-      addons.length > 0
-        ? addons
-          .map(
-            (a) => `
-              <tr>
-                <td style="padding:10px; border:1px solid #ddd;" colspan="2">${a.addonName}</td>
-                <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
-              </tr>`
-          )
-          .join("")
-        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">No addons selected</td></tr>`;
+    // Optional: only if you have a "concerns" table
+    const [concerns] = await db.query(
+      `SELECT pc.question , sbc.answer
+       FROM service_booking_consents sbc
+       JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
+       WHERE sbc.booking_id = ?`,
+      [booking_id]
+    );
+
+    // 🧩 Build rows
+    const buildRows = (data, rowFn, emptyText) =>
+      data.length
+        ? data.map(rowFn).join("")
+        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
+
+    const itemRows = buildRows(items, (i) => `
+      <tr>
+        <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
+        <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
+        <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
+      </tr>`, "No items found");
+
+    const addonRows = buildRows(addons, (a) => `
+      <tr>
+        <td style="padding:10px; border:1px solid #ddd;" colspan="2">${a.addonName}</td>
+        <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
+      </tr>`, "No addons selected");
+
+    const preferenceRows = buildRows(preferences, (p) => `
+      <tr>
+        <td style="padding:10px; border:1px solid #ddd;">${p.preferenceValue}</td>
+        <td style="padding:10px; border:1px solid #ddd; text-align:right;">${p.preferencePrice}</td>
+      </tr>`, "No preferences set");
+
+    const concernRows = buildRows(concerns, (c) => `
+      <tr>
+      <td style="padding:10px; border:1px solid #ddd;">${c.question}
+      <td style="padding:10px; border:1px solid #ddd; text-align:right;">${c.answer}
+      </td>
+      </tr>`, "No concerns listed");
 
     const bodyHtml = `
       <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 35px 40px;">
-        <h2 style="text-align:center; color:#333; margin-bottom: 25px;">Booking Confirmed</h2>
-        <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
-        <p style="font-size:15px; color:#555; line-height:1.6;">
-          Your booking has been <span style="color:green;"><strong>confirmed</strong></span>!<br/>
-          Below are your booking and vendor details.
-        </p>
+        <h2 style="text-align:center; color:#333;">Booking Confirmed</h2>
+        <p style="font-size:15px; color:#555;">Hi <strong>${user.name}</strong>, your booking has been confirmed!</p>
 
-        <!-- Booking Details -->
-        <h3 style="margin-top:30px; color:#333;">Booking Details</h3>
-        <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size:14px;">
-          <tr><td style="padding:8px 0;"><strong>Service:</strong></td><td>${booking.serviceName}</td></tr>
-          <tr><td style="padding:8px 0;"><strong>Category:</strong></td><td>${booking.serviceCategory}</td></tr>
-          <tr><td style="padding:8px 0;"><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
-          <tr><td style="padding:8px 0;"><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
-          <tr><td style="padding:8px 0;"><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td></tr>
-          <tr><td style="padding:8px 0;"><strong>Status:</strong></td><td style="text-transform:capitalize;">${booking.payment_status}</td></tr>
+        <h3 style="margin-top:30px;">Booking Details</h3>
+        <table style="width:100%; border-collapse: collapse; font-size:14px;">
+          <tr><td><strong>Service:</strong></td><td>${booking.serviceName}</td></tr>
+          <tr><td><strong>Category:</strong></td><td>${booking.serviceCategory}</td></tr>
+          <tr><td><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
+          <tr><td><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
+          <tr><td><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td></tr>
         </table>
 
-        <!-- Vendor Details -->
-        <h3 style="margin-top:30px; color:#333;">Vendor Details</h3>
-        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd; font-size:14px;">
-          <tr>
-            <td style="padding:10px; border:1px solid #ddd; width:35%;"><strong>Name:</strong></td>
-            <td style="padding:10px; border:1px solid #ddd;">${booking.vendorName || "N/A"}</td>
-          </tr>
-          <tr>
-            <td style="padding:10px; border:1px solid #ddd;"><strong>Email:</strong></td>
-            <td style="padding:10px; border:1px solid #ddd;">${booking.vendorEmail || "N/A"}</td>
-          </tr>
-          <tr>
-            <td style="padding:10px; border:1px solid #ddd;"><strong>Phone:</strong></td>
-            <td style="padding:10px; border:1px solid #ddd;">${booking.vendorPhone || "N/A"}</td>
-          </tr>
+        <h3 style="margin-top:25px;">Vendor Details</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd;">
+          <tr><td><strong>Name:</strong></td><td>${booking.vendorName || "N/A"}</td></tr>
+          <tr><td><strong>Email:</strong></td><td>${booking.vendorEmail || "N/A"}</td></tr>
+          <tr><td><strong>Phone:</strong></td><td>${booking.vendorPhone || "N/A"}</td></tr>
         </table>
 
-        <!-- Packages Table -->
-        <h3 style="margin-top:30px; color:#333;">Selected Packages</h3>
-        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd; font-size:14px;">
-          <thead>
-            <tr style="background:#f7f7f7;">
-              <th style="padding:10px; border:1px solid #ddd; text-align:left;">Item</th>
-              <th style="padding:10px; border:1px solid #ddd; text-align:center;">Qty</th>
-              <th style="padding:10px; border:1px solid #ddd; text-align:right;">Price</th>
-            </tr>
-          </thead>
+        <h3 style="margin-top:25px;">Selected Packages</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd;">
+          <thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
 
-        <!-- Addons Table -->
-        <h3 style="margin-top:30px; color:#333;">Addons</h3>
-        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd; font-size:14px;">
-          <thead>
-            <tr style="background:#f7f7f7;">
-              <th style="padding:10px; border:1px solid #ddd;" colspan="2">Addon</th>
-              <th style="padding:10px; border:1px solid #ddd; text-align:right;">Price</th>
-            </tr>
-          </thead>
+        <h3 style="margin-top:25px;">Addons</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd;">
+          <thead><tr><th colspan="2">Addon</th><th>Price</th></tr></thead>
           <tbody>${addonRows}</tbody>
         </table>
 
-        <!-- Total -->
-        <p style="margin-top:25px; font-size:16px; color:#333; text-align:right;">
-          <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
+        <h3 style="margin-top:25px;">Preferences</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd;">
+          <thead><tr><th>Preference</th><th>Selected</th></tr></thead>
+          <tbody>${preferenceRows}</tbody>
+        </table>
+
+        <!-- Uncomment if concerns exist -->
+        <!-- <h3 style="margin-top:25px;">Concerns</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd;">
+          <tbody>${concernRows}</tbody>
+        </table> -->
+
+        <p style="margin-top:25px; text-align:right; font-size:16px;">
+          <strong>Total:</strong> ₹${booking.totalAmount || "N/A"}
         </p>
 
-        <!-- Receipt Button -->
         ${receiptUrl
-        ? `
-          <div style="margin-top:25px; text-align:center;">
-            <a href="${receiptUrl}"
-               style="display:inline-block; background:#000000; color:#ffffff; padding:12px 20px;
-                      border-radius:6px; text-decoration:none; font-size:14px; font-weight:600;">
-              View Payment Receipt
-            </a>
-          </div>
-          `
-        : ""
+        ? `<p style="text-align:center; margin-top:20px;">
+               <a href="${receiptUrl}" style="background:#000; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">View Receipt</a>
+             </p>` : ""
       }
-
-        <p style="margin-top:35px; font-size:15px; color:#555; text-align:center;">
-          Thank you for booking with <strong>Homiqly</strong>!<br/>
-          We look forward to serving you.
-        </p>
       </div>
     `;
 
@@ -316,55 +281,40 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
   }
 };
 
-
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
   try {
-    // 🧩 Fetch vendor info
+    // 🔹 Get vendor email/name from individual or company table
     const [[vendor]] = await db.query(
-      `
-          SELECT 
-            CASE 
-              WHEN v.vendorType = 'individual' THEN i.email 
-              ELSE c.companyEmail 
-            END AS email,
-
-            CASE 
-              WHEN v.vendorType = 'individual' THEN i.name 
-              ELSE c.companyName 
-            END AS name
-          FROM vendors v
-          LEFT JOIN individual_details i ON v.vendor_id = i.id
-          LEFT JOIN company_details c ON v.vendor_id = c.id
-          WHERE v.vendor_id = ?
-          LIMIT 1`,
+      `SELECT 
+        CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS email,
+        CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS name
+       FROM vendors v
+       LEFT JOIN individual_details i ON v.vendor_id = i.id
+       LEFT JOIN company_details c ON v.vendor_id = c.id
+       WHERE v.vendor_id = ? LIMIT 1`,
       [vendor_id]
     );
 
-    if (!vendor) {
-      console.warn(`⚠️ No vendor found for vendor_id ${vendor_id}`);
-      return;
-    }
+    if (!vendor) return console.warn(`⚠️ No vendor found for vendor_id ${vendor_id}`);
 
-    // 🧩 Fetch booking + user + service details
+    // 🔹 Booking + user info
     const [[booking]] = await db.query(
-      `SELECT sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes, sb.created_at,
-              u.firstName AS userFirstName, u.lastName AS userLastName, u.email AS userEmail,
-              s.serviceName, sc.serviceCategory, p.amount AS totalAmount
-       FROM service_booking sb
-       LEFT JOIN users u ON sb.user_id = u.user_id
-       LEFT JOIN services s ON sb.service_id = s.service_id
-       LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id 
-       LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-       WHERE sb.booking_id = ? LIMIT 1`,
+      `SELECT 
+        sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes,
+        u.firstName AS userFirstName, u.lastName AS userLastName, u.email AS userEmail,
+        s.serviceName, sc.serviceCategory, p.amount AS totalAmount
+      FROM service_booking sb
+      LEFT JOIN users u ON sb.user_id = u.user_id
+      LEFT JOIN services s ON sb.service_id = s.service_id
+      LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+      LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+      WHERE sb.booking_id = ? LIMIT 1`,
       [booking_id]
     );
 
-    if (!booking) {
-      console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
-      return;
-    }
+    if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-    // 🧩 Fetch booked items
+    // 🔹 Package items
     const [items] = await db.query(
       `SELECT pi.itemName, sbs.price, sbs.quantity
        FROM service_booking_sub_packages sbs
@@ -373,56 +323,136 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
       [booking_id]
     );
 
-    const itemRows = items
-      .map(
-        (i) =>
-          `<tr>
-             <td>${i.itemName}</td>
-             <td>${i.quantity}</td>
-             <td>₹${i.price}</td>
-           </tr>`
-      )
-      .join("");
+    // 🔹 Addons
+    const [addons] = await db.query(
+      `SELECT pa.addonName, sba.price
+       FROM service_booking_addons sba
+       JOIN package_addons pa ON sba.addon_id = pa.addon_id
+       WHERE sba.booking_id = ?`,
+      [booking_id]
+    );
 
+    // 🔹 Preferences
+    const [preferences] = await db.query(
+      `SELECT pp.preferencePrice, pp.preferenceValue
+       FROM service_booking_preferences sbp
+       JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
+       WHERE sbp.booking_id = ?`,
+      [booking_id]
+    );
+
+    // 🔹 Concerns (concepts)
+    const [concerns] = await db.query(
+      `SELECT pc.question , sbc.answer
+       FROM service_booking_consents sbc
+       JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
+       WHERE sbc.booking_id = ?`,
+      [booking_id]
+    );
+
+    // 🔹 Helper to build rows
+    const buildRows = (data, rowFn, emptyText) =>
+      data.length
+        ? data.map(rowFn).join("")
+        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
+
+    const itemRows = buildRows(
+      items,
+      (i) => `
+        <tr>
+          <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
+          <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
+          <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
+        </tr>`,
+      "No items"
+    );
+
+    const addonRows = buildRows(
+      addons,
+      (a) => `
+        <tr>
+          <td colspan="2" style="padding:10px; border:1px solid #ddd;">${a.addonName}</td>
+          <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
+        </tr>`,
+      "No addons"
+    );
+
+    const preferenceRows = buildRows(
+      preferences,
+      (p) => `
+        <tr>
+          <td style="padding:10px; border:1px solid #ddd;">${p.preferenceValue}</td>
+          <td style="padding:10px; border:1px solid #ddd; text-align:right;">${p.preferencePrice}</td>
+        </tr>`,
+      "No preferences"
+    );
+
+    const concernRows = buildRows(
+      concerns,
+      (c) => `
+        <tr>
+          <td style="padding:10px; border:1px solid #ddd;">${c.question}</td>
+          <td style="padding:10px; border:1px solid #ddd;text-align:right;">${c.answer}</td>
+        </tr>`,
+      "No concerns"
+    );
+
+    // 🔹 Email HTML content
     const bodyHtml = `
-      <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 30px;">
-        <h2 style="text-align:center; color:#333;">New Booking Received</h2>
-        <p>Hi ${vendor.name},</p>
-        <p>You’ve received a new booking from <strong>${booking.userFirstName} ${booking.userLastName}</strong>.</p>
+      <div style="font-family:Arial, sans-serif; background:#fff; padding:30px;">
+        <h2 style="text-align:center;">New Booking Received</h2>
+        <p>Hi <strong>${vendor.name}</strong>, you’ve received a new booking from 
+        <strong>${booking.userFirstName} ${booking.userLastName}</strong> (${booking.userEmail}).</p>
 
-        <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
-          <tr><td><strong>Service:</strong></td><td>${booking.service_name}</td></tr>
-          <tr><td><strong>Category:</strong></td><td>${booking.category_name}</td></tr>
+        <h3>Booking Details</h3>
+        <table style="font-size:14px; border-collapse:collapse;">
+          <tr><td><strong>Service:</strong></td><td>${booking.serviceName}</td></tr>
+          <tr><td><strong>Category:</strong></td><td>${booking.serviceCategory}</td></tr>
           <tr><td><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
           <tr><td><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
-          <tr><td><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td></tr>
         </table>
 
-        <h3 style="margin-top:25px;">Booked Items</h3>
-        <table style="width:100%; border:1px solid #ddd; border-collapse: collapse;">
-          <tr style="background:#f9f9f9;">
-            <th>Item</th><th>Qty</th><th>Price</th>
-          </tr>
-          ${itemRows}
+        <h3 style="margin-top:20px;">Selected Packages</h3>
+        <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
+          <thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
+          <tbody>${itemRows}</tbody>
         </table>
 
-        <p style="margin-top:20px; font-size: 16px;">
-          <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
+        <h3 style="margin-top:20px;">Addons</h3>
+        <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
+          <thead><tr><th colspan="2">Addon</th><th>Price</th></tr></thead>
+          <tbody>${addonRows}</tbody>
+        </table>
+
+        <h3 style="margin-top:20px;">Preferences</h3>
+        <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
+          <thead><tr><th>Preference</th><th>Selected</th></tr></thead>
+          <tbody>${preferenceRows}</tbody>
+        </table>
+
+        <h3 style="margin-top:20px;">Concerns</h3>
+        <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
+          <thead><tr><th>Concern</th></tr></thead>
+          <tbody>${concernRows}</tbody>
+        </table>
+
+        <p style="margin-top:25px; text-align:right; font-size:16px;">
+          <strong>Total:</strong> ₹${booking.totalAmount || "N/A"}
         </p>
-
         ${receiptUrl
-        ? `<p>You can view the payment receipt <a href="${receiptUrl}" style="color:#007bff;">here</a>.</p>`
-        : ""
+        ? `<p style="text-align:center; margin-top:20px;">
+                <a href="${receiptUrl}" style="background:#000; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">View Receipt</a>
+              </p>` : ""
       }
-
-        <p style="margin-top:30px;">Please prepare for the booking accordingly.</p>
       </div>
+
     `;
 
+    // 🔹 Send mail
     await sendMail({
       to: vendor.email,
-      subject: "You’ve Received a New Booking ",
-      html: bodyHtml
+      subject: "New Booking Received",
+      bodyHtml,
     });
 
     console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
