@@ -21,7 +21,10 @@ import Modal from "../../shared/components/Modal/Modal";
 
 /* ---------- Constants ---------- */
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
+const HOURS = Array.from(
+  { length: 24 },
+  (_, i) => `${String(i).padStart(2, "0")}:00`
+);
 
 /* ---------- Small Utils ---------- */
 const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -43,23 +46,59 @@ const toDateKey = (d) => new Date(d).toDateString();
 
 const inRange = (date, s, e) => {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const S = new Date(s), E = new Date(e);
+  const S = new Date(s),
+    E = new Date(e);
   const sd = new Date(S.getFullYear(), S.getMonth(), S.getDate());
   const ed = new Date(E.getFullYear(), E.getMonth(), E.getDate());
   return d >= sd && d <= ed;
 };
 
+/* ---------- NEW: Date helpers to block past dates ---------- */
+const toInputDate = (d) => {
+  const dt = new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`; // <input type="date"> friendly
+};
+const todayISO = () => {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return toInputDate(t);
+};
+const clampToTodayISO = (iso) => {
+  // Return iso if it's today or later; otherwise today
+  return iso && iso >= todayISO() ? iso : todayISO();
+};
+const isPastISO = (iso) => iso < todayISO();
+
 /* ---------- Status UI (Tailwind classes, no inline colors) ---------- */
 const statusUI = (s) => {
   switch (s) {
     case 0:
-      return { name: "Pending", wrap: "bg-yellow-50 border-yellow-200 text-yellow-800", dot: "bg-yellow-400" };
+      return {
+        name: "Pending",
+        wrap: "bg-yellow-50 border-yellow-200 text-yellow-800",
+        dot: "bg-yellow-400",
+      };
     case 1:
-      return { name: "Accepted", wrap: "bg-emerald-50 border-emerald-200 text-emerald-800", dot: "bg-emerald-500" };
+      return {
+        name: "Accepted",
+        wrap: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        dot: "bg-emerald-500",
+      };
     case 2:
-      return { name: "Rejected", wrap: "bg-red-50 border-red-200 text-red-800", dot: "bg-red-500" };
+      return {
+        name: "Rejected",
+        wrap: "bg-red-50 border-red-200 text-red-800",
+        dot: "bg-red-500",
+      };
     default:
-      return { name: "Done", wrap: "bg-blue-50 border-blue-200 text-blue-800", dot: "bg-blue-500" };
+      return {
+        name: "Done",
+        wrap: "bg-blue-50 border-blue-200 text-blue-800",
+        dot: "bg-blue-500",
+      };
   }
 };
 
@@ -90,7 +129,12 @@ const Calendar = () => {
   const [deleteBookedDates, setDeleteBookedDates] = useState([]);
 
   // create/edit form
-  const emptyForm = { startDate: "", endDate: "", startTime: "09:00", endTime: "18:00" };
+  const emptyForm = {
+    startDate: "",
+    endDate: "",
+    startTime: "09:00",
+    endTime: "18:00",
+  };
   const [availabilityForm, setAvailabilityForm] = useState(emptyForm);
 
   /* ---------- Effects ---------- */
@@ -126,26 +170,36 @@ const Calendar = () => {
 
   const createAvailability = async (payload) => {
     try {
-      const { data } = await axios.post("/api/vendor/set-availability", payload);
+      const { data } = await axios.post(
+        "/api/vendor/set-availability",
+        payload
+      );
       toast.success(data.message || "Availability set successfully");
       setShowCreateModal(false);
       setAvailabilityForm(emptyForm);
       await fetchAvailabilities();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to create availability");
+      toast.error(
+        err?.response?.data?.message || "Failed to create availability"
+      );
     }
   };
 
   const updateAvailability = async (id, payload) => {
     try {
-      const { data } = await axios.put(`/api/vendor/edit-availability/${id}`, payload);
+      const { data } = await axios.put(
+        `/api/vendor/edit-availability/${id}`,
+        payload
+      );
       toast.success(data.message || "Availability updated successfully");
       setShowEditModal(false);
       setSelectedAvailToEdit(null);
       setAvailabilityForm(emptyForm);
       await fetchAvailabilities();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to update availability");
+      toast.error(
+        err?.response?.data?.message || "Failed to update availability"
+      );
     }
   };
 
@@ -153,8 +207,15 @@ const Calendar = () => {
     setDeleteTarget(av);
     setDeleteMode("all");
     setDeleteBookedDates([]);
-    setDeleteStartDate(av?.startDate || "");
-    setDeleteEndDate(av?.endDate || av?.startDate || "");
+
+    // Clamp delete window to today-or-later but still inside availability
+    const minInside = av?.startDate
+      ? clampToTodayISO(av.startDate)
+      : todayISO();
+    const maxInside = av?.endDate || minInside;
+
+    setDeleteStartDate(minInside);
+    setDeleteEndDate(minInside > maxInside ? minInside : maxInside);
     setShowDeleteModal(true);
   };
 
@@ -163,7 +224,21 @@ const Calendar = () => {
     const id = deleteTarget.vendor_availability_id || deleteTarget.id;
     const url = `/api/vendor/delete-availability/${id}`;
 
-    const payload = deleteMode === "all" ? {} : { startDate: deleteStartDate, endDate: deleteEndDate };
+    if (deleteMode === "date") {
+      if (!deleteStartDate || !deleteEndDate)
+        return toast.error("Please select a start and end date");
+
+      if (isPastISO(deleteStartDate) || isPastISO(deleteEndDate))
+        return toast.error("Dates cannot be in the past");
+
+      if (deleteEndDate < deleteStartDate)
+        return toast.error("End date must be after or same as start date");
+    }
+
+    const payload =
+      deleteMode === "all"
+        ? {}
+        : { startDate: deleteStartDate, endDate: deleteEndDate };
 
     try {
       setDeleteBusy(true);
@@ -175,7 +250,10 @@ const Calendar = () => {
       await fetchAvailabilities();
     } catch (err) {
       setDeleteBookedDates(err?.response?.data?.bookedDates || []);
-      toast.error(err?.response?.data?.message || "Failed to delete availability. Please try again.");
+      toast.error(
+        err?.response?.data?.message ||
+          "Failed to delete availability. Please try again."
+      );
     } finally {
       setDeleteBusy(false);
     }
@@ -183,15 +261,20 @@ const Calendar = () => {
 
   /* ---------- Derived ---------- */
   const monthMatrix = useMemo(() => {
-    const ms = startOfMonth(currentDate), me = endOfMonth(currentDate);
+    const ms = startOfMonth(currentDate),
+      me = endOfMonth(currentDate);
     const start = new Date(ms);
     start.setDate(start.getDate() - start.getDay());
     const end = new Date(me);
     end.setDate(end.getDate() + (6 - end.getDay()));
-    const weeks = [], it = new Date(start);
+    const weeks = [],
+      it = new Date(start);
     while (it <= end) {
       const w = [];
-      for (let i = 0; i < 7; i++) { w.push(new Date(it)); it.setDate(it.getDate() + 1); }
+      for (let i = 0; i < 7; i++) {
+        w.push(new Date(it));
+        it.setDate(it.getDate() + 1);
+      }
       weeks.push(w);
     }
     return weeks;
@@ -199,23 +282,34 @@ const Calendar = () => {
 
   const weekDays = useMemo(() => {
     const s = startOfWeek(currentDate);
-    return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; });
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(s);
+      d.setDate(s.getDate() + i);
+      return d;
+    });
   }, [currentDate]);
 
   const bookingsByDay = useMemo(() => {
     const map = {};
     bookings.forEach((b) => {
-      const d = new Date(b.bookingDate || b.date || b.dateBooked || b.booking_date);
+      const d = new Date(
+        b.bookingDate || b.date || b.dateBooked || b.booking_date
+      );
       const k = toDateKey(d);
       (map[k] ||= []).push(b);
     });
-    Object.keys(map).forEach((k) => map[k].sort((a, b) => (a.bookingTime || "").localeCompare(b.bookingTime || "")));
+    Object.keys(map).forEach((k) =>
+      map[k].sort((a, b) =>
+        (a.bookingTime || "").localeCompare(b.bookingTime || "")
+      )
+    );
     return map;
   }, [bookings]);
 
-  const availabilitiesForDate = (date) => availabilities.filter((av) => inRange(date, av.startDate, av.endDate));
-
-  const hasAvailability = (date) => availabilities.some((av) => inRange(date, av.startDate, av.endDate));
+  const availabilitiesForDate = (date) =>
+    availabilities.filter((av) => inRange(date, av.startDate, av.endDate));
+  const hasAvailability = (date) =>
+    availabilities.some((av) => inRange(date, av.startDate, av.endDate));
   const selectedDateAvailabilities = useMemo(
     () => (selectedDate ? availabilitiesForDate(selectedDate) : []),
     [selectedDate, availabilities]
@@ -245,52 +339,6 @@ const Calendar = () => {
 
   const handleToday = () => setCurrentDate(new Date());
 
-  const toInputDate = (d) => {
-    const dt = new Date(d);
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, "0");
-    const day = String(dt.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`; // <input type="date"> friendly
-  };
-
-
-  const openCreateModalForDate = (date) => {
-    const iso = date ? toInputDate(date) : toInputDate(new Date());
-    setAvailabilityForm({
-      startDate: iso,
-      endDate: iso,
-      startTime: "09:00",
-      endTime: "18:00",
-    });
-    setShowCreateModal(true);
-  };
-
-  const submitCreateAvailability = async () => {
-    const { startDate, endDate, startTime, endTime } = availabilityForm;
-    if (!startDate || !endDate || !startTime || !endTime) return toast.error("All fields are required");
-    setLoadingAvail(true);
-    await createAvailability({ startDate, endDate, startTime, endTime });
-    setLoadingAvail(false);
-  };
-  const openEditModal = (av) => {
-    setSelectedAvailToEdit(av);
-    setAvailabilityForm({
-      startDate: av.startDate,
-      endDate: av.endDate,
-      startTime: av.startTime || "09:00",
-      endTime: av.endTime || "18:00",
-    });
-    setShowEditModal(true);
-  };
-  const submitEditAvailability = async () => {
-    if (!selectedAvailToEdit) return;
-    const { startDate, endDate, startTime, endTime } = availabilityForm;
-    if (!startDate || !endDate || !startTime || !endTime) return toast.error("All fields are required");
-    setLoadingAvail(true);
-    await updateAvailability(selectedAvailToEdit.vendor_availability_id, { startDate, endDate, startTime, endTime });
-    setLoadingAvail(false);
-  };
-
   /* ---------- Header ---------- */
   const renderHeader = () => {
     const fmt = (o) => currentDate.toLocaleDateString("en-US", o);
@@ -298,22 +346,41 @@ const Calendar = () => {
       viewMode === "month"
         ? fmt({ month: "long", year: "numeric" })
         : viewMode === "week"
-          ? `${startOfWeek(currentDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${endOfWeek(
-            currentDate
-          ).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-          : fmt({ weekday: "long", month: "long", day: "numeric", year: "numeric" });
+        ? `${startOfWeek(currentDate).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })} - ${endOfWeek(currentDate).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}`
+        : fmt({
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          });
 
     return (
       <div className="flex flex-col items-center justify-between sm:flex-row pb-7">
         <div className="flex items-center gap-2">
-          <button onClick={handlePreviousPeriod} className="p-2 text-gray-600 rounded-full hover:bg-gray-100">
+          <button
+            onClick={handlePreviousPeriod}
+            className="p-2 text-gray-600 rounded-full hover:bg-gray-100"
+          >
             <ArrowLeft size={20} />
           </button>
           <span className="text-lg font-bold">{title}</span>
-          <button onClick={handleNextPeriod} className="p-2 text-gray-600 rounded-full hover:bg-gray-100">
+          <button
+            onClick={handleNextPeriod}
+            className="p-2 text-gray-600 rounded-full hover:bg-gray-100"
+          >
             <ArrowRight size={20} />
           </button>
-          <button onClick={handleToday} className="px-3 py-1 ml-3 text-xs sm:text-sm text-emerald-700 rounded-full bg-emerald-50 hover:bg-emerald-100">
+          <button
+            onClick={handleToday}
+            className="px-3 py-1 ml-3 text-xs sm:text-sm text-emerald-700 rounded-full bg-emerald-50 hover:bg-emerald-100"
+          >
             Today
           </button>
         </div>
@@ -322,15 +389,34 @@ const Calendar = () => {
             <button
               key={m}
               onClick={() => setViewMode(m)}
-              className={`px-4 py-1 rounded-full text-xs sm:text-sm ${viewMode === m ? "bg-emerald-600 text-white shadow" : "text-gray-700 hover:bg-emerald-100"
-                }`}
+              className={`px-4 py-1 rounded-full text-xs sm:text-sm ${
+                viewMode === m
+                  ? "bg-emerald-600 text-white shadow"
+                  : "text-gray-700 hover:bg-emerald-100"
+              }`}
             >
               {m[0].toUpperCase() + m.slice(1)}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2 mt-4 sm:mt-0">
-          <Button onClick={() => openCreateModalForDate(selectedDate || new Date())} icon={<Plus size={16} />}>
+          <Button
+            onClick={() => {
+              // If user has selected a past date, we still clamp to today
+              const base = selectedDate
+                ? toInputDate(selectedDate)
+                : toInputDate(new Date());
+              const safe = clampToTodayISO(base);
+              setAvailabilityForm({
+                startDate: safe,
+                endDate: safe,
+                startTime: "09:00",
+                endTime: "18:00",
+              });
+              setShowCreateModal(true);
+            }}
+            icon={<Plus size={16} />}
+          >
             New Availability
           </Button>
         </div>
@@ -343,7 +429,12 @@ const Calendar = () => {
     <div className="overflow-hidden bg-white border shadow-md rounded-xl">
       <div className="grid grid-cols-7 border-b bg-gray-50">
         {DAYS.map((d) => (
-          <div key={d} className="py-2 text-sm font-medium text-center text-gray-500">{d}</div>
+          <div
+            key={d}
+            className="py-2 text-sm font-medium text-center text-gray-500"
+          >
+            {d}
+          </div>
         ))}
       </div>
       <div>
@@ -361,12 +452,26 @@ const Calendar = () => {
                 <div
                   key={key}
                   onClick={() => handleDateClick(day)}
-                  className={`border p-2 sm:min-h-[100px] min-h-[64px] cursor-pointer transition rounded-md relative ${isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-300"
-                    } ${isToday ? "border-2 border-emerald-400 bg-white" : "border-gray-200"} ${isAvailable && !isToday ? "bg-emerald-50" : ""
-                    } hover:bg-emerald-100`}
+                  className={`border p-2 sm:min-h-[100px] min-h-[64px] cursor-pointer transition rounded-md relative ${
+                    isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-300"
+                  } ${
+                    isToday
+                      ? "border-2 border-emerald-400 bg-white"
+                      : "border-gray-200"
+                  } ${
+                    isAvailable && !isToday ? "bg-emerald-50" : ""
+                  } hover:bg-emerald-100`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className={`text-xs font-semibold ${isToday ? "text-emerald-600" : isCurrentMonth ? "text-gray-700" : "text-gray-300"}`}>
+                    <div
+                      className={`text-xs font-semibold ${
+                        isToday
+                          ? "text-emerald-600"
+                          : isCurrentMonth
+                          ? "text-gray-700"
+                          : "text-gray-300"
+                      }`}
+                    >
                       {day.getDate()}
                     </div>
                     <div className="flex items-center gap-1">
@@ -396,7 +501,9 @@ const Calendar = () => {
                           className={`flex items-center justify-between px-2 py-1 text-xs truncate border rounded ${sc.wrap}`}
                         >
                           <div className="truncate flex gap-1.5 items-center">
-                            <span className={`inline-block w-2 h-2 rounded-full ${sc.dot}`} />
+                            <span
+                              className={`inline-block w-2 h-2 rounded-full ${sc.dot}`}
+                            />
                             <span className="truncate">
                               {b.bookingTime?.slice(0, 5) || ""} • {b.userName}
                             </span>
@@ -406,7 +513,9 @@ const Calendar = () => {
                       );
                     })}
                     {dayBookings.length > 3 && (
-                      <div className="text-xs text-right text-blue-500">+{dayBookings.length - 3} more</div>
+                      <div className="text-xs text-right text-blue-500">
+                        +{dayBookings.length - 3} more
+                      </div>
                     )}
                   </div>
                 </div>
@@ -430,11 +539,18 @@ const Calendar = () => {
             return (
               <div
                 key={d.toISOString()}
-                className={`py-2 text-sm font-medium text-center ${isToday ? "border-emerald-300" : ""} ${dayAvs.length ? "bg-emerald-50" : ""
-                  }`}
+                className={`py-2 text-sm font-medium text-center ${
+                  isToday ? "border-emerald-300" : ""
+                } ${dayAvs.length ? "bg-emerald-50" : ""}`}
               >
                 <div>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
-                <div className={`text-xs ${isToday ? "font-bold text-emerald-700" : "text-gray-500"}`}>{d.getDate()}</div>
+                <div
+                  className={`text-xs ${
+                    isToday ? "font-bold text-emerald-700" : "text-gray-500"
+                  }`}
+                >
+                  {d.getDate()}
+                </div>
                 {dayAvs.length > 0 && (
                   <div className="flex items-center justify-center gap-1 mt-1">
                     {dayAvs.slice(0, 2).map((av) => (
@@ -455,7 +571,12 @@ const Calendar = () => {
         <div className="border-r">
           <div className="flex flex-col">
             {HOURS.map((h) => (
-              <div key={h} className="h-10 py-1 pr-2 text-xs text-right text-gray-400">{h}</div>
+              <div
+                key={h}
+                className="h-10 py-1 pr-2 text-xs text-right text-gray-400"
+              >
+                {h}
+              </div>
             ))}
           </div>
         </div>
@@ -470,31 +591,47 @@ const Calendar = () => {
             return (
               <div
                 key={key}
-                className={`min-h-full p-2 relative ${isToday ? "border-emerald-300" : ""} ${dayAvs.length ? "bg-emerald-50" : ""
-                  }`}
+                className={`min-h-full p-2 relative ${
+                  isToday ? "border-emerald-300" : ""
+                } ${dayAvs.length ? "bg-emerald-50" : ""}`}
                 onClick={() => handleDateClick(d)}
               >
                 {dayBookings.length ? (
                   dayBookings.map((b) => {
-                    const hour = parseInt((b.bookingTime || "00:00").split(":")[0], 10) || 0;
+                    const hour =
+                      parseInt((b.bookingTime || "00:00").split(":")[0], 10) ||
+                      0;
                     const top = (hour / 24) * 100;
                     const sc = statusUI(b.bookingStatus);
                     return (
-                      <div key={b.booking_id || b.bookingId} style={{ top: `${top}%` }} className="absolute left-2 right-2">
-                        <div className={`p-2 text-xs border rounded shadow-sm w-full ${sc.wrap}`}>
+                      <div
+                        key={b.booking_id || b.bookingId}
+                        style={{ top: `${top}%` }}
+                        className="absolute left-2 right-2"
+                      >
+                        <div
+                          className={`p-2 text-xs border rounded shadow-sm w-full ${sc.wrap}`}
+                        >
                           <div className="font-semibold flex items-center gap-2">
-                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${sc.dot}`} />
+                            <span
+                              className={`inline-block w-2.5 h-2.5 rounded-full ${sc.dot}`}
+                            />
                             <div className="truncate">
-                              {b.bookingTime?.slice(0, 5) || ""} • {b.serviceName}
+                              {b.bookingTime?.slice(0, 5) || ""} •{" "}
+                              {b.serviceName}
                             </div>
                           </div>
-                          <div className="truncate text-gray-700 text-[12px]">{b.userName}</div>
+                          <div className="truncate text-gray-700 text-[12px]">
+                            {b.userName}
+                          </div>
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div className="flex items-center justify-center h-full text-xs text-gray-300">No bookings</div>
+                  <div className="flex items-center justify-center h-full text-xs text-gray-300">
+                    No bookings
+                  </div>
                 )}
               </div>
             );
@@ -513,23 +650,43 @@ const Calendar = () => {
     const isToday = isSameDay(currentDate, new Date());
 
     return (
-      <div className={`overflow-hidden border shadow-md rounded-xl ${isAvailable ? "border-emerald-200" : "bg-white"} ${isToday ? "border-emerald-300" : ""
-        }`}>
-        <div className={`p-5 border-b bg-gray-50 ${isAvailable ? "bg-emerald-50" : ""}`}>
+      <div
+        className={`overflow-hidden border shadow-md rounded-xl ${
+          isAvailable ? "border-emerald-200" : "bg-white"
+        } ${isToday ? "border-emerald-300" : ""}`}
+      >
+        <div
+          className={`p-5 border-b bg-gray-50 ${
+            isAvailable ? "bg-emerald-50" : ""
+          }`}
+        >
           <h3 className="text-lg font-semibold text-gray-800">
-            {currentDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            {currentDate.toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
           </h3>
-          {isAvailable && <div className="mt-1 text-sm text-emerald-700">You have availability set for this day</div>}
+          {isAvailable && (
+            <div className="mt-1 text-sm text-emerald-700">
+              You have availability set for this day
+            </div>
+          )}
 
           {dayAvs.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {dayAvs.map((a) => (
-                <div key={a.vendor_availability_id} className="flex items-center gap-2 px-3 py-1 text-sm rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                <div
+                  key={a.vendor_availability_id}
+                  className="flex items-center gap-2 px-3 py-1 text-sm rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200"
+                >
                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600" />
                   <div className="text-xs">
                     {a.startTime} - {a.endTime}{" "}
                     <span className="text-xs text-gray-500">
-                      ({a.startDate}{a.startDate !== a.endDate ? ` → ${a.endDate}` : ""})
+                      ({a.startDate}
+                      {a.startDate !== a.endDate ? ` → ${a.endDate}` : ""})
                     </span>
                   </div>
                 </div>
@@ -542,20 +699,26 @@ const Calendar = () => {
           {dayAvs.length > 0 ? (
             <div className="mb-4 space-y-2">
               {dayAvs.map((a) => (
-                <div key={a.vendor_availability_id} className="flex items-center justify-between p-3 rounded bg-emerald-50 border border-emerald-200">
+                <div
+                  key={a.vendor_availability_id}
+                  className="flex items-center justify-between p-3 rounded bg-emerald-50 border border-emerald-200"
+                >
                   <div>
                     <div className="text-sm font-medium text-emerald-700">
                       {a.startTime} - {a.endTime}
                     </div>
                     <div className="text-xs text-gray-600">
-                      {a.startDate}{a.startDate !== a.endDate && ` → ${a.endDate}`}
+                      {a.startDate}
+                      {a.startDate !== a.endDate && ` → ${a.endDate}`}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="mb-4 text-sm text-gray-500">No availability for this day</div>
+            <div className="mb-4 text-sm text-gray-500">
+              No availability for this day
+            </div>
           )}
 
           <div className="divide-y">
@@ -569,16 +732,21 @@ const Calendar = () => {
                   >
                     <div>
                       <div className="flex items-center gap-2 mb-1 text-sm text-gray-600">
-                        <Clock size={16} /> <span>{formatTime(b.bookingTime)}</span>
+                        <Clock size={16} />{" "}
+                        <span>{formatTime(b.bookingTime)}</span>
                       </div>
-                      <h4 className="font-bold text-gray-700 truncate">{b.serviceName}</h4>
+                      <h4 className="font-bold text-gray-700 truncate">
+                        {b.serviceName}
+                      </h4>
                       <div className="mt-1 text-sm text-gray-600">
                         <User size={16} className="inline" /> {b.userName}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <div className="flex items-center gap-2">
-                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${sc.dot}`} />
+                        <span
+                          className={`inline-block w-2.5 h-2.5 rounded-full ${sc.dot}`}
+                        />
                         <StatusBadge status={b.bookingStatus} />
                       </div>
                       {b.bookingStatus === 0 && (
@@ -596,7 +764,9 @@ const Calendar = () => {
                 );
               })
             ) : (
-              <div className="p-8 text-center text-gray-400">No bookings scheduled for this day</div>
+              <div className="p-8 text-center text-gray-400">
+                No bookings scheduled for this day
+              </div>
             )}
           </div>
         </div>
@@ -609,7 +779,9 @@ const Calendar = () => {
     if (!selectedDate)
       return (
         <div className="hidden p-8 bg-white border-l shadow-md lg:block rounded-xl">
-          <div className="text-center text-gray-400">Select a day to view bookings & availability</div>
+          <div className="text-center text-gray-400">
+            Select a day to view bookings & availability
+          </div>
         </div>
       );
 
@@ -620,14 +792,32 @@ const Calendar = () => {
         <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="text-lg font-semibold">
-              {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+              {selectedDate.toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {selectedBookings.length} booking{selectedBookings.length !== 1 ? "s" : ""} • {selectedDateAvailabilities.length} availability{selectedDateAvailabilities.length !== 1 ? "s" : ""}
+              {selectedBookings.length} booking
+              {selectedBookings.length !== 1 ? "s" : ""} •{" "}
+              {selectedDateAvailabilities.length} availability
+              {selectedDateAvailabilities.length !== 1 ? "s" : ""}
             </p>
-            {isAvailable && <p className="mt-1 text-xs text-emerald-700">This day has availability set</p>}
+            {isAvailable && (
+              <p className="mt-1 text-xs text-emerald-700">
+                This day has availability set
+              </p>
+            )}
           </div>
-          <button onClick={() => { setSelectedDate(null); setSelectedBookings([]); }} className="p-2 rounded-full hover:bg-gray-100">
+          <button
+            onClick={() => {
+              setSelectedDate(null);
+              setSelectedBookings([]);
+            }}
+            className="p-2 rounded-full hover:bg-gray-100"
+          >
             <XCircle className="text-gray-600" />
           </button>
         </div>
@@ -635,7 +825,20 @@ const Calendar = () => {
         <div className="mt-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold">Availabilities</h4>
-            <button onClick={() => openCreateModalForDate(selectedDate)} className="px-2 py-1 text-xs text-emerald-700 rounded bg-emerald-50 hover:bg-emerald-100">
+            <button
+              onClick={() => {
+                const base = toInputDate(selectedDate);
+                const safe = clampToTodayISO(base);
+                setAvailabilityForm({
+                  startDate: safe,
+                  endDate: safe,
+                  startTime: "09:00",
+                  endTime: "18:00",
+                });
+                setShowCreateModal(true);
+              }}
+              className="px-2 py-1 text-xs text-emerald-700 rounded bg-emerald-50 hover:bg-emerald-100"
+            >
               Add
             </button>
           </div>
@@ -644,7 +847,9 @@ const Calendar = () => {
             {selectedDateAvailabilities.length ? (
               selectedDateAvailabilities
                 .slice()
-                .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
+                .sort((a, b) =>
+                  (a.startTime || "").localeCompare(b.startTime || "")
+                )
                 .map((a) => (
                   <div
                     key={a.vendor_availability_id}
@@ -655,14 +860,23 @@ const Calendar = () => {
                         {a.startTime} - {a.endTime}
                       </div>
                       <div className="text-xs text-emerald-700 truncate">
-                        {a.startDate} {a.startDate !== a.endDate && `→ ${a.endDate}`}
+                        {a.startDate}{" "}
+                        {a.startDate !== a.endDate && `→ ${a.endDate}`}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 ml-3">
-                      <button onClick={() => openEditModal(a)} className="p-1 text-xs border rounded hover:bg-emerald-200" title="Edit">
+                      <button
+                        onClick={() => openEditModal(a)}
+                        className="p-1 text-xs border rounded hover:bg-emerald-200"
+                        title="Edit"
+                      >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => openDeleteModal(a)} className="p-1 text-xs border rounded hover:bg-red-200" title="Delete">
+                      <button
+                        onClick={() => openDeleteModal(a)}
+                        className="p-1 text-xs border rounded hover:bg-red-200"
+                        title="Delete"
+                      >
                         <Trash size={14} />
                       </button>
                     </div>
@@ -679,24 +893,31 @@ const Calendar = () => {
               {selectedBookings.length ? (
                 selectedBookings
                   .slice()
-                  .sort((a, b) => (a.bookingTime || "").localeCompare(b.bookingTime || ""))
+                  .sort((a, b) =>
+                    (a.bookingTime || "").localeCompare(b.bookingTime || "")
+                  )
                   .map((b) => {
-                    const sc = b.bookingStatus;
                     return (
                       <div
                         key={b.booking_id || b.bookingId}
                         className={`flex items-start justify-between px-2 py-3 border rounded `}
                       >
                         <div className="min-w-0 flex gap-2 items-center">
-                          <span className={`inline-block w-2.5 h-2.5 rounded-full`} />
+                          <span
+                            className={`inline-block w-2.5 h-2.5 rounded-full`}
+                          />
                           <div>
-                            <div className="text-sm font-medium truncate">{b.serviceName}</div>
+                            <div className="text-sm font-medium truncate">
+                              {b.serviceName}
+                            </div>
                             <div className="text-xs text-gray-600">
                               {b.bookingTime} • {b.userName}
                             </div>
                           </div>
                         </div>
-                        <div className="ml-3"><StatusBadge status={b.bookingStatus} /></div>
+                        <div className="ml-3">
+                          <StatusBadge status={b.bookingStatus} />
+                        </div>
                       </div>
                     );
                   })
@@ -710,13 +931,69 @@ const Calendar = () => {
     );
   };
 
+  /* ---------- Submit handlers with HARD validation ---------- */
+  const submitCreateAvailability = async () => {
+    const { startDate, endDate, startTime, endTime } = availabilityForm;
+    if (!startDate || !endDate || !startTime || !endTime)
+      return toast.error("All fields are required");
+
+    if (isPastISO(startDate) || isPastISO(endDate))
+      return toast.error("Dates cannot be in the past");
+
+    if (endDate < startDate)
+      return toast.error("End date must be after or same as start date");
+
+    setLoadingAvail(true);
+    await createAvailability({ startDate, endDate, startTime, endTime });
+    setLoadingAvail(false);
+  };
+
+  const openEditModal = (av) => {
+    setSelectedAvailToEdit(av);
+    setAvailabilityForm({
+      startDate: av.startDate,
+      endDate: av.endDate,
+      startTime: av.startTime || "09:00",
+      endTime: av.endTime || "18:00",
+    });
+    setShowEditModal(true);
+  };
+
+  const submitEditAvailability = async () => {
+    if (!selectedAvailToEdit) return;
+    const { startDate, endDate, startTime, endTime } = availabilityForm;
+    if (!startDate || !endDate || !startTime || !endTime)
+      return toast.error("All fields are required");
+
+    if (isPastISO(startDate) || isPastISO(endDate))
+      return toast.error("Dates cannot be in the past");
+
+    if (endDate < startDate)
+      return toast.error("End date must be after or same as start date");
+
+    setLoadingAvail(true);
+    await updateAvailability(selectedAvailToEdit.vendor_availability_id, {
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+    });
+    setLoadingAvail(false);
+  };
+
   /* ---------- Guards ---------- */
-  if (loading) return (
-    <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
-  );
-  if (error) return (
-    <div className="p-4 rounded-md bg-red-50"><p className="text-red-500">{error}</p></div>
-  );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  if (error)
+    return (
+      <div className="p-4 rounded-md bg-red-50">
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
 
   /* ---------- Render ---------- */
   return (
@@ -730,32 +1007,80 @@ const Calendar = () => {
             {viewMode === "day" && renderDayMain()}
           </div>
         </div>
-        <div className="w-full lg:w-[340px] shrink-0">{renderSelectedDateDetails()}</div>
+        <div className="w-full lg:w-[340px] shrink-0">
+          {renderSelectedDateDetails()}
+        </div>
       </div>
 
       {/* Create Modal */}
       {showCreateModal && (
-        <Modal onClose={() => setShowCreateModal(false)} isOpen={showCreateModal} title="New Availability" >
+        <Modal
+          onClose={() => setShowCreateModal(false)}
+          isOpen={showCreateModal}
+          title="New Availability"
+        >
           <div className="space-y-3">
-            {["startDate", "endDate"].map((k) => (
-              <div key={k}>
-                <label className="block text-xs text-gray-600">{k === "startDate" ? "Start date" : "End date"}</label>
-                <input
-                  value={availabilityForm[k]}
-                  onChange={(e) => setAvailabilityForm((s) => ({ ...s, [k]: e.target.value }))}
-                  className="w-full p-2 text-sm border rounded"
-                  type="date"
-                />
-              </div>
-            ))}
+            {/* Start Date */}
+            <div>
+              <label className="block text-xs text-gray-600">Start date</label>
+              <input
+                value={availabilityForm.startDate}
+                onChange={(e) => {
+                  const v = clampToTodayISO(e.target.value);
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    startDate: v,
+                    endDate: s.endDate && s.endDate < v ? v : s.endDate || v, // keep end >= start
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={todayISO()}
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="block text-xs text-gray-600">End date</label>
+              <input
+                value={availabilityForm.endDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const minEnd =
+                    availabilityForm.startDate &&
+                    availabilityForm.startDate > todayISO()
+                      ? availabilityForm.startDate
+                      : todayISO();
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    endDate: v < minEnd ? minEnd : v,
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={
+                  availabilityForm.startDate &&
+                  availabilityForm.startDate > todayISO()
+                    ? availabilityForm.startDate
+                    : todayISO()
+                }
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               {["startTime", "endTime"].map((k) => (
                 <div key={k}>
-                  <label className="block text-xs text-gray-600">{k === "startTime" ? "Start time" : "End time"}</label>
+                  <label className="block text-xs text-gray-600">
+                    {k === "startTime" ? "Start time" : "End time"}
+                  </label>
                   <input
                     value={availabilityForm[k]}
-                    onChange={(e) => setAvailabilityForm((s) => ({ ...s, [k]: e.target.value }))}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        [k]: e.target.value,
+                      }))
+                    }
                     className="w-full p-2 text-sm border rounded"
                     type="time"
                   />
@@ -764,11 +1089,21 @@ const Calendar = () => {
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
                 Cancel
               </button>
-              <button onClick={submitCreateAvailability} disabled={loadingAvail}
-                className={`px-4 py-2 text-sm text-white rounded-md ${loadingAvail ? "bg-emerald-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"}`}>
+              <button
+                onClick={submitCreateAvailability}
+                disabled={loadingAvail}
+                className={`px-4 py-2 text-sm text-white rounded-md ${
+                  loadingAvail
+                    ? "bg-emerald-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
                 {loadingAvail ? "Saving..." : "Create"}
               </button>
             </div>
@@ -778,27 +1113,73 @@ const Calendar = () => {
 
       {/* Edit Modal */}
       {showEditModal && (
-        <Modal onClose={() => setShowEditModal(false)} isOpen={showEditModal} title="Edit Availability" >
+        <Modal
+          onClose={() => setShowEditModal(false)}
+          isOpen={showEditModal}
+          title="Edit Availability"
+        >
           <div className="space-y-3">
-            {["startDate", "endDate"].map((k) => (
-              <div key={k}>
-                <label className="block text-xs text-gray-600">{k === "startDate" ? "Start date" : "End date"}</label>
-                <input
-                  value={availabilityForm[k]}
-                  onChange={(e) => setAvailabilityForm((s) => ({ ...s, [k]: e.target.value }))}
-                  className="w-full p-2 text-sm border rounded"
-                  type="date"
-                />
-              </div>
-            ))}
+            {/* Start Date */}
+            <div>
+              <label className="block text-xs text-gray-600">Start date</label>
+              <input
+                value={availabilityForm.startDate}
+                onChange={(e) => {
+                  const v = clampToTodayISO(e.target.value);
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    startDate: v,
+                    endDate: s.endDate && s.endDate < v ? v : s.endDate || v,
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={todayISO()}
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="block text-xs text-gray-600">End date</label>
+              <input
+                value={availabilityForm.endDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const minEnd =
+                    availabilityForm.startDate &&
+                    availabilityForm.startDate > todayISO()
+                      ? availabilityForm.startDate
+                      : todayISO();
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    endDate: v < minEnd ? minEnd : v,
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={
+                  availabilityForm.startDate &&
+                  availabilityForm.startDate > todayISO()
+                    ? availabilityForm.startDate
+                    : todayISO()
+                }
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               {["startTime", "endTime"].map((k) => (
                 <div key={k}>
-                  <label className="block text-xs text-gray-600">{k === "startTime" ? "Start time" : "End time"}</label>
+                  <label className="block text-xs text-gray-600">
+                    {k === "startTime" ? "Start time" : "End time"}
+                  </label>
                   <input
                     value={availabilityForm[k]}
-                    onChange={(e) => setAvailabilityForm((s) => ({ ...s, [k]: e.target.value }))}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        [k]: e.target.value,
+                      }))
+                    }
                     className="w-full p-2 text-sm border rounded"
                     type="time"
                   />
@@ -807,11 +1188,21 @@ const Calendar = () => {
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
                 Cancel
               </button>
-              <button onClick={submitEditAvailability} disabled={loadingAvail}
-                className={`px-4 py-2 text-sm text-white rounded-md ${loadingAvail ? "bg-emerald-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"}`}>
+              <button
+                onClick={submitEditAvailability}
+                disabled={loadingAvail}
+                className={`px-4 py-2 text-sm text-white rounded-md ${
+                  loadingAvail
+                    ? "bg-emerald-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
                 {loadingAvail ? "Saving..." : "Update"}
               </button>
             </div>
@@ -821,13 +1212,24 @@ const Calendar = () => {
 
       {/* Delete Modal */}
       {showDeleteModal && deleteTarget && (
-        <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete availability" >
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="Delete availability"
+        >
           <>
             <div className="space-y-3">
               <label className="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50">
-                <input type="radio" className="accent-red-600" checked={deleteMode === "all"} onChange={() => setDeleteMode("all")} />
+                <input
+                  type="radio"
+                  className="accent-red-600"
+                  checked={deleteMode === "all"}
+                  onChange={() => setDeleteMode("all")}
+                />
                 <>
-                  <h3 className="font-medium text-gray-800">Delete entire availability</h3>
+                  <h3 className="font-medium text-gray-800">
+                    Delete entire availability
+                  </h3>
                 </>
               </label>
 
@@ -839,29 +1241,49 @@ const Calendar = () => {
                   onChange={() => setDeleteMode("date")}
                 />
                 <div className="w-full">
-                  <div className="font-medium text-gray-800">Delete a specific date range</div>
+                  <div className="font-medium text-gray-800">
+                    Delete a specific date range
+                  </div>
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs text-gray-600">Start date (inside range)</label>
+                      <label className="block text-xs text-gray-600">
+                        Start date (inside range)
+                      </label>
                       <input
                         type="date"
                         className="w-full p-2 text-sm border rounded"
                         value={deleteStartDate}
-                        min={deleteTarget.startDate}
-                        max={deleteTarget.endDate}
-                        onChange={(e) => setDeleteStartDate(e.target.value)}
+                        min={
+                          deleteTarget
+                            ? deleteTarget.startDate > todayISO()
+                              ? deleteTarget.startDate
+                              : todayISO()
+                            : todayISO()
+                        }
+                        max={deleteTarget?.endDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDeleteStartDate(v);
+                          setDeleteEndDate((cur) => (cur < v ? v : cur));
+                        }}
                         disabled={deleteMode !== "date"}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600">End date (inside range)</label>
+                      <label className="block text-xs text-gray-600">
+                        End date (inside range)
+                      </label>
                       <input
                         type="date"
                         className="w-full p-2 text-sm border rounded"
                         value={deleteEndDate}
-                        min={deleteTarget.startDate}
-                        max={deleteTarget.endDate}
-                        onChange={(e) => setDeleteEndDate(e.target.value)}
+                        min={deleteStartDate || todayISO()}
+                        max={deleteTarget?.endDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const minEnd = deleteStartDate || todayISO();
+                          setDeleteEndDate(v < minEnd ? minEnd : v);
+                        }}
                         disabled={deleteMode !== "date"}
                       />
                     </div>
@@ -873,7 +1295,9 @@ const Calendar = () => {
                 <div className="flex items-start gap-2 p-3 text-sm border rounded bg-yellow-50 border-yellow-200">
                   <AlertCircle className="mt-0.5 text-yellow-600" size={18} />
                   <div className="text-yellow-800">
-                    <div className="font-medium">Cannot delete on booked date(s):</div>
+                    <div className="font-medium">
+                      Cannot delete on booked date(s):
+                    </div>
                     <div className="mt-1">{deleteBookedDates.join(", ")}</div>
                   </div>
                 </div>
@@ -881,13 +1305,25 @@ const Calendar = () => {
             </div>
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200" disabled={deleteBusy}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                disabled={deleteBusy}
+              >
                 Cancel
               </button>
               <button
                 onClick={submitDeleteAvailability}
-                disabled={deleteBusy || (deleteMode === "date" && (!deleteStartDate || !deleteEndDate))}
-                className={`px-4 py-2 text-sm text-white rounded-md ${deleteBusy ? "bg-red-300 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`}
+                disabled={
+                  deleteBusy ||
+                  (deleteMode === "date" &&
+                    (!deleteStartDate || !deleteEndDate))
+                }
+                className={`px-4 py-2 text-sm text-white rounded-md ${
+                  deleteBusy
+                    ? "bg-red-300 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
               >
                 {deleteBusy ? "Deleting..." : "Delete"}
               </button>
