@@ -355,7 +355,7 @@ const googleLogin = asyncHandler(async (req, res) => {
             user_id = user.user_id;
         }
 
-        // 3️⃣ Generate JWT first (so we can respond quickly)
+        // 3️⃣ Generate JWT token
         const token = jwt.sign(
             {
                 user_id,
@@ -365,7 +365,7 @@ const googleLogin = asyncHandler(async (req, res) => {
             process.env.JWT_SECRET
         );
 
-        // 4️⃣ Respond immediately (don’t wait for background updates)
+        // 4️⃣ Respond immediately
         res.status(200).json({
             message: existingUsers.length > 0
                 ? "Login successful via Google"
@@ -375,9 +375,10 @@ const googleLogin = asyncHandler(async (req, res) => {
             firstName: user.firstName || firstName,
             lastName: user.lastName || lastName,
             token,
-            is_google_register, // 👈 true if newly created
+            is_google_register,
         });
-        console.log(user_id);
+
+        console.log(user_id); // ✅ Ensure semicolon before async blocks
 
         // 🧩 5️⃣ Fire & forget: update FCM token
         if (fcmToken && fcmToken !== user.fcmToken) {
@@ -391,17 +392,30 @@ const googleLogin = asyncHandler(async (req, res) => {
             })();
         }
 
-        console.log(user_id); // <-- add semicolon
-
-        // 🎁 6️⃣ Fire & forget: assign welcome code
+        // 🎁 6️⃣ Fire & forget: assign welcome promo code
         (async () => {
             try {
-                await assignWelcomeCode({ user_id, user_email: user.email });
+                await assignWelcomeCode({ user_id, user_email: email });
                 console.log(`🎁 Welcome code assigned for ${email}`);
             } catch (err) {
                 console.error("❌ Auto-assign welcome code error:", err.message);
             }
         })();
+
+        // ✉️ 7️⃣ Fire & forget: send welcome email (only for new Google users)
+        if (is_google_register && email) {
+            (async () => {
+                try {
+                    await sendUserWelcomeMail({
+                        userEmail: email,
+                        firstName,
+                    });
+                    console.log(`📧 Welcome email sent to ${email}`);
+                } catch (error) {
+                    console.error("❌ Failed to send welcome email:", error.message);
+                }
+            })();
+        }
 
     } catch (err) {
         console.error("Google Login Error:", err);
