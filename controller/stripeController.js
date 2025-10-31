@@ -324,6 +324,13 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
+    // ✅ Log payment intent for webhook tracking
+    await conn.query(
+      `INSERT INTO payments (cart_id, user_id, payment_intent_id, amount, currency, status)
+      VALUES (?, ?, ?, ?, ?, ?)`,
+      [cart_id, cart.user_id, paymentIntent.id, totalAmount, "cad", "created"]
+    );
+
     // ✅ Commit transaction
     await conn.commit();
     conn.release();
