@@ -377,9 +377,8 @@ const googleLogin = asyncHandler(async (req, res) => {
             token,
             is_google_register, // 👈 true if newly created
         });
-
         console.log(user_id);
-        
+
         // 🧩 5️⃣ Fire & forget: update FCM token
         if (fcmToken && fcmToken !== user.fcmToken) {
             (async () => {
@@ -393,15 +392,15 @@ const googleLogin = asyncHandler(async (req, res) => {
         }
 
         console.log(user_id)
-        // 🎁 6️⃣ Fire & forget: assign welcome code
-        (async () => {
-            try {
-                await assignWelcomeCode(user_id, email);
-                console.log(`🎁 Welcome code assigned for ${email}`);
-            } catch (err) {
-                console.error("❌ Auto-assign welcome code error:", err.message);
-            }
-        })();
+            // 🎁 6️⃣ Fire & forget: assign welcome code
+            (async () => {
+                try {
+                    await assignWelcomeCode({ user_id: user.user_id, user_email: user.email });
+                    console.log(`🎁 Welcome code assigned for ${email}`);
+                } catch (err) {
+                    console.error("❌ Auto-assign welcome code error:", err.message);
+                }
+            })();
 
     } catch (err) {
         console.error("Google Login Error:", err);
