@@ -3,7 +3,7 @@ const { db } = require("../config/db")
 
 const registerBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    const {
+    let {
         account_holder_name,
         bank_name,
         institution_number,
@@ -12,13 +12,20 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         bank_address = null,
         email = null,
         legal_name = null,
-        dob = null, // if individual
-        business_name = null, // if business
+        dob = null, // for individual
+        business_name = null, // for business
         government_id = null, // optional KYC ID
-        preferred_transfer_type = 'bank_transfer',
+        preferred_transfer_type = "bank_transfer",
     } = req.body;
 
-    // Validate required fields
+    // 🧹 Trim input values to prevent spacing errors
+    account_holder_name = account_holder_name?.trim();
+    bank_name = bank_name?.trim();
+    institution_number = institution_number?.trim();
+    transit_number = transit_number?.trim();
+    account_number = account_number?.trim();
+
+    // 🧩 Basic required field validation
     if (
         !account_holder_name ||
         !bank_name ||
@@ -27,20 +34,35 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         !account_number ||
         !preferred_transfer_type
     ) {
-        return res.status(400).json({ message: "All required fields must be provided" });
+        return res.status(400).json({ message: "All required fields must be provided." });
     }
 
-    // Check if vendor already has a bank account
+    // 🔢 Validate numeric and length formats
+    const digitOnly = /^\d+$/;
+
+    if (!digitOnly.test(institution_number) || institution_number.length !== 3) {
+        return res.status(400).json({ message: "Institution Number must be a 3-digit numeric code." });
+    }
+
+    if (!digitOnly.test(transit_number) || transit_number.length !== 5) {
+        return res.status(400).json({ message: "Transit Number must be a 5-digit numeric code." });
+    }
+
+    if (!digitOnly.test(account_number) || account_number.length < 7 || account_number.length > 12) {
+        return res.status(400).json({ message: "Account Number must be between 7 and 12 digits." });
+    }
+
+    // 🔍 Check if vendor already has a bank account
     const [rows] = await db.query(
         "SELECT id FROM vendor_bank_accounts WHERE vendor_id = ?",
         [vendor_id]
     );
 
     if (rows.length > 0) {
-        // Update existing account
+        // 📝 Update existing record
         await db.query(
             `UPDATE vendor_bank_accounts 
-             SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=? , preferred_transfer_type=?
+             SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=?
              WHERE vendor_id=?`,
             [
                 account_holder_name,
@@ -56,15 +78,14 @@ const registerBankAccount = asyncHandler(async (req, res) => {
                 government_id,
                 preferred_transfer_type,
                 vendor_id,
-
             ]
         );
-        res.json({ message: "Bank account updated successfully" });
+        res.json({ message: "Bank account updated successfully." });
     } else {
-        // Insert new account
+        // 🏦 Insert new record
         await db.query(
             `INSERT INTO vendor_bank_accounts 
-             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id ,preferred_transfer_type)
+             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 vendor_id,
@@ -79,12 +100,13 @@ const registerBankAccount = asyncHandler(async (req, res) => {
                 dob,
                 business_name,
                 government_id,
-                preferred_transfer_type
+                preferred_transfer_type,
             ]
         );
-        res.json({ message: "Bank account saved successfully" });
+        res.json({ message: "Bank account saved successfully." });
     }
 });
+
 
 // ----------------------------
 // Get bank account details
@@ -213,7 +235,7 @@ const applyForPayout = asyncHandler(async (req, res) => {
             `SELECT * FROM vendor_bank_accounts WHERE vendor_id = ? LIMIT 1`,
             [vendor_id]
         );
-``
+        ``
         if (!bankDetails.length) {
             return res.status(400).json({
                 message: "Please add your bank details before requesting a payout."

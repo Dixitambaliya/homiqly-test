@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
-const { sendBookingEmail, sendVendorBookingEmail } = require("../config/utils/email/mailer"); 
+const { sendBookingEmail, sendVendorBookingEmail } = require("../config/utils/email/mailer");
 
 // 1. Vendor creates Stripe account
 exports.createStripeAccount = asyncHandler(async (req, res) => {
@@ -119,7 +119,6 @@ exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
   res.json(rows);
 });
 
-// ✅ createPaymentIntent.js
 exports.createPaymentIntent = asyncHandler(async (req, res) => {
   const { cart_id } = req.body;
 
@@ -127,126 +126,158 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "'cart_id' is required" });
   }
 
-  // ✅ Fetch cart details
-  const [cartRows] = await db.query(
-    `SELECT sc.* FROM service_cart sc WHERE sc.cart_id = ?`,
-    [cart_id]
-  );
+  const conn = await db.getConnection();
 
-  if (!cartRows.length) return res.status(404).json({ error: "Cart not found" });
-  const cart = cartRows[0];
+  try {
+    // ✅ Begin transaction
+    await conn.beginTransaction();
 
-  if (!cart.bookingDate || !cart.bookingTime) {
-    return res.status(400).json({ error: "Incomplete booking details. Please select booking date and time." });
-  }
-
-  // ✅ Fetch sub-packages
-  const [subPackages] = await db.query(
-    `SELECT cpi.sub_package_id AS item_id, pi.itemName, cpi.price, cpi.quantity
-     FROM cart_package_items cpi
-     LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
-     WHERE cpi.cart_id = ?`,
-    [cart_id]
-  );
-
-  // ✅ Fetch addons
-  const [addons] = await db.query(
-    `SELECT ca.sub_package_id, a.addonName, ca.price
-     FROM cart_addons ca
-     LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
-     WHERE ca.cart_id = ?`,
-    [cart_id]
-  );
-
-  // ✅ Fetch preferences
-  const [preferences] = await db.query(
-    `SELECT cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
-     FROM cart_preferences cp
-     LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-     WHERE cp.cart_id = ?`,
-    [cart_id]
-  );
-
-  // ✅ Fetch service tax (active)
-  const [serviceTaxRows] = await db.query(
-    `SELECT taxName, taxPercentage 
-     FROM service_taxes 
-     WHERE status = '1' 
-     ORDER BY created_at ASC LIMIT 1`
-  );
-
-  let taxPercentage = 0;
-  let taxName = '';
-  if (serviceTaxRows.length) {
-    taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
-    taxName = serviceTaxRows[0].taxName || 'Service Tax';
-  }
-
-  // ✅ Calculate subtotal including sub-packages, addons, preferences
-  let subtotal = 0;
-  const metadata = { cart_id };
-
-  subPackages.forEach((item, idx) => {
-    const quantity = parseInt(item.quantity) || 1;
-    const price = parseFloat(item.price) || 0;
-    subtotal += price * quantity;
-    metadata[`item_${idx}`] = `${item.itemName || "Item"} x${quantity} @${price}`;
-  });
-
-  addons.forEach((addon, idx) => {
-    const price = parseFloat(addon.price) || 0;
-    subtotal += price;
-    metadata[`addon_${idx}`] = addon.addonName || "Addon";
-  });
-
-  preferences.forEach((pref, idx) => {
-    const price = parseFloat(pref.preferencePrice) || 0;
-    subtotal += price;
-    metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
-  });
-
-  // ✅ Calculate service tax
-  const taxAmount = subtotal * (taxPercentage / 100);
-  let totalAmount = subtotal + taxAmount;
-
-  metadata[`service_tax_name`] = taxName;
-  metadata[`service_tax_percentage`] = taxPercentage;
-  metadata[`service_tax_amount`] = taxAmount.toFixed(2);
-
-  // ✅ Fetch promo if exists
-  let appliedPromo = null;
-
-  if (cart.user_promo_code_id) {
-    // 1️⃣ Check user_promo_codes first
-    const [userPromoRows] = await db.query(
-      `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
-      [cart.user_id, cart.user_promo_code_id]
+    // ✅ Lock cart row to prevent concurrent modifications
+    const [cartRows] = await conn.query(
+      `SELECT * FROM service_cart WHERE cart_id = ? FOR UPDATE`,
+      [cart_id]
     );
 
-    if (userPromoRows.length) {
-      const promo = userPromoRows[0];
+    if (!cartRows.length) {
+      await conn.rollback();
+      conn.release();
+      return res.status(404).json({ error: "Cart not found" });
+    }
 
-      // Admin promo via user_promo_codes
-      if (promo.source_type === "admin" && promo.promo_id) {
-        const [adminPromoRows] = await db.query(
-          `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
-          [promo.promo_id]
-        );
+    const cart = cartRows[0];
 
-        if (adminPromoRows.length) {
-          appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
+    if (!cart.bookingDate || !cart.bookingTime) {
+      await conn.rollback();
+      conn.release();
+      return res.status(400).json({
+        error: "Incomplete booking details. Please select booking date and time.",
+      });
+    }
+
+    // ✅ Fetch sub-packages
+    const [subPackages] = await conn.query(
+      `SELECT cpi.sub_package_id AS item_id, pi.itemName, cpi.price, cpi.quantity
+       FROM cart_package_items cpi
+       LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+       WHERE cpi.cart_id = ?`,
+      [cart_id]
+    );
+
+    // ✅ Fetch addons
+    const [addons] = await conn.query(
+      `SELECT ca.sub_package_id, a.addonName, ca.price
+       FROM cart_addons ca
+       LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
+       WHERE ca.cart_id = ?`,
+      [cart_id]
+    );
+
+    // ✅ Fetch preferences
+    const [preferences] = await conn.query(
+      `SELECT cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
+       FROM cart_preferences cp
+       LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+       WHERE cp.cart_id = ?`,
+      [cart_id]
+    );
+
+    // ✅ Fetch active service tax
+    const [serviceTaxRows] = await conn.query(
+      `SELECT taxName, taxPercentage 
+       FROM service_taxes 
+       WHERE status = '1' 
+       ORDER BY created_at ASC LIMIT 1`
+    );
+
+    let taxPercentage = 0;
+    let taxName = "";
+    if (serviceTaxRows.length) {
+      taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
+      taxName = serviceTaxRows[0].taxName || "Service Tax";
+    }
+
+    // ✅ Calculate subtotal (sub-packages + addons + preferences)
+    let subtotal = 0;
+    const metadata = { cart_id };
+
+    subPackages.forEach((item, idx) => {
+      const quantity = parseInt(item.quantity) || 1;
+      const price = parseFloat(item.price) || 0;
+      subtotal += price * quantity;
+      metadata[`item_${idx}`] = `${item.itemName || "Item"} x${quantity} @${price}`;
+    });
+
+    addons.forEach((addon, idx) => {
+      const price = parseFloat(addon.price) || 0;
+      subtotal += price;
+      metadata[`addon_${idx}`] = addon.addonName || "Addon";
+    });
+
+    preferences.forEach((pref, idx) => {
+      const price = parseFloat(pref.preferencePrice) || 0;
+      subtotal += price;
+      metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
+    });
+
+    // ✅ Apply service tax
+    const taxAmount = subtotal * (taxPercentage / 100);
+    let totalAmount = subtotal + taxAmount;
+
+    metadata[`service_tax_name`] = taxName;
+    metadata[`service_tax_percentage`] = taxPercentage;
+    metadata[`service_tax_amount`] = taxAmount.toFixed(2);
+
+    // ✅ Promo code logic
+    let appliedPromo = null;
+
+    if (cart.user_promo_code_id) {
+      // 1️⃣ Check user_promo_codes first
+      const [userPromoRows] = await conn.query(
+        `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+        [cart.user_id, cart.user_promo_code_id]
+      );
+
+      if (userPromoRows.length) {
+        const promo = userPromoRows[0];
+
+        // Admin promo via user_promo_codes
+        if (promo.source_type === "admin" && promo.promo_id) {
+          const [adminPromoRows] = await conn.query(
+            `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
+            [promo.promo_id]
+          );
+
+          if (adminPromoRows.length) {
+            appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
+          }
+        }
+
+        // System promo via user_promo_codes
+        if (!appliedPromo && promo.source_type === "system") {
+          const [systemPromoRows] = await conn.query(
+            `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
+             FROM system_promo_codes sc
+             JOIN system_promo_code_templates st
+               ON sc.template_id = st.system_promo_code_template_id
+             WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+            [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
+          );
+
+          if (systemPromoRows.length) {
+            appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+          }
         }
       }
 
-      // System promo via user_promo_codes
-      if (!appliedPromo && promo.source_type === "system") {
-        const [systemPromoRows] = await db.query(
+      // 2️⃣ If no promo found in user_promo_codes, check system_promo_codes directly
+      if (!appliedPromo) {
+        const [systemPromoRows] = await conn.query(
           `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
-         FROM system_promo_codes sc
-         JOIN system_promo_code_templates st
-           ON sc.template_id = st.system_promo_code_template_id
-         WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-          [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
+           FROM system_promo_codes sc
+           JOIN system_promo_code_templates st
+             ON sc.template_id = st.system_promo_code_template_id
+           WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+          [cart.user_promo_code_id, cart.user_id]
         );
 
         if (systemPromoRows.length) {
@@ -255,64 +286,37 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       }
     }
 
-    // 2️⃣ If no promo from user_promo_codes, check system_promo_codes directly
-    if (!appliedPromo) {
-      const [systemPromoRows] = await db.query(
-        `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
-       FROM system_promo_codes sc
-       JOIN system_promo_code_templates st
-         ON sc.template_id = st.system_promo_code_template_id
-       WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-        [cart.user_promo_code_id, cart.user_id]
-      );
+    // ✅ Apply discount
+    let discountAmount = 0;
+    if (appliedPromo && (!appliedPromo.minSpend || totalAmount >= appliedPromo.minSpend)) {
+      const discountValue = parseFloat(appliedPromo.discountValue || 0);
+      const discountType = appliedPromo.discount_type || "percentage";
 
-      if (systemPromoRows.length) {
-        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+      if (discountType === "fixed") {
+        discountAmount = discountValue;
+        totalAmount = Math.max(0, totalAmount - discountValue);
+      } else {
+        discountAmount = totalAmount * (discountValue / 100);
+        totalAmount -= discountAmount;
       }
-    }
-  }
 
-  // ✅ Apply discount
-  let discountAmount = 0;
-  if (appliedPromo && (!appliedPromo.minSpend || totalAmount >= appliedPromo.minSpend)) {
-    const discountValue = parseFloat(appliedPromo.discountValue || 0);
-    const discountType = appliedPromo.discount_type || "percentage";
-
-    if (discountType === "fixed") {
-      discountAmount = discountValue;
-      totalAmount = Math.max(0, totalAmount - discountValue);
-    } else {
-      discountAmount = totalAmount * (discountValue / 100);
-      totalAmount -= discountAmount;
+      metadata.promo_code = appliedPromo.code;
+      metadata.user_promo_code_id = appliedPromo.user_promo_code_id || null;
+      metadata.promo_source = appliedPromo.source_type || "system";
+      metadata.discount = discountAmount.toFixed(2);
     }
 
-    metadata.promo_code = appliedPromo.code;
-    metadata.user_promo_code_id = appliedPromo.user_promo_code_id || null;
-    metadata.promo_source = appliedPromo.source_type || "system";
-    metadata.discount = discountAmount.toFixed(2);
-  }
+    metadata.subtotal = subtotal.toFixed(2);
+    metadata.totalAmount = totalAmount.toFixed(2);
 
-  metadata.subtotal = subtotal.toFixed(2);
-  metadata.totalAmount = totalAmount.toFixed(2);
-
-  if (totalAmount <= 0) return res.status(400).json({ error: "Total amount must be greater than 0" });
-
-  // ✅ Check if PaymentIntent exists
-  const [existingPayment] = await db.query(
-    `SELECT payment_intent_id FROM payments WHERE cart_id = ? AND status = 'pending' LIMIT 1`,
-    [cart_id]
-  );
-
-  let paymentIntent;
-
-  if (existingPayment.length > 0) {
-    try {
-      await stripe.paymentIntents.cancel(existingPayment[0].payment_intent_id);
-    } catch (err) {
-      console.warn("⚠️ Failed to cancel old PaymentIntent:", err.message);
+    if (totalAmount <= 0) {
+      await conn.rollback();
+      conn.release();
+      return res.status(400).json({ error: "Total amount must be greater than 0" });
     }
 
-    paymentIntent = await stripe.paymentIntents.create({
+    // ✅ Create new Stripe PaymentIntent (no DB insert)
+    const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
       payment_method_types: ["card"],
@@ -320,35 +324,23 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
-    await db.query(
-      `UPDATE payments 
-       SET payment_intent_id = ?, amount = ?, currency = 'cad', status = 'pending' 
-       WHERE cart_id = ?`,
-      [paymentIntent.id, totalAmount, cart_id]
-    );
+    // ✅ Commit transaction
+    await conn.commit();
+    conn.release();
 
-  } else {
-    paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(totalAmount * 100),
+    // ✅ Return Stripe details
+    return res.status(200).json({
+      clientSecret: paymentIntent.client_secret,
+      amount: totalAmount,
       currency: "cad",
-      payment_method_types: ["card"],
-      capture_method: "manual",
-      metadata,
+      paymentIntentId: paymentIntent.id,
     });
-
-    await db.query(
-      `INSERT INTO payments (user_id, payment_intent_id, cart_id, amount, currency, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [cart.user_id, paymentIntent.id, cart_id, totalAmount, "cad", "pending"]
-    );
+  } catch (err) {
+    await conn.rollback();
+    conn.release();
+    console.error("💥 Payment Intent Error:", err);
+    return res.status(500).json({ error: err.message });
   }
-
-  res.status(200).json({
-    clientSecret: paymentIntent.client_secret,
-    amount: totalAmount,
-    currency: "cad",
-    paymentIntentId: paymentIntent.id,
-  });
 });
 
 
