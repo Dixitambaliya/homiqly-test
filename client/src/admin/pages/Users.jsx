@@ -9,7 +9,7 @@ import FormSelect from "../../shared/components/Form/FormSelect";
 import Pagination from "../../shared/components/Pagination";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 import Modal from "../../shared/components/Modal/Modal";
-import { Edit, RefreshCcw, Search } from "lucide-react";
+import { Edit, Pencil, RefreshCcw, Search } from "lucide-react";
 
 const Users = () => {
   const [users, setUsers] = useState([]);
@@ -483,8 +483,8 @@ const Users = () => {
                     onClick={handleStartEdit}
                     variant="ghost"
                     className="flex items-center"
+                    icon={<Pencil className="w-4 h-4" />}
                   >
-                    <Edit className="mr-2" />
                     Edit
                   </Button>
                 </>
