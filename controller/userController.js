@@ -354,14 +354,14 @@ const addUserData = asyncHandler(async (req, res) => {
              SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ? 
              WHERE user_id = ?`,
             [
-                firstName.trim(),
-                lastName.trim(),
-                parkingInstruction.trim(),
-                phone.trim(),
-                address.trim(),
-                state.trim(),
-                postalcode.trim(),
-                flatNumber.trim(),
+                firstName,
+                lastName,
+                parkingInstruction,
+                phone,
+                address,
+                state,
+                postalcode,
+                flatNumber,
                 user_id,
             ]
         );
