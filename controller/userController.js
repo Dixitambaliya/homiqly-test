@@ -304,6 +304,7 @@ const addUserData = asyncHandler(async (req, res) => {
         phone,
         parkingInstruction,
         address,
+        state,
         postalcode,
         flatNumber,
     } = req.body;
