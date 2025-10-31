@@ -112,6 +112,7 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
   }
 };
 
+//done
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
   try {
     // 🧩 Fetch user
@@ -281,6 +282,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
   }
 };
 
+//done
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
   try {
     // 🔹 Get vendor email/name from individual or company table
