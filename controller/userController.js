@@ -315,7 +315,6 @@ const addUserData = asyncHandler(async (req, res) => {
             !firstName?.trim() ||
             !lastName?.trim() ||
             !phone?.trim() ||
-            !parkingInstruction?.trim() ||
             !address?.trim() ||
             !state?.trim() ||
             !postalcode?.trim() ||
