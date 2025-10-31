@@ -240,8 +240,6 @@ const bookService = asyncHandler(async (req, res) => {
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { page = 1, limit = 10, status, search, start_date, end_date } = req.query;
-
-    console.log(vendor_id);
     
     try {
         // 1️⃣ Get vendor type
