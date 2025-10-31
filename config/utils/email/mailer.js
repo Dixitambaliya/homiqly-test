@@ -112,10 +112,8 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
   }
 };
 
-
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
   try {
-    // 🧩 Fetch user info
     const [[user]] = await db.query(
       `SELECT CONCAT(firstName, ' ', lastName) AS name, email
        FROM users WHERE user_id = ? LIMIT 1`,
@@ -138,7 +136,6 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
           sb.created_at,
           p.amount AS totalAmount,
 
-          -- 🧩 Vendor Info
           v.vendor_id,
           CASE 
             WHEN v.vendorType = 'individual' THEN i.name
@@ -155,10 +152,8 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
             ELSE c.companyPhone
           END AS vendorPhone,
 
-          -- 🧩 Service Info
           s.serviceName,
           sc.serviceCategory
-
         FROM service_booking sb
         LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
         LEFT JOIN individual_details i ON v.vendor_id = i.id
@@ -168,17 +163,15 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
         WHERE sb.booking_id = ?
         LIMIT 1
-  `,
+      `,
       [booking_id]
     );
-
 
     if (!booking) {
       console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
       return;
     }
 
-    // 🧩 Fetch booked sub-packages and addons
     const [items] = await db.query(
       `SELECT pi.itemName, sbs.price, sbs.quantity
        FROM service_booking_sub_packages sbs
@@ -195,130 +188,126 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
       [booking_id]
     );
 
-    // 🧩 Build HTML for items
-    const itemRows = items
-      .map(
-        (i) =>
-          `<tr>
-             <td>${i.itemName}</td>
-             <td>${i.quantity}</td>
-             <td>₹${i.price}</td>
-           </tr>`
-      )
-      .join("");
+    // 🧩 Build tabular rows
+    const itemRows =
+      items.length > 0
+        ? items
+          .map(
+            (i) => `
+              <tr>
+                <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
+                <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
+                <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
+              </tr>`
+          )
+          .join("")
+        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">No items found</td></tr>`;
 
     const addonRows =
       addons.length > 0
         ? addons
           .map(
-            (a) =>
-              `<tr>
-                   <td colspan="2">${a.addonName}</td>
-                   <td>₹${a.price}</td>
-                 </tr>`
+            (a) => `
+              <tr>
+                <td style="padding:10px; border:1px solid #ddd;" colspan="2">${a.addonName}</td>
+                <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
+              </tr>`
           )
           .join("")
-        : `<tr><td colspan="3">No Addons Selected</td></tr>`;
+        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">No addons selected</td></tr>`;
 
-    // 🧩 Email HTML body
     const bodyHtml = `
-        <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 35px 40px;">
+      <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 35px 40px;">
+        <h2 style="text-align:center; color:#333; margin-bottom: 25px;">Booking Confirmed</h2>
+        <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
+        <p style="font-size:15px; color:#555; line-height:1.6;">
+          Your booking has been <span style="color:green;"><strong>confirmed</strong></span>!<br/>
+          Below are your booking and vendor details.
+        </p>
 
-          <h2 style="text-align:center; color:#333; margin-bottom: 25px;">Booking Confirmed 🎉</h2>
-          <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
-          <p style="font-size:15px; color:#555; line-height:1.6;">
-            Your booking with 
-            <strong>${booking.vendorName || "Vendor"}</strong>
-            (${booking.vendorEmail || "N/A"}${booking.vendorPhone ? `, ${booking.vendorPhone}` : ""}) 
-            has been <span style="color:green;"><strong>confirmed</strong></span>!
-          </p>
+        <!-- Booking Details -->
+        <h3 style="margin-top:30px; color:#333;">Booking Details</h3>
+        <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size:14px;">
+          <tr><td style="padding:8px 0;"><strong>Service:</strong></td><td>${booking.serviceName}</td></tr>
+          <tr><td style="padding:8px 0;"><strong>Category:</strong></td><td>${booking.serviceCategory}</td></tr>
+          <tr><td style="padding:8px 0;"><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
+          <tr><td style="padding:8px 0;"><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
+          <tr><td style="padding:8px 0;"><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td></tr>
+          <tr><td style="padding:8px 0;"><strong>Status:</strong></td><td style="text-transform:capitalize;">${booking.payment_status}</td></tr>
+        </table>
 
-          <table style="width:100%; border-collapse: collapse; margin-top: 25px; font-size:14px;">
-            <tr>
-              <td style="padding: 8px 0;"><strong>Service:</strong></td>
-              <td>${booking.serviceName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Category:</strong></td>
-              <td>${booking.serviceCategory}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Date:</strong></td>
-              <td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Time:</strong></td>
-              <td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Total Duration:</strong></td>
-              <td>${booking.totalTime || 0} mins</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Status:</strong></td>
-              <td style="text-transform: capitalize;">${booking.payment_status}</td>
-            </tr>
-          </table>
+        <!-- Vendor Details -->
+        <h3 style="margin-top:30px; color:#333;">Vendor Details</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd; font-size:14px;">
+          <tr>
+            <td style="padding:10px; border:1px solid #ddd; width:35%;"><strong>Name:</strong></td>
+            <td style="padding:10px; border:1px solid #ddd;">${booking.vendorName || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px; border:1px solid #ddd;"><strong>Email:</strong></td>
+            <td style="padding:10px; border:1px solid #ddd;">${booking.vendorEmail || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px; border:1px solid #ddd;"><strong>Phone:</strong></td>
+            <td style="padding:10px; border:1px solid #ddd;">${booking.vendorPhone || "N/A"}</td>
+          </tr>
+        </table>
 
-          <!-- Selected Packages Table -->
-          <h3 style="margin-top:30px; color:#333;">Selected Packages</h3>
-          <table style="width:100%; border-collapse: collapse; border:1px solid #eaeaea; font-size:14px;">
-            <thead>
-              <tr style="background:#f5f7fb; text-align:left;">
-                <th style="padding:10px; border-bottom:1px solid #ddd;">Item</th>
-                <th style="padding:10px; border-bottom:1px solid #ddd;">Qty</th>
-                <th style="padding:10px; border-bottom:1px solid #ddd;">Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemRows || `<tr><td colspan="3" style="padding:10px;">No items found</td></tr>`}
-            </tbody>
-          </table>
+        <!-- Packages Table -->
+        <h3 style="margin-top:30px; color:#333;">Selected Packages</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd; font-size:14px;">
+          <thead>
+            <tr style="background:#f7f7f7;">
+              <th style="padding:10px; border:1px solid #ddd; text-align:left;">Item</th>
+              <th style="padding:10px; border:1px solid #ddd; text-align:center;">Qty</th>
+              <th style="padding:10px; border:1px solid #ddd; text-align:right;">Price</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows}</tbody>
+        </table>
 
-          <!-- Addons Table -->
-          <h3 style="margin-top:30px; color:#333;">Addons</h3>
-          <table style="width:100%; border-collapse: collapse; border:1px solid #eaeaea; font-size:14px;">
-            <thead>
-              <tr style="background:#f5f7fb; text-align:left;">
-                <th style="padding:10px; border-bottom:1px solid #ddd;" colspan="2">Addon</th>
-                <th style="padding:10px; border-bottom:1px solid #ddd;">Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${addonRows}
-            </tbody>
-          </table>
+        <!-- Addons Table -->
+        <h3 style="margin-top:30px; color:#333;">Addons</h3>
+        <table style="width:100%; border-collapse: collapse; border:1px solid #ddd; font-size:14px;">
+          <thead>
+            <tr style="background:#f7f7f7;">
+              <th style="padding:10px; border:1px solid #ddd;" colspan="2">Addon</th>
+              <th style="padding:10px; border:1px solid #ddd; text-align:right;">Price</th>
+            </tr>
+          </thead>
+          <tbody>${addonRows}</tbody>
+        </table>
 
-          <!-- Total and Receipt -->
-          <p style="margin-top:25px; font-size:16px; color:#333;">
-            <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
-          </p>
+        <!-- Total -->
+        <p style="margin-top:25px; font-size:16px; color:#333; text-align:right;">
+          <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
+        </p>
 
-          ${receiptUrl
+        <!-- Receipt Button -->
+        ${receiptUrl
         ? `
-              <div style="margin-top:20px; text-align:center;">
-                <a href="${receiptUrl}"
-                  style="display:inline-block; background:#007bff; color:#fff; padding:10px 18px; border-radius:6px;
-                          text-decoration:none; font-size:14px; font-weight:600;">
-                  View Payment Receipt
-                </a>
-              </div>
-              `
+          <div style="margin-top:25px; text-align:center;">
+            <a href="${receiptUrl}"
+               style="display:inline-block; background:#000000; color:#ffffff; padding:12px 20px;
+                      border-radius:6px; text-decoration:none; font-size:14px; font-weight:600;">
+              View Payment Receipt
+            </a>
+          </div>
+          `
         : ""
       }
 
-          <p style="margin-top:35px; font-size:15px; color:#555; text-align:center;">
-            Thank you for booking with <strong>Homiqly</strong>!<br/>
-            We look forward to serving you.
-          </p>
-
-        </div>
-      `;
+        <p style="margin-top:35px; font-size:15px; color:#555; text-align:center;">
+          Thank you for booking with <strong>Homiqly</strong>!<br/>
+          We look forward to serving you.
+        </p>
+      </div>
+    `;
 
     await sendMail({
       to: user.email,
       subject: "Your Booking is Confirmed",
-      bodyHtml
+      bodyHtml,
     });
 
     console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
