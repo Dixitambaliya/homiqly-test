@@ -304,14 +304,13 @@ const addUserData = asyncHandler(async (req, res) => {
         phone,
         parkingInstruction,
         address,
-        state,
         postalcode,
         flatNumber,
     } = req.body;
 
     try {
         // 1️⃣ Validate required fields
-        if (!firstName || !lastName || !phone || !address || !state || !postalcode || !flatNumber) {
+        if (!firstName || !lastName || !phone || !address || !postalcode || !flatNumber) {
             return res.status(400).json({
                 message: "All fields are required. Please fill in all user details.",
             });
