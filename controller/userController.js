@@ -311,15 +311,7 @@ const addUserData = asyncHandler(async (req, res) => {
 
     try {
         // 1️⃣ Validate required fields
-        if (
-            !firstName?.trim() ||
-            !lastName?.trim() ||
-            !phone?.trim() ||
-            !address?.trim() ||
-            !state?.trim() ||
-            !postalcode?.trim() ||
-            !flatNumber?.trim()
-        ) {
+        if (!firstName || !lastName || !phone || !address || !state || !postalcode || !flatNumber) {
             return res.status(400).json({
                 message: "All fields are required. Please fill in all user details.",
             });
