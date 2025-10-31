@@ -222,60 +222,98 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
 
     // 🧩 Email HTML body
     const bodyHtml = `
-      <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 30px;">
-        <h2 style="text-align:center; color:#333;">Booking Confirmed 🎉</h2>
-        <p>Hi ${user.name},</p>
-        <p>Your booking with <strong>${booking.vendorName + " " + booking.vendorEmail + "" + booking.phone}</strong> is confirmed!</p>
+        <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 35px 40px;">
 
-        <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
-          <tr>
-            <td><strong>Service:</strong></td><td>${booking.service_name}</td>
-          </tr>
-          <tr>
-            <td><strong>Category:</strong></td><td>${booking.category_name}</td>
-          </tr>
-          <tr>
-            <td><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td>
-          </tr>
-          <tr>
-            <td><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td>
-          </tr>
-          <tr>
-            <td><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td>
-          </tr>
-          <tr>
-            <td><strong>Status:</strong></td><td>${booking.payment_status}</td>
-          </tr>
-        </table>
+          <h2 style="text-align:center; color:#333; margin-bottom: 25px;">Booking Confirmed 🎉</h2>
+          <p style="font-size:16px; color:#333;">Hi <strong>${user.name}</strong>,</p>
+          <p style="font-size:15px; color:#555; line-height:1.6;">
+            Your booking with 
+            <strong>${booking.vendorName || "Vendor"}</strong>
+            (${booking.vendorEmail || "N/A"}${booking.vendorPhone ? `, ${booking.vendorPhone}` : ""}) 
+            has been <span style="color:green;"><strong>confirmed</strong></span>!
+          </p>
 
-        <h3 style="margin-top:25px;">Selected Packages</h3>
-        <table style="width:100%; border:1px solid #ddd; border-collapse: collapse;">
-          <tr style="background:#f9f9f9;">
-            <th>Item</th><th>Qty</th><th>Price</th>
-          </tr>
-          ${itemRows}
-        </table>
+          <table style="width:100%; border-collapse: collapse; margin-top: 25px; font-size:14px;">
+            <tr>
+              <td style="padding: 8px 0;"><strong>Service:</strong></td>
+              <td>${booking.serviceName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;"><strong>Category:</strong></td>
+              <td>${booking.serviceCategory}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;"><strong>Date:</strong></td>
+              <td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;"><strong>Time:</strong></td>
+              <td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;"><strong>Total Duration:</strong></td>
+              <td>${booking.totalTime || 0} mins</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;"><strong>Status:</strong></td>
+              <td style="text-transform: capitalize;">${booking.payment_status}</td>
+            </tr>
+          </table>
 
-        <h3 style="margin-top:25px;">Addons</h3>
-        <table style="width:100%; border:1px solid #ddd; border-collapse: collapse;">
-          <tr style="background:#f9f9f9;">
-            <th colspan="2">Addon</th><th>Price</th>
-          </tr>
-          ${addonRows}
-        </table>
+          <!-- Selected Packages Table -->
+          <h3 style="margin-top:30px; color:#333;">Selected Packages</h3>
+          <table style="width:100%; border-collapse: collapse; border:1px solid #eaeaea; font-size:14px;">
+            <thead>
+              <tr style="background:#f5f7fb; text-align:left;">
+                <th style="padding:10px; border-bottom:1px solid #ddd;">Item</th>
+                <th style="padding:10px; border-bottom:1px solid #ddd;">Qty</th>
+                <th style="padding:10px; border-bottom:1px solid #ddd;">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows || `<tr><td colspan="3" style="padding:10px;">No items found</td></tr>`}
+            </tbody>
+          </table>
 
-        <p style="margin-top:20px; font-size: 16px;">
-          <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
-        </p>
+          <!-- Addons Table -->
+          <h3 style="margin-top:30px; color:#333;">Addons</h3>
+          <table style="width:100%; border-collapse: collapse; border:1px solid #eaeaea; font-size:14px;">
+            <thead>
+              <tr style="background:#f5f7fb; text-align:left;">
+                <th style="padding:10px; border-bottom:1px solid #ddd;" colspan="2">Addon</th>
+                <th style="padding:10px; border-bottom:1px solid #ddd;">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${addonRows}
+            </tbody>
+          </table>
 
-        ${receiptUrl
-        ? `<p>You can view your payment receipt <a href="${receiptUrl}" style="color:#007bff;">here</a>.</p>`
+          <!-- Total and Receipt -->
+          <p style="margin-top:25px; font-size:16px; color:#333;">
+            <strong>Total Amount:</strong> ₹${booking.totalAmount || "N/A"}
+          </p>
+
+          ${receiptUrl
+        ? `
+              <div style="margin-top:20px; text-align:center;">
+                <a href="${receiptUrl}"
+                  style="display:inline-block; background:#007bff; color:#fff; padding:10px 18px; border-radius:6px;
+                          text-decoration:none; font-size:14px; font-weight:600;">
+                  View Payment Receipt
+                </a>
+              </div>
+              `
         : ""
       }
 
-        <p style="margin-top:30px;">Thank you for booking with <strong>Homiqly</strong>!</p>
-      </div>
-    `;
+          <p style="margin-top:35px; font-size:15px; color:#555; text-align:center;">
+            Thank you for booking with <strong>Homiqly</strong>!<br/>
+            We look forward to serving you.
+          </p>
+
+        </div>
+      `;
 
     await sendMail({
       to: user.email,
@@ -395,7 +433,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
     await sendMail({
       to: vendor.email,
       subject: "You’ve Received a New Booking ",
-      html:bodyHtml
+      html: bodyHtml
     });
 
     console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
