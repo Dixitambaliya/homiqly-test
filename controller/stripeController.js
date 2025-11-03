@@ -579,19 +579,31 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
 
-        // ✅ Capture Stripe payment
-        await stripe.paymentIntents.capture(paymentIntentId);
+        // ✅ Capture Stripe payment and get receipt
+        const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
+
+        // 🔹 Get receipt URL safely (from latest charge object)
+        const receiptUrl =
+          capturedPayment.latest_charge &&
+            typeof capturedPayment.latest_charge === "string"
+            ? (await stripe.charges.retrieve(capturedPayment.latest_charge)).receipt_url
+            : null;
+
+        // ✅ Update payment + booking
+        await connection.query(
+          `UPDATE payments 
+            SET status = 'completed', receipt_url = ? 
+            WHERE payment_intent_id = ?`,
+          [receiptUrl, paymentIntentId]
+        );
 
         await connection.query(
-          `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
-          [paymentIntentId]
-        );
-        await connection.query(
           `UPDATE service_booking 
-           SET payment_status = 'completed', bookingStatus = 1 
-           WHERE booking_id = ?`,
+            SET payment_status = 'completed', bookingStatus = 1 
+            WHERE booking_id = ?`,
           [booking_id]
         );
+
 
         // ✅ Clear cart data
         await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
