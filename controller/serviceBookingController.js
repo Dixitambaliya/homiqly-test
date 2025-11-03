@@ -236,6 +236,7 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { page = 1, limit = 10, status, search, start_date, end_date } = req.query;
@@ -324,14 +325,14 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             // 🔹 Fetch packages linked to this booking
             const [bookingPackages] = await db.query(`
-        SELECT 
-            sbp.package_id,
-            p.packageName,
-            p.packageMedia
-        FROM service_booking_packages sbp
-        JOIN packages p ON sbp.package_id = p.package_id
-        WHERE sbp.booking_id = ?;
-    `, [bookingId]);
+                    SELECT 
+                        sbp.package_id,
+                        p.packageName,
+                        p.packageMedia
+                    FROM service_booking_packages sbp
+                    JOIN packages p ON sbp.package_id = p.package_id
+                    WHERE sbp.booking_id = ?;
+                `, [bookingId]);
 
             // ✅ Group addons, preferences, and consents by booking + sub_package_id
             const addonsByItem = {};

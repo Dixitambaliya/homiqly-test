@@ -293,6 +293,7 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -307,47 +308,60 @@ const addUserData = asyncHandler(async (req, res) => {
         flatNumber,
     } = req.body;
 
+    const connection = await db.getConnection(); // 🔹 Get dedicated connection for transaction
+
     try {
+        // Start transaction
+        await connection.beginTransaction();
+
         // 1️⃣ Validate required fields
         if (!firstName || !lastName || !phone || !address || !postalcode) {
+            await connection.rollback();
+            connection.release();
             return res.status(400).json({
                 message: "All fields are required. Please fill in all user details.",
             });
         }
 
-        // 2️⃣ Check if user exists and get is_approved status
-        const [userCheck] = await db.query(
-            `SELECT user_id, is_approved FROM users WHERE user_id = ?`,
-            [user_id]
+        // 2️⃣ Check if user exists
+        const [userCheck] = await connection.query(
+            `SELECT user_id, is_approved FROM users WHERE user_id = ? FOR UPDATE`,
+            [user_id] // 🔒 Locks this row to prevent concurrent updates
         );
 
         if (userCheck.length === 0) {
+            await connection.rollback();
+            connection.release();
             return res.status(404).json({ message: "User not found" });
         }
 
         const user = userCheck[0];
 
-        // 3️⃣ Prevent update if user is not approved
+        // 3️⃣ Prevent update if not approved
         if (user.is_approved === 0) {
+            await connection.rollback();
+            connection.release();
             return res.status(403).json({
                 message: "Phone not verified. You cannot update data yet.",
             });
         }
 
-        // 4️⃣ Check if phone number already exists for another user
-        const [phoneCheck] = await db.query(
+        // 4️⃣ Check if phone number already exists
+        const [phoneCheck] = await connection.query(
             `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
             [phone, user_id]
         );
 
         if (phoneCheck.length > 0) {
+            await connection.rollback();
+            connection.release();
             return res.status(409).json({
                 message: "Phone number already exists",
             });
         }
 
         // 5️⃣ Update user data
-        await db.query(
+        await connection.query(
             `UPDATE users 
              SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ? 
              WHERE user_id = ?`,
@@ -364,17 +378,42 @@ const addUserData = asyncHandler(async (req, res) => {
             ]
         );
 
+        // ✅ Commit transaction
+        await connection.commit();
+        connection.release();
+
         res.status(200).json({
             message: "User data updated successfully",
         });
+
     } catch (err) {
+        // ❌ Rollback on any error
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackErr) {
+                console.error("Rollback failed:", rollbackErr);
+            }
+        }
+
         console.error("Error updating user data:", err);
+
+        if (err.code === "ER_LOCK_WAIT_TIMEOUT") {
+            return res.status(500).json({
+                error: "Database locked. Please try again in a few seconds.",
+                details: err.message,
+            });
+        }
+
         res.status(500).json({
             error: "Database error",
             details: err.message,
         });
     }
 });
+
+
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
