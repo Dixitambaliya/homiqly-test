@@ -324,6 +324,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -333,6 +334,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         otherInfo,
         googleBusinessProfileLink,
         companyAddress,
+        businessLicenseExpireDate,
         contactPerson,
         birthDate,
         address,
@@ -340,6 +342,9 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
     } = req.body;
 
     let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
+    let policeClearance = req.uploadedFiles?.policeClearance?.[0]?.url || null;
+    let certificateOfExpertise = req.uploadedFiles?.certificateOfExpertise?.[0]?.url || null;
+    let businessLicense = req.uploadedFiles?.businessLicense?.[0]?.url || null;
 
     try {
         let existing;
@@ -371,10 +376,14 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         if (vendor_type === "individual") {
             await db.query(
                 `UPDATE individual_details
-                 SET profileImage = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
+                 SET profileImage = ?, policeClearance = ? , certificateOfExpertise = ? , businessLicense = ? , businessLicenseExpireDate = ? , name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
                  WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
+                    policeClearance,
+                    certificateOfExpertise,
+                    businessLicense,
+                    businessLicenseExpireDate,
                     name ?? current.name,
                     address ?? current.address,
                     birthDate ?? current.dob,
@@ -387,10 +396,15 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                 SET profileImage = ?, policeclearance= ? , certificateOfExpertise = ? , BusinessLicense = ? , businessLicenseExpireDate = ? companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
+                    profileImageVendor,
+                    policeClearance,
+                    certificateOfExpertise,
+                    businessLicense,
+                    businessLicenseExpireDate,
                     name ?? current.companyName,
                     birthDate ?? current.dob,
                     email ?? current.companyEmail,
@@ -424,6 +438,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
