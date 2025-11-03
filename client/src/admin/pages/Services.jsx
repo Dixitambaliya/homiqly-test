@@ -1,11 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import api from "../../lib/axiosConfig";
 import { toast } from "react-toastify";
-import { FiPlus, FiTrash2, FiRefreshCw, FiX } from "react-icons/fi";
-import { FaPen } from "react-icons/fa6";
-import CreatableSelect from "react-select/creatable";
-import Select from "react-select";
-
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button, IconButton } from "../../shared/components/Button";
 import {
@@ -15,6 +10,9 @@ import {
 } from "../../shared/components/Form";
 import { ServiceFilterModal } from "../components/Modals/ServiceFilterModal";
 import { CustomFileInput } from "../../shared/components/CustomFileInput";
+import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
+import Modal from "../../shared/components/Modal/Modal";
+import { Pencil, Plus, RefreshCcw, Trash, X } from "lucide-react";
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -42,12 +40,13 @@ const Services = () => {
     categoryName: "",
     serviceDescription: "",
     serviceImage: null,
-    serviceFilter: "", // 👈 add this
+    serviceFilter: "",
   });
 
   // category form state now includes subCategories (array of strings)
   const [categoryFormData, setCategoryFormData] = useState({
     categoryName: "",
+    subCategories: [],
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -91,21 +90,6 @@ const Services = () => {
   useEffect(() => {
     fetchServiceFilters();
   }, []);
-
-  // Build react-select options for subcategories from existing categories (unique)
-  const buildSubCategoryOptions = () => {
-    const names = [];
-    (categories || []).forEach((cat) => {
-      if (Array.isArray(cat.subCategoryTypes)) {
-        cat.subCategoryTypes.forEach((s) => {
-          // depending on API shape: s may be { subCategory } or string -- handle both
-          const name = s && (s.subCategory || s.subCategory || s);
-          if (name && !names.includes(name)) names.push(name);
-        });
-      }
-    });
-    return names.map((n) => ({ value: n, label: n }));
-  };
 
   const handleServiceInputChange = (e) => {
     const { name, value } = e.target;
@@ -290,45 +274,6 @@ const Services = () => {
     }
   };
 
-  const handleDeleteService = async (serviceId) => {
-    if (!confirm("Are you sure you want to delete this service?")) return;
-
-    try {
-      const response = await api.delete("/api/service/deleteservice", {
-        data: { serviceId },
-      });
-      if (response.status === 200) {
-        toast.success("Service deleted successfully");
-        fetchData();
-      }
-    } catch (err) {
-      console.error("Error deleting service:", err);
-      toast.error(err.response?.data?.message || "Failed to delete service");
-    }
-  };
-
-  const handleDeleteCategory = async (serviceCategoryId) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this category? This will also delete all services in this category."
-      )
-    )
-      return;
-
-    try {
-      const response = await api.delete("/api/service/deletecategory", {
-        data: { serviceCategoryId },
-      });
-      if (response.status === 200) {
-        toast.success("Category deleted successfully");
-        fetchData();
-      }
-    } catch (err) {
-      console.error("Error deleting category:", err);
-      toast.error(err.response?.data?.message || "Failed to delete category");
-    }
-  };
-
   const resetServiceForm = () => {
     setServiceFormData({
       serviceName: "",
@@ -340,17 +285,6 @@ const Services = () => {
     setImagePreview(null);
   };
 
-  const getSubCategoryOptions = (categoryName) => {
-    const category = categories.find(
-      (cat) => cat.serviceCategory === categoryName
-    );
-    if (!category || !Array.isArray(category.subCategoryTypes)) return [];
-    return category.subCategoryTypes.map((s) => {
-      const label = s.subCategory || s;
-      return { value: label, label: label };
-    });
-  };
-
   const getServiceFilterOptions = () => {
     return serviceFilters.map((filter) => ({
       value: filter.serviceFilter,
@@ -360,7 +294,6 @@ const Services = () => {
 
   // prepare and open edit forms
   const editService = (service) => {
-    console.log("service", service);
     setSelectedService(service);
     setServiceFormData({
       serviceName: service.serviceName,
@@ -368,7 +301,6 @@ const Services = () => {
       serviceDescription: service.description || "",
       serviceImage: null,
       serviceFilter: service.serviceFilter || service.subCategory || "",
-
       subCategory: service.subCategory || "",
     });
     setImagePreview(service.serviceImage || null);
@@ -376,8 +308,6 @@ const Services = () => {
   };
 
   const editCategory = (category) => {
-    // category from API likely has fields:
-    // serviceCategoryId, serviceCategory (name), subCategoryTypes: [{ subcategoryId, subCategory }]
     const name = category.serviceCategory || category.categoryName || "";
     const subTypes = Array.isArray(category.subCategoryTypes)
       ? category.subCategoryTypes.map((s) =>
@@ -397,6 +327,75 @@ const Services = () => {
     setShowEditCategoryModal(true);
   };
 
+  // --- Generic delete modal wiring ---
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAction, setDeleteAction] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(null); // { type: 'service'|'category'|'filter', item: {...} }
+
+  const handleDeleteClick = (type, item) => {
+    // type: 'service' | 'category' | 'filter'
+    setDeletingItem({ type, item });
+    setShowDeleteModal(true);
+
+    // bind action depending on type
+    setDeleteAction(() => async () => {
+      try {
+        setDeleting(true);
+
+        if (type === "service") {
+          const serviceId = item.serviceId;
+          await api.delete("/api/service/deleteservice", {
+            data: { serviceId },
+          });
+          toast.success("Service deleted successfully");
+          // refresh or remove locally
+          await fetchData();
+        } else if (type === "category") {
+          const serviceCategoryId = item.serviceCategoryId;
+          await api.delete("/api/service/deletecategory", {
+            data: { serviceCategoryId },
+          });
+          toast.success("Category deleted successfully");
+          await fetchData();
+        } else if (type === "filter") {
+          const id = item.service_filter_id || item.id;
+          await api.delete(`/api/service/deleteservicefilter/${id}`);
+          toast.success("Filter deleted successfully");
+          await fetchServiceFilters();
+        }
+
+        // cleanup
+        setShowDeleteModal(false);
+        setDeleteAction(null);
+        setDeletingItem(null);
+      } catch (err) {
+        console.error("Delete error:", err);
+        toast.error(err.response?.data?.message || "Failed to delete");
+      } finally {
+        setDeleting(false);
+      }
+    });
+  };
+
+  // description for delete modal
+  const deleteDesc = useMemo(() => {
+    if (!deletingItem) return "Are you sure you want to delete this item?";
+    const { type, item } = deletingItem;
+    if (type === "service") {
+      return `Are you sure you want to delete "${item.serviceName}" (ID: ${item.serviceId})? This action cannot be undone.`;
+    }
+    if (type === "category") {
+      return `Are you sure you want to delete category "${item.serviceCategory}" (ID: ${item.serviceCategoryId})? This will also delete services in this category.`;
+    }
+    if (type === "filter") {
+      return `Are you sure you want to delete filter "${
+        item.serviceFilter
+      }" (ID: ${item.service_filter_id || item.id})?`;
+    }
+    return "Are you sure you want to delete this item?";
+  }, [deletingItem]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -413,14 +412,6 @@ const Services = () => {
     );
   }
 
-  // react-select options from existing subcategories
-  const subOptions = buildSubCategoryOptions();
-
-  // react-select value for adding/editing
-  const categorySelectValue = (categoryFormData.subCategories || []).map(
-    (s) => ({ value: s, label: s })
-  );
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -433,27 +424,30 @@ const Services = () => {
               setFilterMode("add");
               setShowFilterModal(true);
             }}
+            icon={<Plus className="w-4 h-4" />}
           >
             {" "}
-            <FiPlus className="mr-2" />
             Add Service Filter
           </Button>
           <Button
             variant="lightPrimary"
+            icon={<Plus className="w-4 h-4" />}
             onClick={() => setShowAddServiceModal(true)}
           >
-            <FiPlus className="mr-2" />
             Add Service
           </Button>
           <Button
             variant="lightSecondary"
             onClick={() => setShowAddCategoryModal(true)}
+            icon={<Plus className="w-4 h-4" />}
           >
-            <FiPlus className="mr-2" />
             Add Category
           </Button>
-          <Button variant="lightInherit" onClick={fetchData}>
-            <FiRefreshCw className="mr-2" />
+          <Button
+            variant="lightInherit"
+            onClick={fetchData}
+            icon={<RefreshCcw className="w-4 h-4" />}
+          >
             Refresh
           </Button>
         </div>
@@ -505,8 +499,7 @@ const Services = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <IconButton
                           variant="lightInfo"
-                          size="md"
-                          icon={<FaPen />}
+                          icon={<Pencil />}
                           onClick={() =>
                             editCategory({
                               serviceCategoryId: category.serviceCategoryId,
@@ -517,10 +510,12 @@ const Services = () => {
                         />
                         <IconButton
                           variant="lightDanger"
-                          size="md"
-                          icon={<FiTrash2 />}
+                          icon={<Trash />}
                           onClick={() =>
-                            handleDeleteCategory(category.serviceCategoryId)
+                            handleDeleteClick("category", {
+                              serviceCategoryId: category.serviceCategoryId,
+                              serviceCategory: category.serviceCategory,
+                            })
                           }
                         />
                       </td>
@@ -575,16 +570,17 @@ const Services = () => {
                           <div className="flex items-start space-x-2 ml-4">
                             <IconButton
                               variant="lightInfo"
-                              size="md"
-                              icon={<FaPen />}
+                              icon={<Pencil />}
                               onClick={() => editService(service)}
                             />
                             <IconButton
                               variant="lightDanger"
-                              size="md"
-                              icon={<FiTrash2 />}
+                              icon={<Trash />}
                               onClick={() =>
-                                handleDeleteService(service.serviceId)
+                                handleDeleteClick("service", {
+                                  serviceId: service.serviceId,
+                                  serviceName: service.serviceName,
+                                })
                               }
                             />
                           </div>
@@ -634,7 +630,7 @@ const Services = () => {
                       <IconButton
                         variant="lightInfo"
                         size="sm"
-                        icon={<FaPen />}
+                        icon={<Pencil />}
                         onClick={() => {
                           setSelectedFilter(filter);
                           setFilterMode("edit");
@@ -644,20 +640,14 @@ const Services = () => {
                       <IconButton
                         variant="lightDanger"
                         size="sm"
-                        icon={<FiTrash2 />}
-                        onClick={async () => {
-                          if (window.confirm("Are you sure?")) {
-                            try {
-                              await api.delete(
-                                `/api/service/deletefilter/${filter.service_filter_id}`
-                              );
-                              toast.success("Filter deleted");
-                              fetchServiceFilters();
-                            } catch (err) {
-                              toast.error("Error deleting filter");
-                            }
-                          }
-                        }}
+                        icon={<Trash />}
+                        onClick={() =>
+                          handleDeleteClick("filter", {
+                            service_filter_id: filter.service_filter_id,
+                            serviceFilter: filter.serviceFilter,
+                            id: filter.id,
+                          })
+                        }
                       />
                     </td>
                   </tr>
@@ -683,7 +673,7 @@ const Services = () => {
                 }}
                 variant="lightDanger"
                 size="sm"
-                icon={<FiX />}
+                icon={<X />}
               />
             </div>
 
@@ -767,8 +757,6 @@ const Services = () => {
                   onChange={handleServiceImageChange}
                   preview={imagePreview}
                   onRemove={() => {
-                    // clear preview and any file state you use
-                    // if you keep a file state like `serviceFile`, clear it too
                     if (typeof setImagePreview === "function")
                       setImagePreview(null);
                     if (typeof setServiceFile === "function")
@@ -813,7 +801,7 @@ const Services = () => {
                 onClick={() => setShowEditServiceModal(false)}
                 variant="lightDanger"
                 size="sm"
-                icon={<FiX />}
+                icon={<X />}
               />
             </div>
 
@@ -899,8 +887,6 @@ const Services = () => {
                     onChange={handleServiceImageChange}
                     preview={imagePreview}
                     onRemove={() => {
-                      // clear preview and any file state you use
-                      // if you keep a file state like `serviceFile`, clear it too
                       if (typeof setImagePreview === "function")
                         setImagePreview(null);
                       if (typeof setServiceFile === "function")
@@ -940,7 +926,7 @@ const Services = () => {
                 size="sm"
                 variant="lightDanger"
                 onClick={() => setShowAddCategoryModal(false)}
-                icon={<FiX />}
+                icon={<X />}
               />
             </div>
 
@@ -996,7 +982,7 @@ const Services = () => {
               <IconButton
                 variant="lightDanger"
                 size="sm"
-                icon={<FiX />}
+                icon={<X />}
                 onClick={() => setShowEditCategoryModal(false)}
               />
             </div>
@@ -1050,6 +1036,25 @@ const Services = () => {
         mode={filterMode}
         filterData={selectedFilter}
         onSave={fetchServiceFilters}
+      />
+
+      {/* Universal Delete Modal (used for services, categories, filters) */}
+      <UniversalDeleteModal
+        open={showDeleteModal}
+        onClose={() => {
+          if (!deleting) {
+            setShowDeleteModal(false);
+            setDeleteAction(null);
+            setDeletingItem(null);
+          }
+        }}
+        onDelete={deleteAction}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        onError={(err) => toast.error(err.message || "Delete failed")}
+        title="Confirm delete"
+        desc={deleteDesc}
+        autoClose={true}
       />
     </div>
   );

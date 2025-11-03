@@ -4,6 +4,17 @@
 
 /* @import "nprogress/nprogress.css"; */
 
+@layer base {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px white inset !important;
+    -webkit-text-fill-color: #000 !important;
+    caret-color: #000 !important;
+  }
+}
+
 :root {
   --primary-dark: #0f4c5c;
   --primary: #3bacb6;

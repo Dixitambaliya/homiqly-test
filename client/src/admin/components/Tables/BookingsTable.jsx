@@ -1,10 +1,10 @@
 import React from "react";
-import { FiCheckCircle, FiEye, FiXCircle } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate, formatTime } from "../../../shared/utils/dateUtils";
 import PaymentBadge from "../../../shared/components/PaymentBadge";
+import { CheckCircle, Eye, XCircle } from "lucide-react";
 
 const BookingsTable = ({
   bookings,
@@ -80,7 +80,7 @@ const BookingsTable = ({
           {row.bookingStatus === 0 && (
             <>
               <IconButton
-                icon={<FiCheckCircle />}
+                icon={<CheckCircle />}
                 variant="success"
                 size="sm"
                 onClick={(e) => {
@@ -90,7 +90,7 @@ const BookingsTable = ({
                 tooltip="Accept"
               />
               <IconButton
-                icon={<FiXCircle />}
+                icon={<XCircle />}
                 variant="danger"
                 size="sm"
                 onClick={(e) => {
@@ -102,7 +102,7 @@ const BookingsTable = ({
             </>
           )}
           <IconButton
-            icon={<FiEye />}
+            icon={<Eye />}
             variant="ghost"
             size="sm"
             onClick={(e) => {

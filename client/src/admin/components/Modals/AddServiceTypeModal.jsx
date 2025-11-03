@@ -7,23 +7,23 @@ import {
   FormTextarea,
   FormCheckbox,
 } from "../../../shared/components/Form";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
 import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import { CustomFileInput } from "../../../shared/components/CustomFileInput";
 import ItemCard from "../../../shared/components/Card/ItemCard";
 import { CollapsibleSectionCard } from "../../../shared/components/Card/CollapsibleSectionCard";
+import { Plus, Trash } from "lucide-react";
 
 const makeEmptyPreferenceItem = () => ({
   preference_id: undefined,
   preference_value: "",
   preference_price: "",
-  // item-level is_required removed (now stored at group level)
 });
+
 const makeEmptyPreferenceGroup = (title = "") => ({
   title,
-  is_required: "0", // group-level required flag (string for select)
-  items: [makeEmptyPreferenceItem()],
+  is_required: "", // string for select; group starts with NO items until user adds
+  items: [], // start empty
 });
 
 const makeEmptySubPackage = () => ({
@@ -32,23 +32,10 @@ const makeEmptySubPackage = () => ({
   item_images: null,
   price: "",
   time_required: "",
-  // preferences as array of groups (user-supplied titles)
-  preferences: [makeEmptyPreferenceGroup("Default")],
-  addons: [
-    {
-      addon_name: "",
-      description: "",
-      price: "",
-      time_required: "",
-    },
-  ],
-  // consent form per sub-package
-  consentForm: [
-    {
-      question: "",
-      is_required: "0",
-    },
-  ],
+  // start with empty arrays — user clicks Add to create groups/items
+  preferences: [],
+  addons: [],
+  consentForm: [],
 });
 
 const makeEmptyPackage = () => ({
@@ -84,13 +71,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     fetchCategories();
   }, []);
 
-  /**
-   * updatePackages(mutator, options)
-   * - mutator(packagesClone) : mutate the deep-cloned packages array
-   * - options.rebuildPreviews (boolean) : if true, call rebuildPreviewsFromPackages on the clone
-   *
-   * Uses structuredClone when available, otherwise falls back to JSON clone.
-   */
   const updatePackages = (mutateFn, { rebuildPreviews = false } = {}) => {
     setFormData((prev) => {
       const packagesClone =
@@ -254,16 +234,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
     });
   };
 
-  const removePreferenceGroup = (pkgIndex, subIndex, groupIndex) => {
+  const removePreferenceGroup = (pkgIndex, subIndex, groupIndex) =>
     updatePackages((packages) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.preferences = sub.preferences || [];
       sub.preferences.splice(groupIndex, 1);
-      if (sub.preferences.length === 0)
-        sub.preferences = [makeEmptyPreferenceGroup("Default")];
     });
-  };
 
   const handlePreferenceChange = (
     pkgIndex,
@@ -294,6 +271,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       group.items.push(makeEmptyPreferenceItem());
     });
 
+  // remove preference item (allow deleting last item)
   const removePreferenceItem = (pkgIndex, subIndex, groupIndex, prefIndex) =>
     updatePackages((packages) => {
       const group =
@@ -303,9 +281,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       if (!group) return;
       group.items = group.items || [];
       group.items.splice(prefIndex, 1);
-      if (group.items.length === 0) group.items = [makeEmptyPreferenceItem()];
     });
-
   // -------------------
   // Add-ons (short handlers)
   // -------------------
@@ -331,22 +307,13 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       });
     });
 
+  // remove addon (allow deleting last addon)
   const removeAddon = (pkgIndex, subIndex, addonIndex) =>
     updatePackages((packages) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.addons = sub.addons || [];
       sub.addons.splice(addonIndex, 1);
-      if (sub.addons.length === 0) {
-        sub.addons = [
-          {
-            addon_name: "",
-            description: "",
-            price: "",
-            time_required: "",
-          },
-        ];
-      }
     });
 
   // -------------------
@@ -374,17 +341,16 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.consentForm = sub.consentForm || [];
-      sub.consentForm.push({ question: "", is_required: "0" });
+      sub.consentForm.push({ question: "", is_required: "" });
     });
 
+  // remove sub consent form item (allow deleting last item)
   const removeSubConsentForm = (pkgIndex, subIndex, consentIndex) =>
     updatePackages((packages) => {
       const sub = packages?.[pkgIndex]?.sub_packages?.[subIndex];
       if (!sub) return;
       sub.consentForm = sub.consentForm || [];
       sub.consentForm.splice(consentIndex, 1);
-      if (sub.consentForm.length === 0)
-        sub.consentForm = [{ question: "", is_required: "0" }];
     });
 
   // -------------------
@@ -470,68 +436,6 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
         if (isNaN(Number(sub.price))) {
           toast.error(`Sub-package ${s + 1}: Price must be a number.`);
           return false;
-        }
-
-        const prefs = sub.preferences || [];
-        for (let g = 0; g < prefs.length; g++) {
-          const group = prefs[g] || {};
-          const items = group.items || [];
-          if (String(group.is_required) === "1") {
-            let anyHasValue = false;
-            for (let i = 0; i < items.length; i++) {
-              if (String(items[i].preference_value || "").trim()) {
-                anyHasValue = true;
-                break;
-              }
-            }
-            if (!anyHasValue) {
-              toast.error(
-                `Sub-package ${s + 1}, Preference group ${
-                  g + 1
-                }: At least one item is required for required group.`
-              );
-              return false;
-            }
-          }
-          for (let i = 0; i < items.length; i++) {
-            const it = items[i] || {};
-            if (!String(it.preference_value || "").trim()) {
-              toast.error(
-                `Sub-package ${s + 1}, Preference group ${g + 1}, item ${
-                  i + 1
-                }: Value is required.`
-              );
-              return false;
-            }
-            if (
-              it.preference_price !== "" &&
-              it.preference_price !== null &&
-              isNaN(Number(it.preference_price))
-            ) {
-              toast.error(
-                `Sub-package ${s + 1}, Preference group ${g + 1}, item ${
-                  i + 1
-                }: Price must be a number.`
-              );
-              return false;
-            }
-          }
-        }
-
-        const consent = sub.consentForm || [];
-        for (let c = 0; c < consent.length; c++) {
-          const ci = consent[c] || {};
-          if (
-            String(ci.is_required) === "1" &&
-            !String(ci.question || "").trim()
-          ) {
-            toast.error(
-              `Sub-package ${s + 1}, Consent ${
-                c + 1
-              }: Question is required when marked required.`
-            );
-            return false;
-          }
         }
       }
     }
@@ -733,7 +637,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                       <div className="flex justify-end mb-4">
                         {pkg.sub_packages.length > 1 && (
                           <IconButton
-                            icon={<FiTrash2 />}
+                            icon={<Trash />}
                             variant="lightDanger"
                             onClick={() => removeSubPackage(pkgIndex, subIndex)}
                           />
@@ -767,8 +671,9 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           }
                         />
                         <FormInput
-                          label="Time Required"
+                          label="Time Required (in minutes only)"
                           value={sub.time_required}
+                          type="number"
                           onChange={(e) =>
                             handleSubPackageChange(
                               pkgIndex,
@@ -993,7 +898,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
 
                       <Button
                         variant="outline"
-                        icon={<FiPlus />}
+                        icon={<Plus />}
                         className="w-full border-dashed mt-4"
                         onClick={() => addPreferenceGroup(pkgIndex, subIndex)}
                       >
@@ -1005,7 +910,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                           <ItemCard
                             key={addonIndex}
                             title={`Add-on ${addonIndex + 1}`}
-                            showRemove={sub.addons.length > 1}
+                            showRemove={true} // <-- allow removing even when only one
                             onRemove={() =>
                               removeAddon(pkgIndex, subIndex, addonIndex)
                             }
@@ -1052,8 +957,9 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                                 }
                               />
                               <FormInput
-                                label="Time Required "
+                                label="Time Required (in minutes only)"
                                 value={addon.time_required}
+                                type="number"
                                 onChange={(e) =>
                                   handleAddonChange(
                                     pkgIndex,
@@ -1069,7 +975,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                         ))}
                         <Button
                           variant="outline"
-                          icon={<FiPlus />}
+                          icon={<Plus />}
                           className="w-full border-dashed mt-2"
                           onClick={() => addAddon(pkgIndex, subIndex)}
                         >
@@ -1086,7 +992,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                             <ItemCard
                               key={index}
                               title={`Consent Item ${index + 1}`}
-                              showRemove={sub.consentForm.length > 1}
+                              showRemove={true} // <-- allow removing even when only one
                               onRemove={() =>
                                 removeSubConsentForm(pkgIndex, subIndex, index)
                               }
@@ -1133,7 +1039,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                             onClick={() =>
                               addSubConsentForm(pkgIndex, subIndex)
                             }
-                            icon={<FiPlus />}
+                            icon={<Plus />}
                             className="w-full border-dashed"
                           >
                             Add Consent Item
@@ -1146,7 +1052,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, isSubmitting, refresh }) => {
                   <div className="mt-4">
                     <Button
                       variant="outline"
-                      icon={<FiPlus />}
+                      icon={<Plus />}
                       className="w-full border-dashed"
                       onClick={() => addSubPackage(pkgIndex)}
                     >

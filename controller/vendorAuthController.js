@@ -36,6 +36,7 @@ const registerVendor = async (req, res) => {
             phone,
             email,
             password,
+            aboutme,
             companyName,
             companyAddress,
             googleBusinessProfileLink,
@@ -82,6 +83,7 @@ const registerVendor = async (req, res) => {
                 phone,
                 email,
                 resume,
+                aboutme,
             ]);
         }
 

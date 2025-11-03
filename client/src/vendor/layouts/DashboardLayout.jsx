@@ -1,20 +1,10 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useVendorAuth } from "../contexts/VendorAuthContext";
-import { FiHelpCircle, FiMenu, FiX } from "react-icons/fi";
-import {
-  FiHome,
-  FiCalendar,
-  FiShoppingBag,
-  FiBox,
-  FiCreditCard,
-  FiStar,
-  FiUser,
-} from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
 import NotificationIcon from "../components/NotificationIcon";
 import api from "../../lib/axiosConfig"; // ✅ your axios instance
-import { Loader, Loader2 } from "lucide-react";
+import { Calendar, CreditCard, HelpCircle, Home, Loader, Loader2, Menu, ShoppingBag, Star, User, X } from "lucide-react";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useVendorAuth();
@@ -54,27 +44,27 @@ const DashboardLayout = () => {
     {
       path: "/vendor/dashboard",
       name: "Dashboard",
-      icon: <FiHome className="w-5 h-5" />,
+      icon: <Home className="w-5 h-5" />,
     },
     {
       path: "/vendor/calendar",
       name: "Calendar",
-      icon: <FiCalendar className="w-5 h-5" />,
+      icon: <Calendar className="w-5 h-5" />,
     },
     {
       path: "/vendor/profile",
       name: "Profile",
-      icon: <FiUser className="w-5 h-5" />,
+      icon: <User className="w-5 h-5" />,
     },
     {
       path: "/vendor/services",
       name: "Apply for Services",
-      icon: <FiShoppingBag className="w-5 h-5" />,
+      icon: <ShoppingBag className="w-5 h-5" />,
     },
     {
       path: "/vendor/bookings",
       name: "Bookings",
-      icon: <FiShoppingBag className="w-5 h-5" />,
+      icon: <ShoppingBag className="w-5 h-5" />,
     },
     // { path: "/vendor/supply-kits", name: "Supply Kits", icon: <FiBox className="w-5 h-5" /> },
 
@@ -84,7 +74,7 @@ const DashboardLayout = () => {
           {
             path: "/vendor/employees",
             name: "Employees",
-            icon: <FiUser className="w-5 h-5" />,
+            icon: <User className="w-5 h-5" />,
           },
         ]
       : []),
@@ -92,22 +82,22 @@ const DashboardLayout = () => {
     {
       path: "/vendor/payments",
       name: "Payments",
-      icon: <FiCreditCard className="w-5 h-5" />,
+      icon: <CreditCard className="w-5 h-5" />,
     },
     {
       path: "/vendor/ratings",
       name: "Ratings",
-      icon: <FiStar className="w-5 h-5" />,
+      icon: <Star className="w-5 h-5" />,
     },
     {
       path: "/vendor/support",
       name: "Support",
-      icon: <FiHelpCircle className="w-5 h-5" />,
+      icon: <HelpCircle className="w-5 h-5" />,
     },
     {
       path: "/vendor/accountdetails",
       name: "Bank account details",
-      icon: <FiCreditCard className="w-5 h-5" />,
+      icon: <CreditCard className="w-5 h-5" />,
     },
   ];
 
@@ -115,6 +105,16 @@ const DashboardLayout = () => {
     const currentPath = location.pathname;
     const menuItem = menuItems.find((item) => item.path === currentPath);
     return menuItem ? menuItem.name : "Dashboard";
+  };
+
+  // Toggle sidebar
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  // Close mobile menu
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
   };
 
   if (loading) {
@@ -128,32 +128,58 @@ const DashboardLayout = () => {
 
   return (
     <div className="flex h-screen bg-background">
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+          onClick={closeMobileMenu}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`bg-background text-text-primary fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`bg-background text-text-primary fixed inset-y-0 left-0 z-10 transform transition-all duration-300 ease-in-out lg:static lg:inset-0 ${
+          sidebarOpen ? "w-64" : "w-20"
+        } ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="flex flex-col h-full">
-          <div className="px-6 py-8 border-b border-white/10">
-            <h2 className="text-2xl font-bold">Homiqly</h2>
-            <p className="text-sm opacity-80">Vendor Panel</p>
+          {/* Header */}
+          <div className={`px-6 py-8 border-b border-white/10 ${!sidebarOpen && 'px-4'}`}>
+            <div className={`flex items-center ${!sidebarOpen ? 'justify-center' : 'justify-between'}`}>
+              {sidebarOpen ? (
+                <>
+                  <h2 className="text-2xl font-bold">Homiqly</h2>
+                </>
+              ) : (
+                ""
+              )}
+            </div>
+            {sidebarOpen && (
+              <p className="mt-2 text-sm opacity-80">Vendor Panel</p>
+            )}
           </div>
 
-          <nav className="flex-1 py-4 px-2 overflow-y-auto">
+          {/* Navigation */}
+          <nav className="flex-1 px-2 py-4 overflow-y-auto">
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.path}>
                   <Link
                     to={item.path}
+                    onClick={closeMobileMenu}
                     className={`flex items-center px-6 py-3 text-sm font-medium border-1 rounded-md ${
                       location.pathname === item.path
                         ? "bg-primary-light/15 text-primary"
                         : "border-transparent text-text-muted hover:bg-backgroundTertiary/50 hover:text-text-primary"
-                    }`}
+                    } ${!sidebarOpen ? 'justify-center px-4' : ''}`}
+                    title={!sidebarOpen ? item.name : ""}
                   >
-                    <span className="mr-3">{item.icon}</span>
-                    {item.name}
+                    <span className={`${sidebarOpen ? 'mr-3' : ''}`}>
+                      {item.icon}
+                    </span>
+                    {sidebarOpen && item.name}
                   </Link>
                 </li>
               ))}
@@ -165,25 +191,29 @@ const DashboardLayout = () => {
       {/* Main content */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <header className="bg-white shadow-sm z-10">
+        <header className="z-10 bg-white shadow-sm">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center">
+              {/* Desktop sidebar toggle */}
               <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="hidden lg:block text-gray-500 focus:outline-none"
+                onClick={toggleSidebar}
+                className="hidden p-2 text-gray-500 rounded-md lg:block hover:text-gray-700 focus:outline-none hover:bg-gray-100"
               >
-                <FiMenu className="w-6 h-6" />
+                <Menu className="w-6 h-6 " />
               </button>
+              
+              {/* Mobile menu toggle */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden text-gray-500 focus:outline-none"
+                className="text-gray-500 lg:hidden hover:text-gray-700 focus:outline-none"
               >
                 {mobileMenuOpen ? (
-                  <FiX className="w-6 h-6" />
+                  <X className="w-6 h-6" />
                 ) : (
-                  <FiMenu className="w-6 h-6" />
+                  <Menu className="w-6 h-6" />
                 )}
               </button>
+              
               <h1 className="ml-4 text-xl font-semibold text-gray-800">
                 {getPageTitle()}
               </h1>
@@ -203,7 +233,7 @@ const DashboardLayout = () => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 p-6 overflow-y-auto">
           <Outlet />
         </main>
       </div>

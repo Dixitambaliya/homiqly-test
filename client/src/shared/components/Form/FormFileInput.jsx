@@ -1,5 +1,5 @@
+import { Upload, X } from 'lucide-react';
 import React, { useState } from 'react';
-import { FiUpload, FiFile, FiX } from 'react-icons/fi';
 
 const FormFileInput = ({
   label,
@@ -80,7 +80,7 @@ const FormFileInput = ({
               text-sm font-medium text-gray-700
             `}
           >
-            <FiUpload className="mr-2 h-5 w-5 text-gray-400" />
+            <Upload className="mr-2 h-5 w-5 text-gray-400" />
             <span>{fileName || 'Choose file...'}</span>
             <input
               id={name}
@@ -102,7 +102,7 @@ const FormFileInput = ({
             onClick={clearFile}
             className="ml-2 p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none"
           >
-            <FiX className="h-5 w-5" />
+            <X className="h-5 w-5" />
           </button>
         )}
       </div>

@@ -1,7 +1,6 @@
-import React from "react";
-import { FiDelete, FiEye, FiTrash } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
+import { Trash } from "lucide-react";
 
 // ✅ Merged StatusBadge component (move this above TicketsTable)
 const StatusBadge = ({ status }) => {
@@ -73,7 +72,7 @@ const TicketsTable = ({ tickets, isLoading, onViewTicket, onDeleteTicket }) => {
       align: "right",
       render: (row) => (
         <div className="flex items-center justify-end gap-2">
-          <IconButton
+          {/* <IconButton
             icon={<FiEye className="h-4 w-4" />}
             variant="ghost"
             size="sm"
@@ -82,18 +81,14 @@ const TicketsTable = ({ tickets, isLoading, onViewTicket, onDeleteTicket }) => {
               onViewTicket(row);
             }}
             tooltip="View Ticket"
-          />
+          /> */}
           <IconButton
-            icon={<FiTrash className="h-4 w-4" />}
+            icon={<Trash className="h-4 w-4" />}
             variant="danger"
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              if (
-                window.confirm("Are you sure you want to delete this ticket?")
-              ) {
-                onDeleteTicket(row.ticket_id);
-              }
+              onDeleteTicket(row.ticket_id);
             }}
             tooltip="Delete Ticket"
           />

@@ -1,16 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import {
-  FiCalendar,
-  FiClock,
-  FiUser,
-  FiMapPin,
-  FiCheckCircle,
-  FiXCircle,
-} from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import StatusBadge from "../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../shared/utils/dateUtils";
+import { CheckCircle, Clock, User, XCircle } from "lucide-react";
 
 const Calendar = () => {
   const [bookings, setBookings] = useState([]);
@@ -385,12 +378,12 @@ const Calendar = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center text-gray-500 text-sm mb-1">
-                      <FiClock className="mr-1" />
+                      <Clock className="mr-1" />
                       <span>{formatTime(booking.bookingTime)}</span>
                     </div>
                     <h4 className="font-medium">{booking.serviceName}</h4>
                     <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <FiUser className="mr-1" />
+                      <User className="mr-1" />
                       <span>{booking.userName}</span>
                     </div>
                   </div>
@@ -408,7 +401,7 @@ const Calendar = () => {
                       }
                       className="flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
                     >
-                      <FiCheckCircle className="mr-1" />
+                      <CheckCircle className="mr-1" />
                       Accept
                     </button>
                     <button
@@ -420,7 +413,7 @@ const Calendar = () => {
                       }
                       className="flex items-center px-2 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200"
                     >
-                      <FiXCircle className="mr-1" />
+                      <XCircle className="mr-1" />
                       Reject
                     </button>
                   </div>
@@ -568,12 +561,12 @@ const Calendar = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center text-gray-500 text-sm mb-1">
-                      <FiClock className="mr-1" />
+                      <Clock className="mr-1" />
                       <span>{formatTime(booking.bookingTime)}</span>
                     </div>
                     <h4 className="font-medium">{booking.serviceName}</h4>
                     <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <FiUser className="mr-1" />
+                      <User className="mr-1" />
                       <span>{booking.userName}</span>
                     </div>
                     {booking.notes && (
@@ -597,7 +590,7 @@ const Calendar = () => {
                       }
                       className="flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
                     >
-                      <FiCheckCircle className="mr-1" />
+                      <CheckCircle className="mr-1" />
                       Accept
                     </button>
                     <button
@@ -609,7 +602,7 @@ const Calendar = () => {
                       }
                       className="flex items-center px-2 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200"
                     >
-                      <FiXCircle className="mr-1" />
+                      <XCircle className="mr-1" />
                       Reject
                     </button>
                   </div>

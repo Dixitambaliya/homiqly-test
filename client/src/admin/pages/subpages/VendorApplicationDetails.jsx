@@ -1,20 +1,18 @@
-import React from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Button from "../../../shared/components/Button/Button";
 import {
-  FiArrowLeft,
-  FiClock,
-  FiDollarSign,
-  FiPackage,
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiHash,
-  FiCheckCircle,
-  FiXCircle,
-} from "react-icons/fi";
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  Hash,
+  Mail,
+  Package,
+  Phone,
+  User,
+  XCircle,
+} from "lucide-react";
+import Breadcrumb from "../../../shared/components/Breadcrumb";
 
-/* --- helpers --- */
 const StatusBadge = ({ status }) => {
   const map = {
     0: {
@@ -33,16 +31,16 @@ const StatusBadge = ({ status }) => {
   const s = map[status] || map[0];
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${s.class}`}
+      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${s.class}`}
     >
-      {status === 1 ? <FiCheckCircle /> : status === 2 ? <FiXCircle /> : null}
+      {status === 1 ? <CheckCircle /> : status === 2 ? <XCircle /> : null}
       {s.label}
     </span>
   );
 };
 
 const StatChip = ({ icon: Icon, label }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 text-gray-700 text-xs px-2.5 py-1 ring-1 ring-gray-200">
+  <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 text-gray-700 text-xs px-2.5 py-1 ring-1 ring-gray-200">
     <Icon className="shrink-0" />
     {label}
   </span>
@@ -78,7 +76,12 @@ const formatMoney = (v) => {
   });
 };
 
-/* --- page --- */
+const optimizeImageUrl = (url) => {
+  if (!url) return null;
+  // Use lower-resolution preview or lazy load param if CDN supports it
+  return `${url}?w=800&auto=format&quality=60`;
+};
+
 const VendorApplicationDetails = () => {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -99,60 +102,53 @@ const VendorApplicationDetails = () => {
     );
   }
 
-  const itemsCount = Array.isArray(app.sub_packages)
-    ? app.sub_packages.length
+  const itemsCount = Array.isArray(app.subPackages)
+    ? app.subPackages.length
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            <FiArrowLeft />
-            Back
-          </button>
-          <h2 className="text-2xl font-bold text-gray-900">
-            Application #{app.application_id}
-          </h2>
-          <StatusBadge status={app.status} />
-        </div>
-
-        {/* Quick stats */}
-        <div className="flex flex-wrap items-center gap-2">
-          <StatChip icon={FiDollarSign} label={formatMoney(app.totalPrice)} />
-          <StatChip icon={FiClock} label={app.totalTime || "—"} />
-          <StatChip icon={FiPackage} label={`${itemsCount} items`} />
-        </div>
+        <Breadcrumb
+          links={[
+            { label: "Dashboard", to: "/admin/dashboard" },
+            { label: "Bookings", to: "/admin/vendor-applications" },
+            { label: `Booking #${app.application_id}` },
+          ]}
+        />
+        <StatusBadge status={app.status} />
       </div>
 
-      {/* Top grid: Package (hero) + Vendor/Meta */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Package card */}
-        <div className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          {app.packageMedia ? (
-            <div className="aspect-[16/6] w-full overflow-hidden bg-gray-50">
-              <img
-                src={app.packageMedia}
-                alt="Package"
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          ) : null}
-          <div className="p-5">
+      {/* Enhanced Package Section */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-2">
+        {/* Image section */}
+        <div className="relative w-full h-56 md:h-auto md:min-h-[360px] bg-gray-100 overflow-hidden">
+          <img
+            src={optimizeImageUrl(app.packageMedia || app.serviceImage)}
+            alt={app.packageName || "Package"}
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform duration-500 transform hover:scale-105"
+            style={{ willChange: "transform" }}
+          />
+
+          {/* subtle gradient overlay for better contrast on top-right metadata (optional) */}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-transparent via-transparent to-white opacity-30" />
+        </div>
+
+        {/* Package details section */}
+        <div className="p-6 flex flex-col justify-between">
+          <div>
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">
                   Package
                 </p>
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {app.packageName?.trim() || "—"}
+                <h3 className="text-xl font-semibold text-gray-900 truncate">
+                  {app.packageName || "—"}
                 </h3>
               </div>
+
               <div className="text-right">
                 <p className="text-xs uppercase tracking-wide text-gray-500">
                   Total Price
@@ -163,105 +159,112 @@ const VendorApplicationDetails = () => {
               </div>
             </div>
 
-            {/* Chips */}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <StatChip icon={FiClock} label={app.totalTime || "—"} />
-              <StatChip icon={FiPackage} label={`${itemsCount} items`} />
+            {/* Chips and details */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <StatChip icon={Clock} label={app.totalTime || "—"} />
+              <StatChip icon={Package} label={`${itemsCount} items`} />
             </div>
 
-            {/* Preferences */}
-            {Array.isArray(app.preferences) && app.preferences.length > 0 && (
-              <div className="mt-5">
-                <p className="text-sm font-medium text-gray-900 mb-2">
-                  Preferences
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {app.preferences.map((p) => (
-                    <span
-                      key={p.preference_id}
-                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-700"
-                    >
-                      {p.preferenceValue}
+            {/* Divider */}
+            <div className="my-5 border-t border-gray-100" />
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-gray-100 bg-white shadow-sm p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Vendor
+                    </p>
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700 ring-1 ring-gray-200">
+                      {app.vendorType || "—"}
                     </span>
-                  ))}
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <InfoRow
+                      icon={User}
+                      label="Name"
+                      value={app.vendorName || "—"}
+                    />
+                    <InfoRow
+                      icon={Mail}
+                      label="Email"
+                      value={app.vendorEmail || "—"}
+                    />
+                    <InfoRow
+                      icon={Phone}
+                      label="Phone"
+                      value={app.vendorPhone || "—"}
+                    />
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Right column: Vendor + Meta */}
-        <div className="space-y-6">
-          {/* Vendor card */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-900">Vendor</p>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700 ring-1 ring-gray-200">
-                {app.vendorType || "—"}
-              </span>
-            </div>
-            <div className="mt-4 space-y-4">
-              <InfoRow icon={FiUser} label="Name" value={app.vendorName} />
-              <InfoRow icon={FiMail} label="Email" value={app.vendorEmail} />
-              <InfoRow icon={FiPhone} label="Phone" value={app.vendorPhone} />
-            </div>
-          </div>
-
-          {/* Meta card */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
-            <p className="text-sm font-semibold text-gray-900 mb-4">Meta</p>
-            <div className="grid grid-cols-1 gap-4">
-              <InfoRow
-                icon={FiHash}
-                label="Application ID"
-                value={app.application_id}
-              />
-              <InfoRow icon={FiHash} label="Vendor ID" value={app.vendor_id} />
-              <InfoRow
-                icon={FiHash}
-                label="Package ID"
-                value={app.package_id}
-              />
-              <InfoRow
-                icon={FiClock}
-                label="Applied At"
-                value={formatDateTime(app.applied_at)}
-              />
+              <div className="space-y-4">
+                <div className="rounded-xl border border-gray-100 bg-white shadow-sm p-4">
+                  <p className="text-sm font-semibold text-gray-900 mb-3">
+                    Meta
+                  </p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <InfoRow
+                      icon={Hash}
+                      label="Application ID"
+                      value={app.application_id || "—"}
+                    />
+                    <InfoRow
+                      icon={Hash}
+                      label="Vendor ID"
+                      value={app.vendor_id || "—"}
+                    />
+                    <InfoRow
+                      icon={Hash}
+                      label="Package ID"
+                      value={app.package_id || "—"}
+                    />
+                    <InfoRow
+                      icon={Clock}
+                      label="Applied At"
+                      value={formatDateTime(app.applied_at) || "—"}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Sub-packages */}
-      {Array.isArray(app.sub_packages) && app.sub_packages.length > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
-          <div className="flex items-center justify-between">
+      {Array.isArray(app.subPackages) && app.subPackages.length > 0 && (
+        <div className=" p-5">
+          <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-gray-900">Sub-packages</p>
             <span className="text-xs text-gray-500">{itemsCount} total</span>
           </div>
-
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {app.sub_packages.map((sp) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {app.subPackages.map((sp, i) => (
               <div
-                key={sp.sub_package_id}
-                className="rounded-xl border border-gray-200 overflow-hidden bg-white"
+                key={i}
+                className="rounded-xl border border-gray-200 overflow-hidden bg-white hover:shadow-md transition-all"
               >
-                {sp.itemMedia ? (
-                  <div className="aspect-[16/10] bg-gray-50">
-                    <img
-                      src={sp.itemMedia}
-                      alt={sp.itemName}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : null}
+                <img
+                  src={optimizeImageUrl(sp.itemMedia)}
+                  alt={sp.itemName}
+                  loading="lazy"
+                  className="h-44 w-full object-cover"
+                />
                 <div className="p-3">
                   <p className="text-sm font-medium text-gray-900">
-                    {sp.itemName?.trim() || "—"}
+                    {sp.itemName}
                   </p>
-                  <div className="mt-2">
-                    <StatChip icon={FiClock} label={sp.timeRequired || "—"} />
+                  <div className="mt-2 flex justify-between items-center">
+                    <StatChip
+                      icon={Clock}
+                      label={`${sp.timeRequired} Mins` || "—"}
+                    />
+                    <p className="text-sm font-semibold text-gray-900">
+                      {formatMoney(sp.price)}
+                    </p>
                   </div>
                 </div>
               </div>

@@ -4,48 +4,79 @@ import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import { formatCurrency } from "../../../shared/utils/formatUtils";
 import api from "../../../lib/axiosConfig";
 import Breadcrumb from "../../../shared/components/Breadcrumb";
+import { Button } from "../../../shared/components/Button";
+import {
+  Briefcase,
+  CheckCircle,
+  Clipboard,
+  Clock,
+  ExternalLink,
+  User,
+} from "lucide-react";
 
 const PaymentDetails = () => {
   const { paymentId } = useParams();
   const location = useLocation();
+  // if the route passed the payment via state, use it; otherwise we'll fetch
   const [payment, setPayment] = useState(location.state?.payment || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    console.log("Payment ID from route:", paymentId);
-    if (!payment) fetchPayment();
-  }, [paymentId, payment]);
+    // Only fetch when we DON'T have an initial payment from location.state
+    if (!payment) {
+      fetchPayment();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentId]);
 
   const fetchPayment = async () => {
     setLoading(true);
     try {
+      // NOTE: keep using list endpoint and find; replace with single endpoint if available
       const res = await api.get("/api/admin/getpayments");
-
-      const found = res.data.payments.find(
-        (p) => p.payment_id === Number(paymentId)
-      );
+      const list = res.data?.payments ?? res.data?.data ?? [];
+      const found = Array.isArray(list)
+        ? list.find((p) => Number(p.payment_id) === Number(paymentId))
+        : null;
 
       if (found) {
         setPayment(found);
+        setError(null);
       } else {
         setError("Payment not found.");
       }
-    } catch (error) {
-      console.error("Failed to fetch payment:", error);
+    } catch (err) {
+      console.error("Failed to fetch payment:", err);
       setError("Failed to load payment details.");
     } finally {
       setLoading(false);
     }
   };
 
-  // useEffect(() => {
-  //   fetchPayment();
-  // }, [paymentId]);
-
-  useEffect(() => {
-    fetchPayment();
-  }, [!paymentId]);
+  const copyToClipboard = async (text) => {
+    if (!text) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // fallback
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (err) {
+      console.error("copy failed", err);
+    }
+  };
 
   if (loading) {
     return (
@@ -63,8 +94,19 @@ const PaymentDetails = () => {
     );
   }
 
+  // Derived values (handle string amounts & lowercase currency like "cad")
+  const paidAtFormatted =
+    payment.paidAt ||
+    (payment.created_at ? new Date(payment.created_at).toLocaleString() : "");
+  const currencyCode = (payment.currency || "cad")
+    .toString()
+    .trim()
+    .toUpperCase();
+  const numericAmount = Number(payment.amount || payment.totalPrice || 0);
+  const amount = formatCurrency(numericAmount, currencyCode);
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-6">
       <Breadcrumb
         links={[
           { label: "Admin", to: "/admin" },
@@ -72,112 +114,340 @@ const PaymentDetails = () => {
           { label: `Payment #${payment.payment_id}`, to: "#" },
         ]}
       />
-      <h1 className="text-2xl font-bold text-gray-800">Payment Details</h1>
 
-      {/* Payment Info */}
-      <div className="bg-white rounded-lg shadow border p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <p className="text-sm text-gray-500 mb-1">Payment ID</p>
-          <p className=" text-gray-900">#{payment.payment_id}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Amount</p>
-          <p className=" text-green-600">
-            {formatCurrency(payment.amount, "CAD")}
+          <h1 className="text-2xl font-bold text-gray-800">
+            Payment #{payment.payment_id}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            <span className="inline-flex items-center gap-2 text-gray-600">
+              <Clock className="w-4 h-4" />• {paidAtFormatted}
+            </span>
           </p>
         </div>
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Status</p>
-          <p className=" capitalize text-gray-800">{payment.status}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Date</p>
-          <p className=" text-gray-900">{payment.paidAt}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Card</p>
-          <p className=" text-gray-800">
-            {payment.cardBrand?.toUpperCase()} •••• {payment.last4}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Receipt</p>
-          <a
-            href={payment.receiptUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline "
+
+        <div className="flex items-center gap-2">
+          {payment.receiptUrl && (
+            <a
+              href={payment.receiptUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-md shadow-sm text-sm hover:bg-gray-50"
+              title="Open receipt in new tab"
+            >
+              <ExternalLink className="w-4 h-4" />
+              View Receipt
+            </a>
+          )}
+
+          <Button
+            onClick={() => copyToClipboard(payment.receiptUrl || "")}
+            title="Copy receipt link"
+            className="inline-flex items-center gap-2"
           >
-            View Receipt
-          </a>
+            <Clipboard className="w-4 h-4" />
+            {copied ? "Copied" : "Copy Link"}
+          </Button>
         </div>
       </div>
 
-      {/* User Info */}
-      <div className="bg-white rounded-lg shadow border p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">User Info</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Summary cards */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow border p-4">
+          <p className="text-sm text-gray-500">Amount</p>
+          <div className="mt-1 text-2xl font-semibold text-gray-900">
+            {amount}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Paid via {String(payment.cardBrand || "").toUpperCase() || "—"}{" "}
+            {payment.last4 ? `• •••• ${payment.last4}` : ""}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow border p-4">
+          <p className="text-sm text-gray-500">Status</p>
+          <div className="mt-2">
+            <span
+              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                String(payment.status).toLowerCase() === "completed"
+                  ? "bg-green-50 text-green-700"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              {payment.status}
+            </span>
+          </div>
+
+          <p className="text-sm text-gray-500 mt-4">Payment intent</p>
+          <div className="mt-1 text-sm text-gray-800 break-all">
+            {payment.payment_intent_id || payment.paymentIntentId || "—"}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow border p-4 flex flex-col justify-between">
           <div>
-            <p className="text-sm text-gray-500 mb-1">Name</p>
-            <p className=" text-gray-900">
-              {payment.user_firstname} {payment.user_lastname}
+            <p className="text-sm text-gray-500">Receipt</p>
+            {payment.receiptUrl ? (
+              <a
+                href={payment.receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 block text-sm font-medium text-blue-600 hover:underline break-all"
+              >
+                View Receipt
+              </a>
+            ) : (
+              <div className="mt-1 text-sm text-gray-600">—</div>
+            )}
+            <p className="text-xs text-gray-400 mt-2">
+              Receipt sent to{" "}
+              {payment.receiptEmail || payment.user_email || "—"}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Email</p>
-            <p className=" text-gray-900">{payment.user_email}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Phone</p>
-            <p className=" text-gray-900">{payment.user_phone}</p>
+
+          <div className="mt-4 text-xs text-gray-500">
+            <div>
+              Charge ID:{" "}
+              <span className="font-mono text-gray-700">
+                {payment.chargeId || "—"}
+              </span>
+            </div>
+            <div className="mt-1">
+              Created:{" "}
+              <span className="text-gray-700">
+                {payment.created_at
+                  ? new Date(payment.created_at).toLocaleString()
+                  : "—"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Vendor Info */}
-      <div className="bg-white rounded-lg shadow border p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Vendor Info ({payment.vendorType})
-        </h2>
-        <div className="flex items-center space-x-4 mb-4">
-          <img
-            src={
-              payment.individual_profile_image || payment.company_profile_image
-            }
-            alt="Vendor"
-            className="h-16 w-16 rounded-full object-cover border"
-          />
-          <div>
-            <p className="text-lg  text-gray-900">
-              {payment.individual_name || payment.companyName}
-            </p>
-            <p className="text-sm text-gray-500">
-              {payment.individual_email || payment.email}
-            </p>
+      {/* Two-column detail area */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Invoice / Service */}
+        <div className="bg-white rounded-lg shadow border p-6">
+          <div className="flex items-start gap-4">
+            <img
+              src={
+                payment.serviceImage ||
+                payment.service_image ||
+                payment.packageMedia
+              }
+              alt={payment.serviceName || payment.service_name || "service"}
+              className="w-28 h-20 object-cover rounded-md border"
+            />
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    {payment.serviceName || payment.service_name || "—"}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {payment.totalTime || "—"}{" "}
+                    {payment.package_id
+                      ? `• Package #${payment.package_id}`
+                      : ""}
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatCurrency(
+                      payment.totalPrice ?? numericAmount,
+                      currencyCode
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {currencyCode}
+                  </div>
+                </div>
+              </div>
+
+              {/* Price breakdown (if available) */}
+              <div className="mt-4 text-sm text-gray-700 space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(numericAmount, currencyCode)}</span>
+                </div>
+
+                <div className="flex justify-between font-semibold">
+                  <span>Total</span>
+                  <span>{formatCurrency(numericAmount, currencyCode)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Invoice metadata */}
+          <div className="mt-6 border-t pt-4 text-sm text-gray-600 space-y-2">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4" />{" "}
+              <span className="font-medium">Customer:</span>{" "}
+              <span className="ml-1">
+                {payment.user_firstname || payment.user_name || ""}{" "}
+                {payment.user_lastname || ""}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />{" "}
+              <span className="font-medium">Vendor:</span>{" "}
+              <span className="ml-1">
+                {payment.companyName || payment.individual_name || "—"}
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-medium">Notes:</span>
+              <span className="ml-1 text-gray-500">{payment.notes || "—"}</span>
+            </div>
           </div>
         </div>
-        <p className="text-sm text-gray-500 mb-1">Phone</p>
-        <p className=" text-gray-900">
-          {payment.individual_phone || payment.contactPerson}
-        </p>
-      </div>
 
-      {/* Package Info */}
-      <div className="bg-white rounded-lg shadow border p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Package</h2>
-        <div className="flex items-start space-x-4">
-          <img
-            src={payment.packageMedia}
-            alt="Package"
-            className="w-32 h-20 object-cover rounded-md border"
-          />
-          <div>
-            <p className=" text-gray-900">{payment.packageName}</p>
-            <p className="text-sm text-gray-500">{payment.totalTime}</p>
-            <p className="text-sm text-gray-500">
-              {formatCurrency(payment.totalPrice)}{" "}
-              {payment.currency?.toUpperCase()}
-            </p>
+        {/* Right: User and Vendor cards */}
+        <div className="space-y-6">
+          {/* User */}
+          <div className="bg-white rounded-lg shadow border p-4">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full bg-gray-100 flex items-center justify-center text-xl font-semibold text-gray-700">
+                {payment.user_firstname
+                  ? payment.user_firstname[0].toUpperCase()
+                  : "U"}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-500">Customer</div>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {payment.user_firstname || payment.user_name || ""}{" "}
+                      {payment.user_lastname || ""}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-sm text-gray-600 space-y-1">
+                  <div>
+                    Email:{" "}
+                    <span className="text-gray-800">
+                      {payment.user_email || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    Phone:{" "}
+                    <span className="text-gray-800">
+                      {payment.user_phone || "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Vendor */}
+          <div className="bg-white rounded-lg shadow border p-4">
+            <div className="flex items-start gap-4">
+              <img
+                src={
+                  payment.individual_profile_image ||
+                  payment.company_profile_image ||
+                  payment.serviceImage ||
+                  payment.packageMedia
+                }
+                alt="vendor"
+                className="h-14 w-14 rounded-md object-cover border"
+              />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-500">Vendor</div>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {payment.vendorType === "company"
+                        ? payment.companyName || "Company"
+                        : payment.individual_name || "Vendor"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-sm text-gray-600 space-y-1">
+                  <div>
+                    Contact:{" "}
+                    <span className="text-gray-800">
+                      {payment.contactPerson || payment.individual_name || "-"}
+                    </span>
+                  </div>
+                  <div>
+                    Email:{" "}
+                    <span className="text-gray-800">
+                      {payment.individual_email || payment.email || "-"}
+                    </span>
+                  </div>
+                  <div>
+                    Phone:{" "}
+                    <span className="text-gray-800">
+                      {payment.individual_phone || payment.phone || "-"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Meta / small actions */}
+          <div className="bg-white rounded-lg shadow border p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-500">Payment meta</div>
+              <div className="text-sm text-gray-700 font-medium">
+                {payment.payment_id}
+              </div>
+            </div>
+
+            <div className="mt-3 text-sm text-gray-600 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>Paid at</div>
+                <div className="text-gray-800">{paidAtFormatted}</div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>Currency</div>
+                <div className="text-gray-800">{currencyCode}</div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>Receipt</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copyToClipboard(payment.receiptUrl || "")}
+                    className="text-sm text-gray-600 hover:text-gray-800"
+                    title="Copy receipt URL"
+                  >
+                    <Clipboard className="w-4 h-4" />
+                  </button>
+
+                  {payment.receiptUrl && (
+                    <a
+                      href={payment.receiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 text-xs text-gray-400">
+              <div>
+                Payment Intent:{" "}
+                <span className="font-mono text-gray-700">
+                  {payment.payment_intent_id || payment.paymentIntentId || "—"}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
