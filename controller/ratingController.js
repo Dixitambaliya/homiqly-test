@@ -127,6 +127,7 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+
 const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { booking_id, rating, review } = req.body;
@@ -160,14 +161,13 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "You have already rated this booking." });
         }
 
-        // 3️⃣ Fetch all distinct package_ids linked to this booking
-        const [packages] = await db.query(`
-            SELECT DISTINCT p.package_id
-            FROM service_booking_sub_packages sbsp
-            JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-            JOIN packages p ON pi.package_id = p.package_id
-            WHERE sbsp.booking_id = ?
-        `, [booking_id]);
+        // 3️⃣ Fetch all package_ids linked to this booking from service_booking_packages
+        const [packages] = await db.query(
+            `SELECT DISTINCT package_id 
+             FROM service_booking_packages 
+             WHERE booking_id = ?`,
+            [booking_id]
+        );
 
         if (packages.length === 0) {
             return res.status(404).json({ message: "No packages found for this booking." });
@@ -191,14 +191,17 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
         );
 
         res.status(201).json({
-            message: "Rating submitted successfully for all packages in this booking",
+            message: "✅ Rating submitted successfully for all packages in this booking.",
             packagesRated: packages.map(p => p.package_id)
         });
+
     } catch (error) {
-        console.error("Error submitting package rating:", error);
+        console.error("❌ Error submitting package rating:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
 
 
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
