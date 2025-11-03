@@ -127,7 +127,6 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { booking_id, rating, review } = req.body;
@@ -200,8 +199,6 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
-
 
 
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
