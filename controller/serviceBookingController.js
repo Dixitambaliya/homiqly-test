@@ -385,6 +385,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     itemMedia: sp.itemMedia,
                     timeRequired: sp.timeRequired,
                     quantity: sp.quantity,
+                    price: sp.price,
                     ...(addons.length && { addons }),
                     ...(preferences.length && { preferences }),
                     ...(consents.length && { consents })
