@@ -122,6 +122,7 @@ const getBankAccount = asyncHandler(async (req, res) => {
 // ----------------------------
 const editBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+    
     const {
         account_holder_name,
         bank_name,
@@ -148,8 +149,8 @@ const editBankAccount = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Bank account not found" });
     }
 
-    // Update directly with provided fields
-    await db.query(
+    // Perform update
+    const [result] = await db.query(
         `UPDATE vendor_bank_accounts
          SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, 
              bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=?
@@ -171,8 +172,14 @@ const editBankAccount = asyncHandler(async (req, res) => {
         ]
     );
 
-    res.json({ message: "Bank account edited successfully" });
+    // 🧩 Check if update affected any row
+    if (result.affectedRows === 0) {
+        return res.status(400).json({ message: "No changes were made to the bank account." });
+    }
+
+    res.json({ message: "Bank account edited successfully." });
 });
+
 
 
 // ----------------------------

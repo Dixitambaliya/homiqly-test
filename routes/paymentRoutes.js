@@ -20,7 +20,7 @@ router.get("/get-bank-details", authenticationToken, getBankAccount);
 router.get("/get-vendors-details", authenticationToken, getAllVendorsBankAccounts);
 router.get("/getallpayout", authenticationToken, getAllPayoutRequests);
 router.get("/getpaymentstatus", authenticationToken, getVendorPayoutStatus);
-router.patch("/edit-bank-details", authenticationToken, editBankAccount);
+router.patch("/edit-bank-details", authenticationToken, multiUpload, handleUploads, editBankAccount);
 router.post("/applypayout", authenticationToken, applyForPayout);
 router.post("/updatepayout/:payout_request_id", authenticationToken, multiUpload, handleUploads, updatePayoutStatus);
 
