@@ -239,7 +239,6 @@ const getUserData = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, email, phone } = req.body;
@@ -293,7 +292,6 @@ const updateUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -377,8 +375,6 @@ const addUserData = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
