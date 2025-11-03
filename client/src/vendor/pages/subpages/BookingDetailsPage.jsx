@@ -166,7 +166,7 @@ const BookingDetailsPage = () => {
                     <Clock />
                     <span>{formatTime(booking.bookingTime)}</span>
                   </div>
-                  <div className="flex items-center gap-2 truncate">
+                  {/* <div className="flex items-center gap-2 truncate">
                     <Phone size={14} />
                     <a
                       href={`tel:${booking.userPhone}`}
@@ -183,7 +183,7 @@ const BookingDetailsPage = () => {
                     >
                       {booking.userEmail || "No email"}
                     </a>
-                  </div>
+                  </div> */}
                 </div>
 
                 {booking.userParkingInstructions && (
@@ -543,13 +543,13 @@ const BookingDetailsPage = () => {
                 href={`tel:${booking.userPhone}`}
                 className="flex items-center gap-2 text-sm hover:underline"
               >
-                <Phone size={16} /> Call
+                {/* <Phone size={16} /> Call */}
               </a>
               <a
                 href={`mailto:${booking.userEmail}`}
                 className="flex items-center gap-2 text-sm hover:underline"
               >
-                <Mail size={16} /> Email
+                {/* <Mail size={16} /> Email */}
               </a>
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -574,7 +574,7 @@ const BookingDetailsPage = () => {
                   {booking.assignedEmployee.name}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {booking.assignedEmployee.email}
+                  {/* {booking.assignedEmployee.email} */}
                 </div>
                 <div className="mt-2">
                   <a

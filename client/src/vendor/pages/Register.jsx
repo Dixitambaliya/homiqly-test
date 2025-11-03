@@ -5,7 +5,15 @@ import { toast } from "react-toastify";
 import axios from "axios";
 import Button from "../../shared/components/Button/Button";
 import { FormInput, FormSelect } from "../../shared/components/Form";
-import { ArrowLeft, ArrowRight, Loader, Lock, Mail, Phone, User } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader,
+  Lock,
+  Mail,
+  Phone,
+  User,
+} from "lucide-react";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -28,6 +36,7 @@ const Register = () => {
   const [companyAddress, setCompanyAddress] = useState("");
   const [googleBusinessLink, setGoogleBusinessLink] = useState("");
   const [resume, setResume] = useState(null);
+  const [aboutme, setAboutme] = useState("");
 
   const [serviceCategories, setServiceCategories] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
@@ -97,7 +106,7 @@ const Register = () => {
       return false;
     }
     if (vendorType === "individual") {
-      if (!name || !email || !phone || !password) {
+      if (!name || !email || !phone || !password || !aboutme) {
         toast.error("Please fill all required fields");
         return false;
       }
@@ -189,6 +198,7 @@ const Register = () => {
       formData.append("email", email);
       formData.append("phone", phone);
       formData.append("password", password);
+      formData.append("aboutme", aboutme);
       if (resume) formData.append("resume", resume);
     } else {
       formData.append("companyName", companyName);
@@ -342,6 +352,15 @@ const Register = () => {
                         type="file"
                         accept=".pdf"
                         onChange={(e) => setResume(e.target.files?.[0] || null)}
+                      />
+                      <FormInput
+                        id="aboutme"
+                        label="About Me*"
+                        value={aboutme}
+                        onChange={(e) => setAboutme(e.target.value)}
+                        placeholder="About Me"
+                        autoComplete="aboutme"
+                        maxLength={30}
                       />
                     </div>
                   </>
@@ -571,6 +590,12 @@ const Register = () => {
                           <p className="text-xs text-gray-500">Phone</p>
                           <p className="text-sm font-medium text-gray-800">
                             {phone}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-500">About Me</p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {aboutme}
                           </p>
                         </div>
                         <div className="space-y-2">
