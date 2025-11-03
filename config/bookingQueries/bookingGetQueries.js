@@ -320,7 +320,45 @@ WHERE sb.booking_id = ?;
         AND sb.bookingTime = ?
             AND sb.bookingStatus NOT IN(2, 4)-- allow only if previous is Rejected(2) or Completed(4)
                 LIMIT 1
-`
+`,
+
+    getBookedSubPackagesMulti: `
+  SELECT sbsp.booking_id, sbsp.sub_package_id, pi.package_id, 
+         p.packageName, p.packageMedia, pi.itemName, pi.itemMedia, 
+         pi.timeRequired, sbsp.quantity, pi.price
+  FROM service_booking_sub_packages sbsp
+  JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+  JOIN packages p ON pi.package_id = p.package_id
+  WHERE sbsp.booking_id IN (?);
+`,
+    getBookedAddonsMulti: `
+  SELECT 
+  sba.booking_id, 
+  sba.sub_package_id,
+  sba.addon_id, 
+  a.addonName, 
+  a.addonMedia, 
+  sba.price, 
+  sba.quantity
+  FROM service_booking_addons sba
+  JOIN package_addons a ON sba.addon_id = a.addon_id
+  WHERE sba.booking_id IN (?) AND sba.sub_package_id IS NOT NULL;
+`,
+    getBoookedPrefrencesMulti: `
+  SELECT sp.booking_id, sp.sub_package_id, sp.preference_id, 
+         bp.preferenceValue, bp.preferencePrice
+  FROM service_booking_preferences sp
+  JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+  WHERE sp.booking_id IN (?) AND sp.sub_package_id IS NOT NULL;
+`,
+    getBoookedConsentsMulti: `
+  SELECT sbc.booking_id, sbc.sub_package_id, c.consent_id, 
+         c.question, sbc.answer
+  FROM service_booking_consents sbc
+  LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id
+  WHERE sbc.booking_id IN (?) AND sbc.sub_package_id IS NOT NULL;
+`,
+
 
 }
 

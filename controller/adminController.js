@@ -3,6 +3,7 @@ const asyncHandler = require("express-async-handler");
 const adminGetQueries = require("../config/adminQueries/adminGetQueries")
 const adminPostQueries = require("../config/adminQueries/adminPostQueries");
 const adminPutQueries = require("../config/adminQueries/adminPutQueries");
+const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const nodemailer = require("nodemailer");
@@ -378,11 +379,12 @@ const getBookings = asyncHandler(async (req, res) => {
         // ===== Search by username, email, or service name =====
         if (search && search.trim() !== "") {
             filters += ` AND (
-                CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-                OR u.email LIKE ? 
-                OR s.serviceName LIKE ?
-            )`;
-            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+        OR u.email LIKE ? 
+        OR s.serviceName LIKE ?
+      )`;
+            const searchPattern = `%${search.trim()}%`;
+            params.push(searchPattern, searchPattern, searchPattern);
         }
 
         // ===== Filter by status =====
@@ -406,22 +408,22 @@ const getBookings = asyncHandler(async (req, res) => {
         // ===== Count total bookings =====
         const [[{ total }]] = await db.query(
             `SELECT COUNT(DISTINCT sb.booking_id) AS total
-             FROM service_booking sb
-             LEFT JOIN users u ON sb.user_id = u.user_id
-             LEFT JOIN services s ON sb.service_id = s.service_id
-             ${filters}`,
+       FROM service_booking sb
+       LEFT JOIN users u ON sb.user_id = u.user_id
+       LEFT JOIN services s ON sb.service_id = s.service_id
+       ${filters}`,
             params
         );
 
         // ===== Get paginated unique booking IDs =====
         const [bookingIds] = await db.query(
             `SELECT DISTINCT sb.booking_id
-             FROM service_booking sb
-             LEFT JOIN users u ON sb.user_id = u.user_id
-             LEFT JOIN services s ON sb.service_id = s.service_id
-             ${filters}
-             ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-             LIMIT ? OFFSET ?`,
+       FROM service_booking sb
+       LEFT JOIN users u ON sb.user_id = u.user_id
+       LEFT JOIN services s ON sb.service_id = s.service_id
+       ${filters}
+       ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+       LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
 
@@ -437,174 +439,136 @@ const getBookings = asyncHandler(async (req, res) => {
 
         const bookingIdList = bookingIds.map(b => b.booking_id);
 
-        // ===== Fetch full booking details =====
-        const [rows] = await db.query(
-            `
-            SELECT
-                sb.booking_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.notes,
-                sb.bookingMedia,
-                sb.payment_intent_id,
-                sb.payment_status,
+        // ===== Base booking info =====
+        const [bookings] = await db.query(`
+      SELECT 
+        sb.booking_id,
+        sb.bookingDate,
+        sb.bookingTime,
+        sb.bookingStatus,
+        sb.notes,
+        sb.bookingMedia,
+        sb.payment_intent_id,
+        sb.payment_status,
 
-                u.user_id,
-                CONCAT(u.firstName, ' ', u.lastName) AS userName,
-                u.email AS user_email,
+        u.user_id,
+        CONCAT(u.firstName, ' ', u.lastName) AS userName,
+        u.email AS user_email,
+        u.phone AS user_phone,
 
-                s.serviceName,
-                sc.serviceCategory,
+        s.serviceName,
+        sc.serviceCategory,
 
-                v.vendor_id,
-                v.vendorType,
-                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
-                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-                IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
+        v.vendor_id,
+        v.vendorType,
+        IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+        IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
-                p.amount AS payment_amount,
-                p.currency AS payment_currency,
+        p.amount AS payment_amount,
+        p.currency AS payment_currency
+      FROM service_booking sb
+      LEFT JOIN users u ON sb.user_id = u.user_id
+      LEFT JOIN services s ON sb.service_id = s.service_id
+      LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+      LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+      LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+      WHERE sb.booking_id IN (?)
+      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+    `, [bookingIdList]);
 
-                sb.package_id,
-                pkg.packageName,
-                pkg.packageMedia,
-                pi.item_id,
-                pi.itemName,
-                pi.itemMedia,
-                pi.timeRequired,
-                sbsp.quantity AS item_quantity,
-                (sbsp.price * sbsp.quantity) AS item_price,
+        // ===== Fetch related data in parallel (like vendor logic) =====
+        const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackagesMulti, [bookingIdList]);
+        const [addons] = await db.query(bookingGetQueries.getBookedAddonsMulti, [bookingIdList]);
+        const [preferences] = await db.query(bookingGetQueries.getBoookedPrefrencesMulti, [bookingIdList]);
+        const [consents] = await db.query(bookingGetQueries.getBoookedConsentsMulti, [bookingIdList]);
 
-                sba.addon_id,
-                pa.addonName,
-                pa.addonTime,
-                sba.quantity AS addon_quantity,
-                (sba.price * sba.quantity) AS addon_price,
+        // ===== Group by booking =====
+        const bookingMap = {};
+        bookings.forEach(b => {
+            bookingMap[b.booking_id] = {
+                ...b,
+                sub_packages: [],
+                packages: [],
+            };
+        });
 
-                sp.preference_id,
-                bp.preferenceValue,
-
-                sbc.consent_id,
-                pcf.question,
-                sbc.answer
-            FROM service_booking sb
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-            LEFT JOIN packages pkg ON sb.package_id = pkg.package_id
-            LEFT JOIN service_booking_sub_packages sbsp ON sb.booking_id = sbsp.booking_id
-            LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-            LEFT JOIN service_booking_addons sba ON sb.booking_id = sba.booking_id
-            LEFT JOIN package_addons pa ON sba.addon_id = pa.addon_id
-            LEFT JOIN service_booking_preferences sp ON sb.booking_id = sp.booking_id
-            LEFT JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-            LEFT JOIN service_booking_consents sbc ON sb.booking_id = sbc.booking_id
-            LEFT JOIN package_consent_forms pcf ON sbc.consent_id = pcf.consent_id
-            WHERE sb.booking_id IN (?)
-            ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-            `,
-            [bookingIdList]
-        );
-
-        // ===== Group by booking_id =====
-        const bookingsMap = new Map();
-
-        for (const row of rows) {
-            let booking = bookingsMap.get(row.booking_id);
-            if (!booking) {
-                booking = {
-                    booking_id: row.booking_id,
-                    bookingDate: row.bookingDate,
-                    bookingTime: row.bookingTime,
-                    bookingStatus: row.bookingStatus,
-                    notes: row.notes,
-                    bookingMedia: row.bookingMedia,
-                    payment_intent_id: row.payment_intent_id,
-                    payment_status: row.payment_status,
-
-                    user_id: row.user_id,
-                    userName: row.userName,
-                    user_email: row.user_email,
-
-                    serviceName: row.serviceName,
-                    serviceCategory: row.serviceCategory,
-
-                    vendor_id: row.vendor_id,
-                    vendorType: row.vendorType,
-                    vendorName: row.vendorName,
-                    vendorPhone: row.vendorPhone,
-                    vendorEmail: row.vendorEmail,
-                    vendorContactPerson: row.vendorContactPerson,
-
-                    payment_amount: row.payment_amount,
-                    payment_currency: row.payment_currency,
-
-                    packages: []
-                };
-                bookingsMap.set(row.booking_id, booking);
+        // ===== Group sub-packages by package_id =====
+        const groupByBooking = (rows) => {
+            const grouped = {};
+            for (const row of rows) {
+                if (!grouped[row.booking_id]) grouped[row.booking_id] = [];
+                grouped[row.booking_id].push(row);
             }
+            return grouped;
+        };
 
-            // ===== Packages =====
-            if (row.package_id) {
-                let pkg = booking.packages.find(p => p.package_id === row.package_id);
-                if (!pkg) {
-                    pkg = {
-                        package_id: row.package_id,
-                        packageName: row.packageName,
-                        packageMedia: row.packageMedia,
-                        items: [],
-                        addons: [],
-                        preferences: [],
-                        concents: []
+        const groupedSub = groupByBooking(subPackages);
+        const groupedAddons = groupByBooking(addons);
+        const groupedPrefs = groupByBooking(preferences);
+        const groupedConsents = groupByBooking(consents);
+
+        for (const booking of bookings) {
+            const bookingId = booking.booking_id;
+
+            const subList = groupedSub[bookingId] || [];
+            const addonsList = groupedAddons[bookingId] || [];
+            const prefList = groupedPrefs[bookingId] || [];
+            const consentList = groupedConsents[bookingId] || [];
+
+            const addonsByItem = {};
+            addonsList.forEach(a => {
+                if (!addonsByItem[a.sub_package_id]) addonsByItem[a.sub_package_id] = [];
+                const { booking_id, sub_package_id, ...rest } = a;
+                addonsByItem[a.sub_package_id].push(rest);
+            });
+
+            const prefsByItem = {};
+            prefList.forEach(p => {
+                if (!prefsByItem[p.sub_package_id]) prefsByItem[p.sub_package_id] = [];
+                const { booking_id, sub_package_id, ...rest } = p;
+                prefsByItem[p.sub_package_id].push(rest);
+            });
+
+            const consentsByItem = {};
+            consentList.forEach(c => {
+                if (!consentsByItem[c.sub_package_id]) consentsByItem[c.sub_package_id] = [];
+                const { booking_id, sub_package_id, ...rest } = c;
+                consentsByItem[c.sub_package_id].push(rest);
+            });
+
+            // group by package
+            const groupedByPackage = subList.reduce((acc, sp) => {
+                const packageId = sp.package_id;
+                if (!acc[packageId]) {
+                    acc[packageId] = {
+                        package_id: packageId,
+                        packageName: sp.packageName,
+                        packageMedia: sp.packageMedia,
+                        items: []
                     };
-                    booking.packages.push(pkg);
                 }
 
-                if (row.item_id && !pkg.items.find(i => i.item_id === row.item_id)) {
-                    pkg.items.push({
-                        item_id: row.item_id,
-                        itemName: row.itemName,
-                        itemMedia: row.itemMedia,
-                        timeRequired: row.timeRequired,
-                        quantity: row.item_quantity,
-                        price: row.item_price
-                    });
-                }
+                acc[packageId].items.push({
+                    sub_package_id: sp.sub_package_id,
+                    itemName: sp.itemName,
+                    itemMedia: sp.itemMedia,
+                    timeRequired: sp.timeRequired,
+                    quantity: sp.quantity,
+                    price: sp.price,
+                    addons: addonsByItem[sp.sub_package_id] || [],
+                    preferences: prefsByItem[sp.sub_package_id] || [],
+                    consents: consentsByItem[sp.sub_package_id] || [],
+                });
+                return acc;
+            }, {});
 
-                if (row.addon_id && !pkg.addons.find(a => a.addon_id === row.addon_id)) {
-                    pkg.addons.push({
-                        addon_id: row.addon_id,
-                        addonName: row.addonName,
-                        addonTime: row.addonTime,
-                        quantity: row.addon_quantity,
-                        price: row.addon_price
-                    });
-                }
-
-                if (row.preference_id && !pkg.preferences.find(p => p.preference_id === row.preference_id)) {
-                    pkg.preferences.push({
-                        preference_id: row.preference_id,
-                        preferenceValue: row.preferenceValue
-                    });
-                }
-
-                if (row.consent_id && !pkg.concents.find(p => p.consent_id === row.consent_id)) {
-                    pkg.concents.push({
-                        consent_id: row.consent_id,
-                        question: row.question,
-                        answer: row.answer,
-                    });
-                }
-            }
+            bookingMap[bookingId].sub_packages = Object.values(groupedByPackage);
         }
 
-        const enrichedBookings = Array.from(bookingsMap.values());
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -613,9 +577,8 @@ const getBookings = asyncHandler(async (req, res) => {
             totalPages,
             totalRecords: total,
             limit,
-            bookings: enrichedBookings
+            bookings: Object.values(bookingMap)
         });
-
     } catch (error) {
         console.error("Error fetching bookings:", error);
         res.status(500).json({
@@ -624,6 +587,7 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
