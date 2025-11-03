@@ -396,10 +396,9 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, policeclearance= ? , certificateOfExpertise = ? , BusinessLicense = ? , businessLicenseExpireDate = ? companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                 SET profileImage = ?, policeclearance= ? , certificateOfExpertise = ? , BusinessLicense = ? , businessLicenseExpireDate = ? , companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
                  WHERE vendor_id = ?`,
                 [
-                    profileImageVendor,
                     profileImageVendor,
                     policeClearance,
                     certificateOfExpertise,
