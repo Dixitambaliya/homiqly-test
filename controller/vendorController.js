@@ -324,7 +324,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -434,7 +433,6 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

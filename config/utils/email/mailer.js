@@ -272,7 +272,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
 
     await sendMail({
       to: user.email,
-      subject: "Your Booking is Confirmed",
+      subject: "Your Booking is Confirmed!",
       bodyHtml,
     });
 
