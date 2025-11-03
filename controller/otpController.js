@@ -53,40 +53,53 @@ const sendOtp = asyncHandler(async (req, res) => {
 });
 // ---- Verify OTP ----
 const verifyOtp = asyncHandler(async (req, res) => {
-    const { phone, otp, token } = req.body;
-    const user_id = req.user.user_id;
-
-    if (!phone || !otp || !token) {
-        return res.status(400).json({ message: "Phone, OTP and token are required" });
-    }
+    const connection = await db.getConnection(); // 🔹 Get one connection for transaction
 
     try {
+        const { phone, otp, token } = req.body;
+        const user_id = req.user.user_id;
+
+        if (!phone || !otp || !token) {
+            return res.status(400).json({ message: "Phone, OTP and token are required" });
+        }
+
+        // Start transaction
+        await connection.beginTransaction();
+
         // Verify JWT
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         if (decoded.phone !== phone) {
-            return res.status(400).json({ message: "Phone mismatch" });
+            throw new Error("Phone mismatch");
         }
         if (decoded.otp !== parseInt(otp)) {
-            return res.status(400).json({ message: "Incorrect OTP" });
+            throw new Error("Incorrect OTP");
         }
 
-        // Update phone and approval status
-        const [updateResult] = await db.query(
+        // Perform the update
+        const [updateResult] = await connection.query(
             "UPDATE users SET phone = ?, is_approved = 1 WHERE user_id = ?",
             [phone, user_id]
         );
 
         if (updateResult.affectedRows === 0) {
-            return res.status(404).json({ message: "User not found" });
+            throw new Error("User not found");
         }
+
+        // Commit the transaction
+        await connection.commit();
 
         res.json({ message: "OTP verified, phone updated and user approved" });
     } catch (err) {
+        // Rollback on any error
+        if (connection) await connection.rollback();
         console.error("OTP verification error:", err);
-        res.status(400).json({ message: "Invalid or expired OTP" });
+        res.status(400).json({ message: err.message || "Invalid or expired OTP" });
+    } finally {
+        if (connection) connection.release();
     }
 });
+
 
 
 
