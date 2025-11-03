@@ -325,19 +325,19 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             // 🔹 Fetch packages linked to this booking
             const [bookingPackages] = await db.query(`
-                    SELECT 
-                        sbp.package_id,
-                        p.packageName,
-                        p.packageMedia
-                    FROM service_booking_packages sbp
-                    JOIN packages p ON sbp.package_id = p.package_id
-                    WHERE sbp.booking_id = ?;
-                `, [bookingId]);
+                SELECT 
+                    sbp.package_id,
+                    p.packageName,
+                    p.packageMedia
+                FROM service_booking_packages sbp
+                JOIN packages p ON sbp.package_id = p.package_id
+                WHERE sbp.booking_id = ?;
+            `, [bookingId]);
 
-            // ✅ Group addons, preferences, and consents by booking + sub_package_id
+            // ✅ Group related data strictly by sub_package_id
             const addonsByItem = {};
             bookingAddons.forEach(a => {
-                const key = `${a.booking_id}_${a.sub_package_id}`;
+                const key = a.sub_package_id;
                 if (!addonsByItem[key]) addonsByItem[key] = [];
                 const { booking_id, sub_package_id, ...rest } = a;
                 addonsByItem[key].push(rest);
@@ -345,7 +345,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             const prefsByItem = {};
             bookingPreferences.forEach(p => {
-                const key = `${p.booking_id}_${p.sub_package_id}`;
+                const key = p.sub_package_id;
                 if (!prefsByItem[key]) prefsByItem[key] = [];
                 const { booking_id, sub_package_id, ...rest } = p;
                 prefsByItem[key].push(rest);
@@ -353,7 +353,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             const consentsByItem = {};
             bookingConsents.forEach(c => {
-                const key = `${c.booking_id}_${c.sub_package_id}`;
+                const key = c.sub_package_id;
                 if (!consentsByItem[key]) consentsByItem[key] = [];
                 consentsByItem[key].push({
                     consent_id: c.consent_id,
@@ -362,7 +362,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 });
             });
 
-            // ✅ Group sub-packages by package
+            // ✅ Group subpackages properly by package
             const groupedByPackage = subPackages.reduce((acc, sp) => {
                 const packageId = sp.package_id;
                 if (!acc[packageId]) {
@@ -374,10 +374,10 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     };
                 }
 
-                const key = `${bookingId}_${sp.sub_package_id}`;
-                const addons = addonsByItem[key] || [];
-                const preferences = prefsByItem[key] || [];
-                const consents = consentsByItem[key] || [];
+                // Link only relevant addons/preferences/consents for this sub_package_id
+                const addons = addonsByItem[sp.sub_package_id] || [];
+                const preferences = prefsByItem[sp.sub_package_id] || [];
+                const consents = consentsByItem[sp.sub_package_id] || [];
 
                 acc[packageId].items.push({
                     sub_package_id: sp.sub_package_id,
@@ -394,9 +394,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             }, {});
 
             booking.sub_packages = Object.values(groupedByPackage);
-
-            // ✅ Add top-level package details
             booking.packages = bookingPackages;
+
 
             // 🔹 Promo code logic
             if (booking.user_promo_code_id) {

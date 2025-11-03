@@ -58,62 +58,66 @@ LIMIT 1;
 
 `,
 
-    // Fetch addons applied to packages/items
-    getBookedAddons: `
-        SELECT
-            sba.booking_id,
-            sba.sub_package_id,
-            sba.addon_id,
-            a.addonName,
-            a.addonMedia,
-            sba.price,
-            sba.quantity
-        FROM service_booking_addons sba
-        JOIN package_addons a ON sba.addon_id = a.addon_id
-        WHERE sba.booking_id = ?;
-    `,
-
+    // ✅ Fetch booked sub-packages
     getBookedSubPackages: `
-        SELECT
-            sbsp.sub_package_id,
-            pi.package_id,
-            p.packageName,
-            p.packageMedia,
-            pi.itemName,
-            pi.itemMedia,
-            pi.timeRequired,
-            sbsp.quantity,
-            sbsp.price
-        FROM service_booking_sub_packages sbsp
-        JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-        JOIN packages p ON pi.package_id = p.package_id
-        WHERE sbsp.booking_id = ?;
-    `,
+    SELECT
+        sbsp.sub_package_id,
+        sbsp.booking_id,
+        pi.package_id,
+        p.packageName,
+        p.packageMedia,
+        pi.itemName,
+        pi.itemMedia,
+        pi.timeRequired,
+        sbsp.quantity,
+        sbsp.price
+    FROM service_booking_sub_packages sbsp
+    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+    JOIN packages p ON pi.package_id = p.package_id
+    WHERE sbsp.booking_id = ?;
+`,
 
+    // ✅ Fetch addons linked strictly to subpackage
+    getBookedAddons: `
+    SELECT
+        sba.booking_id,
+        sba.sub_package_id,
+        sba.addon_id,
+        a.addonName,
+        a.addonMedia,
+        sba.price,
+        sba.quantity
+    FROM service_booking_addons sba
+    JOIN package_addons a ON sba.addon_id = a.addon_id
+    WHERE sba.booking_id = ? AND sba.sub_package_id IS NOT NULL;
+`,
+
+    // ✅ Fetch preferences tied strictly to subpackage
     getBoookedPrefrences: `
-        SELECT
-            sp.booking_id,
-            sp.sub_package_id,
-            sp.preference_id,
-            bp.preferenceValue,
-            bp.preferencePrice
-        FROM service_booking_preferences sp
-        JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
-        WHERE sp.booking_id = ?;
-    `,
+    SELECT
+        sp.booking_id,
+        sp.sub_package_id,
+        sp.preference_id,
+        bp.preferenceValue,
+        bp.preferencePrice
+    FROM service_booking_preferences sp
+    JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
+    WHERE sp.booking_id = ? AND sp.sub_package_id IS NOT NULL;
+`,
 
+    // ✅ Fetch consents tied strictly to subpackage
     getBoookedConsents: `
-        SELECT
-            sbc.booking_id,
-            sbc.sub_package_id,
-            c.consent_id,
-            c.question,
-            sbc.answer
-        FROM service_booking_consents sbc
-        LEFT JOIN package_consent_forms c 
-            ON sbc.consent_id = c.consent_id
-        WHERE sbc.booking_id = ?;
-    `,
+    SELECT
+        sbc.booking_id,
+        sbc.sub_package_id,
+        c.consent_id,
+        c.question,
+        sbc.answer
+    FROM service_booking_consents sbc
+    LEFT JOIN package_consent_forms c 
+        ON sbc.consent_id = c.consent_id
+    WHERE sbc.booking_id = ? AND sbc.sub_package_id IS NOT NULL;
+`,
 
     userGetBooking: `
        SELECT
