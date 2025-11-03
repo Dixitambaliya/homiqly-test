@@ -1,10 +1,10 @@
 import React from "react";
-import { FiEye, FiCheck, FiX, FiPlus } from "react-icons/fi";
 import DataTable from "../../../shared/components/Table/DataTable";
 import StatusBadge from "../../../shared/components/StatusBadge";
 import { IconButton } from "../../../shared/components/Button";
 import { useState } from "react";
 import ApplyServiceModal from "../Modals/ApplyServiceModal";
+import { Check, Eye, Plus, X } from "lucide-react";
 // import AssignServiceModal from "./AssignServiceModal";
 
 const VendorsTable = ({
@@ -78,7 +78,7 @@ const VendorsTable = ({
       render: (row) => (
         <div className="flex items-center justify-end space-x-2">
           <IconButton
-            icon={<FiEye className="h-4 w-4" />}
+            icon={<Eye className="h-4 w-4" />}
             variant="ghost"
             size="sm"
             onClick={(e) => {
@@ -91,7 +91,7 @@ const VendorsTable = ({
           {row.is_authenticated === 0 && (
             <>
               <IconButton
-                icon={<FiCheck className="h-4 w-4" />}
+                icon={<Check className="h-4 w-4" />}
                 variant="success"
                 size="sm"
                 onClick={(e) => {
@@ -101,7 +101,7 @@ const VendorsTable = ({
                 tooltip="Approve"
               />
               <IconButton
-                icon={<FiX className="h-4 w-4" />}
+                icon={<X className="h-4 w-4" />}
                 variant="danger"
                 size="sm"
                 onClick={(e) => {
@@ -114,7 +114,7 @@ const VendorsTable = ({
           )}
 
           <IconButton
-            icon={<FiPlus className="h-4 w-4" />}
+            icon={<Plus className="h-4 w-4" />}
             variant="primary"
             size="sm"
             onClick={(e) => {

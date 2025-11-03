@@ -1,11 +1,8 @@
 import React from "react";
-import { FiEye, FiEdit } from "react-icons/fi";
-import { MdDelete, MdEdit } from "react-icons/md";
-
 import DataTable from "../../../shared/components/Table/DataTable";
 import { IconButton } from "../../../shared/components/Button";
 import { formatDate } from "../../../shared/utils/dateUtils";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash } from "lucide-react";
 
 const UsersTable = ({ users, isLoading, onViewUser, onEditUser, onDelete }) => {
   const columns = [
@@ -67,16 +64,7 @@ const UsersTable = ({ users, isLoading, onViewUser, onEditUser, onDelete }) => {
       render: (row) => (
         <div className="flex items-center justify-end space-x-2">
           <IconButton
-            icon={<FiEye />}
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewUser(row);
-            }}
-            tooltip="View details"
-          />
-          <IconButton
-            icon={<MdEdit />}
+            icon={<Pencil className="w-4 h-4" />}
             onClick={(e) => {
               e.stopPropagation();
               onEditUser(row);
@@ -84,7 +72,7 @@ const UsersTable = ({ users, isLoading, onViewUser, onEditUser, onDelete }) => {
             tooltip="Edit user"
           />
           <IconButton
-            icon={<MdDelete />}
+            icon={<Trash className="w-4 h-4" />}
             variant="lightDanger"
             size="sm"
             onClick={(e) => {

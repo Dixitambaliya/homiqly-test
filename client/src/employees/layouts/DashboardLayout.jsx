@@ -1,22 +1,9 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useEmployeesAuth } from "../contexts/EmployeesAuthContext";
-import { FiHelpCircle, FiList, FiMenu, FiUser, FiX } from "react-icons/fi";
-import {
-  FiHome,
-  FiUsers,
-  FiUserCheck,
-  FiShoppingBag,
-  FiCalendar,
-  FiBox,
-  FiTool,
-  FiUserPlus,
-  FiCreditCard,
-  FiBarChart2,
-  FiBell,
-} from "react-icons/fi";
 import { HeaderMenu } from "../../shared/components/Header";
 import NotificationIcon from "../components/NotificationIcon";
+import { Calendar, Home, List, Menu, User, X } from "lucide-react";
 
 const DashboardLayout = () => {
   const { currentUser, logout } = useEmployeesAuth();
@@ -34,7 +21,7 @@ const DashboardLayout = () => {
     {
       path: "/employees/dashboard",
       name: "Dashboard",
-      icon: <FiHome className="w-5 h-5" />,
+      icon: <Home className="w-5 h-5" />,
     },
     // {
     //   path: "/employees/vendors",
@@ -59,22 +46,22 @@ const DashboardLayout = () => {
     {
       path: "/employees/bookings",
       name: "Bookings",
-      icon: <FiCalendar className="w-5 h-5" />,
+      icon: <Calendar className="w-5 h-5" />,
     },
     {
       path: "/employees/profile",
       name: "Profile",
-      icon: <FiUser className="w-5 h-5" />,
+      icon: <User className="w-5 h-5" />,
     },
     {
       path: "/employees/calendar",
       name: "Calendar",
-      icon: <FiCalendar className="w-5 h-5" />,
+      icon: <Calendar className="w-5 h-5" />,
     },
     {
       path: "/employees/workhistory",
       name: "Work History",
-      icon: <FiList className="w-5 h-5" />,
+      icon: <List className="w-5 h-5" />,
     },
     // {
     //   path: "/employees/supply-kits",
@@ -165,16 +152,16 @@ const DashboardLayout = () => {
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="hidden lg:block text-gray-500 focus:outline-none"
               >
-                <FiMenu className="w-6 h-6" />
+                <Menu className="w-6 h-6" />
               </button>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden text-gray-500 focus:outline-none"
               >
                 {mobileMenuOpen ? (
-                  <FiX className="w-6 h-6" />
+                  <X className="w-6 h-6" />
                 ) : (
-                  <FiMenu className="w-6 h-6" />
+                  <Menu className="w-6 h-6" />
                 )}
               </button>
               <h1 className="ml-4 text-xl font-semibold text-gray-800">

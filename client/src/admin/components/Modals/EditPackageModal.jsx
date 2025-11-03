@@ -23,7 +23,8 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   const [subPackages, setSubPackages] = useState([]);
   const [files, setFiles] = useState({});
   const [previews, setPreviews] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // submit loading
+  const [detailsLoading, setDetailsLoading] = useState(false); // details fetch loading
 
   /**
    * normalizePreferencesFromServer
@@ -34,12 +35,8 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     if (!s) return {};
 
     // Case 1: server already returns preferences as object keyed by title
-    // but the value might be either:
-    //  - an array of items (old shape) OR
-    //  - an object { is_required, items } (new shape)
     if (s.preferences && typeof s.preferences === "object") {
       const prefs = s.preferences;
-      // If keys map to group objects (new shape), copy them
       const isNewShape = Object.values(prefs).some(
         (v) =>
           v &&
@@ -48,13 +45,12 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
           ("items" in v || "is_required" in v)
       );
       if (isNewShape) {
-        // Normalize each group ensuring items array and numeric is_required
         return Object.entries(prefs).reduce((acc, [k, v]) => {
           const groupObj = v || {};
           const items = Array.isArray(groupObj.items)
             ? groupObj.items
             : Array.isArray(v)
-            ? v // fallback if the server still put array directly here
+            ? v
             : [];
           acc[k] = {
             is_required: Number(groupObj.is_required ?? 0) || 0,
@@ -132,6 +128,39 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     return {};
   };
 
+  // Helper to normalize a single sub package from server shape to UI shape
+  const normalizeSubFromServer = (s) => {
+    const prefsObj = normalizePreferencesFromServer(s);
+
+    return {
+      sub_package_id: s.sub_package_id ?? null,
+      item_name: s.item_name ?? "",
+      description: s.description ?? "",
+      price: s.price ?? "",
+      time_required: s.time_required ?? "",
+      item_media: s.item_media ?? s.itemMedia ?? "",
+      preferences: prefsObj,
+      addons: Array.isArray(s.addons)
+        ? s.addons.map((a) => ({
+            addon_id: a.addon_id ?? null,
+            addon_name: a.addon_name ?? "",
+            description: a.description ?? "",
+            price: a.price ?? 0,
+            time_required: a.time_required ?? "",
+            addon_media: a.addon_media ?? a.addonMedia ?? null,
+          }))
+        : [],
+      consentForm: Array.isArray(s.consentForm)
+        ? s.consentForm.map((c) => ({
+            consent_id: c.consent_id ?? null,
+            question: c.question ?? "",
+            is_required: c.is_required ?? c.isRequired ?? 0,
+          }))
+        : [],
+    };
+  };
+
+  // When packageData changes: initialize the form. If packageData doesn't have sub_packages, fetch details.
   useEffect(() => {
     if (!packageData) {
       setPackageName("");
@@ -139,8 +168,14 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       setSubPackages([]);
       setFiles({});
       setPreviews({});
+      setDetailsLoading(false);
       return;
     }
+
+    // If packageData already contains heavy details, use them
+    const hasSubs =
+      Array.isArray(packageData.sub_packages) &&
+      packageData.sub_packages.length > 0;
 
     setPackageName(
       packageData.packageName ??
@@ -157,46 +192,83 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         null
     );
 
-    const subs = Array.isArray(packageData.sub_packages)
-      ? packageData.sub_packages.map((s) => {
-          // normalize preferences into group-level shape
-          const prefsObj = normalizePreferencesFromServer(s);
-
-          // normalizedPrefsObj is already in the right shape
-          const normalizedPrefsObj = prefsObj;
-
-          return {
-            sub_package_id: s.sub_package_id ?? null,
-            item_name: s.item_name ?? "",
-            description: s.description ?? "",
-            price: s.price ?? "",
-            time_required: s.time_required ?? "",
-            item_media: s.item_media ?? "",
-            preferences: normalizedPrefsObj, // object keyed by title, group object {is_required, items}
-            addons: Array.isArray(s.addons)
-              ? s.addons.map((a) => ({
-                  addon_id: a.addon_id ?? null,
-                  addon_name: a.addon_name ?? "",
-                  description: a.description ?? "",
-                  price: a.price ?? 0,
-                  time_required: a.time_required ?? "",
-                  addon_media: a.addon_media ?? null,
-                }))
-              : [],
-            consentForm: Array.isArray(s.consentForm)
-              ? s.consentForm.map((c) => ({
-                  consent_id: c.consent_id ?? null,
-                  question: c.question ?? "",
-                  is_required: c.is_required ?? c.isRequired ?? 0,
-                }))
-              : [],
-          };
-        })
-      : [];
-
-    setSubPackages(subs);
+    // reset local file uploads / previews on open
     setFiles({});
     setPreviews({});
+
+    if (hasSubs) {
+      // Normalize server-provided sub_packages
+      const subs = (packageData.sub_packages || []).map((s) =>
+        normalizeSubFromServer(s)
+      );
+      setSubPackages(subs);
+      setDetailsLoading(false);
+      return;
+    }
+
+    // If no sub_packages in the passed packageData, fetch details by package_id
+    const pid =
+      packageData.package_id ?? packageData.packageId ?? packageData.id;
+    if (!pid) {
+      setSubPackages([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchDetails() {
+      try {
+        setDetailsLoading(true);
+        const resp = await api.get(`/api/admin/getpackagedetails/${pid}`);
+        const pkgPayload = resp?.data?.package ?? resp?.data ?? null;
+        if (!pkgPayload) {
+          if (!cancelled) {
+            toast.error("Failed to load package details.");
+            setSubPackages([]);
+            setDetailsLoading(false);
+          }
+          return;
+        }
+
+        // update package-level fields from details if available
+        if (!cancelled) {
+          setPackageName(
+            pkgPayload.packageName ??
+              pkgPayload.package_name ??
+              packageData.packageName ??
+              packageData.package_name ??
+              ""
+          );
+          setPackageMediaExisting(
+            pkgPayload.packageMedia ??
+              pkgPayload.package_media ??
+              packageData.packageMedia ??
+              packageData.package_media ??
+              packageData.package_image ??
+              null
+          );
+
+          const subsRaw = Array.isArray(pkgPayload.sub_packages)
+            ? pkgPayload.sub_packages
+            : pkgPayload.subPackages ?? [];
+
+          const normalizedSubs = subsRaw.map((s) => normalizeSubFromServer(s));
+          setSubPackages(normalizedSubs);
+        }
+      } catch (err) {
+        console.error("Error fetching package details:", err);
+        if (!cancelled) toast.error("Failed to fetch package details.");
+        if (!cancelled) setSubPackages([]);
+      } finally {
+        if (!cancelled) setDetailsLoading(false);
+      }
+    }
+
+    fetchDetails();
+
+    return () => {
+      cancelled = true;
+    };
   }, [packageData]);
 
   // Package media change
@@ -318,23 +390,19 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   };
 
   const renamePreferenceGroup = (subIndex, oldKey, newTitle) => {
-    // allow newTitle to be any string (including empty while typing)
     const targetRaw = newTitle ?? "";
-    const targetTrimmed = targetRaw; // don't auto-trim/normalize here; keep user input
+    const targetTrimmed = targetRaw;
 
     setSubPackages((prev) => {
       const cp = [...prev];
       const prefs = { ...(cp[subIndex].preferences || {}) };
       if (!prefs.hasOwnProperty(oldKey)) return cp;
 
-      // Build a new object preserving original key order, but swap the key when we hit oldKey
       const newPrefs = {};
       const otherKeys = Object.keys(prefs).filter((k) => k !== oldKey);
 
-      // Determine a collision-safe target key (but exclude oldKey when checking collisions)
       let targetKey = targetTrimmed;
       if (!targetKey) {
-        // if user cleared the title, fallback to oldKey temporarily (so UI doesn't lose data)
         targetKey = oldKey;
       } else {
         if (otherKeys.includes(targetKey) && targetKey !== oldKey) {
@@ -409,7 +477,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         (_, i) => i !== prefIndex
       );
       if (!prefs[groupKey].items || prefs[groupKey].items.length === 0) {
-        // keep behavior similar to previous: delete empty group
         delete prefs[groupKey];
       }
       cp[subIndex] = { ...cp[subIndex], preferences: prefs };
@@ -507,25 +574,20 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
   // -------------------------
   // SIMPLE MANUAL VALIDATION
   // -------------------------
-  // returns true if valid, otherwise shows toast.error and returns false
   const simpleValidate = () => {
-    // Must have at least one sub-package
     if (!Array.isArray(subPackages) || subPackages.length === 0) {
       toast.error("At least one sub-package is required.");
       return false;
     }
 
-    // Loop over sub-packages
     for (let s = 0; s < subPackages.length; s++) {
       const sub = subPackages[s] || {};
 
-      // item_name required
       if (!sub.item_name || !String(sub.item_name).trim()) {
         toast.error(`Sub-package ${s + 1}: Item Name is required.`);
         return false;
       }
 
-      // price required and numeric
       if (sub.price === "" || sub.price === null || sub.price === undefined) {
         toast.error(`Sub-package ${s + 1}: Price is required.`);
         return false;
@@ -535,7 +597,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         return false;
       }
 
-      // Preferences: each group's items must have value and numeric price; if group required ensure at least one item present
       const prefsObj = sub.preferences || {};
       const groupKeys = Object.keys(prefsObj);
       for (let g = 0; g < groupKeys.length; g++) {
@@ -578,7 +639,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         }
       }
 
-      // Add-ons: price numeric if present
       const addons = sub.addons || [];
       for (let a = 0; a < addons.length; a++) {
         const ad = addons[a] || {};
@@ -595,7 +655,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         }
       }
 
-      // Consent: if required then question must be present
       const consent = sub.consentForm || [];
       for (let c = 0; c < consent.length; c++) {
         const ci = consent[c] || {};
@@ -610,14 +669,12 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
       }
     }
 
-    // All checks passed
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Run validation
     if (!simpleValidate()) return;
 
     setLoading(true);
@@ -625,17 +682,14 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
     try {
       const form = new FormData();
 
-      // Build packages array (single package edited)
       const packagesPayload = [
         {
           package_id: packageData.package_id ?? null,
           packageName: packageName,
           packageMedia: packageMediaExisting ?? null,
           sub_packages: subPackages.map((s, sIndex) => {
-            // preferences: keep object keyed by title (group-level is_required + items)
             const prefsObj = s.preferences || {};
 
-            // cleaned addons include time_required
             const cleanedAddons = (s.addons || []).map((a) => ({
               addon_id: a.addon_id ?? null,
               addon_name: a.addon_name,
@@ -644,14 +698,12 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
               time_required: a.time_required ?? "",
             }));
 
-            // cleaned consent per sub
             const cleanedConsent = (s.consentForm || []).map((c) => ({
               consent_id: c.consent_id ?? null,
               question: c.question ?? "",
               is_required: Number(c.is_required) || 0,
             }));
 
-            // Ensure prefsObj groups are properly shaped on the payload (numbers for is_required)
             const cleanedPrefsObj = Object.entries(prefsObj || {}).reduce(
               (acc, [groupTitle, group]) => {
                 acc[groupTitle] = {
@@ -676,7 +728,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
               description: s.description,
               price: Number(s.price) || 0,
               time_required: s.time_required ?? "",
-              // include preferences object keyed by title (group objects)
               preferences: cleanedPrefsObj,
               addons: cleanedAddons,
               consentForm: cleanedConsent,
@@ -687,7 +738,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
       form.append("packages", JSON.stringify(packagesPayload));
 
-      // append files
       Object.entries(files).forEach(([key, file]) => {
         form.append(key, file);
       });
@@ -719,6 +769,15 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
         onSubmit={handleSubmit}
         className="space-y-8 max-h-[80vh] overflow-y-auto pr-4"
       >
+        {/* show loader for details */}
+        {detailsLoading && (
+          <div className="py-6 flex justify-center">
+            <div className="text-sm text-gray-600">
+              Loading package details...
+            </div>
+          </div>
+        )}
+
         {/* Package Details Section (collapsible) */}
         <CollapsibleSectionCard title="Package Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -846,8 +905,9 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                     onChange={(e) => handleFileChange(e, sIndex)}
                   />
                   <FormInput
-                    label="Time Required (e.g. 60 mins)"
+                    label="Time Required (in minutes only)"
                     value={sub.time_required ?? ""}
+                    type="number"
                     onChange={(e) =>
                       handleSubChange(sIndex, "time_required", e.target.value)
                     }
@@ -898,7 +958,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                         >
                           + Add Group
                         </Button>
-                        {/* add a preference to the first group if exists, otherwise create a group */}
                         <Button
                           type="button"
                           size="sm"
@@ -1031,9 +1090,6 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                                     }
                                     className="w-28"
                                   />
-                                  <div>
-                                    {/* item-level required removed — group-level controls requirement */}
-                                  </div>
                                 </div>
                                 <div className="flex justify-end">
                                   <Button
@@ -1129,7 +1185,8 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
                             }
                           />
                           <FormInput
-                            label="Time Required (e.g. 20 minutes)"
+                            type="number"
+                            label="Time Required (in minutes only)"
                             value={addon.time_required ?? ""}
                             onChange={(e) =>
                               updateAddon(
@@ -1246,7 +1303,11 @@ const EditPackageModal = ({ isOpen, onClose, packageData, refresh }) => {
 
         {/* Submit Button */}
         <div className="flex justify-end">
-          <Button type="submit" variant="primary" disabled={loading}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={loading || detailsLoading}
+          >
             {loading ? "Saving..." : "Save Changes"}
           </Button>
         </div>

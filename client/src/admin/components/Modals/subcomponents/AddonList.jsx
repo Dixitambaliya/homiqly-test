@@ -47,7 +47,8 @@ const AddonList = ({ addons = [], onChange }) => {
               onChange={(e) => setAddonField(i, "description", e.target.value)}
             />
             <FormInput
-              label="Time Required (Optional)"
+              type="number"
+              label="Time Required (in minutes only)"
               value={addon.time_required}
               onChange={(e) =>
                 setAddonField(i, "time_required", e.target.value)

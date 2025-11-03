@@ -1,18 +1,20 @@
 import React, { useState } from "react";
+import axios from "axios";
 import { toast } from "react-toastify";
-import { FiSave, FiLock } from "react-icons/fi";
+// import { FiSave, FiLock } from "react-icons/fi";
 import { Card } from "../../../shared/components/Card";
 import { Button } from "../../../shared/components/Button";
 import { FormInput, FormSelect } from "../../../shared/components/Form";
 import { useAdminAuth } from "../../contexts/AdminAuthContext";
+import { Lock } from "lucide-react";
 
 const GeneralSettings = () => {
   const { currentUser } = useAdminAuth();
-  const [generalSettings, setGeneralSettings] = useState({
-    theme: "light",
-    language: "en",
-    notifications: true,
-  });
+  // const [generalSettings, setGeneralSettings] = useState({
+  //   theme: "light",
+  //   language: "en",
+  //   notifications: true,
+  // });
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -22,13 +24,13 @@ const GeneralSettings = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleGeneralChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setGeneralSettings((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
+  // const handleGeneralChange = (e) => {
+  //   const { name, value, type, checked } = e.target;
+  //   setGeneralSettings((prev) => ({
+  //     ...prev,
+  //     [name]: type === "checkbox" ? checked : value,
+  //   }));
+  // };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
@@ -38,18 +40,18 @@ const GeneralSettings = () => {
     }));
   };
 
-  const saveGeneralSettings = (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  // const saveGeneralSettings = (e) => {
+  //   e.preventDefault();
+  //   setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      toast.success("Settings saved successfully");
-      setIsSubmitting(false);
-    }, 1000);
-  };
+  //   // Simulate API call
+  //   setTimeout(() => {
+  //     toast.success("Settings saved successfully");
+  //     setIsSubmitting(false);
+  //   }, 1000);
+  // };
 
-  const changePassword = (e) => {
+  const changePassword = async (e) => {
     e.preventDefault();
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -59,22 +61,43 @@ const GeneralSettings = () => {
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      toast.success("Password changed successfully");
+    try {
+      // Build payload to match the screenshot; include currentPassword optionally
+      const payload = {
+        newPassword: passwordData.newPassword,
+        confirmPassword: passwordData.confirmPassword,
+      };
+
+      // Object.keys(payload).forEach(
+      //   (k) => payload[k] === undefined && delete payload[k]
+      // );
+
+      const res = await axios.patch("/api/admin/changepassword", payload);
+
+      // Expecting response like: { message: "Admin password changed successfully" }
+      toast.success(res?.data?.message || "Password changed successfully");
+
       setPasswordData({
-        currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
+    } catch (err) {
+      console.error("Change password error:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to change password";
+      toast.error(msg);
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4">
       <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
 
+      {/* Uncomment / use General Settings Card if desired */}
       {/* <Card title="General Settings" icon={<FiSave className="h-5 w-5" />}>
         <form onSubmit={saveGeneralSettings}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -131,18 +154,10 @@ const GeneralSettings = () => {
         </form>
       </Card> */}
 
-      <Card title="Change Password" icon={<FiLock className="h-5 w-5" />}>
+      <Card title="Change Password" icon={<Lock className="h-5 w-5" />}>
         <form onSubmit={changePassword}>
-          <div className="space-y-4">
-            <FormInput
-              label="Current Password"
-              name="currentPassword"
-              type="password"
-              value={passwordData.currentPassword}
-              onChange={handlePasswordChange}
-              required
-            />
-
+          <div className="grid grid-cols-2 gap-3">
+         
             <FormInput
               label="New Password"
               name="newPassword"

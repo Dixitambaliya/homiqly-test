@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { FiX, FiCheckCircle } from "react-icons/fi";
 import { IconButton } from "../../../shared/components/Button";
 import Loader from "../../../components/Loader";
+import { CheckCircle, X } from "lucide-react";
 
 const NotificationModal = ({ isOpen, onClose }) => {
   const [notifications, setNotifications] = useState([]);
@@ -46,11 +46,10 @@ const NotificationModal = ({ isOpen, onClose }) => {
     <>
       {/* Backdrop */}
       <div
-        className="fixed top-0 right-0 h-full"
+        className="fixed top-0 right-0 z-50 h-full"
         style={{
-          width: "calc(100% - 16rem)",
-          left: "16rem",
-          zIndex: 40,
+          width: "calc(100%)",
+          // left: "16rem",
         }}
         onClick={onClose}
       >
@@ -58,20 +57,20 @@ const NotificationModal = ({ isOpen, onClose }) => {
       </div>
 
       {/* Notification Drawer */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-md z-50 bg-white shadow-xl overflow-y-auto">
+      <div className="fixed top-0 right-0 z-50 w-full h-full max-w-md overflow-y-auto bg-white shadow-xl">
         {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b">
+        <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Notifications</h2>
           <IconButton
             onClick={onClose}
-            icon={<FiX />}
+            icon={<X />}
             variant="lightDanger"
             size="sm"
           />
         </div>
 
         {/* Tabs */}
-        <div className="flex justify-around border-b p-3">
+        <div className="flex justify-around p-3 border-b">
           {["All", "Unread"].map((tab) => (
             <button
               key={tab}
@@ -94,17 +93,17 @@ const NotificationModal = ({ isOpen, onClose }) => {
               <Loader />
             </div>
           ) : filteredNotifications.length === 0 ? (
-            <div className="text-center text-sm text-gray-500">
+            <div className="text-sm text-center text-gray-500">
               No notifications
             </div>
           ) : (
             filteredNotifications.map((notif) => (
               <div
                 key={notif.notification_id}
-                className="flex items-start space-x-3 bg-gray-50 p-3 rounded-lg shadow-sm"
+                className="flex items-start p-3 space-x-3 rounded-lg shadow-sm bg-gray-50"
               >
                 <div className="flex-shrink-0 mt-1">
-                  <FiCheckCircle
+                  <CheckCircle
                     className={`w-5 h-5 ${
                       notif.is_read ? "text-gray-400" : "text-blue-500"
                     }`}
@@ -113,7 +112,7 @@ const NotificationModal = ({ isOpen, onClose }) => {
                 <div className="flex-1">
                   <h3 className="text-sm font-medium">{notif.title}</h3>
                   <p className="text-sm text-gray-600">{notif.body}</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="mt-1 text-xs text-gray-400">
                     {new Date(notif.sent_at).toLocaleString()}
                   </p>
 

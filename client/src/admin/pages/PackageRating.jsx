@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { FiStar, FiUser, FiCalendar } from "react-icons/fi";
 import { formatDate } from "../../shared/utils/dateUtils";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
+import { FormSelect } from "../../shared/components/Form";
+import { Calendar, User } from "lucide-react";
 
 const PackageRating = () => {
   const [packages, setPackages] = useState([]);
@@ -20,6 +21,7 @@ const PackageRating = () => {
   const fetchPackages = async () => {
     try {
       const res = await axios.get("/api/admin/getallpackages");
+      // ensure option values are strings to match select value
       setPackages(res.data.packages || []);
     } catch (err) {
       console.error("Error fetching packages", err);
@@ -30,8 +32,9 @@ const PackageRating = () => {
     try {
       setLoading(true);
       const res = await axios.get(`/api/rating/packageaverage/${packageId}`);
-      setRatings(res.data.review.rating || []);
-      setPackageInfo(res.data.review);
+      // defensive: ensure rating is array
+      setRatings(res.data.review?.rating || []);
+      setPackageInfo(res.data.review || null);
     } catch (err) {
       console.error("Error fetching package ratings", err);
       setRatings([]);
@@ -44,7 +47,18 @@ const PackageRating = () => {
   const handlePackageChange = (e) => {
     const packageId = e.target.value;
     setSelectedPackageId(packageId);
-    if (packageId) fetchRatings(packageId);
+
+    if (packageId) {
+      // fetch ratings when a real package is chosen
+      fetchRatings(packageId);
+    } else {
+      // clear data when user selects the default/empty option
+      setRatings([]);
+      setPackageInfo(null);
+      // optional: reset filters/search if you want
+      // setFilter("all");
+      // setSearchTerm("");
+    }
   };
 
   const handleFilterChange = (e) => setFilter(e.target.value);
@@ -61,9 +75,9 @@ const PackageRating = () => {
     ));
 
   const filteredRatings = ratings.filter((r) => {
-    const matchesRating = filter === "all" || r.rating === parseInt(filter);
+    const matchesRating = filter === "all" || r.rating === parseInt(filter, 10);
     const matchesSearch =
-      !searchTerm || r.userName.toLowerCase().includes(searchTerm);
+      !searchTerm || (r.userName || "").toLowerCase().includes(searchTerm);
     return matchesRating && matchesSearch;
   });
 
@@ -72,19 +86,22 @@ const PackageRating = () => {
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Package Ratings</h2>
 
       {/* Dropdown */}
-      <div className="mb-6">
-        <select
+      <div className="mb-6 w-full md:w-64">
+        <FormSelect
+          label="Select Package"
+          name="selectedPackageId"
           value={selectedPackageId}
           onChange={handlePackageChange}
-          className="px-4 py-2 border rounded-md"
-        >
-          <option value="">Select a Package</option>
-          {packages.map((pkg) => (
-            <option key={pkg.package_id} value={pkg.package_id}>
-              {pkg.packageName}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "Select a Package" },
+            ...packages.map((pkg) => ({
+              // ensure the value is a string to avoid type mismatches
+              value: String(pkg.package_id),
+              label: pkg.packageName,
+            })),
+          ]}
+          className="w-full"
+        />
       </div>
 
       {loading ? (
@@ -157,14 +174,14 @@ const PackageRating = () => {
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center">
                       <div className="mr-3 bg-gray-100 rounded-full p-2">
-                        <FiUser className="h-5 w-5 text-gray-500" />
+                        <User className="h-5 w-5 text-gray-500" />
                       </div>
                       <div>
                         <h4 className="font-medium text-gray-900">
                           {r.userName}
                         </h4>
                         <div className="flex items-center text-sm text-gray-500">
-                          <FiCalendar className="mr-1" />
+                          <Calendar className="mr-1" />
                           {formatDate(r.created_at)}
                         </div>
                       </div>

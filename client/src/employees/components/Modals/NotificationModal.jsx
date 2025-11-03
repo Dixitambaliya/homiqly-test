@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { FiX, FiCheckCircle } from "react-icons/fi";
 import { IconButton } from "../../../shared/components/Button";
 import Loader from "../../../components/Loader";
+import { CheckCircle, X } from "lucide-react";
 
 const NotificationModal = ({ isOpen, onClose }) => {
   const [notifications, setNotifications] = useState([]);
@@ -64,7 +64,7 @@ const NotificationModal = ({ isOpen, onClose }) => {
           <h2 className="text-lg font-semibold">Notifications</h2>
           <IconButton
             onClick={onClose}
-            icon={<FiX />}
+            icon={<X />}
             variant="lightDanger"
             size="sm"
           />
@@ -104,7 +104,7 @@ const NotificationModal = ({ isOpen, onClose }) => {
                 className="flex items-start space-x-3 bg-gray-50 p-3 rounded-lg shadow-sm"
               >
                 <div className="flex-shrink-0 mt-1">
-                  <FiCheckCircle
+                  <CheckCircle
                     className={`w-5 h-5 ${
                       notif.is_read ? "text-gray-400" : "text-blue-500"
                     }`}

@@ -13,10 +13,10 @@ import {
   BarElement,
   Title,
 } from "chart.js";
-import { FiDownload, FiRefreshCw } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatCurrency } from "../../shared/utils/formatUtils";
 import { Button } from "../../shared/components/Button";
+import { Download, RefreshCcw } from "lucide-react";
 
 // Register ChartJS components
 ChartJS.register(
@@ -38,7 +38,7 @@ const Analytics = () => {
   const [revenueData, setRevenueData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const currency = "CAD";
   useEffect(() => {
     fetchAnalyticsData();
   }, []);
@@ -215,15 +215,15 @@ const Analytics = () => {
         </h2>
         <div className="flex space-x-2">
           <Button onClick={exportAnalyticsData}>
-            <FiDownload className="mr-2" />
+            <Download className="mr-2" />
             Export Data
           </Button>
           <Button
             onClick={fetchAnalyticsData}
             variant="ghost"
-            icon={<FiRefreshCw />}
+            icon={<RefreshCcw />}
           >
-            Refresh 
+            Refresh
           </Button>
         </div>
       </div>
@@ -471,7 +471,7 @@ const Analytics = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {formatCurrency(vendor.total_earnings || 0)}
+                      {formatCurrency(vendor.total_earnings || 0, currency)}
                     </div>
                   </td>
                 </tr>

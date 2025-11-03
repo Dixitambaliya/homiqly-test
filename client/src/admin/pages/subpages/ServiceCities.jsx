@@ -3,6 +3,9 @@ import api from "../../../lib/axiosConfig";
 import { toast } from "react-toastify";
 import Button from "../../../shared/components/Button/Button";
 import { FormInput } from "../../../shared/components/Form";
+import { IconButton } from "../../../shared/components/Button";
+import { Trash, Edit2, Pencil } from "lucide-react";
+import UniversalDeleteModal from "../../../shared/components/Modal/UniversalDeleteModal";
 
 const ServiceCities = () => {
   const [cityInput, setCityInput] = useState("");
@@ -11,15 +14,25 @@ const ServiceCities = () => {
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
 
+  // edit state
+  const [editingCityId, setEditingCityId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  // delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAction, setDeleteAction] = useState(null);
+  const [deletingCity, setDeletingCity] = useState(null);
+
   const fetchCities = async () => {
     try {
       setLoading(true);
       const res = await api.get("/api/service/getcity");
-      // Support either { cities: [] } OR [] directly
       const list = Array.isArray(res.data?.city) ? res.data.city : res.data;
-      console.log(res.data.city);
       setCities(Array.isArray(list) ? list : []);
     } catch (err) {
+      console.error("fetchCities error:", err);
       toast.error(err?.response?.data?.message || "Failed to fetch cities");
     } finally {
       setLoading(false);
@@ -38,9 +51,76 @@ const ServiceCities = () => {
       setCityInput("");
       await fetchCities();
     } catch (err) {
+      console.error("add city error:", err);
       toast.error(err?.response?.data?.message || "Failed to add city");
     } finally {
       setAdding(false);
+    }
+  };
+
+  // open delete modal and bind delete action for a city id
+  const confirmDeleteCity = (city) => {
+    if (!city) return;
+    const id = city.service_city_id ?? city.id;
+    setDeletingCity(city);
+    setShowDeleteModal(true);
+
+    setDeleteAction(() => async () => {
+      if (!id) throw new Error("Invalid city id");
+      try {
+        setDeleting(true);
+        await api.delete(`/api/service/deleteservicecity/${id}`);
+        toast.success("City deleted");
+        await fetchCities();
+      } catch (err) {
+        console.error("delete city error:", err);
+        toast.error(err?.response?.data?.message || "Failed to delete city");
+        throw err; // rethrow so modal handlers can react if needed
+      } finally {
+        setDeleting(false);
+        setShowDeleteModal(false);
+        setDeleteAction(null);
+        setDeletingCity(null);
+      }
+    });
+  };
+
+  // start editing a row inline
+  const startEdit = (city) => {
+    const id = city.service_city_id ?? city.id;
+    const name = city.serviceCity ?? city.city ?? "";
+    setEditingCityId(id);
+    setEditName(name);
+  };
+
+  const cancelEdit = () => {
+    setEditingCityId(null);
+    setEditName("");
+  };
+
+  // submit edit to PUT API
+  const submitEdit = async (city) => {
+    const id = city.service_city_id ?? city.id;
+    const newName = (editName || "").trim();
+    if (!newName) {
+      toast.error("City name cannot be empty");
+      return;
+    }
+
+    try {
+      setEditing(true);
+      await api.put(`/api/service/editservicecity/${id}`, {
+        newCityName: newName,
+      });
+      toast.success("City updated");
+      setEditingCityId(null);
+      setEditName("");
+      await fetchCities();
+    } catch (err) {
+      console.error("edit city error:", err);
+      toast.error(err?.response?.data?.message || "Failed to update city");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -55,6 +135,12 @@ const ServiceCities = () => {
       (c.serviceCity || c.city || "").toLowerCase().includes(q)
     );
   }, [cities, query]);
+
+  const deleteDesc = deletingCity
+    ? `Delete city "${deletingCity.serviceCity ?? deletingCity.city}" (ID: ${
+        deletingCity.service_city_id ?? deletingCity.id
+      })? This action cannot be undone.`
+    : "Are you sure you want to delete this city?";
 
   return (
     <div className="max-w-3xl mx-auto mt-12 p-6 bg-white shadow rounded-lg border border-gray-200">
@@ -118,21 +204,102 @@ const ServiceCities = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   City
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {filtered.map((c, i) => (
-                <tr key={c.city_id || c.id || c.serviceCity + i}>
-                  <td className="px-4 py-3 text-sm text-gray-700">{i + 1}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {c.serviceCity || c.city || "-"}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((c, i) => {
+                const id = c.service_city_id ?? c.id ?? i + 1;
+                const displayName = c.serviceCity ?? c.city ?? "-";
+                const isEditingThis = editingCityId === id;
+
+                return (
+                  <tr key={id}>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {c.service_city_id ?? i + 1}
+                    </td>
+
+                    {/* City cell: either editing input or display */}
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {isEditingThis ? (
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={editing}
+                        />
+                      ) : (
+                        displayName
+                      )}
+                    </td>
+
+                    {/* Actions: Save/Cancel when editing else Edit/Delete */}
+                    <td className="px-4 py-3">
+                      {isEditingThis ? (
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => submitEdit(c)}
+                            disabled={editing}
+                            className="px-3 py-1"
+                          >
+                            {editing ? "Saving..." : "Save"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={cancelEdit}
+                            disabled={editing}
+                            className="px-3 py-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <IconButton
+                            size="sm"
+                            onClick={() => startEdit(c)}
+                            variant="light"
+                            icon={<Pencil className="w-4 h-4" />}
+                          />
+                          <IconButton
+                            size="sm"
+                            onClick={() => confirmDeleteCity(c)}
+                            variant="lightDanger"
+                            icon={<Trash className="w-4 h-4" />}
+                          />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Universal Delete Modal */}
+      <UniversalDeleteModal
+        open={showDeleteModal}
+        onClose={() => {
+          if (!deleting) {
+            setShowDeleteModal(false);
+            setDeleteAction(null);
+            setDeletingCity(null);
+          }
+        }}
+        onDelete={deleteAction}
+        title="Delete City"
+        desc={deleteDesc}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onError={(err) => {
+          toast.error(err?.message || "Delete failed");
+        }}
+      />
     </div>
   );
 };

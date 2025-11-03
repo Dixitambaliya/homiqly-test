@@ -9,6 +9,9 @@ const IconButton = ({
   isLoading = false,
   tooltip,
   className = "",
+  // NEW:
+  iconSize = "w-4 h-4", // default Tailwind classes
+  iconClassName = "",
   ...rest
 }) => {
   // Variant classes
@@ -52,13 +55,50 @@ const IconButton = ({
       "bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-300",
   };
 
-  // Size classes
+  // Size classes for the button itself
   const sizeClasses = {
     xs: "p-1 text-xs",
     sm: "p-1.5 text-sm",
-    md: "p-2 text-base",
+    md: "p-2 text-base ",
     lg: "p-2.5 text-lg",
     xl: "p-3 text-xl",
+  };
+
+  // Helper: render icon with sizing
+  const renderIcon = () => {
+    // If loading, spinner handled above; here we just render icon
+    if (!icon) return null;
+
+    // If it's a valid React element, clone and inject size/className if possible
+    if (React.isValidElement(icon)) {
+      const propsToInject = {};
+
+      // If iconSize is a number, some icon libs accept `size` prop (lucide, phosphor)
+      if (typeof iconSize === "number") {
+        propsToInject.size = iconSize;
+      } else if (typeof iconSize === "string") {
+        // Treat as Tailwind classes — merge into className
+        const existing = icon.props.className ? icon.props.className : "";
+        propsToInject.className =
+          `${existing} ${iconSize} ${iconClassName}`.trim();
+      }
+
+      // Also merge any explicit iconClassName
+      if (iconClassName && !propsToInject.className) {
+        propsToInject.className = `${
+          icon.props.className || ""
+        } ${iconClassName}`.trim();
+      }
+
+      return React.cloneElement(icon, propsToInject);
+    }
+
+    // If icon is a simple node (string / svg markup), wrap in span and apply classes
+    const wrapperClass =
+      typeof iconSize === "string"
+        ? iconSize + " " + iconClassName
+        : iconClassName;
+    return <span className={wrapperClass}>{icon}</span>;
   };
 
   return (
@@ -67,19 +107,14 @@ const IconButton = ({
       onClick={onClick}
       disabled={disabled || isLoading}
       title={tooltip}
-      className={`
-        inline-flex items-center justify-center rounded-full p-2
+      className={`inline-flex items-center justify-center rounded-full
         transition-colors duration-300 ease-in-out
         focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-primary
-        ${variantClasses[variant]}
-        ${sizeClasses[size]}
-        ${
-          disabled || isLoading
-            ? "opacity-50 cursor-not-allowed"
-            : "cursor-pointer"
-        }
-        ${className}
-      `}
+        ${variantClasses[variant]} ${sizeClasses[size]} ${
+        disabled || isLoading
+          ? "opacity-50 cursor-not-allowed"
+          : "cursor-pointer"
+      } ${className}`}
       {...rest}
     >
       {isLoading ? (
@@ -96,15 +131,15 @@ const IconButton = ({
             r="10"
             stroke="currentColor"
             strokeWidth="4"
-          ></circle>
+          />
           <path
             className="opacity-75"
             fill="currentColor"
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
+          />
         </svg>
       ) : (
-        icon
+        renderIcon()
       )}
     </button>
   );

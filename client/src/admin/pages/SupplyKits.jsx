@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { FiPlus, FiEdit, FiTrash2, FiPackage, FiX } from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatCurrency } from "../../shared/utils/formatUtils";
 import { Button } from "../../shared/components/Button";
+import { Edit, Package, Plus, Trash, X } from "lucide-react";
 
 const SupplyKits = () => {
   const [supplyKits, setSupplyKits] = useState([]);
@@ -243,7 +243,7 @@ const SupplyKits = () => {
             setShowAddModal(true);
           }}
         >
-          <FiPlus className="mr-2" />
+          <Plus className="mr-2" />
           Add Supply Kit
         </Button>
       </div>
@@ -270,7 +270,7 @@ const SupplyKits = () => {
                       onClick={() => editKit(kit)}
                       className="text-blue-600 hover:text-blue-900 mr-2"
                     >
-                      <FiEdit className="h-5 w-5" />
+                      <Edit className="h-5 w-5" />
                     </button>
                   </div>
                 </div>
@@ -289,7 +289,7 @@ const SupplyKits = () => {
                 {kit.items && kit.items.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                      <FiPackage className="mr-1" /> Kit Contents
+                      <Package className="mr-1" /> Kit Contents
                     </h4>
                     <ul className="text-sm text-gray-600 space-y-1">
                       {kit.items.map((item) => (
@@ -331,7 +331,7 @@ const SupplyKits = () => {
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <FiX className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
@@ -457,7 +457,7 @@ const SupplyKits = () => {
                     onClick={addItem}
                     className="text-sm text-primary-600 hover:text-primary-800 flex items-center"
                   >
-                    <FiPlus className="mr-1" />
+                    <Plus className="mr-1" />
                     Add Item
                   </button>
                 </div>
@@ -478,7 +478,7 @@ const SupplyKits = () => {
                             onClick={() => removeItem(index)}
                             className="text-red-500 hover:text-red-700"
                           >
-                            <FiTrash2 className="h-4 w-4" />
+                            <Trash className="h-4 w-4" />
                           </button>
                         )}
                       </div>

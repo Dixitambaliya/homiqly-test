@@ -1,18 +1,10 @@
 import { useEffect, useState } from "react";
 import api from "../../lib/axiosConfig";
-import {
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiCalendar,
-  FiEdit,
-  FiSave,
-  FiX,
-} from "react-icons/fi";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { Button } from "../../shared/components/Button";
 import { FormInput, FormFileInput } from "../../shared/components/Form";
 import { toast } from "react-toastify";
+import { Edit2, Mail, Phone, Save, User, X } from "lucide-react";
 
 const Profile = () => {
   const [profile, setProfile] = useState(null);
@@ -173,7 +165,7 @@ const Profile = () => {
             onClick={() => setEditing((prev) => !prev)}
             variant={editing ? "outline" : "primary"}
             icon={
-              editing ? <FiX className="mr-2" /> : <FiEdit className="mr-2" />
+              editing ? <X className="mr-2" /> : <Edit2 className="mr-2" />
             }
           >
             {editing ? "Cancel" : "Edit Profile"}
@@ -188,7 +180,7 @@ const Profile = () => {
             onChange={handleInputChange}
             disabled={!editing}
             placeholder="Enter first name"
-            icon={<FiUser className="h-5 w-5 text-gray-400" />}
+            icon={<User className="h-5 w-5 text-gray-400" />}
           />
           <FormInput
             label="Last Name"
@@ -197,7 +189,7 @@ const Profile = () => {
             onChange={handleInputChange}
             disabled={!editing}
             placeholder="Enter last name"
-            icon={<FiUser className="h-5 w-5 text-gray-400" />}
+            icon={<User className="h-5 w-5 text-gray-400" />}
           />
           <FormInput
             label="Email"
@@ -206,7 +198,7 @@ const Profile = () => {
             onChange={handleInputChange}
             disabled={!editing}
             placeholder="Enter email"
-            icon={<FiMail className="h-5 w-5 text-gray-400" />}
+            icon={<Mail className="h-5 w-5 text-gray-400" />}
           />
           <FormInput
             label="Phone"
@@ -215,7 +207,7 @@ const Profile = () => {
             onChange={handleInputChange}
             disabled={!editing}
             placeholder="Enter phone number"
-            icon={<FiPhone className="h-5 w-5 text-gray-400" />}
+            icon={<Phone className="h-5 w-5 text-gray-400" />}
           />
         </div>
 
@@ -226,7 +218,7 @@ const Profile = () => {
               variant="primary"
               disabled={updating}
               isLoading={updating}
-              icon={<FiSave className="mr-2" />}
+              icon={<Save className="mr-2" />}
             >
               Save Changes
             </Button>

@@ -123,6 +123,7 @@ export const AdminAuthProvider = ({ children }) => {
 
   const value = {
     currentUser,
+    setCurrentUser,
     isAuthenticated,
     loading,
     error,

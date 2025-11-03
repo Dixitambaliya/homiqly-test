@@ -7,7 +7,7 @@ import {
   FormTextarea,
   FormFileInput,
 } from "../../../shared/components/Form";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiPlus, FiTrash } from "react-icons/fi";
 import axios from "axios";
 
 const AddServiceTypeModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
@@ -176,7 +176,7 @@ const AddServiceTypeModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
                         onClick={() => removePackage(index)}
                         className="text-red-500 hover:text-red-700"
                       >
-                        <FiTrash2 className="h-4 w-4" />
+                        <FiTrash className="h-4 w-4" />
                       </button>
                     )}
                   </div>
@@ -230,13 +230,14 @@ const AddServiceTypeModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
                     />
 
                     <FormInput
-                      label="Time Required"
+                      type="number"
+                      label="Time Required (in minutes only)"
                       name={`total_time_${index}`}
                       value={pkg.total_time}
                       onChange={(e) =>
                         handlePackageChange(index, "total_time", e.target.value)
                       }
-                      placeholder="e.g., 2 hours"
+                      // placeholder="e.g., 2 hours"
                       required
                     />
                   </div>

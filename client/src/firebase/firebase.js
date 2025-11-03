@@ -31,7 +31,7 @@ export const requestFCMToken = async () => {
       return null;
     }
   } catch (err) {
-    console.error("❌ An error occurred while retrieving token.", err);
+    // console.error("❌ An error occurred while retrieving token.", err);
     return null;
   }
 };
