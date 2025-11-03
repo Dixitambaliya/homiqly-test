@@ -239,7 +239,7 @@ const bookService = asyncHandler(async (req, res) => {
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { page = 1, limit = 10, status, search, start_date, end_date } = req.query;
-    
+
     try {
         // 1️⃣ Get vendor type
         const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
@@ -438,7 +438,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             error: error.message
         });
     }
-}); 
+});
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -563,7 +564,21 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 }
             }
 
-            // 5️⃣ Group sub-packages by service_type_id
+            // 5️⃣ Fetch Ratings for this booking
+            const [ratings] = await db.query(`
+                SELECT 
+                    rating_id,
+                    booking_id,
+                    rating,
+                    review,
+                    created_at
+                FROM ratings
+                WHERE booking_id = ?`,
+                [bookingId]
+            );
+            booking.ratings = ratings.length ? ratings : []; // if no rating, empty array
+
+            // 6️⃣ Group sub-packages by service_type_id
             const groupedByServiceType = subPackages.reduce((acc, sp) => {
                 const serviceTypeId = sp.service_type_id;
 
@@ -608,7 +623,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
             booking.subPackages = Object.values(groupedByServiceType);
             if (promo) booking.promo = promo;
 
-            // 6️⃣ Clean null values
+            // 7️⃣ Clean null values
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
@@ -627,6 +642,8 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const approveOrRejectBooking = asyncHandler(async (req, res) => {
     const { booking_id, status } = req.body;

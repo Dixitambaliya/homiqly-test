@@ -6,8 +6,8 @@ const { emailFooter } = require("../templates/emailFooter");
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.NO_REPLAY_USER,
-        pass: process.env.NO_REPLAY,
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
     }
 });
 

@@ -129,11 +129,10 @@ const addRatingToServiceType = asyncHandler(async (req, res) => {
 
 const addRatingToBooking = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { booking_id, package_id, rating, review } = req.body;
+    const { booking_id, rating, review } = req.body;
 
-
-    if (!booking_id || !package_id || !rating) {
-        return res.status(400).json({ message: "Booking ID, Package ID, and rating are required" });
+    if (!booking_id || !rating) {
+        return res.status(400).json({ message: "Booking ID and rating are required" });
     }
 
     if (rating < 1 || rating > 5) {
@@ -141,44 +140,66 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✅ Check if the booking belongs to the user and includes this package
-        const [booked] = await db.query(`
-            SELECT 1 
-            FROM service_booking 
-            WHERE user_id = ? 
-              AND booking_id = ? 
-              AND package_id = ?
-        `, [user_id, booking_id, package_id]);
+        // 1️⃣ Verify the booking belongs to this user
+        const [booked] = await db.query(
+            `SELECT 1 FROM service_booking WHERE user_id = ? AND booking_id = ?`,
+            [user_id, booking_id]
+        );
 
         if (booked.length === 0) {
-            return res.status(403).json({ message: "You can only rate packages from your own bookings." });
+            return res.status(403).json({ message: "You can only rate your own bookings." });
         }
 
-        // ✅ Prevent duplicate rating for the same booking + package
-        const [existing] = await db.query(`
-            SELECT rating_id 
-            FROM ratings
-            WHERE user_id = ? 
-              AND booking_id = ? 
-              AND package_id = ?
-        `, [user_id, booking_id, package_id]);
+        // 2️⃣ Check if the user already rated this booking
+        const [existingRatings] = await db.query(
+            `SELECT rating_id FROM ratings WHERE user_id = ? AND booking_id = ?`,
+            [user_id, booking_id]
+        );
 
-        if (existing.length > 0) {
-            return res.status(400).json({ message: "You have already rated this package for this booking." });
+        if (existingRatings.length > 0) {
+            return res.status(400).json({ message: "You have already rated this booking." });
         }
 
-        // ✅ Insert the rating (linking booking_id too)
-        await db.query(`
-            INSERT INTO ratings (user_id, booking_id, package_id, rating, review, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        `, [user_id, booking_id, package_id, rating, review]);
+        // 3️⃣ Fetch all distinct package_ids linked to this booking
+        const [packages] = await db.query(`
+            SELECT DISTINCT p.package_id
+            FROM service_booking_sub_packages sbsp
+            JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+            JOIN packages p ON pi.package_id = p.package_id
+            WHERE sbsp.booking_id = ?
+        `, [booking_id]);
 
-        res.status(201).json({ message: "Rating for package submitted successfully" });
+        if (packages.length === 0) {
+            return res.status(404).json({ message: "No packages found for this booking." });
+        }
+
+        // 4️⃣ Prepare bulk insert values
+        const values = packages.map(pkg => [
+            user_id,
+            booking_id,
+            pkg.package_id,
+            rating,
+            review || null,
+            new Date()
+        ]);
+
+        // 5️⃣ Insert rating for all packages in one go
+        await db.query(
+            `INSERT INTO ratings (user_id, booking_id, package_id, rating, review, created_at)
+             VALUES ?`,
+            [values]
+        );
+
+        res.status(201).json({
+            message: "Rating submitted successfully for all packages in this booking",
+            packagesRated: packages.map(p => p.package_id)
+        });
     } catch (error) {
         console.error("Error submitting package rating:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
