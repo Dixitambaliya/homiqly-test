@@ -338,7 +338,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         contactPerson,
         birthDate,
         address,
-        certificateNames // assume this is an array
+        certificateNames // assume array
     } = req.body;
 
     let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
@@ -347,37 +347,34 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
     let businessLicense = req.uploadedFiles?.businessLicense?.[0]?.url || null;
 
     try {
-        let existing;
+        let [existing] =
+            vendor_type === "individual"
+                ? await db.query(
+                    `SELECT profileImage, name, address, dob, email, phone, otherInfo 
+             FROM individual_details WHERE vendor_id = ?`,
+                    [vendor_id]
+                )
+                : vendor_type === "company"
+                    ? await db.query(
+                        `SELECT profileImage, companyName, dob, companyEmail, companyPhone, googleBusinessProfileLink, 
+                    companyAddress, contactPerson 
+             FROM company_details WHERE vendor_id = ?`,
+                        [vendor_id]
+                    )
+                    : [];
 
-        // 1. Fetch existing details
-        if (vendor_type === "individual") {
-            [existing] = await db.query(
-                `SELECT profileImage, name, address, dob, email, phone, otherInfo FROM individual_details WHERE vendor_id = ?`,
-                [vendor_id]
-            );
-        } else if (vendor_type === "company") {
-            [existing] = await db.query(
-                `SELECT profileImage, companyName, dob, companyEmail, companyPhone, googleBusinessProfileLink, companyAddress, contactPerson FROM company_details WHERE vendor_id = ?`,
-                [vendor_id]
-            );
-        } else {
-            return res.status(400).json({ message: "Invalid vendor type" });
-        }
-
-        if (!existing || existing.length === 0) {
+        if (!existing || existing.length === 0)
             return res.status(404).json({ message: "Vendor not found" });
-        }
 
         const current = existing[0];
-
-        // 2. Fallback to old data if any field is not provided
         profileImageVendor = profileImageVendor || current.profileImage;
 
         if (vendor_type === "individual") {
             await db.query(
                 `UPDATE individual_details
-                 SET profileImage = ?, policeClearance = ? , certificateOfExpertise = ? , businessLicense = ? , businessLicenseExpireDate = ? , name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
-                 WHERE vendor_id = ?`,
+                SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?, 
+                businessLicenseExpireDate = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ?
+                WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
                     policeClearance,
@@ -396,8 +393,10 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, policeclearance= ? , certificateOfExpertise = ? , BusinessLicense = ? , businessLicenseExpireDate = ? , companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
-                 WHERE vendor_id = ?`,
+                SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?, 
+                businessLicenseExpireDate = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, 
+                googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?
+                WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
                     policeClearance,
@@ -416,19 +415,17 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
             );
         }
 
-        // 3. Insert certificates if provided
-        if (certificateNames && Array.isArray(certificateNames)) {
-            for (let i = 0; i < certificateNames.length; i++) {
-                const certName = certificateNames[i];
+        if (certificateNames?.length) {
+            const insertPromises = certificateNames.map((certName, i) => {
                 const certFile = req.uploadedFiles?.[`certificateFiles_${i}`]?.[0]?.url;
-
                 if (certName && certFile) {
-                    await db.query(
+                    return db.query(
                         `INSERT INTO certificates (vendor_id, certificateName, certificateFile) VALUES (?, ?, ?)`,
                         [vendor_id, certName, certFile]
                     );
                 }
-            }
+            });
+            await Promise.all(insertPromises);
         }
 
         res.status(200).json({ message: "Vendor profile and certificates updated successfully" });
