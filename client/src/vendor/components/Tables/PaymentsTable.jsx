@@ -1,5 +1,5 @@
 // pages/vendor/components/PaymentsTable.jsx
-import React from "react";
+import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import DataTable from "../../../shared/components/Table/DataTable";
 import { formatDate } from "../../../shared/utils/dateUtils";
@@ -19,16 +19,49 @@ const PaymentsTable = ({
     });
   };
 
+  // Normalize bookings so the table column renderers can rely on consistent keys
+  const normalizedBookings = useMemo(() => {
+    return (bookings || []).map((b) => {
+      const firstPackage =
+        Array.isArray(b.packages) && b.packages.length > 0
+          ? b.packages[0]
+          : null;
+
+      return {
+        // keep original object around for reference
+        ...b,
+        // normalized fields used by columns
+        package_id: firstPackage?.package_id ?? b.package_id ?? null,
+        packageName:
+          firstPackage?.packageName ??
+          b.packageName ??
+          firstPackage?.sub_packages?.[0]?.sub_package_name ??
+          "-",
+        packageMedia:
+          firstPackage?.packageMedia ??
+          firstPackage?.sub_packages?.[0]?.sub_package_media ??
+          b.packageMedia ??
+          null,
+        // Payment amount fallback order preserved
+        payout_amount: b.payout_amount ?? b.totalPrice ?? b.gross_amount ?? 0,
+        // currency normalized to upper-case code (or empty string)
+        currency: (b.currency || "").toString().trim().toUpperCase(),
+        // unify status field
+        payout_status: (b.payout_status ?? b.bookingStatus ?? "")
+          .toString()
+          .toLowerCase(),
+        // ensure bookingDate is passed through (formatDate handles ISO)
+        bookingDate: b.bookingDate ?? b.created_at ?? null,
+        bookingTime: b.bookingTime ?? b.time ?? null,
+      };
+    });
+  }, [bookings]);
+
   const columns = [
     {
       title: "Booking ID",
       key: "booking_id",
       render: (row) => `#${row.booking_id}`,
-    },
-    {
-      title: "Service ID",
-      key: "package_id",
-      render: (row) => row.package_id ?? "-",
     },
     {
       title: "Service",
@@ -48,7 +81,9 @@ const PaymentsTable = ({
           )}
           <div className="text-sm">
             <div className="font-medium">{row.packageName ?? "—"}</div>
-            <div className="text-xs text-gray-500">{row.package_id ? `ID: ${row.package_id}` : ""}</div>
+            <div className="text-xs text-gray-500">
+              {row.package_id ? `ID: ${row.package_id}` : ""}
+            </div>
           </div>
         </div>
       ),
@@ -58,8 +93,12 @@ const PaymentsTable = ({
       key: "user",
       render: (row) => (
         <div>
-          <div className="font-medium">{row.user_name ?? row.user_email ?? "—"}</div>
-          {row.user_email && <div className="text-sm text-gray-500">{row.user_email}</div>}
+          <div className="font-medium">
+            {row.user_name ?? row.user_email ?? "—"}
+          </div>
+          {row.user_email && (
+            <div className="text-sm text-gray-500">{row.user_email}</div>
+          )}
         </div>
       ),
     },
@@ -77,12 +116,14 @@ const PaymentsTable = ({
       title: "Payment",
       key: "payout_amount",
       render: (row) => {
-        const amount =
-          row.payout_amount ?? row.totalPrice ?? row.gross_amount ?? 0;
-        const currency = (row.currency || "").toUpperCase() || "CAD";
-        // Show value with 2 decimals
-        const formatted = Number(amount || 0);
-        return `${currency === "" ? "" : currency === "CAD" ? "C$" : currency + " "}${formatted.toFixed(2)}`;
+        const amount = Number(row.payout_amount || 0);
+        const currency = (row.currency || "").toUpperCase(); // already normalized above
+        const formatted = amount.toFixed(2);
+
+        const prefix =
+          currency === "" ? "" : currency === "CAD" ? "C$" : currency + " ";
+
+        return `${prefix}${formatted}`;
       },
     },
     {
@@ -96,13 +137,20 @@ const PaymentsTable = ({
         if (status === "hold") {
           label = "Hold";
           color = "bg-yellow-100 text-yellow-800";
+        } else if (status === "pending") {
+          label = "Pending";
+          color = "bg-yellow-100 text-yellow-800";
         } else if (status === "paid") {
           label = "Paid";
           color = "bg-blue-100 text-blue-800";
         } else if (status === "completed") {
           label = "Completed";
           color = "bg-green-100 text-green-800";
-        } else if (status === "rejected" || status === "cancelled") {
+        } else if (
+          status === "rejected" ||
+          status === "cancelled" ||
+          status === "canceled"
+        ) {
           label = status.charAt(0).toUpperCase() + status.slice(1);
           color = "bg-red-100 text-red-800";
         }
@@ -131,12 +179,12 @@ const PaymentsTable = ({
 
   const filteredBookings =
     filteredStatus && filteredStatus !== "all"
-      ? bookings.filter(
+      ? normalizedBookings.filter(
           (b) =>
-            String((b.payout_status ?? b.bookingStatus ?? "").toLowerCase()) ===
+            String(b.payout_status).toLowerCase() ===
             String(filteredStatus).toLowerCase()
         )
-      : bookings;
+      : normalizedBookings;
 
   return (
     <DataTable

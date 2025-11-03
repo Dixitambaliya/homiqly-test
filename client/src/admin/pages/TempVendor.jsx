@@ -15,8 +15,7 @@ import {
   Eye,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import Modal from "../../shared/components/Modal/Modal";
-import { IconButton } from "../../shared/components/Button";
+import Modal from "../../shared/components/Modal/Modal"; // <- adjust path if needed
 
 const TempVendor = () => {
   const [vendors, setVendors] = useState([]);
@@ -97,7 +96,7 @@ const TempVendor = () => {
       <Modal
         isOpen={!!selectedVendor}
         onClose={() => setSelectedVendor(null)}
-        size="xxl"
+        size="xl"
         // we want to render the same rich custom header inside children, so disable Modal title/close UI
         showCloseButton={false}
       >
@@ -140,13 +139,14 @@ const TempVendor = () => {
 
               {/* close */}
               <div className="flex items-center gap-2">
-                <IconButton
+                <button
                   onClick={() => setSelectedVendor(null)}
+                  className="rounded-md p-2 hover:bg-slate-100"
                   aria-label="Close"
-                  variant="ghost"
-                  icon={<X />}
                   title="Close"
-                ></IconButton>
+                >
+                  <X size={20} className="text-slate-600" />
+                </button>
               </div>
             </div>
 

@@ -1,359 +1,666 @@
-import { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { toast } from "react-toastify";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Plus,
+  CheckCircle,
+  XCircle,
+  Clock,
+  User,
+  Pencil,
+  Trash,
+  AlertCircle,
+} from "lucide-react";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import StatusBadge from "../../shared/components/StatusBadge";
 import { formatDate, formatTime } from "../../shared/utils/dateUtils";
-import { toast } from "react-toastify";
-import { ArrowLeft, ArrowRight, CheckCircle, Clock, User, XCircle } from "lucide-react";
+import { Button } from "../../shared/components/Button";
+import Modal from "../../shared/components/Modal/Modal";
+
+/* ---------- Constants ---------- */
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const HOURS = Array.from(
+  { length: 24 },
+  (_, i) => `${String(i).padStart(2, "0")}:00`
+);
+
+/* ---------- Small Utils ---------- */
+const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+const endOfMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+const startOfWeek = (d) => {
+  const s = new Date(d);
+  s.setDate(d.getDate() - d.getDay());
+  s.setHours(0, 0, 0, 0);
+  return s;
+};
+const endOfWeek = (d) => {
+  const e = startOfWeek(d);
+  e.setDate(e.getDate() + 6);
+  e.setHours(23, 59, 59, 999);
+  return e;
+};
+const isSameDay = (a, b) => a.toDateString() === b.toDateString();
+const toDateKey = (d) => new Date(d).toDateString();
+
+const inRange = (date, s, e) => {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const S = new Date(s),
+    E = new Date(e);
+  const sd = new Date(S.getFullYear(), S.getMonth(), S.getDate());
+  const ed = new Date(E.getFullYear(), E.getMonth(), E.getDate());
+  return d >= sd && d <= ed;
+};
+
+/* ---------- NEW: Date helpers to block past dates ---------- */
+const toInputDate = (d) => {
+  const dt = new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`; // <input type="date"> friendly
+};
+const todayISO = () => {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return toInputDate(t);
+};
+const clampToTodayISO = (iso) => {
+  // Return iso if it's today or later; otherwise today
+  return iso && iso >= todayISO() ? iso : todayISO();
+};
+const isPastISO = (iso) => iso < todayISO();
+
+/* ---------- Status UI (Tailwind classes, no inline colors) ---------- */
+const statusUI = (s) => {
+  switch (s) {
+    case 0:
+      return {
+        name: "Pending",
+        wrap: "bg-yellow-50 border-yellow-200 text-yellow-800",
+        dot: "bg-yellow-400",
+      };
+    case 1:
+      return {
+        name: "Accepted",
+        wrap: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        dot: "bg-emerald-500",
+      };
+    case 2:
+      return {
+        name: "Rejected",
+        wrap: "bg-red-50 border-red-200 text-red-800",
+        dot: "bg-red-500",
+      };
+    default:
+      return {
+        name: "Done",
+        wrap: "bg-blue-50 border-blue-200 text-blue-800",
+        dot: "bg-blue-500",
+      };
+  }
+};
 
 const Calendar = () => {
+  /* ---------- State ---------- */
   const [bookings, setBookings] = useState([]);
+  const [availabilities, setAvailabilities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingAvail, setLoadingAvail] = useState(false);
   const [error, setError] = useState(null);
+
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState("month"); // month, week, day
+  const [viewMode, setViewMode] = useState("month");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedBookings, setSelectedBookings] = useState([]);
 
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedAvailToEdit, setSelectedAvailToEdit] = useState(null);
+
+  // delete modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteMode, setDeleteMode] = useState("all");
+  const [deleteStartDate, setDeleteStartDate] = useState("");
+  const [deleteEndDate, setDeleteEndDate] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteBookedDates, setDeleteBookedDates] = useState([]);
+
+  // create/edit form
+  const emptyForm = {
+    startDate: "",
+    endDate: "",
+    startTime: "09:00",
+    endTime: "18:00",
+  };
+  const [availabilityForm, setAvailabilityForm] = useState(emptyForm);
+
+  /* ---------- Effects ---------- */
   useEffect(() => {
     fetchBookings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchAvailabilities();
   }, []);
 
+  /* ---------- API ---------- */
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/booking/vendorassignedservices");
-      setBookings(response.data.bookings || []);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching bookings:", error);
+      const { data } = await axios.get("/api/booking/vendorassignedservices");
+      setBookings(data.bookings || []);
+    } catch {
       setError("Failed to load bookings");
+    } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAvailabilities = async () => {
+    try {
+      setLoadingAvail(true);
+      const { data } = await axios.get("/api/vendor/get-availability");
+      setAvailabilities(data.availabilities || []);
+    } catch {
+      toast.error("Failed to load availabilities");
+    } finally {
+      setLoadingAvail(false);
+    }
+  };
+
+  const createAvailability = async (payload) => {
+    try {
+      const { data } = await axios.post(
+        "/api/vendor/set-availability",
+        payload
+      );
+      toast.success(data.message || "Availability set successfully");
+      setShowCreateModal(false);
+      setAvailabilityForm(emptyForm);
+      await fetchAvailabilities();
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message || "Failed to create availability"
+      );
+    }
+  };
+
+  const updateAvailability = async (id, payload) => {
+    try {
+      const { data } = await axios.put(
+        `/api/vendor/edit-availability/${id}`,
+        payload
+      );
+      toast.success(data.message || "Availability updated successfully");
+      setShowEditModal(false);
+      setSelectedAvailToEdit(null);
+      setAvailabilityForm(emptyForm);
+      await fetchAvailabilities();
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message || "Failed to update availability"
+      );
+    }
+  };
+
+  const openDeleteModal = (av) => {
+    setDeleteTarget(av);
+    setDeleteMode("all");
+    setDeleteBookedDates([]);
+
+    // Clamp delete window to today-or-later but still inside availability
+    const minInside = av?.startDate
+      ? clampToTodayISO(av.startDate)
+      : todayISO();
+    const maxInside = av?.endDate || minInside;
+
+    setDeleteStartDate(minInside);
+    setDeleteEndDate(minInside > maxInside ? minInside : maxInside);
+    setShowDeleteModal(true);
+  };
+
+  const submitDeleteAvailability = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.vendor_availability_id || deleteTarget.id;
+    const url = `/api/vendor/delete-availability/${id}`;
+
+    if (deleteMode === "date") {
+      if (!deleteStartDate || !deleteEndDate)
+        return toast.error("Please select a start and end date");
+
+      if (isPastISO(deleteStartDate) || isPastISO(deleteEndDate))
+        return toast.error("Dates cannot be in the past");
+
+      if (deleteEndDate < deleteStartDate)
+        return toast.error("End date must be after or same as start date");
+    }
+
+    const payload =
+      deleteMode === "all"
+        ? {}
+        : { startDate: deleteStartDate, endDate: deleteEndDate };
+
+    try {
+      setDeleteBusy(true);
+      setDeleteBookedDates([]);
+      const res = await axios.delete(url, { data: payload });
+      toast.success(res?.data?.message || "Availability deleted successfully");
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+      await fetchAvailabilities();
+    } catch (err) {
+      setDeleteBookedDates(err?.response?.data?.bookedDates || []);
+      toast.error(
+        err?.response?.data?.message ||
+          "Failed to delete availability. Please try again."
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  /* ---------- Derived ---------- */
+  const monthMatrix = useMemo(() => {
+    const ms = startOfMonth(currentDate),
+      me = endOfMonth(currentDate);
+    const start = new Date(ms);
+    start.setDate(start.getDate() - start.getDay());
+    const end = new Date(me);
+    end.setDate(end.getDate() + (6 - end.getDay()));
+    const weeks = [],
+      it = new Date(start);
+    while (it <= end) {
+      const w = [];
+      for (let i = 0; i < 7; i++) {
+        w.push(new Date(it));
+        it.setDate(it.getDate() + 1);
+      }
+      weeks.push(w);
+    }
+    return weeks;
+  }, [currentDate]);
+
+  const weekDays = useMemo(() => {
+    const s = startOfWeek(currentDate);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(s);
+      d.setDate(s.getDate() + i);
+      return d;
+    });
+  }, [currentDate]);
+
+  const bookingsByDay = useMemo(() => {
+    const map = {};
+    bookings.forEach((b) => {
+      const d = new Date(
+        b.bookingDate || b.date || b.dateBooked || b.booking_date
+      );
+      const k = toDateKey(d);
+      (map[k] ||= []).push(b);
+    });
+    Object.keys(map).forEach((k) =>
+      map[k].sort((a, b) =>
+        (a.bookingTime || "").localeCompare(b.bookingTime || "")
+      )
+    );
+    return map;
+  }, [bookings]);
+
+  const availabilitiesForDate = (date) =>
+    availabilities.filter((av) => inRange(date, av.startDate, av.endDate));
+  const hasAvailability = (date) =>
+    availabilities.some((av) => inRange(date, av.startDate, av.endDate));
+  const selectedDateAvailabilities = useMemo(
+    () => (selectedDate ? availabilitiesForDate(selectedDate) : []),
+    [selectedDate, availabilities]
+  );
+
+  /* ---------- Interactions ---------- */
+  const handleDateClick = (date) => {
+    setSelectedDate(date);
+    setSelectedBookings(bookingsByDay[toDateKey(date)] || []);
   };
 
   const handlePreviousPeriod = () => {
-    const newDate = new Date(currentDate);
-    if (viewMode === "month") {
-      newDate.setMonth(newDate.getMonth() - 1);
-    } else if (viewMode === "week") {
-      newDate.setDate(newDate.getDate() - 7);
-    } else {
-      newDate.setDate(newDate.getDate() - 1);
-    }
-    setCurrentDate(newDate);
+    const d = new Date(currentDate);
+    if (viewMode === "month") d.setMonth(d.getMonth() - 1);
+    else if (viewMode === "week") d.setDate(d.getDate() - 7);
+    else d.setDate(d.getDate() - 1);
+    setCurrentDate(d);
   };
 
   const handleNextPeriod = () => {
-    const newDate = new Date(currentDate);
-    if (viewMode === "month") {
-      newDate.setMonth(newDate.getMonth() + 1);
-    } else if (viewMode === "week") {
-      newDate.setDate(newDate.getDate() + 7);
-    } else {
-      newDate.setDate(newDate.getDate() + 1);
-    }
-    setCurrentDate(newDate);
+    const d = new Date(currentDate);
+    if (viewMode === "month") d.setMonth(d.getMonth() + 1);
+    else if (viewMode === "week") d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 1);
+    setCurrentDate(d);
   };
 
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
+  const handleToday = () => setCurrentDate(new Date());
 
-  const handleDateClick = (date) => {
-    setSelectedDate(date);
-    const dayBookings = bookings.filter((booking) => {
-      const bookingDate = new Date(booking.bookingDate);
-      return (
-        bookingDate.getDate() === date.getDate() &&
-        bookingDate.getMonth() === date.getMonth() &&
-        bookingDate.getFullYear() === date.getFullYear()
-      );
-    });
-    setSelectedBookings(dayBookings);
-  };
-
-  const handleUpdateStatus = async (bookingId, status) => {
-    try {
-      const response = await axios.put("/api/booking/approveorrejectbooking", {
-        booking_id: bookingId,
-        status,
-      });
-
-      if (response.status === 200) {
-        // Update local state
-        setBookings(
-          bookings.map((booking) =>
-            booking.booking_id === bookingId || booking.bookingId === bookingId
-              ? { ...booking, bookingStatus: status }
-              : booking
-          )
-        );
-
-        // Update selected bookings if any
-        if (selectedBookings.length > 0) {
-          setSelectedBookings(
-            selectedBookings.map((booking) =>
-              booking.booking_id === bookingId ||
-              booking.bookingId === bookingId
-                ? { ...booking, bookingStatus: status }
-                : booking
-            )
-          );
-        }
-
-        // Show success message
-        toast.success(
-          `Booking ${status === 1 ? "approved" : "rejected"} successfully`
-        );
-      }
-    } catch (error) {
-      console.error("Error updating booking status:", error);
-      toast.error("Failed to update booking status");
-    }
-  };
-
-  /* ---------------------- Header ---------------------- */
-  const renderCalendarHeader = () => {
-    let title = "";
-    if (viewMode === "month") {
-      title = currentDate.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
-    } else if (viewMode === "week") {
-      const startOfWeek = new Date(currentDate);
-      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      title = `${startOfWeek.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })} - ${endOfWeek.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })}`;
-    } else {
-      title = currentDate.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
-    }
+  /* ---------- Header ---------- */
+  const renderHeader = () => {
+    const fmt = (o) => currentDate.toLocaleDateString("en-US", o);
+    const title =
+      viewMode === "month"
+        ? fmt({ month: "long", year: "numeric" })
+        : viewMode === "week"
+        ? `${startOfWeek(currentDate).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })} - ${endOfWeek(currentDate).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}`
+        : fmt({
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          });
 
     return (
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
-        <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-2 bg-white border rounded-lg px-3 py-2 shadow-sm">
-            <button
-              onClick={handlePreviousPeriod}
-              className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
-              aria-label="Previous period"
-            >
-              <ArrowLeft className="text-gray-600" />
-            </button>
-
-            <div className="text-left">
-              <div className="text-sm text-gray-500">Viewing</div>
-              <div className="text-lg font-semibold text-gray-800">{title}</div>
-            </div>
-
-            <button
-              onClick={handleNextPeriod}
-              className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
-              aria-label="Next period"
-            >
-              <ArrowRight className="text-gray-600" />
-            </button>
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-            <Calendar />
-            <span>{viewMode.toUpperCase()}</span>
-          </div>
-        </div>
-
+      <div className="flex flex-col items-center justify-between sm:flex-row pb-7">
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 rounded-md overflow-hidden">
-            <button
-              onClick={() => setViewMode("month")}
-              className={`px-3 py-1 text-sm ${
-                viewMode === "month"
-                  ? "bg-primary-light text-white"
-                  : "text-gray-600 hover:bg-gray-200"
-              }`}
-              aria-pressed={viewMode === "month"}
-            >
-              Month
-            </button>
-            <button
-              onClick={() => setViewMode("week")}
-              className={`px-3 py-1 text-sm ${
-                viewMode === "week"
-                  ? "bg-primary-light text-white"
-                  : "text-gray-600 hover:bg-gray-200"
-              }`}
-              aria-pressed={viewMode === "week"}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => setViewMode("day")}
-              className={`px-3 py-1 text-sm ${
-                viewMode === "day"
-                  ? "bg-primary-light text-white"
-                  : "text-gray-600 hover:bg-gray-200"
-              }`}
-              aria-pressed={viewMode === "day"}
-            >
-              Day
-            </button>
-          </div>
-
+          <button
+            onClick={handlePreviousPeriod}
+            className="p-2 text-gray-600 rounded-full hover:bg-gray-100"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <span className="text-lg font-bold">{title}</span>
+          <button
+            onClick={handleNextPeriod}
+            className="p-2 text-gray-600 rounded-full hover:bg-gray-100"
+          >
+            <ArrowRight size={20} />
+          </button>
           <button
             onClick={handleToday}
-            className="px-3 py-1 text-sm bg-primary-light text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-light"
+            className="px-3 py-1 ml-3 text-xs sm:text-sm text-emerald-700 rounded-full bg-emerald-50 hover:bg-emerald-100"
           >
             Today
           </button>
         </div>
-      </div>
-    );
-  };
-
-  /* ---------------------- Month View ---------------------- */
-  const renderMonthView = () => {
-    const monthStart = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      1
-    );
-    const monthEnd = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() + 1,
-      0
-    );
-    const startDate = new Date(monthStart);
-    startDate.setDate(startDate.getDate() - startDate.getDay());
-
-    const endDate = new Date(monthEnd);
-    if (endDate.getDay() !== 6) {
-      endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
-    }
-
-    const rows = [];
-    let days = [];
-    let day = new Date(startDate);
-
-    const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-    while (day <= endDate) {
-      for (let i = 0; i < 7; i++) {
-        const cloneDay = new Date(day);
-        const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-        const isToday = day.toDateString() === new Date().toDateString();
-
-        // Get bookings for this day
-        const dayBookings = bookings.filter((booking) => {
-          const bookingDate = new Date(booking.bookingDate);
-          return bookingDate.toDateString() === day.toDateString();
-        });
-
-        days.push(
-          <div
-            key={day.toISOString()}
-            className={`border p-2 min-h-[110px] cursor-pointer transition-colors duration-150 ${
-              isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-400"
-            } ${isToday ? "border-primary-light border-2" : "border-gray-200"}`}
-            onClick={() => handleDateClick(new Date(cloneDay))}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleDateClick(new Date(cloneDay));
-            }}
-            aria-label={`Open bookings for ${cloneDay.toDateString()}`}
-          >
-            <div className="flex justify-between items-center mb-2">
-              <span className={`text-sm font-medium ${isToday ? "text-primary-light" : ""}`}>
-                {day.getDate()}
-              </span>
-              {dayBookings.length > 0 && (
-                <span className="text-xs bg-primary-light text-white rounded-full px-2 py-0.5">
-                  {dayBookings.length}
-                </span>
-              )}
-            </div>
-
-            <div className="space-y-1 overflow-y-auto max-h-[70px] pr-1">
-              {dayBookings.slice(0, 3).map((booking) => (
-                <div
-                  key={booking.booking_id || booking.bookingId}
-                  className={`text-xs p-1 rounded truncate ${
-                    booking.bookingStatus === 0
-                      ? "bg-yellow-100 text-yellow-800"
-                      : booking.bookingStatus === 1
-                      ? "bg-green-100 text-green-800"
-                      : "bg-red-100 text-red-800"
-                  }`}
-                >
-                  <span className="font-medium mr-1">{booking.bookingTime.substring(0, 5)}</span>
-                  <span className="truncate">{booking.userName || "Customer"}</span>
-                </div>
-              ))}
-              {dayBookings.length > 3 && (
-                <div className="text-xs text-center text-gray-500">+{dayBookings.length - 3} more</div>
-              )}
-            </div>
-          </div>
-        );
-
-        day = new Date(day);
-        day.setDate(day.getDate() + 1);
-      }
-
-      rows.push(
-        <div key={day.toISOString()} className="grid grid-cols-7 gap-0">
-          {days}
-        </div>
-      );
-      days = [];
-    }
-
-    return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-7 bg-gray-50 border-b">
-          {daysOfWeek.map((dayName) => (
-            <div key={dayName} className="p-2 text-center text-sm font-medium text-gray-700">
-              {dayName}
-            </div>
+        <div className="flex gap-1 p-1 mt-4 bg-gray-100 rounded-full sm:mt-0">
+          {["month", "week", "day"].map((m) => (
+            <button
+              key={m}
+              onClick={() => setViewMode(m)}
+              className={`px-4 py-1 rounded-full text-xs sm:text-sm ${
+                viewMode === m
+                  ? "bg-emerald-600 text-white shadow"
+                  : "text-gray-700 hover:bg-emerald-100"
+              }`}
+            >
+              {m[0].toUpperCase() + m.slice(1)}
+            </button>
           ))}
         </div>
-        <div>{rows}</div>
+        <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <Button
+            onClick={() => {
+              // If user has selected a past date, we still clamp to today
+              const base = selectedDate
+                ? toInputDate(selectedDate)
+                : toInputDate(new Date());
+              const safe = clampToTodayISO(base);
+              setAvailabilityForm({
+                startDate: safe,
+                endDate: safe,
+                startTime: "09:00",
+                endTime: "18:00",
+              });
+              setShowCreateModal(true);
+            }}
+            icon={<Plus size={16} />}
+          >
+            New Availability
+          </Button>
+        </div>
       </div>
     );
   };
 
-  /* ---------------------- Day View ---------------------- */
-  const renderDayView = () => {
-    const dayBookings = bookings.filter((booking) => {
-      const bookingDate = new Date(booking.bookingDate);
-      return (
-        bookingDate.getDate() === currentDate.getDate() &&
-        bookingDate.getMonth() === currentDate.getMonth() &&
-        bookingDate.getFullYear() === currentDate.getFullYear()
-      );
-    });
+  /* ---------- Month View ---------- */
+  const renderMonthMain = () => (
+    <div className="overflow-hidden bg-white border shadow-md rounded-xl">
+      <div className="grid grid-cols-7 border-b bg-gray-50">
+        {DAYS.map((d) => (
+          <div
+            key={d}
+            className="py-2 text-sm font-medium text-center text-gray-500"
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+      <div>
+        {monthMatrix.map((week, wIdx) => (
+          <div key={wIdx} className="grid grid-cols-7">
+            {week.map((day) => {
+              const key = toDateKey(day);
+              const dayBookings = bookingsByDay[key] || [];
+              const isCurrentMonth = day.getMonth() === currentDate.getMonth();
+              const isToday = isSameDay(day, new Date());
+              const dayAvs = availabilitiesForDate(day);
+              const isAvailable = dayAvs.length > 0;
 
-    // Sort by time
-    dayBookings.sort((a, b) => a.bookingTime.localeCompare(b.bookingTime));
+              return (
+                <div
+                  key={key}
+                  onClick={() => handleDateClick(day)}
+                  className={`border p-2 sm:min-h-[100px] min-h-[64px] cursor-pointer transition rounded-md relative ${
+                    isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-300"
+                  } ${
+                    isToday
+                      ? "border-2 border-emerald-400 bg-white"
+                      : "border-gray-200"
+                  } ${
+                    isAvailable && !isToday ? "bg-emerald-50" : ""
+                  } hover:bg-emerald-100`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div
+                      className={`text-xs font-semibold ${
+                        isToday
+                          ? "text-emerald-600"
+                          : isCurrentMonth
+                          ? "text-gray-700"
+                          : "text-gray-300"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {dayAvs.slice(0, 2).map((av) => (
+                        <span
+                          key={av.vendor_availability_id || av.id}
+                          title={`${av.startTime || ""} ${av.endTime || ""}`}
+                          className="px-1.5 py-0.5 text-[10px] rounded-full text-white shadow-sm bg-emerald-600"
+                        >
+                          Av
+                        </span>
+                      ))}
+                      {!!dayBookings.length && (
+                        <span className="ml-1 text-[10px] bg-blue-500 text-white px-2 rounded-full">
+                          {dayBookings.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 space-y-1 max-h-[60px] overflow-hidden">
+                    {dayBookings.slice(0, 3).map((b) => {
+                      const sc = statusUI(b.bookingStatus);
+                      return (
+                        <div
+                          key={b.booking_id || b.bookingId}
+                          className={`flex items-center justify-between px-2 py-1 text-xs truncate border rounded ${sc.wrap}`}
+                        >
+                          <div className="truncate flex gap-1.5 items-center">
+                            <span
+                              className={`inline-block w-2 h-2 rounded-full ${sc.dot}`}
+                            />
+                            <span className="truncate">
+                              {b.bookingTime?.slice(0, 5) || ""} • {b.userName}
+                            </span>
+                          </div>
+                          <div className="ml-2 text-[11px]">{sc.name}</div>
+                        </div>
+                      );
+                    })}
+                    {dayBookings.length > 3 && (
+                      <div className="text-xs text-right text-blue-500">
+                        +{dayBookings.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  /* ---------- Week View ---------- */
+  const renderWeekMain = () => (
+    <div className="overflow-hidden bg-white border shadow-md rounded-xl">
+      <div className="grid grid-cols-[60px_1fr]">
+        <div />
+        <div className="grid grid-cols-7 border-b bg-gray-50">
+          {weekDays.map((d) => {
+            const dayAvs = availabilitiesForDate(d);
+            const isToday = isSameDay(d, new Date());
+            return (
+              <div
+                key={d.toISOString()}
+                className={`py-2 text-sm font-medium text-center ${
+                  isToday ? "border-emerald-300" : ""
+                } ${dayAvs.length ? "bg-emerald-50" : ""}`}
+              >
+                <div>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                <div
+                  className={`text-xs ${
+                    isToday ? "font-bold text-emerald-700" : "text-gray-500"
+                  }`}
+                >
+                  {d.getDate()}
+                </div>
+                {dayAvs.length > 0 && (
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    {dayAvs.slice(0, 2).map((av) => (
+                      <span
+                        key={av.vendor_availability_id || av.id}
+                        className="w-[26px] h-2 rounded-full bg-emerald-500"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[60px_1fr] h-[520px] overflow-auto">
+        <div className="border-r">
+          <div className="flex flex-col">
+            {HOURS.map((h) => (
+              <div
+                key={h}
+                className="h-10 py-1 pr-2 text-xs text-right text-gray-400"
+              >
+                {h}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 divide-x">
+          {weekDays.map((d) => {
+            const key = toDateKey(d);
+            const dayBookings = bookingsByDay[key] || [];
+            const dayAvs = availabilitiesForDate(d);
+            const isToday = isSameDay(d, new Date());
+
+            return (
+              <div
+                key={key}
+                className={`min-h-full p-2 relative ${
+                  isToday ? "border-emerald-300" : ""
+                } ${dayAvs.length ? "bg-emerald-50" : ""}`}
+                onClick={() => handleDateClick(d)}
+              >
+                {dayBookings.length ? (
+                  dayBookings.map((b) => {
+                    const hour =
+                      parseInt((b.bookingTime || "00:00").split(":")[0], 10) ||
+                      0;
+                    const top = (hour / 24) * 100;
+                    const sc = statusUI(b.bookingStatus);
+                    return (
+                      <div
+                        key={b.booking_id || b.bookingId}
+                        style={{ top: `${top}%` }}
+                        className="absolute left-2 right-2"
+                      >
+                        <div
+                          className={`p-2 text-xs border rounded shadow-sm w-full ${sc.wrap}`}
+                        >
+                          <div className="font-semibold flex items-center gap-2">
+                            <span
+                              className={`inline-block w-2.5 h-2.5 rounded-full ${sc.dot}`}
+                            />
+                            <div className="truncate">
+                              {b.bookingTime?.slice(0, 5) || ""} •{" "}
+                              {b.serviceName}
+                            </div>
+                          </div>
+                          <div className="truncate text-gray-700 text-[12px]">
+                            {b.userName}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="flex items-center justify-center h-full text-xs text-gray-300">
+                    No bookings
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ---------- Day View ---------- */
+  const renderDayMain = () => {
+    const key = toDateKey(currentDate);
+    const dayBookings = bookingsByDay[key] || [];
+    const dayAvs = availabilitiesForDate(currentDate);
+    const isAvailable = !!dayAvs.length;
+    const isToday = isSameDay(currentDate, new Date());
 
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b">
-          <h3 className="text-lg font-medium text-gray-800">
+      <div
+        className={`overflow-hidden border shadow-md rounded-xl ${
+          isAvailable ? "border-emerald-200" : "bg-white"
+        } ${isToday ? "border-emerald-300" : ""}`}
+      >
+        <div
+          className={`p-5 border-b bg-gray-50 ${
+            isAvailable ? "bg-emerald-50" : ""
+          }`}
+        >
+          <h3 className="text-lg font-semibold text-gray-800">
             {currentDate.toLocaleDateString("en-US", {
               weekday: "long",
               month: "long",
@@ -361,145 +668,128 @@ const Calendar = () => {
               year: "numeric",
             })}
           </h3>
-        </div>
+          {isAvailable && (
+            <div className="mt-1 text-sm text-emerald-700">
+              You have availability set for this day
+            </div>
+          )}
 
-        <div className="divide-y">
-          {dayBookings.length > 0 ? (
-            dayBookings.map((booking) => (
-              <div key={booking.booking_id || booking.bookingId} className="p-4 hover:bg-gray-50">
-                <div className="flex justify-between items-start">
-                  <div className="min-w-0">
-                    <div className="flex items-center text-gray-500 text-sm mb-1 gap-2">
-                      <Clock className="mr-1" />
-                      <span>{formatTime(booking.bookingTime)}</span>
-                    </div>
-                    <h4 className="font-medium text-gray-800 truncate">{booking.serviceName}</h4>
-                    <div className="flex items-center text-sm text-gray-600 mt-1 gap-2">
-                      <User className="mr-1" />
-                      <span>{booking.userName}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex-shrink-0">
-                    <StatusBadge status={booking.bookingStatus} />
+          {dayAvs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              {dayAvs.map((a) => (
+                <div
+                  key={a.vendor_availability_id}
+                  className="flex items-center gap-2 px-3 py-1 text-sm rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200"
+                >
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                  <div className="text-xs">
+                    {a.startTime} - {a.endTime}{" "}
+                    <span className="text-xs text-gray-500">
+                      ({a.startDate}
+                      {a.startDate !== a.endDate ? ` → ${a.endDate}` : ""})
+                    </span>
                   </div>
                 </div>
-
-                {booking.bookingStatus === 0 && (
-                  <div className="mt-3 flex space-x-2">
-                    <button
-                      onClick={() =>
-                        handleUpdateStatus(booking.booking_id || booking.bookingId, 1)
-                      }
-                      className="flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-200"
-                    >
-                      <CheckCircle className="mr-2" />
-                      Accept
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleUpdateStatus(booking.booking_id || booking.bookingId, 2)
-                      }
-                      className="flex items-center px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200"
-                    >
-                      <XCircle className="mr-2" />
-                      Reject
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="p-8 text-center text-gray-500">No bookings scheduled for this day</div>
+              ))}
+            </div>
           )}
         </div>
-      </div>
-    );
-  };
 
-  /* ---------------------- Week View ---------------------- */
-  const renderWeekView = () => {
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(startOfWeek);
-      day.setDate(startOfWeek.getDate() + i);
-      days.push(day);
-    }
-
-    return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-7 bg-gray-50 border-b">
-          {days.map((day) => {
-            const isToday = day.toDateString() === new Date().toDateString();
-            return (
-              <div
-                key={day.toISOString()}
-                className={`p-2 text-center ${isToday ? "bg-primary-50 text-primary-700" : ""}`}
-              >
-                <div className="text-sm font-medium">{day.toLocaleDateString("en-US", { weekday: "short" })}</div>
-                <div className={`text-lg ${isToday ? "font-bold" : ""}`}>{day.getDate()}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="grid grid-cols-7 divide-x h-[500px] overflow-y-auto">
-          {days.map((day) => {
-            const dayBookings = bookings.filter((booking) => {
-              const bookingDate = new Date(booking.bookingDate);
-              return bookingDate.toDateString() === day.toDateString();
-            });
-
-            // Sort by time
-            dayBookings.sort((a, b) => a.bookingTime.localeCompare(b.bookingTime));
-
-            const isToday = day.toDateString() === new Date().toDateString();
-
-            return (
-              <div key={day.toISOString()} className={`p-2 overflow-y-auto ${isToday ? "bg-primary-50" : ""}`}>
-                {dayBookings.length > 0 ? (
-                  dayBookings.map((booking) => (
-                    <div
-                      key={booking.booking_id || booking.bookingId}
-                      className={`p-2 mb-2 rounded text-xs ${
-                        booking.bookingStatus === 0
-                          ? "bg-yellow-100 text-yellow-800"
-                          : booking.bookingStatus === 1
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      <div className="font-medium">{formatTime(booking.bookingTime)}</div>
-                      <div className="truncate">{booking.serviceName}</div>
-                      <div className="truncate">{booking.userName}</div>
+        <div className="p-4">
+          {dayAvs.length > 0 ? (
+            <div className="mb-4 space-y-2">
+              {dayAvs.map((a) => (
+                <div
+                  key={a.vendor_availability_id}
+                  className="flex items-center justify-between p-3 rounded bg-emerald-50 border border-emerald-200"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-emerald-700">
+                      {a.startTime} - {a.endTime}
                     </div>
-                  ))
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400 text-xs">No bookings</div>
-                )}
+                    <div className="text-xs text-gray-600">
+                      {a.startDate}
+                      {a.startDate !== a.endDate && ` → ${a.endDate}`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mb-4 text-sm text-gray-500">
+              No availability for this day
+            </div>
+          )}
+
+          <div className="divide-y">
+            {dayBookings.length ? (
+              dayBookings.map((b) => {
+                const sc = statusUI(b.bookingStatus);
+                return (
+                  <div
+                    key={b.booking_id || b.bookingId}
+                    className={`flex items-start justify-between p-4 mb-2 rounded-lg border ${sc.wrap}`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 text-sm text-gray-600">
+                        <Clock size={16} />{" "}
+                        <span>{formatTime(b.bookingTime)}</span>
+                      </div>
+                      <h4 className="font-bold text-gray-700 truncate">
+                        {b.serviceName}
+                      </h4>
+                      <div className="mt-1 text-sm text-gray-600">
+                        <User size={16} className="inline" /> {b.userName}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block w-2.5 h-2.5 rounded-full ${sc.dot}`}
+                        />
+                        <StatusBadge status={b.bookingStatus} />
+                      </div>
+                      {b.bookingStatus === 0 && (
+                        <div className="flex gap-2 mt-1">
+                          <button className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md text-xs hover:bg-emerald-100">
+                            <CheckCircle className="mr-1" size={16} /> Accept
+                          </button>
+                          <button className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs hover:bg-red-100">
+                            <XCircle className="mr-1" size={16} /> Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-8 text-center text-gray-400">
+                No bookings scheduled for this day
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
       </div>
     );
   };
 
-  /* ---------------------- Selected Date Details Panel (right column) ---------------------- */
+  /* ---------- Aside (Selected Date) ---------- */
   const renderSelectedDateDetails = () => {
-    if (!selectedDate) return (
-      <div className="p-6 border-l hidden lg:block">
-        <div className="text-center text-gray-400">Select a day to view bookings</div>
-      </div>
-    );
+    if (!selectedDate)
+      return (
+        <div className="hidden p-8 bg-white border-l shadow-md lg:block rounded-xl">
+          <div className="text-center text-gray-400">
+            Select a day to view bookings & availability
+          </div>
+        </div>
+      );
+
+    const isAvailable = hasAvailability(selectedDate);
 
     return (
-      <aside className="w-full lg:w-96 p-4 border-l bg-white shadow-sm">
-        <div className="flex items-start justify-between">
+      <aside className="w-full lg:w-[340px] p-5 bg-white border-l rounded-xl shadow-md">
+        <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="text-lg font-semibold">
               {selectedDate.toLocaleDateString("en-US", {
@@ -509,856 +799,540 @@ const Calendar = () => {
                 year: "numeric",
               })}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              {selectedBookings.length} booking{selectedBookings.length !== 1 ? "s" : ""}
+            <p className="mt-1 text-sm text-gray-500">
+              {selectedBookings.length} booking
+              {selectedBookings.length !== 1 ? "s" : ""} •{" "}
+              {selectedDateAvailabilities.length} availability
+              {selectedDateAvailabilities.length !== 1 ? "s" : ""}
             </p>
+            {isAvailable && (
+              <p className="mt-1 text-xs text-emerald-700">
+                This day has availability set
+              </p>
+            )}
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setSelectedDate(null);
-                setSelectedBookings([]);
-              }}
-              className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-light"
-              aria-label="Close"
-            >
-              <XCircle className="text-gray-600" />
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setSelectedDate(null);
+              setSelectedBookings([]);
+            }}
+            className="p-2 rounded-full hover:bg-gray-100"
+          >
+            <XCircle className="text-gray-600" />
+          </button>
         </div>
 
-        <div className="mt-4 divide-y">
-          {selectedBookings.length > 0 ? (
-            selectedBookings
-              .slice() // copy
-              .sort((a, b) => a.bookingTime.localeCompare(b.bookingTime))
-              .map((booking) => (
-                <div key={booking.booking_id || booking.bookingId} className="py-3">
-                  <div className="flex gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">
-                      {booking.userName
-                        ? booking.userName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .slice(0, 2)
-                            .join("")
-                            .toUpperCase()
-                        : "U"}
-                    </div>
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold">Availabilities</h4>
+            <button
+              onClick={() => {
+                const base = toInputDate(selectedDate);
+                const safe = clampToTodayISO(base);
+                setAvailabilityForm({
+                  startDate: safe,
+                  endDate: safe,
+                  startTime: "09:00",
+                  endTime: "18:00",
+                });
+                setShowCreateModal(true);
+              }}
+              className="px-2 py-1 text-xs text-emerald-700 rounded bg-emerald-50 hover:bg-emerald-100"
+            >
+              Add
+            </button>
+          </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium">
-                              <Clock className="mr-1" />
-                              <span className="whitespace-nowrap">{formatTime(booking.bookingTime)}</span>
-                            </span>
-
-                            <span className="ml-2 text-sm font-medium truncate">{booking.serviceName}</span>
-                          </div>
-
-                          <h4 className="mt-1 text-sm font-semibold text-gray-800 truncate">{booking.userName}</h4>
-
-                          {booking.notes && (
-                            <p className="mt-2 text-sm text-gray-600 line-clamp-3">
-                              <span className="font-medium">Notes:</span> {booking.notes}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex-shrink-0 text-right">
-                          <StatusBadge status={booking.bookingStatus} />
-                        </div>
+          <div className="space-y-3">
+            {selectedDateAvailabilities.length ? (
+              selectedDateAvailabilities
+                .slice()
+                .sort((a, b) =>
+                  (a.startTime || "").localeCompare(b.startTime || "")
+                )
+                .map((a) => (
+                  <div
+                    key={a.vendor_availability_id}
+                    className="flex items-start justify-between p-3 rounded border bg-emerald-50/50 border-emerald-100"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-emerald-700">
+                        {a.startTime} - {a.endTime}
                       </div>
-
-                      {booking.bookingStatus === 0 && (
-                        <div className="mt-3 flex gap-2">
-                          <button
-                            onClick={() =>
-                              handleUpdateStatus(booking.booking_id || booking.bookingId, 1)
-                            }
-                            className="inline-flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-200"
-                            aria-label={`Accept booking for ${booking.userName}`}
-                          >
-                            <CheckCircle className="mr-2" />
-                            Accept
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              handleUpdateStatus(booking.booking_id || booking.bookingId, 2)
-                            }
-                            className="inline-flex items-center px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200"
-                            aria-label={`Reject booking for ${booking.userName}`}
-                          >
-                            <XCircle className="mr-2" />
-                            Reject
-                          </button>
-                        </div>
-                      )}
+                      <div className="text-xs text-emerald-700 truncate">
+                        {a.startDate}{" "}
+                        {a.startDate !== a.endDate && `→ ${a.endDate}`}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 ml-3">
+                      <button
+                        onClick={() => openEditModal(a)}
+                        className="p-1 text-xs border rounded hover:bg-emerald-200"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => openDeleteModal(a)}
+                        className="p-1 text-xs border rounded hover:bg-red-200"
+                        title="Delete"
+                      >
+                        <Trash size={14} />
+                      </button>
                     </div>
                   </div>
-                </div>
-              ))
-          ) : (
-            <div className="py-8 text-center text-gray-500">No bookings scheduled for this day</div>
-          )}
+                ))
+            ) : (
+              <div className="py-3 text-sm text-gray-500">No availability</div>
+            )}
+          </div>
+
+          <div className="mt-6">
+            <h4 className="mb-2 text-sm font-semibold">Bookings</h4>
+            <div className="divide-y">
+              {selectedBookings.length ? (
+                selectedBookings
+                  .slice()
+                  .sort((a, b) =>
+                    (a.bookingTime || "").localeCompare(b.bookingTime || "")
+                  )
+                  .map((b) => {
+                    return (
+                      <div
+                        key={b.booking_id || b.bookingId}
+                        className={`flex items-start justify-between px-2 py-3 border rounded `}
+                      >
+                        <div className="min-w-0 flex gap-2 items-center">
+                          <span
+                            className={`inline-block w-2.5 h-2.5 rounded-full`}
+                          />
+                          <div>
+                            <div className="text-sm font-medium truncate">
+                              {b.serviceName}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {b.bookingTime} • {b.userName}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-3">
+                          <StatusBadge status={b.bookingStatus} />
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div className="py-6 text-sm text-gray-500">No bookings</div>
+              )}
+            </div>
+          </div>
         </div>
       </aside>
     );
   };
 
-  /* ---------------------- Main render ---------------------- */
-  if (loading) {
+  /* ---------- Submit handlers with HARD validation ---------- */
+  const submitCreateAvailability = async () => {
+    const { startDate, endDate, startTime, endTime } = availabilityForm;
+    if (!startDate || !endDate || !startTime || !endTime)
+      return toast.error("All fields are required");
+
+    if (isPastISO(startDate) || isPastISO(endDate))
+      return toast.error("Dates cannot be in the past");
+
+    if (endDate < startDate)
+      return toast.error("End date must be after or same as start date");
+
+    setLoadingAvail(true);
+    await createAvailability({ startDate, endDate, startTime, endTime });
+    setLoadingAvail(false);
+  };
+
+  const openEditModal = (av) => {
+    setSelectedAvailToEdit(av);
+    setAvailabilityForm({
+      startDate: av.startDate,
+      endDate: av.endDate,
+      startTime: av.startTime || "09:00",
+      endTime: av.endTime || "18:00",
+    });
+    setShowEditModal(true);
+  };
+
+  const submitEditAvailability = async () => {
+    if (!selectedAvailToEdit) return;
+    const { startDate, endDate, startTime, endTime } = availabilityForm;
+    if (!startDate || !endDate || !startTime || !endTime)
+      return toast.error("All fields are required");
+
+    if (isPastISO(startDate) || isPastISO(endDate))
+      return toast.error("Dates cannot be in the past");
+
+    if (endDate < startDate)
+      return toast.error("End date must be after or same as start date");
+
+    setLoadingAvail(true);
+    await updateAvailability(selectedAvailToEdit.vendor_availability_id, {
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+    });
+    setLoadingAvail(false);
+  };
+
+  /* ---------- Guards ---------- */
+  if (loading)
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     );
-  }
-
-  if (error) {
+  if (error)
     return (
-      <div className="bg-red-50 p-4 rounded-md">
+      <div className="p-4 rounded-md bg-red-50">
         <p className="text-red-500">{error}</p>
       </div>
     );
-  }
 
+  /* ---------- Render ---------- */
   return (
-    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-      <div>
-        {renderCalendarHeader()}
-
-        <div>
-          {viewMode === "month" && renderMonthView()}
-          {viewMode === "week" && renderWeekView()}
-          {viewMode === "day" && renderDayView()}
+    <div className="px-4 mx-auto max-w-7xl">
+      <div className="flex flex-col lg:flex-row gap-7">
+        <div className="flex-1 min-w-0">
+          {renderHeader()}
+          <div className="mt-2">
+            {viewMode === "month" && renderMonthMain()}
+            {viewMode === "week" && renderWeekMain()}
+            {viewMode === "day" && renderDayMain()}
+          </div>
+        </div>
+        <div className="w-full lg:w-[340px] shrink-0">
+          {renderSelectedDateDetails()}
         </div>
       </div>
 
-      {renderSelectedDateDetails()}
+      {/* Create Modal */}
+      {showCreateModal && (
+        <Modal
+          onClose={() => setShowCreateModal(false)}
+          isOpen={showCreateModal}
+          title="New Availability"
+        >
+          <div className="space-y-3">
+            {/* Start Date */}
+            <div>
+              <label className="block text-xs text-gray-600">Start date</label>
+              <input
+                value={availabilityForm.startDate}
+                onChange={(e) => {
+                  const v = clampToTodayISO(e.target.value);
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    startDate: v,
+                    endDate: s.endDate && s.endDate < v ? v : s.endDate || v, // keep end >= start
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={todayISO()}
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="block text-xs text-gray-600">End date</label>
+              <input
+                value={availabilityForm.endDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const minEnd =
+                    availabilityForm.startDate &&
+                    availabilityForm.startDate > todayISO()
+                      ? availabilityForm.startDate
+                      : todayISO();
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    endDate: v < minEnd ? minEnd : v,
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={
+                  availabilityForm.startDate &&
+                  availabilityForm.startDate > todayISO()
+                    ? availabilityForm.startDate
+                    : todayISO()
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {["startTime", "endTime"].map((k) => (
+                <div key={k}>
+                  <label className="block text-xs text-gray-600">
+                    {k === "startTime" ? "Start time" : "End time"}
+                  </label>
+                  <input
+                    value={availabilityForm[k]}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        [k]: e.target.value,
+                      }))
+                    }
+                    className="w-full p-2 text-sm border rounded"
+                    type="time"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitCreateAvailability}
+                disabled={loadingAvail}
+                className={`px-4 py-2 text-sm text-white rounded-md ${
+                  loadingAvail
+                    ? "bg-emerald-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {loadingAvail ? "Saving..." : "Create"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <Modal
+          onClose={() => setShowEditModal(false)}
+          isOpen={showEditModal}
+          title="Edit Availability"
+        >
+          <div className="space-y-3">
+            {/* Start Date */}
+            <div>
+              <label className="block text-xs text-gray-600">Start date</label>
+              <input
+                value={availabilityForm.startDate}
+                onChange={(e) => {
+                  const v = clampToTodayISO(e.target.value);
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    startDate: v,
+                    endDate: s.endDate && s.endDate < v ? v : s.endDate || v,
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={todayISO()}
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="block text-xs text-gray-600">End date</label>
+              <input
+                value={availabilityForm.endDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const minEnd =
+                    availabilityForm.startDate &&
+                    availabilityForm.startDate > todayISO()
+                      ? availabilityForm.startDate
+                      : todayISO();
+                  setAvailabilityForm((s) => ({
+                    ...s,
+                    endDate: v < minEnd ? minEnd : v,
+                  }));
+                }}
+                className="w-full p-2 text-sm border rounded"
+                type="date"
+                min={
+                  availabilityForm.startDate &&
+                  availabilityForm.startDate > todayISO()
+                    ? availabilityForm.startDate
+                    : todayISO()
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {["startTime", "endTime"].map((k) => (
+                <div key={k}>
+                  <label className="block text-xs text-gray-600">
+                    {k === "startTime" ? "Start time" : "End time"}
+                  </label>
+                  <input
+                    value={availabilityForm[k]}
+                    onChange={(e) =>
+                      setAvailabilityForm((s) => ({
+                        ...s,
+                        [k]: e.target.value,
+                      }))
+                    }
+                    className="w-full p-2 text-sm border rounded"
+                    type="time"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitEditAvailability}
+                disabled={loadingAvail}
+                className={`px-4 py-2 text-sm text-white rounded-md ${
+                  loadingAvail
+                    ? "bg-emerald-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {loadingAvail ? "Saving..." : "Update"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && deleteTarget && (
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="Delete availability"
+        >
+          <>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  className="accent-red-600"
+                  checked={deleteMode === "all"}
+                  onChange={() => setDeleteMode("all")}
+                />
+                <>
+                  <h3 className="font-medium text-gray-800">
+                    Delete entire availability
+                  </h3>
+                </>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  className="mt-1 accent-red-600"
+                  checked={deleteMode === "date"}
+                  onChange={() => setDeleteMode("date")}
+                />
+                <div className="w-full">
+                  <div className="font-medium text-gray-800">
+                    Delete a specific date range
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-600">
+                        Start date (inside range)
+                      </label>
+                      <input
+                        type="date"
+                        className="w-full p-2 text-sm border rounded"
+                        value={deleteStartDate}
+                        min={
+                          deleteTarget
+                            ? deleteTarget.startDate > todayISO()
+                              ? deleteTarget.startDate
+                              : todayISO()
+                            : todayISO()
+                        }
+                        max={deleteTarget?.endDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDeleteStartDate(v);
+                          setDeleteEndDate((cur) => (cur < v ? v : cur));
+                        }}
+                        disabled={deleteMode !== "date"}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600">
+                        End date (inside range)
+                      </label>
+                      <input
+                        type="date"
+                        className="w-full p-2 text-sm border rounded"
+                        value={deleteEndDate}
+                        min={deleteStartDate || todayISO()}
+                        max={deleteTarget?.endDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const minEnd = deleteStartDate || todayISO();
+                          setDeleteEndDate(v < minEnd ? minEnd : v);
+                        }}
+                        disabled={deleteMode !== "date"}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </label>
+
+              {deleteBookedDates.length > 0 && (
+                <div className="flex items-start gap-2 p-3 text-sm border rounded bg-yellow-50 border-yellow-200">
+                  <AlertCircle className="mt-0.5 text-yellow-600" size={18} />
+                  <div className="text-yellow-800">
+                    <div className="font-medium">
+                      Cannot delete on booked date(s):
+                    </div>
+                    <div className="mt-1">{deleteBookedDates.join(", ")}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                disabled={deleteBusy}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDeleteAvailability}
+                disabled={
+                  deleteBusy ||
+                  (deleteMode === "date" &&
+                    (!deleteStartDate || !deleteEndDate))
+                }
+                className={`px-4 py-2 text-sm text-white rounded-md ${
+                  deleteBusy
+                    ? "bg-red-300 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {deleteBusy ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </>
+        </Modal>
+      )}
     </div>
   );
 };
 
 export default Calendar;
-
-
-// import { useState, useEffect } from "react";
-// import axios from "axios";
-// import {
-//   FiCalendar,
-//   FiClock,
-//   FiUser,
-//   FiMapPin,
-//   FiCheckCircle,
-//   FiXCircle,
-// } from "react-icons/fi";
-// import LoadingSpinner from "../../shared/components/LoadingSpinner";
-// import StatusBadge from "../../shared/components/StatusBadge";
-// import { formatDate, formatTime } from "../../shared/utils/dateUtils";
-
-// const Calendar = () => {
-//   const [bookings, setBookings] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState(null);
-//   const [currentDate, setCurrentDate] = useState(new Date());
-//   const [viewMode, setViewMode] = useState("month"); // month, week, day
-//   const [selectedDate, setSelectedDate] = useState(null);
-//   const [selectedBookings, setSelectedBookings] = useState([]);
-
-//   useEffect(() => {
-//     fetchBookings();
-//   }, []);
-
-//   const fetchBookings = async () => {
-//     try {
-//       setLoading(true);
-//       const response = await axios.get("/api/booking/vendorassignedservices");
-//       setBookings(response.data.bookings || []);
-//       setLoading(false);
-//     } catch (error) {
-//       console.error("Error fetching bookings:", error);
-//       setError("Failed to load bookings");
-//       setLoading(false);
-//     }
-//   };
-
-//   const handlePreviousPeriod = () => {
-//     const newDate = new Date(currentDate);
-//     if (viewMode === "month") {
-//       newDate.setMonth(newDate.getMonth() - 1);
-//     } else if (viewMode === "week") {
-//       newDate.setDate(newDate.getDate() - 7);
-//     } else {
-//       newDate.setDate(newDate.getDate() - 1);
-//     }
-//     setCurrentDate(newDate);
-//   };
-
-//   const handleNextPeriod = () => {
-//     const newDate = new Date(currentDate);
-//     if (viewMode === "month") {
-//       newDate.setMonth(newDate.getMonth() + 1);
-//     } else if (viewMode === "week") {
-//       newDate.setDate(newDate.getDate() + 7);
-//     } else {
-//       newDate.setDate(newDate.getDate() + 1);
-//     }
-//     setCurrentDate(newDate);
-//   };
-
-//   const handleToday = () => {
-//     setCurrentDate(new Date());
-//   };
-
-//   const handleDateClick = (date) => {
-//     setSelectedDate(date);
-//     const dayBookings = bookings.filter((booking) => {
-//       const bookingDate = new Date(booking.bookingDate);
-//       return (
-//         bookingDate.getDate() === date.getDate() &&
-//         bookingDate.getMonth() === date.getMonth() &&
-//         bookingDate.getFullYear() === date.getFullYear()
-//       );
-//     });
-//     setSelectedBookings(dayBookings);
-//   };
-
-//   const handleUpdateStatus = async (bookingId, status) => {
-//     try {
-//       const response = await axios.put("/api/booking/approveorrejectbooking", {
-//         booking_id: bookingId,
-//         status,
-//       });
-
-//       if (response.status === 200) {
-//         // Update local state
-//         setBookings(
-//           bookings.map((booking) =>
-//             booking.booking_id === bookingId || booking.bookingId === bookingId
-//               ? { ...booking, bookingStatus: status }
-//               : booking
-//           )
-//         );
-
-//         // Update selected bookings if any
-//         if (selectedBookings.length > 0) {
-//           setSelectedBookings(
-//             selectedBookings.map((booking) =>
-//               booking.booking_id === bookingId ||
-//               booking.bookingId === bookingId
-//                 ? { ...booking, bookingStatus: status }
-//                 : booking
-//             )
-//           );
-//         }
-
-//         // Show success message
-//         toast.success(
-//           `Booking ${status === 1 ? "approved" : "rejected"} successfully`
-//         );
-//       }
-//     } catch (error) {
-//       console.error("Error updating booking status:", error);
-//       toast.error("Failed to update booking status");
-//     }
-//   };
-
-//   const renderCalendarHeader = () => {
-//     let title = "";
-//     if (viewMode === "month") {
-//       title = currentDate.toLocaleDateString("en-US", {
-//         month: "long",
-//         year: "numeric",
-//       });
-//     } else if (viewMode === "week") {
-//       const startOfWeek = new Date(currentDate);
-//       startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-//       const endOfWeek = new Date(startOfWeek);
-//       endOfWeek.setDate(startOfWeek.getDate() + 6);
-//       title = `${startOfWeek.toLocaleDateString("en-US", {
-//         month: "short",
-//         day: "numeric",
-//       })} - ${endOfWeek.toLocaleDateString("en-US", {
-//         month: "short",
-//         day: "numeric",
-//         year: "numeric",
-//       })}`;
-//     } else {
-//       title = currentDate.toLocaleDateString("en-US", {
-//         weekday: "long",
-//         month: "long",
-//         day: "numeric",
-//         year: "numeric",
-//       });
-//     }
-
-//     return (
-//       <div className="flex justify-between items-center mb-6 max-w-7xl">
-//         <div className="flex items-center space-x-4">
-//           <button
-//             onClick={handlePreviousPeriod}
-//             className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
-//           >
-//             <svg
-//               xmlns="http://www.w3.org/2000/svg"
-//               className="h-5 w-5"
-//               viewBox="0 0 20 20"
-//               fill="currentColor"
-//             >
-//               <path
-//                 fillRule="evenodd"
-//                 d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-//                 clipRule="evenodd"
-//               />
-//             </svg>
-//           </button>
-//           <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-//           <button
-//             onClick={handleNextPeriod}
-//             className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
-//           >
-//             <svg
-//               xmlns="http://www.w3.org/2000/svg"
-//               className="h-5 w-5"
-//               viewBox="0 0 20 20"
-//               fill="currentColor"
-//             >
-//               <path
-//                 fillRule="evenodd"
-//                 d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-//                 clipRule="evenodd"
-//               />
-//             </svg>
-//           </button>
-//         </div>
-
-//         <div className="flex items-center space-x-4">
-//           <div className="flex bg-gray-100 rounded-md overflow-hidden">
-//             <button
-//               onClick={() => setViewMode("month")}
-//               className={`px-3 py-1 text-sm ${
-//                 viewMode === "month"
-//                   ? "bg-primary-light text-white"
-//                   : "text-gray-600 hover:bg-gray-200"
-//               }`}
-//             >
-//               Month
-//             </button>
-//             <button
-//               onClick={() => setViewMode("week")}
-//               className={`px-3 py-1 text-sm ${
-//                 viewMode === "week"
-//                   ? "bg-primary-light text-white"
-//                   : "text-gray-600 hover:bg-gray-200"
-//               }`}
-//             >
-//               Week
-//             </button>
-//             <button
-//               onClick={() => setViewMode("day")}
-//               className={`px-3 py-1 text-sm ${
-//                 viewMode === "day"
-//                   ? "bg-primary-light text-white"
-//                   : "text-gray-600 hover:bg-gray-200"
-//               }`}
-//             >
-//               Day
-//             </button>
-//           </div>
-
-//           <button
-//             onClick={handleToday}
-//             className="px-3 py-1 text-sm bg-primary-light text-white rounded-md hover:bg-primary-dark"
-//           >
-//             Today
-//           </button>
-//         </div>
-//       </div>
-//     );
-//   };
-
-//   const renderMonthView = () => {
-//     const monthStart = new Date(
-//       currentDate.getFullYear(),
-//       currentDate.getMonth(),
-//       1
-//     );
-//     const monthEnd = new Date(
-//       currentDate.getFullYear(),
-//       currentDate.getMonth() + 1,
-//       0
-//     );
-//     const startDate = new Date(monthStart);
-//     startDate.setDate(startDate.getDate() - startDate.getDay());
-
-//     const endDate = new Date(monthEnd);
-//     if (endDate.getDay() !== 6) {
-//       endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
-//     }
-
-//     const dateFormat = { day: "numeric" };
-//     const rows = [];
-//     let days = [];
-//     let day = startDate;
-
-//     // Days of week header
-//     const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-//     // Generate calendar grid
-//     while (day <= endDate) {
-//       for (let i = 0; i < 7; i++) {
-//         const cloneDay = new Date(day);
-//         const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-//         const isToday = day.toDateString() === new Date().toDateString();
-
-//         // Get bookings for this day
-//         const dayBookings = bookings.filter((booking) => {
-//           const bookingDate = new Date(booking.bookingDate);
-//           return bookingDate.toDateString() === day.toDateString();
-//         });
-
-//         days.push(
-//           <div
-//             key={day.toISOString()}
-//             className={`border p-2 min-h-[100px] ${
-//               isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-400"
-//             } ${isToday ? "border-primary-light border-2" : "border-gray-200"}`}
-//             onClick={() => handleDateClick(new Date(cloneDay))}
-//           >
-//             <div className="flex justify-between items-center mb-1">
-//               <span
-//                 className={`text-sm font-medium ${
-//                   isToday ? "text-primary-light" : ""
-//                 }`}
-//               >
-//                 {day.toLocaleDateString("en-US", dateFormat)}
-//               </span>
-//               {dayBookings.length > 0 && (
-//                 <span className="text-xs bg-primary-light text-white rounded-full px-2 py-0.5">
-//                   {dayBookings.length}
-//                 </span>
-//               )}
-//             </div>
-//             <div className="space-y-1 overflow-y-auto max-h-[70px]">
-//               {dayBookings.slice(0, 3).map((booking) => (
-//                 <div
-//                   key={booking.booking_id || booking.bookingId}
-//                   className={`text-xs p-1 rounded truncate ${
-//                     booking.bookingStatus === 0
-//                       ? "bg-yellow-100 text-yellow-800"
-//                       : booking.bookingStatus === 1
-//                       ? "bg-green-100 text-green-800"
-//                       : "bg-red-100 text-red-800"
-//                   }`}
-//                 >
-//                   {booking.bookingTime.substring(0, 5)} -{" "}
-//                   {booking.userName || "Customer"}
-//                 </div>
-//               ))}
-//               {dayBookings.length > 3 && (
-//                 <div className="text-xs text-center text-gray-500">
-//                   +{dayBookings.length - 3} more
-//                 </div>
-//               )}
-//             </div>
-//           </div>
-//         );
-//         day = new Date(day);
-//         day.setDate(day.getDate() + 1);
-//       }
-//       rows.push(
-//         <div key={day.toISOString()} className="grid grid-cols-7">
-//           {days}
-//         </div>
-//       );
-//       days = [];
-//     }
-
-//     return (
-//       <div className="bg-white rounded-lg shadow overflow-hidden">
-//         <div className="grid grid-cols-7 bg-gray-50 border-b">
-//           {daysOfWeek.map((dayName) => (
-//             <div
-//               key={dayName}
-//               className="p-2 text-center text-sm font-medium text-gray-700"
-//             >
-//               {dayName}
-//             </div>
-//           ))}
-//         </div>
-//         <div>{rows}</div>
-//       </div>
-//     );
-//   };
-
-//   const renderDayView = () => {
-//     const dayBookings = bookings.filter((booking) => {
-//       const bookingDate = new Date(booking.bookingDate);
-//       return (
-//         bookingDate.getDate() === currentDate.getDate() &&
-//         bookingDate.getMonth() === currentDate.getMonth() &&
-//         bookingDate.getFullYear() === currentDate.getFullYear()
-//       );
-//     });
-
-//     // Sort by time
-//     dayBookings.sort((a, b) => {
-//       return a.bookingTime.localeCompare(b.bookingTime);
-//     });
-
-//     return (
-//       <div className="bg-white rounded-lg shadow overflow-hidden">
-//         <div className="p-4 bg-gray-50 border-b">
-//           <h3 className="text-lg font-medium text-gray-800">
-//             {currentDate.toLocaleDateString("en-US", {
-//               weekday: "long",
-//               month: "long",
-//               day: "numeric",
-//               year: "numeric",
-//             })}
-//           </h3>
-//         </div>
-
-//         <div className="divide-y">
-//           {dayBookings.length > 0 ? (
-//             dayBookings.map((booking) => (
-//               <div
-//                 key={booking.booking_id || booking.bookingId}
-//                 className="p-4 hover:bg-gray-50"
-//               >
-//                 <div className="flex justify-between items-start">
-//                   <div>
-//                     <div className="flex items-center text-gray-500 text-sm mb-1">
-//                       <FiClock className="mr-1" />
-//                       <span>{formatTime(booking.bookingTime)}</span>
-//                     </div>
-//                     <h4 className="font-medium">{booking.serviceName}</h4>
-//                     <div className="flex items-center text-sm text-gray-600 mt-1">
-//                       <FiUser className="mr-1" />
-//                       <span>{booking.userName}</span>
-//                     </div>
-//                   </div>
-//                   <StatusBadge status={booking.bookingStatus} />
-//                 </div>
-
-//                 {booking.bookingStatus === 0 && (
-//                   <div className="mt-3 flex space-x-2">
-//                     <button
-//                       onClick={() =>
-//                         handleUpdateStatus(
-//                           booking.booking_id || booking.bookingId,
-//                           1
-//                         )
-//                       }
-//                       className="flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
-//                     >
-//                       <FiCheckCircle className="mr-1" />
-//                       Accept
-//                     </button>
-//                     <button
-//                       onClick={() =>
-//                         handleUpdateStatus(
-//                           booking.booking_id || booking.bookingId,
-//                           2
-//                         )
-//                       }
-//                       className="flex items-center px-2 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200"
-//                     >
-//                       <FiXCircle className="mr-1" />
-//                       Reject
-//                     </button>
-//                   </div>
-//                 )}
-//               </div>
-//             ))
-//           ) : (
-//             <div className="p-8 text-center text-gray-500">
-//               No bookings scheduled for this day
-//             </div>
-//           )}
-//         </div>
-//       </div>
-//     );
-//   };
-
-//   const renderWeekView = () => {
-//     const startOfWeek = new Date(currentDate);
-//     startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-
-//     const days = [];
-//     for (let i = 0; i < 7; i++) {
-//       const day = new Date(startOfWeek);
-//       day.setDate(startOfWeek.getDate() + i);
-//       days.push(day);
-//     }
-
-//     return (
-//       <div className="bg-white rounded-lg shadow overflow-hidden">
-//         <div className="grid grid-cols-7 bg-gray-50 border-b">
-//           {days.map((day) => {
-//             const isToday = day.toDateString() === new Date().toDateString();
-//             return (
-//               <div
-//                 key={day.toISOString()}
-//                 className={`p-2 text-center ${
-//                   isToday ? "bg-primary-50 text-primary-700" : ""
-//                 }`}
-//               >
-//                 <div className="text-sm font-medium">
-//                   {day.toLocaleDateString("en-US", { weekday: "short" })}
-//                 </div>
-//                 <div className={`text-lg ${isToday ? "font-bold" : ""}`}>
-//                   {day.getDate()}
-//                 </div>
-//               </div>
-//             );
-//           })}
-//         </div>
-
-//         <div className="grid grid-cols-7 divide-x h-[500px] overflow-y-auto">
-//           {days.map((day) => {
-//             const dayBookings = bookings.filter((booking) => {
-//               const bookingDate = new Date(booking.bookingDate);
-//               return bookingDate.toDateString() === day.toDateString();
-//             });
-
-//             // Sort by time
-//             dayBookings.sort((a, b) => {
-//               return a.bookingTime.localeCompare(b.bookingTime);
-//             });
-
-//             const isToday = day.toDateString() === new Date().toDateString();
-
-//             return (
-//               <div
-//                 key={day.toISOString()}
-//                 className={`p-2 overflow-y-auto ${
-//                   isToday ? "bg-primary-50" : ""
-//                 }`}
-//               >
-//                 {dayBookings.length > 0 ? (
-//                   dayBookings.map((booking) => (
-//                     <div
-//                       key={booking.booking_id || booking.bookingId}
-//                       className={`p-2 mb-2 rounded text-xs ${
-//                         booking.bookingStatus === 0
-//                           ? "bg-yellow-100 text-yellow-800"
-//                           : booking.bookingStatus === 1
-//                           ? "bg-green-100 text-green-800"
-//                           : "bg-red-100 text-red-800"
-//                       }`}
-//                     >
-//                       <div className="font-medium">
-//                         {formatTime(booking.bookingTime)}
-//                       </div>
-//                       <div className="truncate">{booking.serviceName}</div>
-//                       <div className="truncate">{booking.userName}</div>
-//                     </div>
-//                   ))
-//                 ) : (
-//                   <div className="h-full flex items-center justify-center text-gray-400 text-xs">
-//                     No bookings
-//                   </div>
-//                 )}
-//               </div>
-//             );
-//           })}
-//         </div>
-//       </div>
-//     );
-//   };
-
-//  const renderSelectedDateDetails = () => {
-//   if (!selectedDate) return null;
-
-//   return (
-//     <div className="mt-6 bg-white rounded-lg shadow-sm overflow-hidden ring-1 ring-gray-100">
-//       {/* Header */}
-//       <div className="p-4 bg-gradient-to-r from-primary to-primary-dark text-white flex items-center justify-between gap-4">
-//         <div>
-//           <h3 className="text-lg font-semibold leading-tight">
-//             Bookings for{" "}
-//             <span className="font-medium">
-//               {selectedDate.toLocaleDateString("en-US", {
-//                 weekday: "long",
-//                 month: "long",
-//                 day: "numeric",
-//                 year: "numeric",
-//               })}
-//             </span>
-//           </h3>
-//           <p className="text-sm opacity-90 mt-0.5">
-//             {selectedBookings.length} booking
-//             {selectedBookings.length !== 1 ? "s" : ""} • organized by time
-//           </p>
-//         </div>
-
-//         <div className="flex items-center gap-2">
-//           <span
-//             aria-hidden
-//             className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-white/20 text-sm font-medium"
-//           >
-//             {selectedBookings.length}
-//           </span>
-//           <button
-//             onClick={() => setSelectedDate(null)}
-//             className="p-2 rounded-full hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
-//             aria-label="Close bookings panel"
-//             title="Close"
-//           >
-//             <svg
-//               xmlns="http://www.w3.org/2000/svg"
-//               className="h-5 w-5"
-//               viewBox="0 0 20 20"
-//               fill="currentColor"
-//               aria-hidden="true"
-//             >
-//               <path
-//                 fillRule="evenodd"
-//                 d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-//                 clipRule="evenodd"
-//               />
-//             </svg>
-//           </button>
-//         </div>
-//       </div>
-
-//       {/* Bookings list */}
-//       <div className="divide-y">
-//         {selectedBookings.length > 0 ? (
-//           selectedBookings.map((booking) => (
-//             <div
-//               key={booking.booking_id || booking.bookingId}
-//               className="p-4 hover:bg-gray-50 flex gap-4 items-start"
-//             >
-//               {/* Left: avatar/time */}
-//               <div className="flex-shrink-0">
-//                 <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">
-//                   {/* initials fallback */}
-//                   {booking.userName
-//                     ? booking.userName
-//                         .split(" ")
-//                         .map((n) => n[0])
-//                         .slice(0, 2)
-//                         .join("")
-//                         .toUpperCase()
-//                     : "U"}
-//                 </div>
-//               </div>
-
-//               {/* Middle: details */}
-//               <div className="flex-1 min-w-0">
-//                 <div className="flex items-start justify-between gap-3">
-//                   <div className="min-w-0">
-//                     <div className="flex items-center text-sm text-gray-500 gap-2">
-//                       <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium">
-//                         <FiClock className="mr-1" />
-//                         <span className="whitespace-nowrap">
-//                           {formatTime(booking.bookingTime)}
-//                         </span>
-//                       </span>
-
-//                       <span className="ml-2 text-sm font-medium truncate">
-//                         {booking.serviceName}
-//                       </span>
-//                     </div>
-
-//                     <h4 className="mt-1 text-sm font-semibold text-gray-800 truncate">
-//                       {booking.userName}
-//                     </h4>
-
-//                     {booking.notes && (
-//                       <p className="mt-2 text-sm text-gray-600 line-clamp-3">
-//                         <span className="font-medium">Notes:</span>{" "}
-//                         {booking.notes}
-//                       </p>
-//                     )}
-//                   </div>
-
-//                   {/* Right: status badge */}
-//                   <div className="flex-shrink-0 text-right">
-//                     <StatusBadge status={booking.bookingStatus} />
-//                   </div>
-//                 </div>
-
-//                 {/* Actions row */}
-//                 {booking.bookingStatus === 0 && (
-//                   <div className="mt-3 flex flex-wrap gap-2">
-//                     <button
-//                       onClick={() =>
-//                         handleUpdateStatus(
-//                           booking.booking_id || booking.bookingId,
-//                           1
-//                         )
-//                       }
-//                       className="inline-flex items-center px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-200"
-//                       aria-label={`Accept booking for ${booking.userName}`}
-//                     >
-//                       <FiCheckCircle className="mr-2" />
-//                       Accept
-//                     </button>
-
-//                     <button
-//                       onClick={() =>
-//                         handleUpdateStatus(
-//                           booking.booking_id || booking.bookingId,
-//                           2
-//                         )
-//                       }
-//                       className="inline-flex items-center px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200"
-//                       aria-label={`Reject booking for ${booking.userName}`}
-//                     >
-//                       <FiXCircle className="mr-2" />
-//                       Reject
-//                     </button>
-//                   </div>
-//                 )}
-//               </div>
-//             </div>
-//           ))
-//         ) : (
-//           <div className="p-8 text-center text-gray-500">
-//             No bookings scheduled for this day
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-
-//   if (loading) {
-//     return (
-//       <div className="flex justify-center items-center h-64">
-//         <LoadingSpinner size="lg" />
-//       </div>
-//     );
-//   }
-
-//   if (error) {
-//     return (
-//       <div className="bg-red-50 p-4 rounded-md">
-//         <p className="text-red-500">{error}</p>
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="max-w-7xl mx-auto">
-//       {renderCalendarHeader()}
-
-//       {viewMode === "month" && renderMonthView()}
-//       {viewMode === "week" && renderWeekView()}
-//       {viewMode === "day" && renderDayView()}
-
-//       {selectedDate && renderSelectedDateDetails()}
-//     </div>
-//   );
-// };
-
-// export default Calendar;

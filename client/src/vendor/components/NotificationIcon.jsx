@@ -10,7 +10,7 @@ const NotificationIcon = () => {
 
   const fetchNotifications = async () => {
     try {
-      const res = await axios.get("/api/notifications/getvendornotification");
+      const res = await axios.get("/api/notifications/getnotificationcount");
       setNotifications(res.data || []);
       console.log("Fetched notifications:", res.data.notification);
     } catch (err) {

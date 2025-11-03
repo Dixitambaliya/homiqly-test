@@ -84,7 +84,7 @@ const Settings = () => {
       
       <Card title="General Settings" icon={<Save className="h-5 w-5" />}>
         <form onSubmit={saveGeneralSettings}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <FormSelect
               label="Theme"
               name="theme"
@@ -110,7 +110,7 @@ const Settings = () => {
             />
           </div>
           
-          <div className="mt-6 flex justify-end">
+          <div className="flex justify-end mt-6">
             <Button
               type="submit"
               variant="primary"
@@ -121,7 +121,7 @@ const Settings = () => {
             </Button>
           </div>
         </form>
-      </Card>
+      </Card> 
       
       <Card title="Notification Preferences" icon={<Bell className="h-5 w-5" />}>
         <form>
@@ -148,7 +148,7 @@ const Settings = () => {
             />
           </div>
           
-          <div className="mt-6 flex justify-end">
+          <div className="flex justify-end mt-6">
             <Button
               type="submit"
               variant="primary"
@@ -192,7 +192,7 @@ const Settings = () => {
             />
           </div>
           
-          <div className="mt-6 flex justify-end">
+          <div className="flex justify-end mt-6">
             <Button
               type="submit"
               variant="primary"
@@ -206,21 +206,21 @@ const Settings = () => {
       </Card>
       
       <Card title="Account Information">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Name</h4>
+            <h4 className="mb-1 text-sm font-medium text-gray-500">Name</h4>
             <p className="text-gray-900">{currentUser?.name || 'Vendor User'}</p>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Account Type</h4>
+            <h4 className="mb-1 text-sm font-medium text-gray-500">Account Type</h4>
             <p className="text-gray-900 capitalize">{currentUser?.vendor_type || 'vendor'}</p>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Email</h4>
+            <h4 className="mb-1 text-sm font-medium text-gray-500">Email</h4>
             <p className="text-gray-900">{currentUser?.email || 'vendor@example.com'}</p>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-1">Member Since</h4>
+            <h4 className="mb-1 text-sm font-medium text-gray-500">Member Since</h4>
             <p className="text-gray-900">January 1, 2025</p>
           </div>
         </div>

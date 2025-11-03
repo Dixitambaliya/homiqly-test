@@ -65,7 +65,7 @@ const Modal = ({
               <IconButton
                 onClick={onClose}
                 variant="lightDanger"
-                icon={<X />}
+                icon={<X className="w-4 h-4"/>}
               ></IconButton>
             )}
           </div>

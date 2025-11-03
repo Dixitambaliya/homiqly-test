@@ -1,24 +1,35 @@
 // pages/vendor/Payments.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import PaymentsTable from "../components/Tables/PaymentsTable";
 import { FormInput, FormSelect } from "../../shared/components/Form";
 import { Button } from "../../shared/components/Button";
+import Pagination from "../../shared/components/Pagination";
+import { RefreshCcw } from "lucide-react";
 
 const Payments = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // filters & pagination
   const [filter, setFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  // stats coming from server / computed
   const [stats, setStats] = useState({
     pendingPayout: 0,
     totalBookings: 0,
     totalPayout: 0,
     paidPayout: 0,
   });
+
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // modal state for apply payout
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,18 +38,25 @@ const Payments = () => {
   const [applyError, setApplyError] = useState(null);
   const [applySuccess, setApplySuccess] = useState(null);
 
-  useEffect(() => {
-    fetchBookings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/vendor/getpaymenthistory");
-      const resp = response.data || {};
-      console.log(resp);
+      setError(null);
 
+      const params = {
+        page,
+        limit,
+      };
+      if (filter && filter !== "all") params.status = filter;
+      if (dateRange.startDate) params.startDate = dateRange.startDate;
+      if (dateRange.endDate) params.endDate = dateRange.endDate;
+
+      const response = await axios.get("/api/vendor/getpaymenthistory", {
+        params,
+      });
+      const resp = response.data || {};
+
+      // server payload structure fallback
       const payouts = Array.isArray(resp.allPayouts) ? resp.allPayouts : [];
 
       setBookings(
@@ -49,24 +67,38 @@ const Payments = () => {
         }))
       );
 
+      // Stats: prefer server-provided numbers, else compute
+      const computedTotalPayout =
+        resp.totalPayout ??
+        payouts.reduce((a, b) => a + (Number(b.payout_amount) || 0), 0);
+
+      const computedPendingPayout =
+        resp.pendingPayout ??
+        payouts.reduce(
+          (a, b) =>
+            a +
+            (String(b.payout_status || "").toLowerCase() === "pending"
+              ? Number(b.payout_amount || 0)
+              : 0),
+          0
+        );
+
       setStats({
-        totalPayout:
-          resp.totalPayout ??
-          payouts.reduce((a, b) => a + (Number(b.payout_amount) || 0), 0),
-        totalBookings: resp.totalBookings ?? payouts.length,
-        pendingPayout:
-          resp.pendingPayout ??
-          resp.pendingPayout ??
-          payouts.reduce(
-            (a, b) =>
-              a +
-              (String(b.payout_status || "").toLowerCase() === "pending"
-                ? Number(b.payout_amount || 0)
-                : 0),
-            0
-          ),
+        totalPayout: computedTotalPayout,
+        totalBookings:
+          resp.totalBookings ?? resp.totalRecords ?? payouts.length,
+        pendingPayout: computedPendingPayout,
         paidPayout: resp.paidPayout ?? 0,
       });
+
+      // pagination meta (from API if present)
+      setTotalPages(
+        resp.totalPages ??
+        Math.max(1, Math.ceil((resp.totalRecords ?? payouts.length) / limit))
+      );
+      setTotalRecords(
+        resp.totalRecords ?? resp.totalBookings ?? payouts.length
+      );
 
       setLoading(false);
     } catch (err) {
@@ -74,19 +106,26 @@ const Payments = () => {
       setError("Failed to load payment history");
       setLoading(false);
     }
-  };
+  }, [page, limit, filter, dateRange]);
 
+  // initial load + refetch when page/limit/filter/dateRange change
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
+
+  // handlers
   const handleFilterChange = (e) => {
     setFilter(e.target.value);
+    setPage(1); // reset page when filter changes
   };
 
   const handleDateChange = (e) => {
     const { name, value } = e.target;
     setDateRange((prev) => ({ ...prev, [name]: value }));
+    setPage(1);
   };
 
   const openApplyModal = () => {
-    // default requested amount to the pending payout value (rounded to 2 dec)
     setRequestAmount(Number(stats.pendingPayout || 0).toFixed(2));
     setApplyError(null);
     setApplySuccess(null);
@@ -107,7 +146,6 @@ const Payments = () => {
       return;
     }
 
-    // optionally prevent requesting more than pending payout:
     const pending = Number(stats.pendingPayout || 0);
     if (amt > pending) {
       setApplyError("Requested amount cannot be greater than pending payout.");
@@ -116,136 +154,225 @@ const Payments = () => {
 
     try {
       setApplyLoading(true);
-      const payload = { requested_amount: Math.round(amt) }; // API in screenshot used integer amounts
+      const payload = { requested_amount: amt }; // API expects integer
       const res = await axios.post("/api/payment/applypayout", payload);
-  
+
       setApplySuccess(res.data?.message || "Payout requested successfully.");
-      // refresh the list/stats
     } catch (err) {
       console.error("Apply payout error:", err);
-      // try to surface server message
       const msg =
         err?.response?.data?.message || "Failed to submit payout request.";
       setApplyError(msg);
     } finally {
       setApplyLoading(false);
-      // keep modal open briefly to show success, then close
+      // Refresh the list & stats after submit and keep modal open to show result briefly
+      await fetchBookings();
       setTimeout(() => {
         setIsModalOpen(false);
-      }, 1000);
-      await fetchBookings();
+      }, 900);
     }
   };
 
-  const filteredBookings = bookings.filter((booking) => {
-    if (filter !== "all") {
-      const status = String(
-        booking.payout_status ?? booking.bookingStatus ?? ""
-      ).toLowerCase();
-      if (status !== String(filter).toLowerCase()) return false;
-    }
+  // client-side filtering fallback (keeps PaymentsTable's props compatible)
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((booking) => {
+      if (filter !== "all") {
+        const status = String(
+          booking.payout_status ?? booking.bookingStatus ?? ""
+        ).toLowerCase();
+        if (status !== String(filter).toLowerCase()) return false;
+      }
 
-    if (dateRange.startDate && dateRange.endDate && booking.bookingDate) {
-      const date = new Date(booking.bookingDate);
-      const start = new Date(dateRange.startDate);
-      const end = new Date(dateRange.endDate);
-      end.setHours(23, 59, 59, 999);
-      if (date < start || date > end) return false;
-    }
-    return true;
-  });
+      if (dateRange.startDate && dateRange.endDate && booking.bookingDate) {
+        const date = new Date(booking.bookingDate);
+        const start = new Date(dateRange.startDate);
+        const end = new Date(dateRange.endDate);
+        end.setHours(23, 59, 59, 999);
+        if (date < start || date > end) return false;
+      }
+      return true;
+    });
+  }, [bookings, filter, dateRange]);
 
-  if (loading) {
+  const resetAll = () => {
+    setFilter("all");
+    setDateRange({ startDate: "", endDate: "" });
+    setLimit(10);
+    setPage(1);
+  };
+
+  if (loading && bookings.length === 0) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
-  if (error) {
-    return <div className="bg-red-100 text-red-600 p-4 rounded">{error}</div>;
+  if (error && bookings.length === 0) {
+    return <div className="p-4 text-red-600 bg-red-100 rounded">{error}</div>;
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4">
-      <div className="flex justify-between items-center">
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Booking History</h2>
+
+        <div className="flex items-center space-x-2">
+          <div className="hidden mr-2 text-sm text-gray-600 md:block">
+            Page {page} of {totalPages}
+          </div>
+
+          <Button
+            className="h-9"
+            onClick={fetchBookings}
+            variant="outline"
+            icon={<RefreshCcw className="w-4 h-4 mr-2" />}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Pending Payout</p>
+      <div className="grid grid-cols-4 gap-4 sm:grid-cols-4">
+        <div className="p-4 bg-white rounded shadow">
+          <p className="text-sm text-gray-500">Pending Payout</p>
           <p className="text-xl font-bold text-gray-800">
             C${Number(stats.pendingPayout || 0).toFixed(2)}
           </p>
         </div>
-        <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Total Bookings</p>
+        <div className="p-4 bg-white rounded shadow">
+          <p className="text-sm text-gray-500">Total Bookings</p>
           <p className="text-xl font-bold text-blue-600">
             {stats.totalBookings}
           </p>
         </div>
-        <div className="bg-white p-4 shadow rounded">
+        <div className="p-4 bg-white rounded shadow">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Total Payout</p>
+              <p className="text-sm text-gray-500">Total Payout</p>
               <p className="text-xl font-bold text-green-600">
                 C${Number(stats.totalPayout || 0).toFixed(2)}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white p-4 shadow rounded">
-          <p className="text-gray-500 text-sm">Paid Payout</p>
+        <div className="p-4 bg-white rounded shadow">
+          <p className="text-sm text-gray-500">Paid Payout</p>
           <p className="text-xl font-bold text-blue-600">
             C${Number(stats.paidPayout || 0).toFixed(2)}
           </p>
         </div>
       </div>
 
-      <div>
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <FormSelect
-            value={filter}
-            className="w-"
-            onChange={handleFilterChange}
-            options={[
-              { value: "all", label: "All" },
-              { value: "pending", label: "Pending" },
-              { value: "paid", label: "Paid" },
-              { value: "completed", label: "Completed" },
-            ]}
-          />
-
-          <div className="flex items-center gap-2">
-            <FormInput
-              type="date"
-              name="startDate"
-              value={dateRange.startDate}
-              onChange={handleDateChange}
-            />
-            <FormInput
-              type="date"
-              name="endDate"
-              value={dateRange.endDate}
-              onChange={handleDateChange}
+      {/* Filters */}
+      <div className="mb-6">
+        <div className="grid items-end grid-cols-1 gap-4 md:grid-cols-6">
+          {/* Filter */}
+          <div className="md:col-span-1">
+            <label htmlFor="filter" className="block mb-1 text-sm font-medium text-gray-700">
+              Filter
+            </label>
+            <FormSelect
+              id="filter"
+              name="filter"
+              value={filter}
+              onChange={handleFilterChange}
+              options={[
+                { value: "all", label: "All Payouts" },
+                { value: "pending", label: "Pending" },
+                { value: "paid", label: "Paid" },
+                { value: "completed", label: "Completed" },
+              ]}
             />
           </div>
 
-          {/* Request payout button */}
-          <div className="ml-4">
-            <Button onClick={openApplyModal} size="sm" variant="primary">
+          {/* Start Date */}
+          <div className="md:col-span-1">
+            <label htmlFor="startDate" className="block mb-1 text-sm font-medium text-gray-700">
+              Start Date
+            </label>
+            <FormInput
+              id="startDate"
+              name="startDate"
+              value={dateRange.startDate}
+              onChange={handleDateChange}
+              type="date"
+              aria-label="Start date"
+            />
+          </div>
+
+          {/* End Date */}
+          <div className="md:col-span-1">
+            <label htmlFor="endDate" className="block mb-1 text-sm font-medium text-gray-700">
+              End Date
+            </label>
+            <FormInput
+              id="endDate"
+              name="endDate"
+              value={dateRange.endDate}
+              onChange={handleDateChange}
+              type="date"
+              aria-label="End date"
+            />
+          </div>
+
+          {/* Spacer to push button to right */}
+          <div className="md:col-span-2"></div>
+
+          {/* Request Payout Button - Right aligned */}
+          <div className="flex justify-end md:col-span-1">
+            <Button
+              onClick={openApplyModal}
+              size="sm"
+              variant="primary"
+              className="w-full md:w-auto"
+              aria-label="Request payout"
+              disabled={Number(stats.pendingPayout || 0) <= 0}
+              title={
+                Number(stats.pendingPayout || 0) <= 0
+                  ? "No pending payout available"
+                  : "Request payout"
+              }
+            >
               Request Payout
             </Button>
           </div>
         </div>
+      </div>
 
+      {/* Table */}
+      <div className="overflow-hidden">
         <PaymentsTable
           bookings={filteredBookings}
-          isLoading={loading}
+          isLoadixng={loading}
           filteredStatus={filter}
         />
+
+        {/* Pagination */}
+        <div className="flex flex-col items-center justify-between gap-3 mt-4 sm:flex-row">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={(p) => setPage(p)}
+            disabled={loading}
+            keepVisibleOnSinglePage={true}
+            totalRecords={totalRecords}
+            limit={limit}
+            onLimitChange={(n) => { setLimit(n); setPage(1); }}
+            renderLimitSelect={({ value, onChange, options }) => (
+              <FormSelect
+                id="limit"
+                name="limit"
+                dropdownDirection="auto"
+                value={value}
+                onChange={(e) => onChange(Number(e.target.value))}
+                options={options.map((v) => ({ value: v, label: String(v) }))}
+              />
+            )}
+            pageSizeOptions={[10, 25, 50]}
+          />
+        </div>
       </div>
 
       {/* Modal */}
@@ -255,31 +382,30 @@ const Payments = () => {
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-3">Request Payout</h3>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="w-11/12 max-w-md p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-3 text-lg font-semibold">Request Payout</h3>
+            <p className="mb-4 text-sm text-gray-600">
               Available for withdrawal:{" "}
               <strong>C${Number(stats.pendingPayout || 0).toFixed(2)}</strong>
             </p>
 
-            <label className="block text-sm text-gray-600 mb-1">
+            <label className="block mb-1 text-sm text-gray-600">
               Amount to request
             </label>
             <input
               type="number"
               step="0.01"
               min="0"
-              disabled
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.target.value)}
-              className="w-full border rounded px-3 py-2 mb-3"
+              className="w-full px-3 py-2 mb-3 border rounded"
             />
 
             {applyError && (
-              <div className="text-red-600 text-sm mb-2">{applyError}</div>
+              <div className="mb-2 text-sm text-red-600">{applyError}</div>
             )}
             {applySuccess && (
-              <div className="text-green-700 text-sm mb-2">{applySuccess}</div>
+              <div className="mb-2 text-sm text-green-700">{applySuccess}</div>
             )}
 
             <div className="flex justify-end gap-3">

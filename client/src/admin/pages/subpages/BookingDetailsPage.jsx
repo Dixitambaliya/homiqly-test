@@ -103,7 +103,7 @@ export default function AdminBookingDetailsPage() {
   const [selectedVendorId, setSelectedVendorId] = useState("");
 
   useEffect(() => {
-    if (!booking) fetchBooking();
+    if (booking) fetchBooking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
@@ -354,9 +354,9 @@ export default function AdminBookingDetailsPage() {
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                  <Calendar />{" "}
+                  <Calendar className="w-4 h-4" />{" "}
                   <span>{bookingDate ? formatDate(bookingDate) : "—"}</span>
-                  <Clock className="ml-4" />{" "}
+                  <Clock className="ml-4 w-4 h-4" />{" "}
                   <span>{bookingTime ? formatTime(bookingTime) : "—"}</span>
                 </div>
 

@@ -3,17 +3,21 @@ import axios from "axios";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
 import { formatDate } from "../../shared/utils/dateUtils";
 import { FormSelect } from "../../shared/components/Form";
-import { Calendar, Star, User } from "lucide-react";
+import { Star, User, Calendar } from "lucide-react";
+
+// Avatar fallback component
+const Avatar = ({ name }) => (
+  <div className="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center text-gray-600 font-semibold text-xs mr-3">
+    {name ? name[0].toUpperCase() : <User className="h-4 w-4" />}
+  </div>
+);
 
 const Ratings = () => {
   const [ratings, setRatings] = useState([]);
-  const [stats, setStats] = useState({
-    average_rating: 0,
-    total_reviews: 0,
-  });
+  const [stats, setStats] = useState({ average_rating: 0, total_reviews: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("all"); // all, 5, 4, 3, 2, 1
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     fetchRatings();
@@ -30,121 +34,100 @@ const Ratings = () => {
       });
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching ratings:", error);
       setError("Failed to load ratings");
       setLoading(false);
     }
   };
 
-  const handleFilterChange = (e) => {
-    setFilter(e.target.value);
-  };
+  const handleFilterChange = (e) => setFilter(e.target.value);
 
-  const filteredRatings = ratings.filter((rating) => {
-    if (filter === "all") return true;
-    return rating.rating === parseInt(filter);
-  });
+  const filteredRatings = ratings.filter((rating) =>
+    filter === "all" ? true : rating.rating === parseInt(filter)
+  );
 
-  const renderStars = (rating) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <span
+  const renderStars = (rating) => (
+    <div className="flex">
+      {[...Array(5)].map((_, i) => (
+        <Star
           key={i}
-          className={i <= rating ? "text-yellow-400" : "text-gray-300"}
-        >
-          ★
-        </span>
-      );
-    }
-    return stars;
-  };
+          className={`w-5 h-5 ${
+            i < rating ? "text-yellow-400" : "text-gray-300"
+          }`}
+        />
+      ))}
+    </div>
+  );
 
   const getRatingDistribution = () => {
-    const distribution = {
-      5: 0,
-      4: 0,
-      3: 0,
-      2: 0,
-      1: 0,
-    };
-
-    ratings.forEach((rating) => {
-      distribution[rating.rating]++;
-    });
-
-    return distribution;
+    const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    ratings.forEach((r) => dist[r.rating]++);
+    return dist;
   };
 
   const distribution = getRatingDistribution();
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex justify-center items-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     );
-  }
 
-  if (error) {
+  if (error)
     return (
       <div className="bg-red-50 p-4 rounded-md">
         <p className="text-red-500">{error}</p>
       </div>
     );
-  }
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">
-        Ratings & Reviews
-      </h2>
+    <section className="max-w-7xl mx-auto px-4 ">
+      <header className="mb-8">
+        <h2 className="text-3xl font-bold text-gray-900">Ratings & Reviews</h2>
+        <p className="text-gray-500 mt-1">Real feedback from customers</p>
+      </header>
 
-      {/* Rating Summary */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex flex-col md:flex-row">
-          <div className="flex-1 flex flex-col items-center justify-center p-4 border-b md:border-b-0 md:border-r border-gray-200">
-            <div className="text-5xl font-bold text-primary-dark mb-2">
-              {stats.average_rating
-                ? typeof stats.average_rating === "number"
-                  ? stats.average_rating.toFixed(1)
-                  : stats.average_rating
-                : "0.0"}
-            </div>
-            <div className="flex text-2xl text-yellow-400 mb-2">
-              {renderStars(Math.round(stats.average_rating))}
-            </div>
-            <div className="text-sm text-gray-500">
-              Based on {stats.total_reviews}{" "}
-              {stats.total_reviews === 1 ? "review" : "reviews"}
-            </div>
-          </div>
-
-          <div className="flex-1 p-4">
-            <h3 className="text-lg font-medium text-gray-800 mb-4">
-              Rating Distribution
-            </h3>
+      {/* Summary Card */}
+      <div className="bg-white shadow-lg rounded-lg flex flex-col md:flex-row p-6 mb-8 gap-6">
+        <div className="flex-1 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-200 pb-6 md:pb-0 md:pr-6">
+          <span className="text-6xl font-bold text-primary-dark mb-2">
+            {stats.average_rating
+              ? typeof stats.average_rating === "number"
+                ? stats.average_rating.toFixed(1)
+                : stats.average_rating
+              : "0.0"}
+          </span>
+          {renderStars(Math.round(stats.average_rating))}
+          <span className="text-gray-500 mt-1 text-sm">
+            Based on {stats.total_reviews}{" "}
+            {stats.total_reviews === 1 ? "review" : "reviews"}
+          </span>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+            Rating Distribution
+          </h3>
+          <div>
             {[5, 4, 3, 2, 1].map((rating) => {
               const count = distribution[rating] || 0;
-              const percentage =
-                stats.total_reviews > 0
-                  ? Math.round((count / stats.total_reviews) * 100)
-                  : 0;
-
+              const percentage = stats.total_reviews
+                ? Math.round((count / stats.total_reviews) * 100)
+                : 0;
               return (
                 <div key={rating} className="flex items-center mb-2">
-                  <div className="flex text-yellow-400 mr-2">
-                    {rating} <Star className="ml-1" />
-                  </div>
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <span className="flex items-center text-yellow-500 font-medium w-14">
+                    {rating}
+                    <Star className="w-4 h-4 ml-1" />
+                  </span>
+                  <div className="flex-1 mx-2 bg-gray-100 h-2 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary-light rounded-full"
+                      className="bg-yellow-400 h-full rounded-l-full"
                       style={{ width: `${percentage}%` }}
-                    ></div>
+                    />
                   </div>
-                  <div className="ml-2 text-sm text-gray-500 w-16">
+                  <span className="text-xs text-gray-500 w-16 text-right">
                     {count} ({percentage}%)
-                  </div>
+                  </span>
                 </div>
               );
             })}
@@ -152,74 +135,74 @@ const Ratings = () => {
         </div>
       </div>
 
-      {/* Reviews List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-          <h3 className="text-lg font-medium text-gray-800">
+      {/* Reviews + Filter */}
+      <div className="bg-white shadow rounded-lg">
+        <div className="flex flex-col md:flex-row justify-between items-center p-4 border-b bg-gray-50 gap-3">
+          <h3 className="text-lg font-semibold text-gray-800">
             Customer Reviews
           </h3>
-          <div>
-            <FormSelect
-              value={filter}
-              onChange={(e) => handleFilterChange(e)}
-              options={[
-                { value: "all", label: "All Ratings" },
-                { value: "5", label: "5 Stars" },
-                { value: "4", label: "4 Stars" },
-                { value: "3", label: "3 Stars" },
-                { value: "2", label: "2 Stars" },
-                { value: "1", label: "1 Star" },
-              ]}
-              className="w-full sm:w-48"
-              aria-label="Filter by rating"
-            />
-          </div>
+          <FormSelect
+            value={filter}
+            onChange={handleFilterChange}
+            options={[
+              { value: "all", label: "All Ratings" },
+              { value: "5", label: "5 Stars" },
+              { value: "4", label: "4 Stars" },
+              { value: "3", label: "3 Stars" },
+              { value: "2", label: "2 Stars" },
+              { value: "1", label: "1 Star" },
+            ]}
+            className="md:w-48 w-full"
+            aria-label="Filter by rating"
+          />
         </div>
 
         {filteredRatings.length > 0 ? (
-          <div className="divide-y divide-gray-200">
+          <ul
+            className=" grid grid-cols-2  "
+          >
             {filteredRatings.map((rating) => (
-              <div key={rating.rating_id} className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center">
-                    <div className="mr-3 bg-gray-100 rounded-full p-2">
-                      <User className="h-5 w-5 text-gray-500" />
-                    </div>
+              <li
+                key={rating.rating_id}
+                className="flex py-6 px-4 gap-4 items-start shadow"
+              >
+                <Avatar name={rating.user_name} />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-gray-900">
+                      <span className="font-semibold text-gray-900">
                         {rating.user_name}
-                      </h4>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Calendar className="mr-1" />
+                      </span>
+                      <span className="ml-3 text-xs text-gray-400 flex items-center">
+                        <Calendar className="w-3 h-3 mr-1" />
                         {formatDate(rating.created_at)}
-                      </div>
+                      </span>
                     </div>
+                    <span>{renderStars(rating.rating)}</span>
                   </div>
-                  <div className="flex text-yellow-400">
-                    {renderStars(rating.rating)}
+                  <div className="mt-3">
+                    <p className="text-gray-700 mb-2">
+                      {rating.review || "No written review provided."}
+                    </p>
+                    {rating.serviceName && (
+                      <span className="text-xs text-gray-500">
+                        Service: {rating.serviceName.trim()}
+                      </span>
+                    )}
                   </div>
                 </div>
-
-                <div className="ml-10">
-                  <p className="text-gray-700 mb-2">
-                    {rating.review || "No written review provided."}
-                  </p>
-                  <div className="text-sm text-gray-500">
-                    Service: {rating.serviceName?.trim()}
-                  </div>
-                </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-10 text-center text-gray-500">
             {filter === "all"
               ? "No reviews yet. Completed bookings will appear here when customers leave reviews."
               : `No ${filter}-star reviews yet.`}
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 

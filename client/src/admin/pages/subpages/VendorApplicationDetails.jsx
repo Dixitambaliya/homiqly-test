@@ -1,6 +1,17 @@
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Button from "../../../shared/components/Button/Button";
-import { ArrowLeft, CheckCircle, Clock, Hash, Mail, Package, Phone, User, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  Hash,
+  Mail,
+  Package,
+  Phone,
+  User,
+  XCircle,
+} from "lucide-react";
+import Breadcrumb from "../../../shared/components/Breadcrumb";
 
 const StatusBadge = ({ status }) => {
   const map = {
@@ -99,25 +110,14 @@ const VendorApplicationDetails = () => {
     <div className="space-y-6 animate-fadeIn max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft /> Back
-          </button>
-          <h2 className="text-2xl font-bold text-gray-900">
-            Application #{app.application_id}
-          </h2>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={app.status} />
-
-          {/* <StatChip icon={FiDollarSign} label={formatMoney(app.totalPrice)} />
-          <StatChip icon={FiClock} label={app.totalTime || "—"} />
-          <StatChip icon={FiPackage} label={`${itemsCount} items`} /> */}
-        </div>
+        <Breadcrumb
+          links={[
+            { label: "Dashboard", to: "/admin/dashboard" },
+            { label: "Bookings", to: "/admin/vendor-applications" },
+            { label: `Booking #${app.application_id}` },
+          ]}
+        />
+        <StatusBadge status={app.status} />
       </div>
 
       {/* Enhanced Package Section */}
@@ -234,8 +234,6 @@ const VendorApplicationDetails = () => {
         </div>
       </div>
 
-      {/* Vendor & Meta Info */}
-
       {/* Sub-packages */}
       {Array.isArray(app.subPackages) && app.subPackages.length > 0 && (
         <div className=" p-5">
@@ -260,13 +258,16 @@ const VendorApplicationDetails = () => {
                     {sp.itemName}
                   </p>
                   <div className="mt-2 flex justify-between items-center">
-                    <StatChip icon={Clock} label={`${sp.timeRequired} Mins` || "—"} />
+                    <StatChip
+                      icon={Clock}
+                      label={`${sp.timeRequired} Mins` || "—"}
+                    />
                     <p className="text-sm font-semibold text-gray-900">
                       {formatMoney(sp.price)}
                     </p>
                   </div>
                 </div>
-              </div>  
+              </div>
             ))}
           </div>
         </div>

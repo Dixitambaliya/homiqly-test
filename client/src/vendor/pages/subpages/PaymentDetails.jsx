@@ -47,7 +47,7 @@ const PaymentDetails = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900" />
+        <div className="w-10 h-10 border-b-2 border-gray-900 rounded-full animate-spin" />
       </div>
     );
   }
@@ -112,18 +112,10 @@ const PaymentDetails = () => {
   })();
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-5xl p-6 mx-auto space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm text-gray-600"
-          >
-            <ArrowLeft />
-            Back
-          </button>
-
           <Breadcrumb
             links={[
               { label: "Dashboard", to: "/vendor" },
@@ -135,14 +127,14 @@ const PaymentDetails = () => {
       </div>
 
       {/* Payment Summary Card */}
-      <div className="bg-white shadow-md rounded-2xl p-6">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+      <div className="p-6 bg-white shadow-md rounded-2xl">
+        <h2 className="mb-4 text-2xl font-semibold text-gray-800">
           Payment Summary
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="text-sm text-gray-500">Booking ID</p>
-            <p className="text-gray-900 font-medium">#{bookingId}</p>
+            <p className="font-medium text-gray-900">#{bookingId}</p>
           </div>
 
           <div>
@@ -154,14 +146,14 @@ const PaymentDetails = () => {
 
           <div>
             <p className="text-sm text-gray-500">Payout Amount</p>
-            <p className="text-gray-900 font-medium">
+            <p className="font-medium text-gray-900">
               {formattedPayout}
             </p>
           </div>
 
           <div>
             <p className="text-sm text-gray-500">Booking Date</p>
-            <p className="text-gray-900 font-medium">
+            <p className="font-medium text-gray-900">
               {payment.bookingDate ? formatDate(payment.bookingDate) : "-"}{" "}
               {payment.bookingTime ? `at ${payment.bookingTime}` : ""}
             </p>
@@ -169,41 +161,41 @@ const PaymentDetails = () => {
 
           <div>
             <p className="text-sm text-gray-500">Created On</p>
-            <p className="text-gray-900 font-medium">
+            <p className="font-medium text-gray-900">
               {payment.created_at ? formatDate(payment.created_at) : "-"}
             </p>
           </div>
 
           <div>
             <p className="text-sm text-gray-500">Service ID</p>
-            <p className="text-gray-900 font-medium">#{payment.package_id ?? payment.service_id ?? "—"}</p>
+            <p className="font-medium text-gray-900">#{payment.package_id ?? payment.service_id ?? "—"}</p>
           </div>
         </div>
       </div>
 
       {/* Package Section */}
-      <div className="bg-white shadow-md rounded-2xl p-6">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+      <div className="p-6 bg-white shadow-md rounded-2xl">
+        <h3 className="mb-4 text-xl font-semibold text-gray-800">
           Package Details
         </h3>
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+        <div className="flex flex-col items-start gap-6 md:flex-row md:items-center">
           <img
             src={payment.packageMedia ?? payment.bookingMedia}
             alt={payment.packageName ?? "Package"}
-            className="w-48 h-32 object-cover rounded-lg shadow"
+            className="object-cover w-48 h-32 rounded-lg shadow"
           />
           <div>
-            <p className="text-gray-900 font-medium text-lg">
+            <p className="text-lg font-medium text-gray-900">
               {payment.packageName ?? "—"}
             </p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               Service ID: #{payment.package_id ?? payment.service_id ?? "—"}
             </p>
             <p className="text-sm text-gray-500">
               Price: {formattedPayout}
             </p>
             {payment.platform_fee_percentage && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="mt-1 text-sm text-gray-500">
                 Platform Fee: {payment.platform_fee_percentage}%
               </p>
             )}
@@ -212,46 +204,46 @@ const PaymentDetails = () => {
       </div>
 
       {/* User Section */}
-      <div className="bg-white shadow-md rounded-2xl p-6">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+      <div className="p-6 bg-white shadow-md rounded-2xl">
+        <h3 className="mb-4 text-xl font-semibold text-gray-800">
           User Information
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
           <div>
             <p className="text-sm text-gray-500">Name</p>
-            <p className="text-gray-900 font-medium">{payment.user_name ?? payment.user_fullname ?? "-"}</p>
+            <p className="font-medium text-gray-900">{payment.user_name ?? payment.user_fullname ?? "-"}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Email</p>
-            <p className="text-gray-900 font-medium">{payment.user_email ?? "-"}</p>
+            <p className="font-medium text-gray-900">{payment.user_email ?? "-"}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Phone</p>
-            <p className="text-gray-900 font-medium">{payment.user_phone ?? "-"}</p>
+            <p className="font-medium text-gray-900">{payment.user_phone ?? "-"}</p>
           </div>
         </div>
       </div>
 
       {/* Vendor Section */}
       {(payment.vendor_name || payment.vendor_email || payment.vendor_phone) && (
-        <div className="bg-white shadow-md rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">
+        <div className="p-6 bg-white shadow-md rounded-2xl">
+          <h3 className="mb-4 text-xl font-semibold text-gray-800">
             Vendor Information
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
             <div>
               <p className="text-sm text-gray-500">Vendor Name</p>
-              <p className="text-gray-900 font-medium">{payment.vendor_name ?? "-"}</p>
+              <p className="font-medium text-gray-900">{payment.vendor_name ?? "-"}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Email</p>
-              <p className="text-gray-900 font-medium">
+              <p className="font-medium text-gray-900">
                 {payment.vendor_email ?? "-"}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Phone</p>
-              <p className="text-gray-900 font-medium">
+              <p className="font-medium text-gray-900">
                 {payment.vendor_phone ?? "-"}
               </p>
             </div>
@@ -261,8 +253,8 @@ const PaymentDetails = () => {
 
       {/* Notes Section */}
       {payment.notes && (
-        <div className="bg-white shadow-md rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Notes</h3>
+        <div className="p-6 bg-white shadow-md rounded-2xl">
+          <h3 className="mb-4 text-xl font-semibold text-gray-800">Notes</h3>
           <p className="text-gray-700">{payment.notes}</p>
         </div>
       )}

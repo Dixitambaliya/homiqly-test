@@ -20,8 +20,8 @@ const vendorAuthQueries = {
                                     name,
                                     phone,
                                     email,
-                                    resume) VALUES (?, ?, ?, ?, ?)`,
-
+                                    resume,
+                                    aboutme) VALUES (?, ?, ?, ?, ?, ?)`,
                                     
 
     insertIndividualServiceCategory: `INSERT INTO individual_service_categories

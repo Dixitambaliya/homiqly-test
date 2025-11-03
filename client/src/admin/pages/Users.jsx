@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import LoadingSpinner from "../../shared/components/LoadingSpinner";
@@ -6,9 +6,10 @@ import UsersTable from "../components/Tables/UsersTable"; // Adjust path as need
 import FormInput from "../../shared/components/Form/FormInput"; // Adjust path as needed
 import { Button, IconButton } from "../../shared/components/Button";
 import FormSelect from "../../shared/components/Form/FormSelect";
+import Pagination from "../../shared/components/Pagination";
 import UniversalDeleteModal from "../../shared/components/Modal/UniversalDeleteModal";
 import Modal from "../../shared/components/Modal/Modal";
-import { Edit, RefreshCcw, Search } from "lucide-react";
+import { Edit, Pencil, RefreshCcw, Search } from "lucide-react";
 
 const Users = () => {
   const [users, setUsers] = useState([]);
@@ -41,24 +42,75 @@ const Users = () => {
   const [deleteAction, setDeleteAction] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null); // object for desc
 
+  // Search + pagination
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
 
+  // Debounce search input (500ms)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch((prev) => {
+        // only set and reset page when actual change happens
+        if (prev !== searchTerm.trim()) {
+          setPage(1);
+        }
+        return searchTerm.trim();
+      });
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  // Fetch users from server (uses page, limit, debouncedSearch)
+  const fetchUsers = useCallback(
+    async (opts = {}) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // allow overrides via opts (useful for Refresh button)
+        const qPage = opts.page ?? page;
+        const qLimit = opts.limit ?? limit;
+        const qSearch = opts.search ?? debouncedSearch;
+
+        const params = {
+          page: qPage,
+          limit: qLimit,
+        };
+
+        if (qSearch) params.search = qSearch;
+
+        const response = await axios.get("/api/admin/getusers", { params });
+        const data = response.data || {};
+
+        // Try to read common shapes:
+        // - users array might be under data.users or data.data
+        // - pagination fields: count, limit, page, totalPages, totalUsers (per your sample)
+        setUsers(data.users ?? data.data ?? []);
+        setPage(data.page ?? qPage);
+        setLimit(data.limit ?? qLimit);
+        setTotalPages(data.totalPages ?? data.totalPages ?? 1);
+        // some APIs use totalUsers or total
+        setTotalUsers(data.totalUsers ?? data.total ?? data.count ?? 0);
+      } catch (err) {
+        console.error("Failed to load users", err);
+        setError("Failed to load users");
+        toast.error("Failed to load users");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [page, limit, debouncedSearch]
+  );
+
+  // Initial fetch and whenever page/limit/debouncedSearch changes
   useEffect(() => {
     fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/api/admin/getusers");
-      setUsers(response.data.users || []);
-    } catch (err) {
-      setError("Failed to load users");
-      toast.error("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchUsers, page, limit, debouncedSearch]);
 
   useEffect(() => {
     if (selectedUser) {
@@ -92,6 +144,7 @@ const Users = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // keep numeric-ish values as-is; convert to number where appropriate before submit if needed
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -171,9 +224,12 @@ const Users = () => {
     });
   };
 
-  // Filtered users derived from searchTerm
+  // NOTE: we now rely on server-side search/pagination; keep client-side filtering only for interim UX if desired.
+  // Here, we show the server-provided users list and still allow local text filter on top if you prefer:
   const filteredUsers = useMemo(() => {
-    const term = (searchTerm || "").trim().toLowerCase();
+    const term = (debouncedSearch || "").trim().toLowerCase();
+    // Because we're querying server with search, it's safe to return the server data directly.
+    // However, keep this in case you want to further locally filter the single page.
     if (!term) return users;
     return users.filter((u) => {
       const first = (u.firstName || "").toLowerCase();
@@ -186,7 +242,7 @@ const Users = () => {
         `${first} ${last}`.includes(term)
       );
     });
-  }, [users, searchTerm]);
+  }, [users, debouncedSearch]);
 
   // description for delete modal (safe-check)
   const deleteDesc = deletingUser
@@ -194,17 +250,32 @@ const Users = () => {
     : "Are you sure you want to delete this user?";
 
   return (
-    <>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Admin User Management
-          </h2>
-        </div>
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Admin User Management
+        </h2>
+        
+        <div className="flex items-center space-x-2">
+          <div className="hidden mr-2 text-sm text-gray-600 md:block">
+            Page {page} of {totalPages}
+          </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Search box */}
-          <div className="w-full sm:w-80">
+          <Button
+            className="h-9"
+            onClick={() => fetchUsers({ page: 1, limit })}
+            variant="outline"
+            icon={<RefreshCcw className="w-4 h-4 mr-2" />}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Search Controls */}
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center w-full gap-3 md:w-auto">
+          <div className="flex-1 min-w-0 md:max-w-xs">
             <FormInput
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -212,30 +283,51 @@ const Users = () => {
               icon={<Search />}
             />
           </div>
-
-          {/* Refresh */}
-          <Button onClick={fetchUsers} variant="ghost">
-            <RefreshCcw className="mr-2" />
-            Refresh
-          </Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
+        <div className="flex items-center justify-center h-64">
           <LoadingSpinner />
         </div>
       ) : error ? (
-        <div className="bg-red-50 p-4 rounded-md">
+        <div className="p-4 rounded-md bg-red-50">
           <p className="text-red-500">{error}</p>
         </div>
       ) : (
-        <UsersTable
-          users={filteredUsers}
-          isLoading={loading}
-          onEditUser={(user) => openUserModal(user)}
-          onDelete={handleDeleteClick}
-        />
+        <div className="overflow-hidden">
+          <UsersTable
+            users={filteredUsers}
+            isLoading={loading}
+            onEditUser={(user) => openUserModal(user)}
+            onDelete={handleDeleteClick}
+          />
+
+          {/* Pagination */}
+          <div className="flex flex-col items-center justify-between gap-3 mt-4 sm:flex-row">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={(p) => setPage(p)}
+              disabled={loading}
+              keepVisibleOnSinglePage={true}
+              totalRecords={totalUsers}
+              limit={limit}
+              onLimitChange={(n) => { setLimit(n); setPage(1); }}
+              renderLimitSelect={({ value, onChange, options }) => (
+                <FormSelect
+                  id="limit"
+                  name="limit"
+                  dropdownDirection="auto"
+                  value={value}
+                  onChange={(e) => onChange(Number(e.target.value))}
+                  options={options.map((v) => ({ value: v, label: `${v} / page` }))}
+                />
+              )}
+              pageSizeOptions={[5, 10, 20, 50]}
+            />
+          </div>
+        </div>
       )}
 
       {/* Combined View/Edit User Modal */}
@@ -246,18 +338,18 @@ const Users = () => {
           title={isEditing ? "Edit User" : "User Details"}
         >
           <>
-            <div className="p-4 h-auto overflow-y-auto">
+            <div className="h-auto p-4 overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex items-center mb-6">
                   {formData.profileImage ? (
                     <img
                       src={formData.profileImage}
                       alt={`${formData.firstName} ${formData.lastName}`}
-                      className="h-16 w-16 rounded-full mr-4 object-cover"
+                      className="object-cover w-16 h-16 mr-4 rounded-full"
                     />
                   ) : (
-                    <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center mr-4">
-                      <span className="text-gray-500 text-xl">
+                    <div className="flex items-center justify-center w-16 h-16 mr-4 bg-gray-200 rounded-full">
+                      <span className="text-xl text-gray-500">
                         {formData.firstName?.charAt(0)}
                       </span>
                     </div>
@@ -272,7 +364,7 @@ const Users = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <FormInput
                     label="First Name"
                     id="firstName"
@@ -339,7 +431,7 @@ const Users = () => {
                   />
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
                       Status
                     </label>
                     <FormSelect
@@ -356,18 +448,20 @@ const Users = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
                       Joined On
                     </label>
                     <p className="text-gray-900">
-                      {new Date(formData.created_at).toLocaleDateString(
-                        "en-US",
-                        {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        }
-                      )}
+                      {formData.created_at
+                        ? new Date(formData.created_at).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )
+                        : "-"}
                     </p>
                   </div>
                 </div>
@@ -375,7 +469,7 @@ const Users = () => {
             </div>
 
             {/* Footer - always visible */}
-            <div className="sticky bottom-0 bg-white border-t p-4 flex justify-end gap-3">
+            <div className="sticky bottom-0 flex justify-end gap-3 p-4 bg-white border-t">
               {!isEditing ? (
                 <>
                   <Button
@@ -389,8 +483,8 @@ const Users = () => {
                     onClick={handleStartEdit}
                     variant="ghost"
                     className="flex items-center"
+                    icon={<Pencil className="w-4 h-4" />}
                   >
-                    <Edit className="mr-2" />
                     Edit
                   </Button>
                 </>
@@ -434,7 +528,7 @@ const Users = () => {
         title="Delete User"
         desc={deleteDesc}
       />
-    </>
+    </div>
   );
 };
 

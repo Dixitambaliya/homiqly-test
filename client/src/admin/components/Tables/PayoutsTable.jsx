@@ -12,6 +12,8 @@ const statusMap = {
   2: "Rejected",
 };
 
+const currency = "CAD";
+
 const PayoutsTable = ({
   payouts = [],
   isLoading,
@@ -50,7 +52,9 @@ const PayoutsTable = ({
       key: "requested_amount",
       render: (row) => (
         <div className="text-sm text-gray-900">
-          {row.requested_amount ? formatCurrency(row.requested_amount) : "—"}
+          {row.requested_amount
+            ? formatCurrency(row.requested_amount, currency)
+            : "—"}
         </div>
       ),
     },

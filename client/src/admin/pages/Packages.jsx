@@ -567,7 +567,7 @@ export default function Packages() {
           <Button
             onClick={() => setShowAddModal(true)}
             variant="primary"
-            icon={<Plus className="mr-2" />}
+            icon={<Plus className="w-4 h-4" />}
           >
             Add Service Type
           </Button>
@@ -675,7 +675,6 @@ export default function Packages() {
                                           id: pkg.package_id,
                                         })
                                       }
-                                      icon={<Trash />}
                                     >
                                       Delete
                                     </Button>
