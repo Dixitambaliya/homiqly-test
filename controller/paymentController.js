@@ -15,6 +15,8 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         dob = null, // for individual
         business_name = null, // for business
         preferred_transfer_type = "bank_transfer",
+        interac_email,
+        interac_phone
     } = req.body;
 
     const government_id = req.uploadedFiles?.government_id?.[0]?.url || null;
@@ -57,7 +59,7 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         await db.query(
             `INSERT INTO vendor_bank_accounts 
              (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, 
-              bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type)
+              bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type,interac_email, interac_phone)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 vendor_id,
@@ -73,6 +75,8 @@ const registerBankAccount = asyncHandler(async (req, res) => {
                 business_name,
                 government_id,
                 preferred_transfer_type,
+                interac_email,
+                interac_phone
             ]
         );
 
@@ -104,7 +108,9 @@ const getBankAccount = asyncHandler(async (req, res) => {
             dob, 
             business_name, 
             government_id,
-            preferred_transfer_type 
+            preferred_transfer_type,
+            interac_email,
+            interac_phone
          FROM vendor_bank_accounts 
          WHERE vendor_id = ?`,
         [vendor_id]
@@ -122,7 +128,7 @@ const getBankAccount = asyncHandler(async (req, res) => {
 // ----------------------------
 const editBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    
+
     const {
         account_holder_name,
         bank_name,
@@ -134,7 +140,9 @@ const editBankAccount = asyncHandler(async (req, res) => {
         legal_name,
         dob,
         business_name,
-        preferred_transfer_type
+        preferred_transfer_type,
+        interac_email,
+        interac_phone
     } = req.body;
 
     const government_id = req.uploadedFiles?.government_id?.[0]?.url || null;
@@ -153,7 +161,7 @@ const editBankAccount = asyncHandler(async (req, res) => {
     const [result] = await db.query(
         `UPDATE vendor_bank_accounts
          SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, 
-             bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=?
+             bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=? , interac_email = ?, interac_phone =?
          WHERE vendor_id=?`,
         [
             account_holder_name,
@@ -168,6 +176,8 @@ const editBankAccount = asyncHandler(async (req, res) => {
             business_name,
             government_id,
             preferred_transfer_type,
+            interac_email,
+            interac_phone,
             vendor_id,
         ]
     );

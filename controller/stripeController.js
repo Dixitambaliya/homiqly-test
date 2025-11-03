@@ -370,7 +370,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
   // ✅ Acknowledge Stripe immediately
   res.status(200).json({ received: true });
 
-  // ⚙️ Run in background
+  // ⚙️ Process in background
   (async () => {
     const paymentIntent = event.data.object;
     const paymentIntentId = paymentIntent.id;
@@ -387,9 +387,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      // ------------------------------
-      // CASE 1: Capture-ready PaymentIntent
-      // ------------------------------
+      // -----------------------------------------------------
+      // CASE 1: Capture-ready PaymentIntent (before capture)
+      // -----------------------------------------------------
       if (event.type === "payment_intent.amount_capturable_updated") {
         const [paymentRows] = await connection.query(
           `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime, 
@@ -419,7 +419,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           return;
         }
 
-        // 🔹 Fetch cart packages
+        // 🔹 Fetch cart packages and sub-packages
         const [cartPackages] = await connection.query(
           `SELECT cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, p.service_type_id
            FROM cart_package_items cpi
@@ -462,6 +462,17 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const booking_id = insertBooking.insertId;
         let totalBookingTime = 0;
 
+        // ✅ Insert into service_booking_packages (unique package IDs)
+        const uniquePackageIds = [...new Set(cartPackages.map(pkg => pkg.package_id))];
+        for (const packageId of uniquePackageIds) {
+          await connection.query(
+            `INSERT INTO service_booking_packages (booking_id, package_id, created_at)
+             VALUES (?, ?, NOW())`,
+            [booking_id, packageId]
+          );
+        }
+
+        // ✅ Loop through cart sub-packages
         for (const pkg of cartPackages) {
           const { sub_package_id, service_type_id, price, quantity } = pkg;
 
@@ -479,7 +490,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             [booking_id, sub_package_id, service_type_id, price, quantity]
           );
 
-          // Addons
+          // 🔹 Addons
           const [addons] = await connection.query(
             `SELECT addon_id, price FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
             [cart_id, sub_package_id]
@@ -499,7 +510,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
               (addonTimeRow?.addonTime || 0) * (quantity || 1);
           }
 
-          // Preferences
+          // 🔹 Preferences
           const [prefs] = await connection.query(
             `SELECT preference_id FROM cart_preferences WHERE cart_id = ? AND sub_package_id = ?`,
             [cart_id, sub_package_id]
@@ -512,7 +523,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             );
           }
 
-          // Consents
+          // 🔹 Consents
           const [consents] = await connection.query(
             `SELECT consent_id, answer FROM cart_consents WHERE cart_id = ? AND sub_package_id = ?`,
             [cart_id, sub_package_id]
@@ -526,12 +537,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
 
+        // ✅ Update total time
         await connection.query(
           `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
           [Math.round(totalBookingTime), booking_id]
         );
 
-        // ✅ Promo usage (supports user or system promo)
+        // ✅ Promo usage (user or system promo)
         if (user_promo_code_id) {
           const [[userPromo]] = await connection.query(
             `SELECT upc.user_promo_code_id, upc.usedCount, pc.maxUse
@@ -567,6 +579,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           }
         }
 
+        // ✅ Capture Stripe payment
         await stripe.paymentIntents.capture(paymentIntentId);
 
         await connection.query(
@@ -591,9 +604,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         console.log(`✅ Booking transaction completed for booking #${booking_id}`);
       }
 
-      // ------------------------------
+      // -----------------------------------------------------
       // CASE 2: Charge Captured — Send Emails
-      // ------------------------------
+      // -----------------------------------------------------
       if (event.type === "charge.captured") {
         const charge = event.data.object;
         const receiptUrl = charge.receipt_url;
@@ -607,7 +620,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
           );
 
           if (booking) {
-            // 🔹 Run emails asynchronously, outside DB transaction
+            // 🔹 Send emails asynchronously (no DB locks)
             (async () => {
               try {
                 await sendBookingEmail(booking.user_id, {
@@ -643,11 +656,15 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
       } catch (cancelErr) {
         console.error("⚠️ Failed to cancel PaymentIntent:", cancelErr.message);
       }
+
+      // ✅ Cleanup in case rollback occurred
+      await connection.query(`DELETE FROM service_booking_packages WHERE booking_id IS NULL`);
     } finally {
       connection.release();
     }
   })();
 });
+
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
