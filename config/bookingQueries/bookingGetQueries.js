@@ -70,7 +70,7 @@ LIMIT 1;
         pi.itemMedia,
         pi.timeRequired,
         sbsp.quantity,
-        sbsp.price
+        pi.price
     FROM service_booking_sub_packages sbsp
     JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
     JOIN packages p ON pi.package_id = p.package_id
