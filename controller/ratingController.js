@@ -200,7 +200,6 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
