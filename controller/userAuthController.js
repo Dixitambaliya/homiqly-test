@@ -715,18 +715,18 @@ const verifyOtp = asyncHandler(async (req, res) => {
                 });
             }
 
-            // 🔍 Check again if user already exists (by phone or email)
-            const [existingUsers] = await db.query(
-                "SELECT user_id FROM users WHERE phone = ? OR email = ?",
-                [phone || null, email || null]
-            );
+                    // 🔍 Check again if user already exists (by phone or email)
+        const [existingUsers] = await db.query(
+            "SELECT user_id FROM users WHERE phone = ? OR email = ?",
+            [phone || null, email || null]
+        );
 
-            if (existingUsers.length > 0) {
-                return res.status(400).json({
-                    message: "User already exists. Please log in instead.",
-                });
-            }
-
+        if (existingUsers.length > 0) {
+            return res.status(400).json({
+                message: "User already exists. Please log in instead.",
+            });
+        }
+        
             const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
             const isApproved = phone ? 1 : 0;
 
