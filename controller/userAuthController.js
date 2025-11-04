@@ -629,28 +629,38 @@ const verifyOtp = asyncHandler(async (req, res) => {
     const user = rows[0];
 
     // 🧩 Step 2: Direct password-based login (email/phone + password)
-    if ((email || phone) && password && user && user.password?.trim() !== "") {
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid credentials" });
+    // 🧩 Step 2: Direct password-based login (email/phone + password)
+    if ((email || phone) && password && user && user.password) {
+        // 🧠 Safely convert DB-stored password (Buffer/BLOB) to string
+        const storedPassword =
+            typeof user.password === "object" && user.password !== null
+                ? user.password.toString()
+                : user.password;
+
+        // Only compare if it's a valid non-empty string
+        if (typeof storedPassword === "string" && storedPassword.trim() !== "") {
+            const isMatch = await bcrypt.compare(password, storedPassword);
+            if (!isMatch) {
+                return res.status(401).json({ message: "Invalid credentials" });
+            }
+
+            const loginToken = jwt.sign(
+                { user_id: user.user_id, phone: user.phone, email: user.email },
+                process.env.JWT_SECRET
+            );
+
+            assignWelcomeCode({ user_id: user.user_id, user_email: user.email })
+                .catch((err) => console.error("❌ Auto-assign welcome code error:", err.message));
+
+            return res.status(200).json({
+                message: email
+                    ? "Login successful via email/password"
+                    : "Login successful via phone/password",
+                token: loginToken,
+            });
         }
-
-        const loginToken = jwt.sign(
-            { user_id: user.user_id, phone: user.phone, email: user.email },
-            process.env.JWT_SECRET
-        );
-
-        // Fire and forget welcome code assignment
-        assignWelcomeCode({ user_id: user.user_id, user_email: user.email })
-            .catch((err) => console.error("❌ Auto-assign welcome code error:", err.message));
-
-        return res.status(200).json({
-            message: email
-                ? "Login successful via email/password"
-                : "Login successful via phone/password",
-            token: loginToken,
-        });
     }
+
 
     // 🧩 Step 3: OTP is mandatory when no password login
     if (!otp) {
