@@ -528,20 +528,33 @@ const sendOtp = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Either phone or email is required" });
     }
 
-    // ✅ 1. Check if user exists
-    const [existingUsers] = await db.query(
-        "SELECT user_id, firstName, lastName, phone, email, password FROM users WHERE phone = ? OR email = ?",
-        [phone || null, email || null]
-    );
+    // ✅ 1. Check if phone/email exist independently
+    let existingUserByPhone = [];
+    let existingUserByEmail = [];
 
-    const user = existingUsers[0];
-    const is_registered = existingUsers.length > 0;
+    if (phone) {
+        [existingUserByPhone] = await db.query(
+            "SELECT user_id, firstName, lastName, phone, email, password FROM users WHERE phone = ?",
+            [phone]
+        );
+    }
 
-    // ✅ 2. Determine flags (true = NOT registered for that specific identifier)
-    const is_phone_registered = !existingUsers.some(u => u.phone === phone);
-    const is_email_registered = !existingUsers.some(u => u.email === email);
+    if (email) {
+        [existingUserByEmail] = await db.query(
+            "SELECT user_id, firstName, lastName, phone, email, password FROM users WHERE email = ?",
+            [email]
+        );
+    }
 
-    // 🔢 3. Generate OTP
+    // ✅ 2. Determine registration status
+    const user = existingUserByPhone[0] || existingUserByEmail[0] || null;
+    const phoneExists = existingUserByPhone.length > 0;
+    const emailExists = existingUserByEmail.length > 0;
+
+    // If either exists → user is registered
+    const is_registered = phoneExists || emailExists;
+
+    // ✅ 3. Generate OTP
     const otp = generateOTP();
 
     // 🔐 4. Create JWT (30 minutes expiry)
@@ -600,13 +613,9 @@ const sendOtp = asyncHandler(async (req, res) => {
         message: responseMsg,
         token,
         is_registered,
+        is_email_registered: emailExists,
+        is_phone_registered: phoneExists,
     };
-
-    if (email) {
-        responseData.is_email_registered = is_email_registered;
-    } else if (phone) {
-        responseData.is_phone_registered = is_phone_registered;
-    }
 
     if (user?.firstName) responseData.firstName = user.firstName;
     if (user?.lastName) responseData.lastName = user.lastName;
