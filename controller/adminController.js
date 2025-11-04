@@ -430,14 +430,15 @@ const getBookings = asyncHandler(async (req, res) => {
         );
 
         // ===== Get paginated unique booking IDs =====
+        // ===== Get paginated unique booking IDs (newest first) =====
         const [bookingIds] = await db.query(
             `SELECT DISTINCT sb.booking_id
-            FROM service_booking sb
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            ${filters}
-            ORDER BY sb.booking_id DESC
-            LIMIT ? OFFSET ?`,
+     FROM service_booking sb
+     LEFT JOIN users u ON sb.user_id = u.user_id
+     LEFT JOIN services s ON sb.service_id = s.service_id
+     ${filters}
+     ORDER BY sb.booking_id DESC
+     LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
 
@@ -453,9 +454,9 @@ const getBookings = asyncHandler(async (req, res) => {
 
         const bookingIdList = bookingIds.map(b => b.booking_id);
 
-        // ===== Base booking info =====
+        // ===== Fetch full booking info (maintain newest first order) =====
         const [bookings] = await db.query(`
-      SELECT 
+    SELECT 
         sb.booking_id,
         sb.bookingDate,
         sb.bookingTime,
@@ -482,17 +483,17 @@ const getBookings = asyncHandler(async (req, res) => {
 
         p.amount AS payment_amount,
         p.currency AS payment_currency
-      FROM service_booking sb
-      LEFT JOIN users u ON sb.user_id = u.user_id
-      LEFT JOIN services s ON sb.service_id = s.service_id
-      LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-      LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-      LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-      WHERE sb.booking_id IN (?)
-      ORDER BY sb.booking_id DESC
-    `, [bookingIdList]);
+    FROM service_booking sb
+    LEFT JOIN users u ON sb.user_id = u.user_id
+    LEFT JOIN services s ON sb.service_id = s.service_id
+    LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+    LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+    LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+    LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+    LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+    WHERE sb.booking_id IN (?)
+     ORDER BY FIELD(sb.booking_id, ${bookingIdList.join(",")})
+`, [bookingIdList]);
 
         // ===== Fetch related data in parallel (like vendor logic) =====
         const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackagesMulti, [bookingIdList]);
