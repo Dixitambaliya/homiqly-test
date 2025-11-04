@@ -436,7 +436,7 @@ const getBookings = asyncHandler(async (req, res) => {
              LEFT JOIN users u ON sb.user_id = u.user_id
              LEFT JOIN services s ON sb.service_id = s.service_id
              ${filters}
-             ORDER BY sb.booking_id ASC
+             ORDER BY sb.booking_id DESC
              LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
@@ -491,7 +491,7 @@ const getBookings = asyncHandler(async (req, res) => {
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
             WHERE sb.booking_id IN (?)
-            ORDER BY sb.booking_id ASC
+            ORDER BY sb.booking_id DESC
         `, [bookingIdList]);
 
         // ===== Fetch related data =====
