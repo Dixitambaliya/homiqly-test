@@ -324,6 +324,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -341,69 +342,99 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         certificateNames // assume array
     } = req.body;
 
-    let profileImageVendor = req.uploadedFiles?.profileImageVendor?.[0]?.url || null;
-    let policeClearance = req.uploadedFiles?.policeClearance?.[0]?.url || null;
-    let certificateOfExpertise = req.uploadedFiles?.certificateOfExpertise?.[0]?.url || null;
-    let businessLicense = req.uploadedFiles?.businessLicense?.[0]?.url || null;
+    const newFiles = req.uploadedFiles || {};
 
     try {
+        // ✅ Fetch existing vendor record
         let [existing] =
             vendor_type === "individual"
                 ? await db.query(
-                    `SELECT profileImage, name, address, dob, email, phone, aboutMe 
-             FROM individual_details WHERE vendor_id = ?`,
+                    `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
+                            businessLicenseExpireDate, certificateOfExpertiseExpireDate,
+                            name, address, dob, email, phone, aboutMe
+                     FROM individual_details WHERE vendor_id = ?`,
                     [vendor_id]
                 )
                 : vendor_type === "company"
                     ? await db.query(
-                        `SELECT profileImage, companyName, dob, companyEmail, companyPhone, googleBusinessProfileLink, 
-                    companyAddress, contactPerson 
-             FROM company_details WHERE vendor_id = ?`,
+                        `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
+                                businessLicenseExpireDate, certificateOfExpertiseExpireDate,
+                                companyName, dob, companyEmail, companyPhone, 
+                                googleBusinessProfileLink, companyAddress, contactPerson
+                         FROM company_details WHERE vendor_id = ?`,
                         [vendor_id]
                     )
                     : [];
 
-        if (!existing || existing.length === 0)
+        if (!existing || existing.length === 0) {
             return res.status(404).json({ message: "Vendor not found" });
+        }
 
         const current = existing[0];
-        profileImageVendor = profileImageVendor || current.profileImage;
 
+        // ✅ Preserve old media if not provided
+        const profileImageVendor = newFiles?.profileImageVendor?.[0]?.url || current.profileImage;
+        const policeClearance = newFiles?.policeClearance?.[0]?.url || current.policeClearance;
+        const certificateOfExpertise = newFiles?.certificateOfExpertise?.[0]?.url || current.certificateOfExpertise;
+        const businessLicense = newFiles?.businessLicense?.[0]?.url || current.businessLicense;
+
+        // ✅ Update vendor profile
         if (vendor_type === "individual") {
             await db.query(
                 `UPDATE individual_details
-                SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?, 
-                businessLicenseExpireDate = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, aboutMe = ? , certificateOfExpertiseExpireDate = ?
-                WHERE vendor_id = ?`,
+                 SET profileImage = ?, 
+                     policeClearance = ?, 
+                     certificateOfExpertise = ?, 
+                     businessLicense = ?, 
+                     businessLicenseExpireDate = ?, 
+                     certificateOfExpertiseExpireDate = ?, 
+                     name = ?, 
+                     address = ?, 
+                     dob = ?, 
+                     email = ?, 
+                     phone = ?, 
+                     aboutMe = ?
+                 WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
                     policeClearance,
                     certificateOfExpertise,
                     businessLicense,
-                    businessLicenseExpireDate,
+                    businessLicenseExpireDate ?? current.businessLicenseExpireDate,
+                    certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
                     name ?? current.name,
                     address ?? current.address,
                     birthDate ?? current.dob,
                     email ?? current.email,
                     phone ?? current.phone,
                     aboutMe ?? current.aboutMe,
-                    certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
-                    vendor_id
+                    vendor_id,
                 ]
             );
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-                SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?, 
-                businessLicenseExpireDate = ?, companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?, 
-                googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ? , certificateOfExpertiseExpireDate = ?
-                WHERE vendor_id = ?`,
+                 SET profileImage = ?, 
+                     policeClearance = ?, 
+                     certificateOfExpertise = ?, 
+                     businessLicense = ?, 
+                     businessLicenseExpireDate = ?, 
+                     certificateOfExpertiseExpireDate = ?, 
+                     companyName = ?, 
+                     dob = ?, 
+                     companyEmail = ?, 
+                     companyPhone = ?, 
+                     googleBusinessProfileLink = ?, 
+                     companyAddress = ?, 
+                     contactPerson = ?
+                 WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
                     policeClearance,
                     certificateOfExpertise,
                     businessLicense,
-                    businessLicenseExpireDate,
+                    businessLicenseExpireDate ?? current.businessLicenseExpireDate,
+                    certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
                     name ?? current.companyName,
                     birthDate ?? current.dob,
                     email ?? current.companyEmail,
@@ -411,31 +442,35 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                     googleBusinessProfileLink ?? current.googleBusinessProfileLink,
                     companyAddress ?? current.companyAddress,
                     contactPerson ?? current.contactPerson,
-                    certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
-                    vendor_id
+                    vendor_id,
                 ]
             );
         }
 
+        // ✅ Handle new certificates
         if (certificateNames?.length) {
             const insertPromises = certificateNames.map((certName, i) => {
-                const certFile = req.uploadedFiles?.[`certificateFiles_${i}`]?.[0]?.url;
+                const certFile = newFiles?.[`certificateFiles_${i}`]?.[0]?.url;
                 if (certName && certFile) {
                     return db.query(
                         `INSERT INTO certificates (vendor_id, certificateName, certificateFile) VALUES (?, ?, ?)`,
                         [vendor_id, certName, certFile]
                     );
                 }
+                return null;
             });
             await Promise.all(insertPromises);
         }
 
-        res.status(200).json({ message: "Vendor profile and certificates updated successfully" });
+        res.status(200).json({ message: "Vendor profile updated successfully (media preserved)" });
+
     } catch (err) {
         console.error("Error updating vendor profile:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

@@ -365,10 +365,16 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getBookings = asyncHandler(async (req, res) => {
     try {
-        let { page = 1, limit = 10, search = "", status, start_date, end_date } = req.query;
+        let {
+            page = 1,
+            limit = 10,
+            search = "",
+            status,
+            start_date,
+            end_date
+        } = req.query;
 
         page = parseInt(page);
         limit = parseInt(limit);
@@ -377,31 +383,28 @@ const getBookings = asyncHandler(async (req, res) => {
         let filters = " WHERE 1=1 ";
         const params = [];
 
-        // ===== Search by booking ID, username, email, or service name =====
+        // ===== Search by booking ID, user, email, or service name =====
         if (search && search.trim() !== "") {
+            const searchPattern = `%${search.trim()}%`;
             if (!isNaN(search.trim())) {
-                // 🔹 Numeric search (booking_id)
                 filters += ` AND (
-                    sb.booking_id = ? 
-                    OR CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-                    OR u.email LIKE ? 
-                    OR s.serviceName LIKE ? 
-                )`;
-                const searchPattern = `%${search.trim()}%`;
+          sb.booking_id = ? 
+          OR CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+          OR u.email LIKE ? 
+          OR s.serviceName LIKE ?
+        )`;
                 params.push(search.trim(), searchPattern, searchPattern, searchPattern);
             } else {
-                // 🔹 Text search (name/email/service)
                 filters += ` AND (
-                    CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-                    OR u.email LIKE ? 
-                    OR s.serviceName LIKE ? 
-                )`;
-                const searchPattern = `%${search.trim()}%`;
+          CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+          OR u.email LIKE ? 
+          OR s.serviceName LIKE ?
+        )`;
                 params.push(searchPattern, searchPattern, searchPattern);
             }
         }
 
-        // ===== Filter by status =====
+        // ===== Filter by booking status =====
         if (status && [1, 3, 4].includes(Number(status))) {
             filters += ` AND sb.bookingStatus = ?`;
             params.push(status);
@@ -419,29 +422,17 @@ const getBookings = asyncHandler(async (req, res) => {
             params.push(end_date);
         }
 
-        // ===== Count total =====
+        // ===== Count total records =====
         const [[{ total }]] = await db.query(
             `SELECT COUNT(DISTINCT sb.booking_id) AS total
-             FROM service_booking sb
-             LEFT JOIN users u ON sb.user_id = u.user_id
-             LEFT JOIN services s ON sb.service_id = s.service_id
-             ${filters}`,
+       FROM service_booking sb
+       LEFT JOIN users u ON sb.user_id = u.user_id
+       LEFT JOIN services s ON sb.service_id = s.service_id
+       ${filters}`,
             params
         );
 
-        // ===== Get oldest booking IDs (ASC order) =====
-        const [bookingIds] = await db.query(
-            `SELECT DISTINCT sb.booking_id
-             FROM service_booking sb
-             LEFT JOIN users u ON sb.user_id = u.user_id
-             LEFT JOIN services s ON sb.service_id = s.service_id
-             ${filters}
-             ORDER BY sb.booking_id DESC
-             LIMIT ? OFFSET ?`,
-            [...params, limit, offset]
-        );
-
-        if (bookingIds.length === 0) {
+        if (total === 0) {
             return res.status(200).json({
                 message: "No bookings found",
                 currentPage: page,
@@ -451,77 +442,85 @@ const getBookings = asyncHandler(async (req, res) => {
             });
         }
 
-        const bookingIdList = bookingIds.map(b => b.booking_id);
-
-        // ===== Fetch complete booking data in ASC order =====
+        // ===== Fetch main booking data (permanent DESC order) =====
         const [bookings] = await db.query(`
-            SELECT 
-                sb.booking_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                sb.bookingStatus,
-                sb.notes,
-                sb.bookingMedia,
-                sb.payment_intent_id,
-                sb.payment_status,
+      SELECT 
+        sb.booking_id,
+        sb.bookingDate,
+        sb.bookingTime,
+        sb.bookingStatus,
+        sb.notes,
+        sb.bookingMedia,
+        sb.payment_intent_id,
+        sb.payment_status,
 
-                u.user_id,
-                CONCAT(u.firstName, ' ', u.lastName) AS userName,
-                u.email AS user_email,
-                u.phone AS user_phone,
+        u.user_id,
+        CONCAT(u.firstName, ' ', u.lastName) AS userName,
+        u.email AS user_email,
+        u.phone AS user_phone,
 
-                s.serviceName,
-                sc.serviceCategory,
+        s.serviceName,
+        sc.serviceCategory,
 
-                v.vendor_id,
-                v.vendorType,
-                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
-                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-                IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
+        v.vendor_id,
+        v.vendorType,
+        IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+        IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
-                p.amount AS payment_amount,
-                p.currency AS payment_currency
-            FROM service_booking sb
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-            WHERE sb.booking_id IN (?)
-              ORDER BY FIELD(sb.booking_id, ${bookingIdList.join(",")})
-        `, [bookingIdList]);
+        p.amount AS payment_amount,
+        p.currency AS payment_currency
+      FROM service_booking sb
+      LEFT JOIN users u ON sb.user_id = u.user_id
+      LEFT JOIN services s ON sb.service_id = s.service_id
+      LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+      LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+      LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+      LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+      LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+      ${filters}
+      ORDER BY sb.booking_id DESC
+      LIMIT ? OFFSET ?
+    `, [...params, limit, offset]);
 
         // ===== Fetch related data =====
-        const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackagesMulti, [bookingIdList]);
-        const [addons] = await db.query(bookingGetQueries.getBookedAddonsMulti, [bookingIdList]);
-        const [preferences] = await db.query(bookingGetQueries.getBoookedPrefrencesMulti, [bookingIdList]);
-        const [consents] = await db.query(bookingGetQueries.getBoookedConsentsMulti, [bookingIdList]);
+        // ===== Fetch related data (fixed for proper IN expansion) =====
+        const bookingIds = bookings.map(b => b.booking_id);
 
-        // ===== Group and organize =====
-        const groupByBooking = (rows) => {
-            const grouped = {};
-            for (const row of rows) {
-                if (!grouped[row.booking_id]) grouped[row.booking_id] = [];
-                grouped[row.booking_id].push(row);
-            }
-            return grouped;
-        };
+        const [subPackages] = await db.query(
+            bookingGetQueries.getBookedSubPackagesMulti.replace("IN (?)", `IN (${bookingIds.join(",")})`)
+        );
+        const [addons] = await db.query(
+            bookingGetQueries.getBookedAddonsMulti.replace("IN (?)", `IN (${bookingIds.join(",")})`)
+        );
+        const [preferences] = await db.query(
+            bookingGetQueries.getBoookedPrefrencesMulti.replace("IN (?)", `IN (${bookingIds.join(",")})`)
+        );
+        const [consents] = await db.query(
+            bookingGetQueries.getBoookedConsentsMulti.replace("IN (?)", `IN (${bookingIds.join(",")})`)
+        );
 
-        const groupedSub = groupByBooking(subPackages);
-        const groupedAddons = groupByBooking(addons);
-        const groupedPrefs = groupByBooking(preferences);
-        const groupedConsents = groupByBooking(consents);
+        // ===== Helper function to group by booking_id =====
+        const groupBy = (arr) => arr.reduce((acc, cur) => {
+            if (!acc[cur.booking_id]) acc[cur.booking_id] = [];
+            acc[cur.booking_id].push(cur);
+            return acc;
+        }, {});
+
+        const groupedSub = groupBy(subPackages);
+        const groupedAddons = groupBy(addons);
+        const groupedPrefs = groupBy(preferences);
+        const groupedConsents = groupBy(consents);
 
         const bookingMap = {};
+
+        // ===== Combine all related data =====
         for (const b of bookings) {
-            const bookingId = b.booking_id;
-            const subList = groupedSub[bookingId] || [];
-            const addonsList = groupedAddons[bookingId] || [];
-            const prefList = groupedPrefs[bookingId] || [];
-            const consentList = groupedConsents[bookingId] || [];
+            const subList = groupedSub[b.booking_id] || [];
+            const addonsList = groupedAddons[b.booking_id] || [];
+            const prefsList = groupedPrefs[b.booking_id] || [];
+            const consentList = groupedConsents[b.booking_id] || [];
 
             const addonsByItem = {};
             addonsList.forEach(a => {
@@ -531,7 +530,7 @@ const getBookings = asyncHandler(async (req, res) => {
             });
 
             const prefsByItem = {};
-            prefList.forEach(p => {
+            prefsList.forEach(p => {
                 if (!prefsByItem[p.sub_package_id]) prefsByItem[p.sub_package_id] = [];
                 const { booking_id, sub_package_id, ...rest } = p;
                 prefsByItem[p.sub_package_id].push(rest);
@@ -568,19 +567,20 @@ const getBookings = asyncHandler(async (req, res) => {
                 return acc;
             }, {});
 
-            bookingMap[bookingId] = { ...b, sub_packages: Object.values(groupedByPackage) };
+            bookingMap[b.booking_id] = { ...b, sub_packages: Object.values(groupedByPackage) };
         }
 
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
-            message: "Bookings fetched successfully (ASC order)",
+            message: "Bookings fetched successfully (DESC order)",
             currentPage: page,
             totalPages,
             totalRecords: total,
             limit,
-            bookings: Object.values(bookingMap),
+            bookings: bookings.map(b => bookingMap[b.booking_id]),
         });
+
     } catch (error) {
         console.error("Error fetching bookings:", error);
         res.status(500).json({
@@ -589,9 +589,6 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
-
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
