@@ -1050,8 +1050,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { booking_id, status } = req.body;
 
-    console.log(vendor_id);
-
     // ✅ Validate input    
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
@@ -1061,14 +1059,14 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         // 🔐 Check if the booking is assigned to the current vendor
         const [checkBooking] = await db.query(
             `SELECT sb.booking_id, 
-              sb.vendor_id, 
-              sb.user_id,
-              sb.bookingDate,
-              sb.bookingTime,
-              p.status AS payment_status
-       FROM service_booking sb
-       LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-       WHERE sb.booking_id = ? AND sb.vendor_id = ?`,
+                    sb.vendor_id, 
+                    sb.user_id,
+                    sb.bookingDate,
+                    sb.bookingTime,
+                    p.status AS payment_status
+             FROM service_booking sb
+             LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+             WHERE sb.booking_id = ? AND sb.vendor_id = ?`,
             [booking_id, vendor_id]
         );
 
@@ -1085,7 +1083,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             // Allow start only if current time >= booking time - 10 minutes
             const startWindow = new Date(bookingDateTime.getTime() - 10 * 60000);
-
             if (now < startWindow) {
                 return res.status(400).json({
                     message: "You can only start the service within 10 minutes of the booking time."
@@ -1096,11 +1093,25 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         // ✅ Determine completed_flag
         const completed_flag = status === 4 ? 1 : 0;
 
-        // ✅ Update the booking status and completed flag
-        await db.query(
-            `UPDATE service_booking SET bookingStatus = ?, completed_flag = ? WHERE booking_id = ?`,
-            [status, completed_flag, booking_id]
-        );
+        // ✅ Set start_time / end_time
+        let updateFields = { bookingStatus: status, completed_flag };
+        if (status === 3) {
+            updateFields.start_time = new Date(); // Record service start
+        } else if (status === 4) {
+            updateFields.end_time = new Date(); // Record service completion
+        }
+
+        // ✅ Build dynamic update query
+        const updateKeys = Object.keys(updateFields);
+        const updateValues = Object.values(updateFields);
+        const updateSQL = `UPDATE service_booking 
+                           SET ${updateKeys.map(k => `${k} = ?`).join(', ')} 
+                           WHERE booking_id = ?`;
+
+        await db.query(updateSQL, [...updateValues, booking_id]);
+
+        // ✅ Notifications
+        let notificationTitle, notificationBody;
 
         if (status === 4) {
             notificationTitle = "Your service has been completed";
@@ -1109,7 +1120,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, action_link, is_read, sent_at)
-                VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                 VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody, ratingLink]
             );
         } else {
@@ -1118,31 +1129,32 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             await db.query(
                 `INSERT INTO notifications(user_type, user_id, title, body, is_read, sent_at)
-                VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                 VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
         }
 
+        // ✅ Handle payout logic when booking is completed
         if (status === 4) {
-            // ✅ Fetch payment + platform fee details
             const [[paymentInfo]] = await db.query(
                 `SELECT 
                     p.amount, 
                     p.currency, 
                     p.status AS payment_status,
+                    p.payment_intent_id,
                     v.vendorType
-                FROM payments p
-                JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-                JOIN vendors v ON v.vendor_id = sb.vendor_id
-                WHERE sb.booking_id = ? LIMIT 1`,
+                 FROM payments p
+                 JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+                 JOIN vendors v ON v.vendor_id = sb.vendor_id
+                 WHERE sb.booking_id = ? LIMIT 1`,
                 [booking_id]
             );
 
             if (paymentInfo && paymentInfo.payment_status === 'completed') {
                 const [feeRows] = await db.query(
                     `SELECT platform_fee_percentage 
-                    FROM platform_settings 
-                    WHERE vendor_type = ? LIMIT 1`,
+                     FROM platform_settings 
+                     WHERE vendor_type = ? LIMIT 1`,
                     [paymentInfo.vendorType]
                 );
 
@@ -1150,14 +1162,13 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                 const gross_amount = Number(paymentInfo.amount || 0);
                 const payout_amount = Number((gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2));
 
-                // ✅ Insert payout only using booking_id, vendor_id, user_id, and payment info
-                const [insertResult] = await db.query(
+                await db.query(
                     `INSERT INTO vendor_payouts 
-                    (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, platform_fee_percentage, payout_amount, currency)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                    payout_amount = VALUES(payout_amount),
-                    platform_fee_percentage = VALUES(platform_fee_percentage)`,
+                     (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, platform_fee_percentage, payout_amount, currency)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                     payout_amount = VALUES(payout_amount),
+                     platform_fee_percentage = VALUES(platform_fee_percentage)`,
                     [
                         booking_id,
                         vendor_id,
@@ -1171,7 +1182,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                 );
             }
         }
-
 
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
