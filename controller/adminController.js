@@ -436,7 +436,7 @@ const getBookings = asyncHandler(async (req, res) => {
              LEFT JOIN users u ON sb.user_id = u.user_id
              LEFT JOIN services s ON sb.service_id = s.service_id
              ${filters}
-             ORDER BY sb.booking_id DESC
+             ORDER BY sb.booking_id ASC
              LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
