@@ -365,6 +365,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getBookings = asyncHandler(async (req, res) => {
     try {
         let {
@@ -589,6 +590,7 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

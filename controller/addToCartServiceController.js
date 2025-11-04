@@ -722,13 +722,11 @@ const getUserCart = asyncHandler(async (req, res) => {
                 return sumPkg + pkg.sub_packages.reduce((sumSub, sp) => sumSub + sp.total, 0);
             }, 0);
 
-            const taxAmount = (totalAmount * serviceTaxRate) / 100;
-            const afterTax = totalAmount + taxAmount;
-
-            let discountedTotal = afterTax;
+            let discountedTotal = totalAmount;
             let promoDiscount = 0;
             let promoDetails = null;
 
+            // 8️⃣ Apply promo FIRST
             if (cart.user_promo_code_id) {
                 const [userPromoRows] = await db.query(
                     `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
@@ -746,11 +744,12 @@ const getUserCart = asyncHandler(async (req, res) => {
                         if (adminPromo.length) {
                             const discountValue = parseFloat(adminPromo[0].discountValue || 0);
                             const discountType = adminPromo[0].discount_type || 'percentage';
-                            discountedTotal = discountType === 'fixed'
-                                ? Math.max(0, afterTax - discountValue)
-                                : afterTax - (afterTax * discountValue / 100);
+                            discountedTotal =
+                                discountType === 'fixed'
+                                    ? Math.max(0, totalAmount - discountValue)
+                                    : totalAmount - (totalAmount * discountValue) / 100;
 
-                            promoDiscount = afterTax - discountedTotal;
+                            promoDiscount = totalAmount - discountedTotal;
                             promoDetails = {
                                 user_promo_code_id: promo.user_promo_code_id,
                                 source_type: 'admin',
@@ -764,9 +763,9 @@ const getUserCart = asyncHandler(async (req, res) => {
                 if (!promoDetails) {
                     const [systemPromoRows] = await db.query(
                         `SELECT sc.*, st.discount_type, st.discountValue 
-                         FROM system_promo_codes sc
-                         JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
-                         WHERE sc.system_promo_code_id = ? LIMIT 1`,
+             FROM system_promo_codes sc
+             JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
+             WHERE sc.system_promo_code_id = ? LIMIT 1`,
                         [cart.user_promo_code_id]
                     );
 
@@ -774,10 +773,11 @@ const getUserCart = asyncHandler(async (req, res) => {
                         const sysPromo = systemPromoRows[0];
                         const discountValue = parseFloat(sysPromo.discountValue || 0);
                         const discountType = sysPromo.discount_type || 'percentage';
-                        discountedTotal = discountType === 'fixed'
-                            ? Math.max(0, afterTax - discountValue)
-                            : afterTax - (afterTax * discountValue / 100);
-                        promoDiscount = afterTax - discountedTotal;
+                        discountedTotal =
+                            discountType === 'fixed'
+                                ? Math.max(0, totalAmount - discountValue)
+                                : totalAmount - (totalAmount * discountValue) / 100;
+                        promoDiscount = totalAmount - discountedTotal;
                         promoDetails = { ...sysPromo, source_type: 'system' };
                     }
                 }
@@ -785,20 +785,22 @@ const getUserCart = asyncHandler(async (req, res) => {
                 if (promoDetails) promos.push(promoDetails);
             }
 
-            const finalTotal = parseFloat(discountedTotal.toFixed(2));
+            // 9️⃣ NOW add tax AFTER discount
+            const taxAmount = (discountedTotal * serviceTaxRate) / 100;
+            const finalTotal = discountedTotal + taxAmount;
 
             allCarts.push({
                 ...cart,
                 packages: structuredPackages,
-                totalAmount: parseFloat(totalAmount.toFixed(2)),
-                afterTax: parseFloat(afterTax.toFixed(2)),
+                totalAmount: parseFloat(totalAmount.toFixed(2)), // before discount
+                discountedTotal: parseFloat(discountedTotal.toFixed(2)), // after discount
+                promoDiscount: parseFloat(promoDiscount.toFixed(2)),
                 tax: {
                     taxName: serviceTaxName,
                     taxPercentage: serviceTaxRate,
                     taxAmount: parseFloat(taxAmount.toFixed(2))
                 },
-                promoDiscount: parseFloat(promoDiscount.toFixed(2)),
-                finalTotal
+                finalTotal: parseFloat(finalTotal.toFixed(2)) // after tax
             });
         }
 

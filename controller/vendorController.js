@@ -752,6 +752,7 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
@@ -815,6 +816,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const addRatingToPackages = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -1312,53 +1314,68 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
 
 const removeVendorPackage = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
-
     const { vendor_packages_id } = req.params;
+    const { package_id, package_item_id } = req.body;
 
-    if (!vendor_packages_id) {
-        return res.status(400).json({ message: "vendor_packages_id is required" });
+    if (!vendor_packages_id || !package_id || !package_item_id) {
+        return res.status(400).json({
+            message: "vendor_packages_id, package_id, and package_item_id are required"
+        });
     }
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        // ✅ Ensure the package belongs to the vendor
+        // ✅ Verify this exact subpackage exists and belongs to this vendor
         const [rows] = await connection.query(
-            `SELECT vendor_packages_id FROM vendor_package_items_flat 
-             WHERE vendor_packages_id = ? AND vendor_id = ?`,
-            [vendor_packages_id, vendorId]
+            `SELECT vendor_packages_id 
+             FROM vendor_package_items_flat
+             WHERE vendor_packages_id = ? 
+               AND vendor_id = ? 
+               AND package_id = ? 
+               AND package_item_id = ?`,
+            [vendor_packages_id, vendorId, package_id, package_item_id]
         );
 
         if (rows.length === 0) {
             await connection.rollback();
-            return res.status(404).json({ message: "Package not found or not owned by this vendor" });
+            return res.status(404).json({
+                message: "Sub-package not found or not owned by this vendor"
+            });
         }
 
-        // ✅ Delete the vendor package
-        await connection.query(
-            `DELETE FROM vendor_package_items_flat WHERE vendor_packages_id = ? AND vendor_id = ?`,
-            [vendor_packages_id, vendorId]
+        // ✅ Delete only this specific sub-package row
+        const [result] = await connection.query(
+            `DELETE FROM vendor_package_items_flat 
+             WHERE vendor_packages_id = ? 
+               AND vendor_id = ? 
+               AND package_id = ? 
+               AND package_item_id = ?
+             LIMIT 1`,
+            [vendor_packages_id, vendorId, package_id, package_item_id]
         );
 
         await connection.commit();
 
         res.status(200).json({
             success: true,
-            message: "Vendor package removed successfully"
+            message: "Sub-package removed successfully",
+            deletedRows: result.affectedRows
         });
     } catch (err) {
         await connection.rollback();
-        console.error("Error removing vendor package:", err);
+        console.error("Error removing vendor sub-package:", err);
         res.status(500).json({
             success: false,
-            message: "Failed to remove vendor package",
+            message: "Failed to remove vendor sub-package",
             error: err.message
         });
     } finally {
         connection.release();
     }
 });
+
 
 const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id; // company/vendor admin id
