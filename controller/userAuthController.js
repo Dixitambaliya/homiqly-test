@@ -629,7 +629,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
     const user = rows[0];
 
     // 🧩 Step 2: Direct password-based login (email/phone + password)
-    // 🧩 Step 2: Direct password-based login (email/phone + password)
     if ((email || phone) && password && user && user.password) {
         // 🧠 Safely convert DB-stored password (Buffer/BLOB) to string
         const storedPassword =
@@ -704,6 +703,18 @@ const verifyOtp = asyncHandler(async (req, res) => {
                 return res.status(200).json({
                     message: "Welcome — please provide name (and optionally password)",
                     requireDetails: true,
+                });
+            }
+
+            // 🔍 Check again if user already exists (by phone or email)
+            const [existingUsers] = await db.query(
+                "SELECT user_id FROM users WHERE phone = ? OR email = ?",
+                [phone || null, email || null]
+            );
+
+            if (existingUsers.length > 0) {
+                return res.status(400).json({
+                    message: "User already exists. Please log in instead.",
                 });
             }
 
