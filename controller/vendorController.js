@@ -324,13 +324,14 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
         name,
         email,
         phone,
-        otherInfo,
+        aboutMe,
         googleBusinessProfileLink,
         companyAddress,
         businessLicenseExpireDate,
@@ -350,7 +351,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         let [existing] =
             vendor_type === "individual"
                 ? await db.query(
-                    `SELECT profileImage, name, address, dob, email, phone, otherInfo 
+                    `SELECT profileImage, name, address, dob, email, phone, aboutMe 
              FROM individual_details WHERE vendor_id = ?`,
                     [vendor_id]
                 )
@@ -373,7 +374,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
             await db.query(
                 `UPDATE individual_details
                 SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?, 
-                businessLicenseExpireDate = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, otherInfo = ? , certificateOfExpertiseExpireDate = ?
+                businessLicenseExpireDate = ?, name = ?, address = ?, dob = ?, email = ?, phone = ?, aboutMe = ? , certificateOfExpertiseExpireDate = ?
                 WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
@@ -386,7 +387,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                     birthDate ?? current.dob,
                     email ?? current.email,
                     phone ?? current.phone,
-                    otherInfo ?? current.otherInfo,
+                    aboutMe ?? current.aboutMe,
                     certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
                     vendor_id
                 ]
@@ -436,6 +437,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

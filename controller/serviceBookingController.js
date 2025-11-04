@@ -1168,6 +1168,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
           IF(v.vendorType='company', cdet.companyEmail, idet.email) AS vendorEmail,
           IF(v.vendorType='company', cdet.companyPhone, idet.phone) AS vendorPhone,
           IF(v.vendorType='company', cdet.profileImage, idet.profileImage) AS profileImage,
+          IF(v.vendorType='company', cdet.aboutme, idet.aboutme) AS aboutMe,
           vpf.package_id,
           vpf.package_item_id
       FROM vendors v
@@ -1197,7 +1198,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                         vendorName: vp.vendorName,
                         vendorEmail: vp.vendorEmail,
                         vendorPhone: vp.vendorPhone,
-                        profileImage: vp.profileImage
+                        profileImage: vp.profileImage,
+                        aboutMe: vp.aboutMe
                     },
                     packages: new Set(),
                     items: new Set()
@@ -1225,41 +1227,41 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             // ✅ Check vendor availability
             const [[isAvailable]] = await db.query(`
-        SELECT COUNT(*) AS available
-        FROM vendor_availability va
-        WHERE va.vendor_id = ?
-        AND ? BETWEEN va.startDate AND va.endDate
-        AND TIME(?) BETWEEN va.startTime AND va.endTime
-      `, [vendorId, date, time]);
+                    SELECT COUNT(*) AS available
+                    FROM vendor_availability va
+                    WHERE va.vendor_id = ?
+                    AND ? BETWEEN va.startDate AND va.endDate
+                    AND TIME(?) BETWEEN va.startTime AND va.endTime
+                `, [vendorId, date, time]);
 
             if (!isAvailable.available) continue;
 
             // ❌ Check booking overlap
             const [[isBooked]] = await db.query(`
-        SELECT COUNT(*) AS overlap
-        FROM service_booking sb
-        WHERE sb.vendor_id = ?
-        AND sb.bookingDate = ?
-        AND (
-          STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
-            < DATE_ADD(STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'), INTERVAL sb.totalTime + ${vendorBreakMinutes} MINUTE)
-          AND
-          STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')
-            < DATE_ADD(STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s'), INTERVAL ? + ${vendorBreakMinutes} MINUTE)
-        )
-      `, [vendorId, date, date, time, date, time, cartTotalTime]);
+                SELECT COUNT(*) AS overlap
+                FROM service_booking sb
+                WHERE sb.vendor_id = ?
+                AND sb.bookingDate = ?
+                AND (
+                STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
+                    < DATE_ADD(STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s'), INTERVAL sb.totalTime + ${vendorBreakMinutes} MINUTE)
+                AND
+                STR_TO_DATE(CONCAT(sb.bookingDate, ' ', sb.bookingTime), '%Y-%m-%d %H:%i:%s')
+                    < DATE_ADD(STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s'), INTERVAL ? + ${vendorBreakMinutes} MINUTE)
+                )
+            `, [vendorId, date, date, time, date, time, cartTotalTime]);
 
             if (isBooked.overlap > 0) continue;
 
             // ⭐ Step 4: Get average rating + total reviews
             const [[rating]] = await db.query(`
-        SELECT 
-          IFNULL(AVG(r.rating), 0) AS avgRating,
-          COUNT(r.rating_id) AS totalReviews
-        FROM ratings r
-        INNER JOIN service_booking sb ON sb.booking_id = r.booking_id
-        WHERE sb.vendor_id = ?
-      `, [vendorId]);
+                    SELECT 
+                    IFNULL(AVG(r.rating), 0) AS avgRating,
+                    COUNT(r.rating_id) AS totalReviews
+                    FROM ratings r
+                    INNER JOIN service_booking sb ON sb.booking_id = r.booking_id
+                    WHERE sb.vendor_id = ?
+                `, [vendorId]);
 
             availableVendors.push({
                 ...v.vendor,
