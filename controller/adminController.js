@@ -380,7 +380,7 @@ const getBookings = asyncHandler(async (req, res) => {
         // ===== Search by booking ID, username, email, or service name =====
         if (search && search.trim() !== "") {
             if (!isNaN(search.trim())) {
-                // 🔹 Numeric search (treat as booking_id)
+                // 🔹 Numeric search (booking_id)
                 filters += ` AND (
                     sb.booking_id = ? 
                     OR CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
@@ -419,26 +419,25 @@ const getBookings = asyncHandler(async (req, res) => {
             params.push(end_date);
         }
 
-        // ===== Count total bookings =====
+        // ===== Count total =====
         const [[{ total }]] = await db.query(
             `SELECT COUNT(DISTINCT sb.booking_id) AS total
-            FROM service_booking sb
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN services s ON sb.service_id = s.service_id
-            ${filters}`,
+             FROM service_booking sb
+             LEFT JOIN users u ON sb.user_id = u.user_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
+             ${filters}`,
             params
         );
 
-        // ===== Get paginated unique booking IDs =====
-        // ===== Get paginated unique booking IDs (newest first) =====
+        // ===== Get oldest booking IDs (ASC order) =====
         const [bookingIds] = await db.query(
             `SELECT DISTINCT sb.booking_id
-     FROM service_booking sb
-     LEFT JOIN users u ON sb.user_id = u.user_id
-     LEFT JOIN services s ON sb.service_id = s.service_id
-     ${filters}
-     ORDER BY sb.booking_id DESC
-     LIMIT ? OFFSET ?`,
+             FROM service_booking sb
+             LEFT JOIN users u ON sb.user_id = u.user_id
+             LEFT JOIN services s ON sb.service_id = s.service_id
+             ${filters}
+             ORDER BY sb.booking_id ASC
+             LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
 
@@ -454,63 +453,54 @@ const getBookings = asyncHandler(async (req, res) => {
 
         const bookingIdList = bookingIds.map(b => b.booking_id);
 
-        // ===== Fetch full booking info (maintain newest first order) =====
+        // ===== Fetch complete booking data in ASC order =====
         const [bookings] = await db.query(`
-    SELECT 
-        sb.booking_id,
-        sb.bookingDate,
-        sb.bookingTime,
-        sb.bookingStatus,
-        sb.notes,
-        sb.bookingMedia,
-        sb.payment_intent_id,
-        sb.payment_status,
+            SELECT 
+                sb.booking_id,
+                sb.bookingDate,
+                sb.bookingTime,
+                sb.bookingStatus,
+                sb.notes,
+                sb.bookingMedia,
+                sb.payment_intent_id,
+                sb.payment_status,
 
-        u.user_id,
-        CONCAT(u.firstName, ' ', u.lastName) AS userName,
-        u.email AS user_email,
-        u.phone AS user_phone,
+                u.user_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                u.email AS user_email,
+                u.phone AS user_phone,
 
-        s.serviceName,
-        sc.serviceCategory,
+                s.serviceName,
+                sc.serviceCategory,
 
-        v.vendor_id,
-        v.vendorType,
-        IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
-        IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
-        IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
-        IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
+                v.vendor_id,
+                v.vendorType,
+                IF(v.vendorType = 'company', cdet.companyName, idet.name) AS vendorName,
+                IF(v.vendorType = 'company', cdet.companyPhone, idet.phone) AS vendorPhone,
+                IF(v.vendorType = 'company', cdet.companyEmail, idet.email) AS vendorEmail,
+                IF(v.vendorType = 'company', cdet.contactPerson, NULL) AS vendorContactPerson,
 
-        p.amount AS payment_amount,
-        p.currency AS payment_currency
-    FROM service_booking sb
-    LEFT JOIN users u ON sb.user_id = u.user_id
-    LEFT JOIN services s ON sb.service_id = s.service_id
-    LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-    LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-    LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
-    LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
-    LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
-    WHERE sb.booking_id IN (?)
-     ORDER BY FIELD(sb.booking_id, ${bookingIdList.join(",")})
-`, [bookingIdList]);
+                p.amount AS payment_amount,
+                p.currency AS payment_currency
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+            LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
+            WHERE sb.booking_id IN (?)
+            ORDER BY sb.booking_id ASC
+        `, [bookingIdList]);
 
-        // ===== Fetch related data in parallel (like vendor logic) =====
+        // ===== Fetch related data =====
         const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackagesMulti, [bookingIdList]);
         const [addons] = await db.query(bookingGetQueries.getBookedAddonsMulti, [bookingIdList]);
         const [preferences] = await db.query(bookingGetQueries.getBoookedPrefrencesMulti, [bookingIdList]);
         const [consents] = await db.query(bookingGetQueries.getBoookedConsentsMulti, [bookingIdList]);
 
-        // ===== Group by booking =====
-        const bookingMap = {};
-        bookings.forEach(b => {
-            bookingMap[b.booking_id] = {
-                ...b,
-                sub_packages: [],
-            };
-        });
-
-        // ===== Group sub-packages by package_id =====
+        // ===== Group and organize =====
         const groupByBooking = (rows) => {
             const grouped = {};
             for (const row of rows) {
@@ -525,9 +515,9 @@ const getBookings = asyncHandler(async (req, res) => {
         const groupedPrefs = groupByBooking(preferences);
         const groupedConsents = groupByBooking(consents);
 
-        for (const booking of bookings) {
-            const bookingId = booking.booking_id;
-
+        const bookingMap = {};
+        for (const b of bookings) {
+            const bookingId = b.booking_id;
             const subList = groupedSub[bookingId] || [];
             const addonsList = groupedAddons[bookingId] || [];
             const prefList = groupedPrefs[bookingId] || [];
@@ -554,7 +544,6 @@ const getBookings = asyncHandler(async (req, res) => {
                 consentsByItem[c.sub_package_id].push(rest);
             });
 
-            // group by package
             const groupedByPackage = subList.reduce((acc, sp) => {
                 const packageId = sp.package_id;
                 if (!acc[packageId]) {
@@ -562,10 +551,9 @@ const getBookings = asyncHandler(async (req, res) => {
                         package_id: packageId,
                         packageName: sp.packageName,
                         packageMedia: sp.packageMedia,
-                        items: []
+                        items: [],
                     };
                 }
-
                 acc[packageId].items.push({
                     sub_package_id: sp.sub_package_id,
                     itemName: sp.itemName,
@@ -580,27 +568,29 @@ const getBookings = asyncHandler(async (req, res) => {
                 return acc;
             }, {});
 
-            bookingMap[bookingId].sub_packages = Object.values(groupedByPackage);
+            bookingMap[bookingId] = { ...b, sub_packages: Object.values(groupedByPackage) };
         }
 
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
-            message: "Bookings fetched successfully",
+            message: "Bookings fetched successfully (ASC order)",
             currentPage: page,
             totalPages,
             totalRecords: total,
             limit,
-            bookings: Object.values(bookingMap)
+            bookings: Object.values(bookingMap),
         });
     } catch (error) {
         console.error("Error fetching bookings:", error);
         res.status(500).json({
             message: "Internal server error",
-            error: error.message
+            error: error.message,
         });
     }
 });
+
+
 
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
