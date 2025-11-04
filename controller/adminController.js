@@ -365,6 +365,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getBookings = asyncHandler(async (req, res) => {
     try {
         let { page = 1, limit = 10, search = "", status, start_date, end_date } = req.query;
@@ -492,7 +493,6 @@ const getBookings = asyncHandler(async (req, res) => {
             bookingMap[b.booking_id] = {
                 ...b,
                 sub_packages: [],
-                packages: [],
             };
         });
 
