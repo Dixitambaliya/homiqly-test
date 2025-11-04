@@ -365,6 +365,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getBookings = asyncHandler(async (req, res) => {
     try {
         let { page = 1, limit = 10, search = "", status, start_date, end_date } = req.query;
@@ -376,15 +377,28 @@ const getBookings = asyncHandler(async (req, res) => {
         let filters = " WHERE 1=1 ";
         const params = [];
 
-        // ===== Search by username, email, or service name =====
+        // ===== Search by booking ID, username, email, or service name =====
         if (search && search.trim() !== "") {
-            filters += ` AND (
-        CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-        OR u.email LIKE ? 
-        OR s.serviceName LIKE ?
-      )`;
-            const searchPattern = `%${search.trim()}%`;
-            params.push(searchPattern, searchPattern, searchPattern);
+            if (!isNaN(search.trim())) {
+                // 🔹 Numeric search (treat as booking_id)
+                filters += ` AND (
+                    sb.booking_id = ? 
+                    OR CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+                    OR u.email LIKE ? 
+                    OR s.serviceName LIKE ? 
+                )`;
+                const searchPattern = `%${search.trim()}%`;
+                params.push(search.trim(), searchPattern, searchPattern, searchPattern);
+            } else {
+                // 🔹 Text search (name/email/service)
+                filters += ` AND (
+                    CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
+                    OR u.email LIKE ? 
+                    OR s.serviceName LIKE ? 
+                )`;
+                const searchPattern = `%${search.trim()}%`;
+                params.push(searchPattern, searchPattern, searchPattern);
+            }
         }
 
         // ===== Filter by status =====
@@ -408,22 +422,22 @@ const getBookings = asyncHandler(async (req, res) => {
         // ===== Count total bookings =====
         const [[{ total }]] = await db.query(
             `SELECT COUNT(DISTINCT sb.booking_id) AS total
-       FROM service_booking sb
-       LEFT JOIN users u ON sb.user_id = u.user_id
-       LEFT JOIN services s ON sb.service_id = s.service_id
-       ${filters}`,
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            ${filters}`,
             params
         );
 
         // ===== Get paginated unique booking IDs =====
         const [bookingIds] = await db.query(
             `SELECT DISTINCT sb.booking_id
-       FROM service_booking sb
-       LEFT JOIN users u ON sb.user_id = u.user_id
-       LEFT JOIN services s ON sb.service_id = s.service_id
-       ${filters}
-       ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
-       LIMIT ? OFFSET ?`,
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            ${filters}
+            ORDER BY sb.booking_id DESC
+            LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
 
@@ -477,7 +491,7 @@ const getBookings = asyncHandler(async (req, res) => {
       LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
       LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
       WHERE sb.booking_id IN (?)
-      ORDER BY sb.bookingDate DESC, sb.bookingTime DESC
+      ORDER BY sb.booking_id DESC
     `, [bookingIdList]);
 
         // ===== Fetch related data in parallel (like vendor logic) =====
@@ -586,6 +600,7 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
