@@ -4,32 +4,67 @@ const moment = require('moment-timezone');
 
 const setAvailability = asyncHandler(async (req, res) => {
     try {
-        const vendor_id = req.user.vendor_id
+        const vendor_id = req.user.vendor_id;
         const { startDate, endDate, startTime, endTime } = req.body;
 
         if (!vendor_id || !startDate || !endDate || !startTime || !endTime) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
-        // Optional: Validate date/time logic
+        // ✅ Validate date logic
         if (new Date(startDate) > new Date(endDate)) {
             return res.status(400).json({ message: "Start date cannot be after end date" });
         }
 
-        // Insert availability
+        // ✅ Check for overlapping availability for this vendor
+        const [existing] = await db.query(
+            `
+      SELECT *
+      FROM vendor_availability
+      WHERE vendor_id = ?
+      AND (
+          (? BETWEEN startDate AND endDate OR ? BETWEEN startDate AND endDate)
+          OR
+          (startDate BETWEEN ? AND ? OR endDate BETWEEN ? AND ?)
+      )
+      AND (
+          (TIME(?) < endTime AND TIME(?) > startTime)
+          OR
+          (TIME(startTime) < ? AND TIME(endTime) > ?)
+      )
+      `,
+            [
+                vendor_id,
+                startDate, endDate,
+                startDate, endDate,
+                startDate, endDate,
+                startTime, endTime,
+                endTime, startTime
+            ]
+        );
+
+        if (existing.length > 0) {
+            return res.status(400).json({
+                message: "Availability already exists or overlaps with an existing time slot"
+            });
+        }
+
+        // ✅ Insert new availability
         await db.query(
-            `INSERT INTO vendor_availability (vendor_id, startDate, endDate, startTime, endTime)
-             VALUES (?, ?, ?, ?, ?)`,
+            `
+      INSERT INTO vendor_availability (vendor_id, startDate, endDate, startTime, endTime)
+      VALUES (?, ?, ?, ?, ?)
+      `,
             [vendor_id, startDate, endDate, startTime, endTime]
         );
 
         res.status(201).json({ message: "Availability set successfully" });
-
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Error setting availability", error });
+        console.error("Error setting availability:", error);
+        res.status(500).json({ message: "Error setting availability", error: error.message });
     }
 });
+
 
 const getAvailability = asyncHandler(async (req, res) => {
     try {
