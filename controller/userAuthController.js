@@ -618,13 +618,15 @@ const sendOtp = asyncHandler(async (req, res) => {
         message: responseMsg,
         token,
         is_registered,
-        is_phone_registered: !phoneExists,
-        // ✅ if email is new (does NOT exist), then true
-        is_email_registered: emailExists,
+        // ✅ FINAL LOGIC:
+        // if email provided AND it's new → true
+        // if only phone is provided and new → false
+        is_email_registered: email && !emailExists ? true : false,
         firstName: user?.firstName || null,
         lastName: user?.lastName || null,
     });
 });
+
 
 
 // ✅ Step 2: Verify OTP (Handles both Login & Registration)
