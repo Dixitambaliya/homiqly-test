@@ -246,14 +246,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
         const vendorType = vendorRow?.vendorType || null;
 
-        // 2️⃣ Get latest platform fee (rounded to exact 2 decimals)
+        // 2️⃣ Get platform fee (rounded)
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFeeRaw = platformSettings?.[0]?.platform_fee_percentage ?? 0;
-        const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // prevents 10.0000003 drift
+        const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // e.g. 10.00 or 15.00
 
-        console.log(platformFee);
-
-        // 3️⃣ Build dynamic filters
+        // 3️⃣ Build filters
         let filterCondition = "WHERE sb.vendor_id = ?";
         const params = [vendor_id];
 
@@ -262,19 +260,17 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             params.push(status);
         }
 
-        // 🔍 Universal search
         if (search && search.trim() !== "") {
             filterCondition += ` AND (
                 CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-                OR u.email LIKE ?
-                OR u.phone LIKE ?
+                OR u.email LIKE ? 
+                OR u.phone LIKE ? 
                 OR sb.booking_id LIKE ?
             )`;
             const searchPattern = `%${search.trim()}%`;
             params.push(searchPattern, searchPattern, searchPattern, searchPattern);
         }
 
-        // 📅 Date filters
         if (start_date && end_date) {
             filterCondition += " AND DATE(sb.bookingDate) BETWEEN ? AND ?";
             params.push(start_date, end_date);
@@ -288,7 +284,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
         const offset = (page - 1) * limit;
 
-        // 5️⃣ Count total records
+        // 4️⃣ Count records
         const [[{ totalRecords }]] = await db.query(`
             SELECT COUNT(*) AS totalRecords
             FROM service_booking sb
@@ -298,7 +294,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
         const totalPages = Math.ceil(totalRecords / limit);
 
-        // 6️⃣ Fetch paginated bookings
+        // 5️⃣ Fetch paginated bookings
         const [bookings] = await db.query(`
             ${bookingGetQueries.getVendorBookings}
             ${filterCondition}
@@ -306,77 +302,76 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             LIMIT ? OFFSET ?
         `, [...params, Number(limit), Number(offset)]);
 
-        // 7️⃣ Process each booking
+        // 6️⃣ Process each booking
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
             const rawUserPaid = Number(booking.payment_amount) || 0;
 
-            // 🔹 Fetch promo discount (organization-funded)
+            // 🔹 Fetch promo discount
             let promoDiscount = 0;
+            let discountType = null;
+
             if (booking.user_promo_code_id) {
-                // Check user promo codes
+                // Check user promo
                 const [[userPromo]] = await db.query(`
-                    SELECT pc.discountValue
+                    SELECT pc.discountValue, pc.discount_type
                     FROM user_promo_codes upc
                     LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
                     WHERE upc.user_promo_code_id = ?
                 `, [booking.user_promo_code_id]);
 
-                if (userPromo && userPromo.discountValue) {
+                if (userPromo) {
                     promoDiscount = Number(userPromo.discountValue);
-                    console.log(promoDiscount);
-
+                    discountType = userPromo.discount_type;
                 } else {
-                    // Check system promo codes
+                    // Check system promo
                     const [[systemPromo]] = await db.query(`
-                        SELECT spct.discountValue
+                        SELECT spct.discountValue, spct.discount_type
                         FROM system_promo_codes spc
                         LEFT JOIN system_promo_code_templates spct 
                         ON spc.template_id = spct.system_promo_code_template_id
                         WHERE spc.system_promo_code_id = ?
                     `, [booking.user_promo_code_id]);
 
-                    if (systemPromo && systemPromo.discountValue) {
+                    if (systemPromo) {
                         promoDiscount = Number(systemPromo.discountValue);
-                        console.log(systemPromo);
+                        discountType = systemPromo.discount_type;
                     }
                 }
             }
 
-            // ✅ Calculate vendor’s payable amount accurately
-            let baseForVendor = Number(rawUserPaid.toFixed(2)) + Number(promoDiscount.toFixed(2));
+            // ✅ Calculate vendor’s payable base amount
+            let baseForVendor = Number(rawUserPaid.toFixed(2));
 
-            // Ensure safe rounding (convert to integer cents)
-            const precise = (num) => Math.round(Number(num.toFixed(2)) * 100);
-            const toCurrency = (numCents) => (numCents / 100);
+            // Add back organization-funded promo
+            if (promoDiscount && discountType) {
+                if (discountType === "fixed") {
+                    // Add back fixed amount discount (e.g. $25 off)
+                    baseForVendor += promoDiscount;
+                } else if (discountType === "percentage") {
+                    // Add back percentage-based discount (e.g. 25% off)
+                    baseForVendor = baseForVendor / (1 - promoDiscount / 100);
+                }
+            }
 
-            // Convert to cents for exact arithmetic
-            const baseCents = precise(baseForVendor);
-            console.log(baseCents);
-
+            // 💯 Accurate cent-based math
+            const baseCents = Math.round(baseForVendor * 100);
             const platformFeeCents = Math.round(baseCents * (platformFee / 100));
-            console.log(platformFeeCents);
-
             const vendorCents = baseCents - platformFeeCents;
 
-            // Convert back to dollars
-            const platformFeeAmount = toCurrency(platformFeeCents);
-            const vendorPayable = toCurrency(vendorCents);
+            const platformFeeAmount = platformFeeCents / 100;
+            const vendorPayable = vendorCents / 100;
 
-            // Force 2 decimal rounding at the very end
-            booking.payment_amount = Number(vendorPayable.toFixed(2)); // Final vendor payout
             booking.platformFeeAmount = Number(platformFeeAmount.toFixed(2));
+            booking.payment_amount = Number(vendorPayable.toFixed(2));
 
-            // 🧹 Remove unnecessary fields
+            // 🧹 Clean fields
             delete booking.user_promo_code_id;
             delete booking.platform_fee;
             delete booking.net_amount;
 
             // 🔹 Fetch related data
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
-            const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
-            const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
-            const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
             const [bookingPackages] = await db.query(`
                 SELECT 
                     sbp.package_id,
@@ -387,7 +382,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 WHERE sbp.booking_id = ?;
             `, [bookingId]);
 
-            // ✅ Group subpackages properly by package
+            // ✅ Group subpackages by package
             const groupedByPackage = subPackages.reduce((acc, sp) => {
                 const packageId = sp.package_id;
                 if (!acc[packageId]) {
@@ -398,7 +393,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                         items: []
                     };
                 }
-
                 acc[packageId].items.push({
                     sub_package_id: sp.sub_package_id,
                     itemName: sp.itemName,
@@ -407,7 +401,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     quantity: sp.quantity,
                     price: sp.price
                 });
-
                 return acc;
             }, {});
 
@@ -424,9 +417,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 🧹 Clean extra fields
-            ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(k => delete booking[k]);
-            Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
+            // 🧹 Remove extras
+            ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone']
+                .forEach(k => delete booking[k]);
+            Object.keys(booking).forEach(k => {
+                if (booking[k] === null) delete booking[k];
+            });
         }
 
         // ✅ Final response
@@ -447,6 +443,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
