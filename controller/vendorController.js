@@ -1327,8 +1327,6 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        console.log("🧾 Deleting:", { vendorId, vendor_packages_id, package_id, package_item_id });
-
         // ✅ Verify this subpackage exists and belongs to this vendor
         const [rows] = await connection.query(
             `SELECT vendor_packages_id, vendor_id, package_id, package_item_id
@@ -1338,8 +1336,6 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
                AND package_item_id = ?`,
             [vendor_packages_id, package_id, package_item_id]
         );
-
-        console.log("🔍 Found rows:", rows);
 
         if (rows.length === 0) {
             await connection.rollback();
