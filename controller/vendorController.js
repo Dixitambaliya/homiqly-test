@@ -945,6 +945,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
 
 const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+    const { startDate, endDate } = req.query;
 
     if (!vendor_id) {
         return res.status(400).json({ message: "Vendor ID is required" });
@@ -955,70 +956,39 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    // 📅 Optional filters
-    const { startDate, endDate } = req.query;
-
     try {
-        // Build dynamic where condition
-        let whereClause = `WHERE vp.vendor_id = ?`;
-        const queryParams = [vendor_id];
+        // 🧮 Build dynamic filters
+        let filterCondition = "WHERE vp.vendor_id = ?";
+        const filterParams = [vendor_id];
 
+        // ✅ Apply date filters dynamically
         if (startDate && endDate) {
-            whereClause += ` AND DATE(vp.created_at) BETWEEN ? AND ?`;
-            queryParams.push(startDate, endDate);
+            filterCondition += " AND DATE(vp.created_at) BETWEEN ? AND ?";
+            filterParams.push(startDate, endDate);
         } else if (startDate) {
-            whereClause += ` AND DATE(vp.created_at) >= ?`;
-            queryParams.push(startDate);
+            filterCondition += " AND DATE(vp.created_at) >= ?";
+            filterParams.push(startDate);
         } else if (endDate) {
-            whereClause += ` AND DATE(vp.created_at) <= ?`;
-            queryParams.push(endDate);
+            filterCondition += " AND DATE(vp.created_at) <= ?";
+            filterParams.push(endDate);
         }
 
-        // 🔢 Count total payouts for vendor (with filters)
+        // 🔢 Count total payouts (with filters)
         const [[{ total }]] = await db.query(
-            `SELECT COUNT(DISTINCT vp.payout_id) AS total
-             FROM vendor_payouts vp
-             ${whereClause}`,
-            queryParams
+            `SELECT COUNT(*) AS total FROM vendor_payouts vp ${filterCondition}`,
+            filterParams
         );
 
-        // ✅ Fetch payouts + booking info (paginated)
-        const [payoutRows] = await db.query(
-            `
-            SELECT 
-                vp.payout_id,
-                vp.vendor_id,
-                vp.user_id,
-                vp.booking_id,
-                vp.payout_amount,
-                vp.currency,
-                vp.payout_status,
-                vp.platform_fee_percentage,
-                vp.created_at,
-                sb.bookingDate,
-                sb.bookingTime,
-                u.firstName AS user_name,
-                u.email AS user_email,
-                u.phone AS user_phone,
-                p.package_id,
-                p.packageName,
-                p.packageMedia,
-                sp.sub_package_id,
-                sp.itemName AS sub_package_name,
-                sp.itemMedia AS sub_package_media,
-                sp.description AS sub_package_description
-            FROM vendor_payouts vp
-            LEFT JOIN service_booking sb ON vp.booking_id = sb.booking_id
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            LEFT JOIN service_booking_packages sbp ON sbp.booking_id = sb.booking_id
-            LEFT JOIN packages p ON sbp.package_id = p.package_id
-            LEFT JOIN package_items sp ON sp.package_id = p.package_id
-            ${whereClause}
-            ORDER BY vp.created_at ASC
-            LIMIT ? OFFSET ?
-            `,
-            [...queryParams, limit, offset]
-        );
+        // ✅ Build final SQL query with filters + pagination
+        const finalQuery = `
+            ${vendorGetQueries.getVendorPayoutHistory.replace(
+            "WHERE vp.vendor_id = ?",
+            filterCondition
+        )}
+        `;
+
+        // ✅ Fetch paginated payouts
+        const [payoutRows] = await db.query(finalQuery, [...filterParams, limit, offset]);
 
         if (!payoutRows.length) {
             return res.status(200).json({
@@ -1063,7 +1033,6 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                 };
             }
 
-            // Attach package/sub-package info
             if (row.package_id && row.sub_package_id) {
                 const pkgIndex = payoutMap[row.booking_id].packages.findIndex(
                     p => p.package_id === row.package_id
@@ -1095,7 +1064,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
         const allPayouts = Object.values(payoutMap);
 
-        // 💰 Calculate totals
+        // 💰 Totals
         const totalPayout = parseFloat(
             allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
         );
@@ -1112,7 +1081,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                 .toFixed(2)
         );
 
-        // 📦 Response with pagination
+        // 📦 Response
         res.status(200).json({
             vendor_id,
             totalBookings: allPayouts.length,
@@ -1120,12 +1089,10 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
             pendingPayout,
             paidPayout,
             allPayouts,
-            pagination: {
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-                totalRecords: total
-            }
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            totalRecords: total
         });
     } catch (err) {
         console.error("❌ Error fetching vendor payout history:", err);
