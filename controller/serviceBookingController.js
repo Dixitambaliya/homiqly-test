@@ -1225,7 +1225,6 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
         console.log("Current Time:", currentTime.format("YYYY-MM-DD hh:mm A z"));
         console.log("Selected Time:", selectedDateTime.format("YYYY-MM-DD hh:mm A z"));
-        console.log("24hr Mark:", twentyFourHourMark.format("YYYY-MM-DD hh:mm A z"));
         // ⏱ If user's selected time is within next 24 hours, block vendors
         if (selectedDateTime.isSameOrBefore(twentyFourHourMark)) {
             return res.status(200).json({

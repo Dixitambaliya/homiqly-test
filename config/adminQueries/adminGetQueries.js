@@ -13,6 +13,8 @@ SELECT
     i.phone AS individual_phone,
     i.otherInfo AS individual_otherInfo,
     i.resume AS individual_resume,
+    i.expertise AS individual_expertise,
+    i.aboutMe AS individual_aboutMe,
 
     -- Company Vendor Details
     c.vendor_id AS company_id,
@@ -22,6 +24,8 @@ SELECT
     c.companyPhone AS company_companyPhone,
     c.companyAddress AS company_companyAddress,
     c.contactPerson AS company_contactPerson,
+    c.expertise AS company_expertise,
+    c.aboutMe AS company_aboutMe,
 
     vs.manual_assignment_enabled AS status,
 
