@@ -106,7 +106,7 @@ const getVendor = asyncHandler(async (req, res) => {
         // 📄 Pagination setup
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-        const offset = (page - 1) * limit;
+        const offset = (page - 1) * limit; 
 
         // 🔍 Optional search term
         const search = req.query.search?.trim() || null;

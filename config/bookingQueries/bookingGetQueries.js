@@ -12,6 +12,7 @@ const bookingGetQueries = {
     sb.assigned_employee_id,
     sb.payment_status, 
     sb.start_time,
+    sb.user_promo_code_id,
     sb.end_time,
     s.service_id,
     s.serviceName,

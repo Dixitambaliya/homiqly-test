@@ -237,6 +237,7 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { page = 1, limit = 10, status, search, start_date, end_date } = req.query;
@@ -246,9 +247,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [[vendorRow]] = await db.query(bookingGetQueries.getVendorIdForBooking, [vendor_id]);
         const vendorType = vendorRow?.vendorType || null;
 
-        // 2️⃣ Get latest platform fee
+        // 2️⃣ Get latest platform fee (rounded to exact 2 decimals)
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
-        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+        const platformFeeRaw = platformSettings?.[0]?.platform_fee_percentage ?? 0;
+        const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // prevents 10.0000003 drift
+
+        console.log(platformFee);
 
         // 3️⃣ Build dynamic filters
         let filterCondition = "WHERE sb.vendor_id = ?";
@@ -304,16 +308,68 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         `, [...params, Number(limit), Number(offset)]);
 
         // 7️⃣ Process each booking
-        // 7️⃣ Process each booking
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
-            const rawAmount = Number(booking.payment_amount) || 0;
+            const rawUserPaid = Number(booking.payment_amount) || 0;
 
-            // ✅ Calculate vendor net amount (after platform fee)
-            const platformFeeAmount = parseFloat((rawAmount * (platformFee / 100)).toFixed(2));
-            const netAmount = parseFloat((rawAmount - platformFeeAmount).toFixed(2));
-            booking.payment_amount = netAmount;
+            // 🔹 Fetch promo discount (organization-funded)
+            let promoDiscount = 0;
+            if (booking.user_promo_code_id) {
+                // Check user promo codes
+                const [[userPromo]] = await db.query(`
+                    SELECT pc.discountValue
+                    FROM user_promo_codes upc
+                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                    WHERE upc.user_promo_code_id = ?
+                `, [booking.user_promo_code_id]);
 
+                if (userPromo && userPromo.discountValue) {
+                    promoDiscount = Number(userPromo.discountValue);
+                    console.log(promoDiscount);
+
+                } else {
+                    // Check system promo codes
+                    const [[systemPromo]] = await db.query(`
+                        SELECT spct.discountValue
+                        FROM system_promo_codes spc
+                        LEFT JOIN system_promo_code_templates spct 
+                        ON spc.template_id = spct.system_promo_code_template_id
+                        WHERE spc.system_promo_code_id = ?
+                    `, [booking.user_promo_code_id]);
+
+                    if (systemPromo && systemPromo.discountValue) {
+                        promoDiscount = Number(systemPromo.discountValue);
+                        console.log(systemPromo);
+                    }
+                }
+            }
+
+            // ✅ Calculate vendor’s payable amount accurately
+            let baseForVendor = Number(rawUserPaid.toFixed(2)) + Number(promoDiscount.toFixed(2));
+
+            // Ensure safe rounding (convert to integer cents)
+            const precise = (num) => Math.round(Number(num.toFixed(2)) * 100);
+            const toCurrency = (numCents) => (numCents / 100);
+
+            // Convert to cents for exact arithmetic
+            const baseCents = precise(baseForVendor);
+            console.log(baseCents);
+
+            const platformFeeCents = Math.round(baseCents * (platformFee / 100));
+            console.log(platformFeeCents);
+
+            const vendorCents = baseCents - platformFeeCents;
+
+            // Convert back to dollars
+            const platformFeeAmount = toCurrency(platformFeeCents);
+            const vendorPayable = toCurrency(vendorCents);
+
+            // Force 2 decimal rounding at the very end
+            booking.payment_amount = Number(vendorPayable.toFixed(2)); // Final vendor payout
+            booking.platformFeeAmount = Number(platformFeeAmount.toFixed(2));
+
+            // 🧹 Remove unnecessary fields
+            delete booking.user_promo_code_id;
             delete booking.platform_fee;
             delete booking.net_amount;
 
@@ -322,8 +378,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             const [bookingAddons] = await db.query(bookingGetQueries.getBookedAddons, [bookingId]);
             const [bookingPreferences] = await db.query(bookingGetQueries.getBoookedPrefrences, [bookingId]);
             const [bookingConsents] = await db.query(bookingGetQueries.getBoookedConsents, [bookingId]);
-
-            // 🔹 Fetch packages linked to this booking
             const [bookingPackages] = await db.query(`
                 SELECT 
                     sbp.package_id,
@@ -333,34 +387,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 JOIN packages p ON sbp.package_id = p.package_id
                 WHERE sbp.booking_id = ?;
             `, [bookingId]);
-
-            // ✅ Group related data strictly by sub_package_id
-            const addonsByItem = {};
-            bookingAddons.forEach(a => {
-                const key = a.sub_package_id;
-                if (!addonsByItem[key]) addonsByItem[key] = [];
-                const { booking_id, sub_package_id, ...rest } = a;
-                addonsByItem[key].push(rest);
-            });
-
-            const prefsByItem = {};
-            bookingPreferences.forEach(p => {
-                const key = p.sub_package_id;
-                if (!prefsByItem[key]) prefsByItem[key] = [];
-                const { booking_id, sub_package_id, ...rest } = p;
-                prefsByItem[key].push(rest);
-            });
-
-            const consentsByItem = {};
-            bookingConsents.forEach(c => {
-                const key = c.sub_package_id;
-                if (!consentsByItem[key]) consentsByItem[key] = [];
-                consentsByItem[key].push({
-                    consent_id: c.consent_id,
-                    consentText: c.question,
-                    answer: c.answer
-                });
-            });
 
             // ✅ Group subpackages properly by package
             const groupedByPackage = subPackages.reduce((acc, sp) => {
@@ -374,21 +400,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     };
                 }
 
-                // Link only relevant addons/preferences/consents for this sub_package_id
-                const addons = addonsByItem[sp.sub_package_id] || [];
-                const preferences = prefsByItem[sp.sub_package_id] || [];
-                const consents = consentsByItem[sp.sub_package_id] || [];
-
                 acc[packageId].items.push({
                     sub_package_id: sp.sub_package_id,
                     itemName: sp.itemName,
                     itemMedia: sp.itemMedia,
                     timeRequired: sp.timeRequired,
                     quantity: sp.quantity,
-                    price: sp.price,
-                    ...(addons.length && { addons }),
-                    ...(preferences.length && { preferences }),
-                    ...(consents.length && { consents })
+                    price: sp.price
                 });
 
                 return acc;
@@ -396,38 +414,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
             booking.sub_packages = Object.values(groupedByPackage);
             booking.packages = bookingPackages;
-
-
-            // 🔹 Promo code logic
-            if (booking.user_promo_code_id) {
-                let promo = null;
-
-                const [[userPromo]] = await db.query(`
-            SELECT upc.user_promo_code_id AS promo_id,
-                   pc.code AS promoCode,
-                   pc.discountValue,
-                   pc.minSpend
-            FROM user_promo_codes upc
-            LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-            WHERE upc.user_promo_code_id = ?
-        `, [booking.user_promo_code_id]);
-
-                if (userPromo) promo = userPromo;
-                else {
-                    const [[systemPromo]] = await db.query(`
-                SELECT spc.system_promo_code_id AS promo_id,
-                       spct.code AS promoCode,
-                       spct.discountValue
-                FROM system_promo_codes spc
-                LEFT JOIN system_promo_code_templates spct 
-                ON spc.template_id = spct.system_promo_code_template_id
-                WHERE spc.system_promo_code_id = ?
-            `, [booking.user_promo_code_id]);
-                    if (systemPromo) promo = systemPromo;
-                }
-
-                if (promo) booking.promo = promo;
-            }
 
             // 🔹 Employee info
             if (booking.assignedEmployeeId) {
@@ -439,12 +425,12 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 🧹 Clean unnecessary fields
+            // 🧹 Clean extra fields
             ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone'].forEach(k => delete booking[k]);
             Object.keys(booking).forEach(k => { if (booking[k] === null) delete booking[k]; });
         }
 
-
+        // ✅ Final response
         res.status(200).json({
             message: "Vendor bookings fetched successfully",
             currentPage: Number(page),
@@ -462,6 +448,9 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -1168,6 +1157,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 IF(v.vendorType='company', cdet.companyPhone, idet.phone) AS vendorPhone,
                 IF(v.vendorType='company', cdet.profileImage, idet.profileImage) AS profileImage,
                 IF(v.vendorType='company', cdet.aboutme, idet.aboutme) AS aboutMe,
+                IF(v.vendorType='company', cdet.otherInfo, idet.otherInfo) AS otherInfo,
+                IF(v.vendorType='company', cdet.expertise, idet.expertise) AS expertise,
                 vpf.package_id,
                 vpf.package_item_id
             FROM vendors v
@@ -1198,7 +1189,9 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                         vendorEmail: vp.vendorEmail,
                         vendorPhone: vp.vendorPhone,
                         profileImage: vp.profileImage,
-                        aboutMe: vp.aboutMe
+                        aboutMe: vp.aboutMe,
+                        otherInfo: vp.otherInfo,
+                        expertise: vp.expertise,
                     },
                     packages: new Set(),
                     items: new Set()
@@ -1223,8 +1216,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         const selectedDateTime = moment.tz(`${date} ${time}`, "YYYY-MM-DD HH:mm", "America/Edmonton");
         const twentyFourHourMark = currentTime.clone().add(24, "hours");
 
-        console.log("Current Time:", currentTime.format("YYYY-MM-DD hh:mm A z"));
-        console.log("Selected Time:", selectedDateTime.format("YYYY-MM-DD hh:mm A z"));
+        // console.log("Current Time:", currentTime.format("YYYY-MM-DD hh:mm A z"));
+        // console.log("Selected Time:", selectedDateTime.format("YYYY-MM-DD hh:mm A z"));
         // ⏱ If user's selected time is within next 24 hours, block vendors
         if (selectedDateTime.isSameOrBefore(twentyFourHourMark)) {
             return res.status(200).json({
@@ -1294,18 +1287,6 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
-
-
-
-
-
-
-
-
-
-
 
 module.exports = {
     bookService,
