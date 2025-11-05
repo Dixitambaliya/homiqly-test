@@ -618,7 +618,8 @@ const sendOtp = asyncHandler(async (req, res) => {
         message: responseMsg,
         token,
         is_registered,
-        is_phone_registered: phoneExists,
+        is_phone_registered: !phoneExists,
+        // ✅ if email is new (does NOT exist), then true
         is_email_registered: emailExists,
         firstName: user?.firstName || null,
         lastName: user?.lastName || null,

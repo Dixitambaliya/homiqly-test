@@ -129,15 +129,13 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
   const conn = await db.getConnection();
 
   try {
-    // ✅ Begin transaction
     await conn.beginTransaction();
 
-    // ✅ Lock cart row to prevent concurrent modifications
+    // ✅ Lock cart
     const [cartRows] = await conn.query(
       `SELECT * FROM service_cart WHERE cart_id = ? FOR UPDATE`,
       [cart_id]
     );
-
     if (!cartRows.length) {
       await conn.rollback();
       conn.release();
@@ -154,7 +152,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       });
     }
 
-    // ✅ Fetch sub-packages
+    // ✅ Fetch sub-packages, addons, preferences
     const [subPackages] = await conn.query(
       `SELECT cpi.sub_package_id AS item_id, pi.itemName, cpi.price, cpi.quantity
        FROM cart_package_items cpi
@@ -163,7 +161,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       [cart_id]
     );
 
-    // ✅ Fetch addons
     const [addons] = await conn.query(
       `SELECT ca.sub_package_id, a.addonName, ca.price
        FROM cart_addons ca
@@ -172,7 +169,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       [cart_id]
     );
 
-    // ✅ Fetch preferences
     const [preferences] = await conn.query(
       `SELECT cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
        FROM cart_preferences cp
@@ -190,13 +186,13 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     );
 
     let taxPercentage = 0;
-    let taxName = "";
+    let taxName = "Service Tax";
     if (serviceTaxRows.length) {
       taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
       taxName = serviceTaxRows[0].taxName || "Service Tax";
     }
 
-    // ✅ Calculate subtotal (sub-packages + addons + preferences)
+    // ✅ Step 1: Calculate subtotal (before promo/tax)
     let subtotal = 0;
     const metadata = { cart_id };
 
@@ -219,19 +215,13 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata[`preference_${idx}`] = pref.preferenceValue || "Preference";
     });
 
-    // ✅ Apply service tax
-    const taxAmount = subtotal * (taxPercentage / 100);
-    let totalAmount = subtotal + taxAmount;
-
-    metadata[`service_tax_name`] = taxName;
-    metadata[`service_tax_percentage`] = taxPercentage;
-    metadata[`service_tax_amount`] = taxAmount.toFixed(2);
-
-    // ✅ Promo code logic
+    // ✅ Step 2: Apply Promo Discount FIRST
     let appliedPromo = null;
+    let discountAmount = 0;
+    let discountedSubtotal = subtotal;
 
     if (cart.user_promo_code_id) {
-      // 1️⃣ Check user_promo_codes first
+      // Check user promo or system promo
       const [userPromoRows] = await conn.query(
         `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
         [cart.user_id, cart.user_promo_code_id]
@@ -239,74 +229,57 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
       if (userPromoRows.length) {
         const promo = userPromoRows[0];
-
-        // Admin promo via user_promo_codes
         if (promo.source_type === "admin" && promo.promo_id) {
           const [adminPromoRows] = await conn.query(
             `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
             [promo.promo_id]
           );
-
           if (adminPromoRows.length) {
             appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
           }
-        }
-
-        // System promo via user_promo_codes
-        if (!appliedPromo && promo.source_type === "system") {
+        } else if (promo.source_type === "system") {
           const [systemPromoRows] = await conn.query(
-            `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
+            `SELECT sc.*, st.discount_type, st.discountValue, st.code
              FROM system_promo_codes sc
              JOIN system_promo_code_templates st
                ON sc.template_id = st.system_promo_code_template_id
              WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
             [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
           );
-
           if (systemPromoRows.length) {
             appliedPromo = { ...systemPromoRows[0], source_type: "system" };
           }
         }
       }
-
-      // 2️⃣ If no promo found in user_promo_codes, check system_promo_codes directly
-      if (!appliedPromo) {
-        const [systemPromoRows] = await conn.query(
-          `SELECT sc.*, st.discount_type, st.discountValue, st.minSpend, st.maxUse, st.code
-           FROM system_promo_codes sc
-           JOIN system_promo_code_templates st
-             ON sc.template_id = st.system_promo_code_template_id
-           WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-          [cart.user_promo_code_id, cart.user_id]
-        );
-
-        if (systemPromoRows.length) {
-          appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-        }
-      }
     }
 
-    // ✅ Apply discount
-    let discountAmount = 0;
-    if (appliedPromo && (!appliedPromo.minSpend || totalAmount >= appliedPromo.minSpend)) {
+    // ✅ Step 3: Apply discount to subtotal (before tax)
+    if (appliedPromo) {
       const discountValue = parseFloat(appliedPromo.discountValue || 0);
       const discountType = appliedPromo.discount_type || "percentage";
 
       if (discountType === "fixed") {
         discountAmount = discountValue;
-        totalAmount = Math.max(0, totalAmount - discountValue);
+        discountedSubtotal = Math.max(0, subtotal - discountValue);
       } else {
-        discountAmount = totalAmount * (discountValue / 100);
-        totalAmount -= discountAmount;
+        discountAmount = subtotal * (discountValue / 100);
+        discountedSubtotal = subtotal - discountAmount;
       }
 
       metadata.promo_code = appliedPromo.code;
-      metadata.user_promo_code_id = appliedPromo.user_promo_code_id || null;
-      metadata.promo_source = appliedPromo.source_type || "system";
       metadata.discount = discountAmount.toFixed(2);
+      metadata.promo_source = appliedPromo.source_type || "system";
     }
 
+    // ✅ Step 4: Apply Service Tax AFTER Discount
+    const taxAmount = discountedSubtotal * (taxPercentage / 100);
+    const totalAmount = discountedSubtotal + taxAmount;
+
     metadata.subtotal = subtotal.toFixed(2);
+    metadata.discountedSubtotal = discountedSubtotal.toFixed(2);
+    metadata.service_tax_name = taxName;
+    metadata.service_tax_percentage = taxPercentage;
+    metadata.service_tax_amount = taxAmount.toFixed(2);
     metadata.totalAmount = totalAmount.toFixed(2);
 
     if (totalAmount <= 0) {
@@ -315,7 +288,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       return res.status(400).json({ error: "Total amount must be greater than 0" });
     }
 
-    // ✅ Create new Stripe PaymentIntent (no DB insert)
+    // ✅ Step 5: Create Stripe PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(totalAmount * 100),
       currency: "cad",
@@ -324,24 +297,28 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
       metadata,
     });
 
-    // ✅ Log payment intent for webhook tracking
+    // ✅ Step 6: Log payment intent
     await conn.query(
       `INSERT INTO payments (cart_id, user_id, payment_intent_id, amount, currency, status)
-      VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [cart_id, cart.user_id, paymentIntent.id, totalAmount, "cad", "pending"]
     );
 
-    // ✅ Commit transaction
     await conn.commit();
     conn.release();
 
-    // ✅ Return Stripe details
+    // ✅ Step 7: Return success
     return res.status(200).json({
       clientSecret: paymentIntent.client_secret,
       amount: totalAmount,
       currency: "cad",
       paymentIntentId: paymentIntent.id,
+      taxAmount,
+      discountAmount,
+      subtotal,
+      discountedSubtotal
     });
+
   } catch (err) {
     await conn.rollback();
     conn.release();

@@ -796,7 +796,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
             // Only add sub-package if package_item_id is not 0 (placeholder for no sub-packages)
             if (row.package_item_id && row.package_item_id !== 0) {
                 grouped[row.package_id].sub_packages.push({
-                    sub_package_id: row.package_item_id,
+                    package_item_id: row.package_item_id,
                     sub_package_name: row.sub_package_name || "Unknown",
                     sub_package_media: row.itemMedia || null,
                     sub_package_description: row.description || null
