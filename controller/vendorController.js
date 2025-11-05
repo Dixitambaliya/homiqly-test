@@ -1327,16 +1327,19 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        // ✅ Verify this exact subpackage exists and belongs to this vendor
+        console.log("🧾 Deleting:", { vendorId, vendor_packages_id, package_id, package_item_id });
+
+        // ✅ Verify this subpackage exists and belongs to this vendor
         const [rows] = await connection.query(
-            `SELECT vendor_packages_id 
+            `SELECT vendor_packages_id, vendor_id, package_id, package_item_id
              FROM vendor_package_items_flat
-             WHERE vendor_packages_id = ? 
-               AND vendor_id = ? 
-               AND package_id = ? 
+             WHERE vendor_packages_id = ?
+               AND package_id = ?
                AND package_item_id = ?`,
-            [vendor_packages_id, vendorId, package_id, package_item_id]
+            [vendor_packages_id, package_id, package_item_id]
         );
+
+        console.log("🔍 Found rows:", rows);
 
         if (rows.length === 0) {
             await connection.rollback();
@@ -1345,15 +1348,22 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
             });
         }
 
-        // ✅ Delete only this specific sub-package row
+        // Optional: check vendor ownership if your table includes vendor_id
+        if (rows[0].vendor_id && rows[0].vendor_id !== vendorId) {
+            await connection.rollback();
+            return res.status(403).json({
+                message: "This sub-package does not belong to your account"
+            });
+        }
+
+        // ✅ Delete the specific row
         const [result] = await connection.query(
-            `DELETE FROM vendor_package_items_flat 
-             WHERE vendor_packages_id = ? 
-               AND vendor_id = ? 
-               AND package_id = ? 
+            `DELETE FROM vendor_package_items_flat
+             WHERE vendor_packages_id = ?
+               AND package_id = ?
                AND package_item_id = ?
              LIMIT 1`,
-            [vendor_packages_id, vendorId, package_id, package_item_id]
+            [vendor_packages_id, package_id, package_item_id]
         );
 
         await connection.commit();
@@ -1365,7 +1375,7 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
         });
     } catch (err) {
         await connection.rollback();
-        console.error("Error removing vendor sub-package:", err);
+        console.error("❌ Error removing vendor sub-package:", err);
         res.status(500).json({
             success: false,
             message: "Failed to remove vendor sub-package",
@@ -1375,6 +1385,7 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
+
 
 
 const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
