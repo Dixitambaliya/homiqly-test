@@ -81,6 +81,7 @@ const vendorGetQueries = {
         COALESCE(individual_details.certificateOfExpertise, company_details.certificateOfExpertise) AS certificateOfExpertise,
         COALESCE(individual_details.certificateOfExpertiseExpireDate, company_details.certificateOfExpertiseExpireDate) AS certificateOfExpertiseExpireDate,
         COALESCE(individual_details.aboutMe, company_details.aboutMe) AS aboutMe,
+        COALESCE(individual_details.expertise, company_details.expertise) AS expertise,
         COALESCE(individual_details.address) AS address,
         COALESCE(company_details.googleBusinessProfileLink) AS googleBusinessProfileLink,
         COALESCE(company_details.companyAddress) AS companyAddress,

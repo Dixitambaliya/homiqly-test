@@ -42,6 +42,7 @@ const registerVendor = async (req, res) => {
             googleBusinessProfileLink,
             companyEmail,
             contactPerson,
+            expertise,
             companyPhone,
             serviceLocation,
             packages = [],
@@ -74,6 +75,7 @@ const registerVendor = async (req, res) => {
                 googleBusinessProfileLink,
                 companyPhone,
                 companyAddress,
+                expertise
             ]);
         } else {
             const resume = req.uploadedFiles?.resume?.[0]?.url || null;
@@ -84,6 +86,7 @@ const registerVendor = async (req, res) => {
                 email,
                 resume,
                 aboutme,
+                expertise
             ]);
         }
 

@@ -324,7 +324,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -339,6 +338,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         contactPerson,
         birthDate,
         address,
+        expertise,
         certificateNames // assume array
     } = req.body;
 
@@ -351,7 +351,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                 ? await db.query(
                     `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
                             businessLicenseExpireDate, certificateOfExpertiseExpireDate,
-                            name, address, dob, email, phone, aboutMe
+                            name, address, dob, email, phone, aboutMe, expertise
                      FROM individual_details WHERE vendor_id = ?`,
                     [vendor_id]
                 )
@@ -360,7 +360,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                         `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
                                 businessLicenseExpireDate, certificateOfExpertiseExpireDate,
                                 companyName, dob, companyEmail, companyPhone, 
-                                googleBusinessProfileLink, companyAddress, contactPerson
+                                googleBusinessProfileLink, companyAddress, contactPerson, expertise
                          FROM company_details WHERE vendor_id = ?`,
                         [vendor_id]
                     )
@@ -393,7 +393,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                      dob = ?, 
                      email = ?, 
                      phone = ?, 
-                     aboutMe = ?
+                     aboutMe = ?,
+                     expertise = ?
                  WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
@@ -408,6 +409,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                     email ?? current.email,
                     phone ?? current.phone,
                     aboutMe ?? current.aboutMe,
+                    expertise ?? current.expertise,
                     vendor_id,
                 ]
             );
@@ -426,7 +428,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                      companyPhone = ?, 
                      googleBusinessProfileLink = ?, 
                      companyAddress = ?, 
-                     contactPerson = ?
+                     contactPerson = ?,
+                     expertise = ?
                  WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
@@ -442,6 +445,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                     googleBusinessProfileLink ?? current.googleBusinessProfileLink,
                     companyAddress ?? current.companyAddress,
                     contactPerson ?? current.contactPerson,
+                    expertise ?? current.expertise,
                     vendor_id,
                 ]
             );
@@ -469,8 +473,6 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -752,7 +754,6 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
@@ -816,7 +817,6 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const addRatingToPackages = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -1381,8 +1381,6 @@ const removeVendorPackage = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
-
 
 const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id; // company/vendor admin id
