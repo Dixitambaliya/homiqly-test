@@ -145,11 +145,9 @@ const editBankAccount = asyncHandler(async (req, res) => {
         interac_phone
     } = req.body;
 
-    const government_id = req.uploadedFiles?.government_id?.[0]?.url || null;
-
-    // Check if account exists
+    // 🔍 Check if account exists
     const [rows] = await db.query(
-        "SELECT vendor_bank_account_id FROM vendor_bank_accounts WHERE vendor_id = ?",
+        "SELECT vendor_bank_account_id, government_id FROM vendor_bank_accounts WHERE vendor_id = ?",
         [vendor_id]
     );
 
@@ -157,11 +155,29 @@ const editBankAccount = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Bank account not found" });
     }
 
-    // Perform update
+    // ✅ Preserve government_id if not re-uploaded
+    const existingAccount = rows[0];
+    const government_id =
+        req.uploadedFiles?.government_id?.[0]?.url || existingAccount.government_id || null;
+
+    // 🛠️ Perform update
     const [result] = await db.query(
         `UPDATE vendor_bank_accounts
-         SET account_holder_name=?, bank_name=?, institution_number=?, transit_number=?, account_number=?, 
-             bank_address=?, email=?, legal_name=?, dob=?, business_name=?, government_id=?, preferred_transfer_type=? , interac_email = ?, interac_phone =?
+         SET 
+            account_holder_name=?, 
+            bank_name=?, 
+            institution_number=?, 
+            transit_number=?, 
+            account_number=?, 
+            bank_address=?, 
+            email=?, 
+            legal_name=?, 
+            dob=?, 
+            business_name=?, 
+            government_id=?, 
+            preferred_transfer_type=?,
+            interac_email=?,
+            interac_phone=?
          WHERE vendor_id=?`,
         [
             account_holder_name,
@@ -182,7 +198,6 @@ const editBankAccount = asyncHandler(async (req, res) => {
         ]
     );
 
-    // 🧩 Check if update affected any row
     if (result.affectedRows === 0) {
         return res.status(400).json({ message: "No changes were made to the bank account." });
     }

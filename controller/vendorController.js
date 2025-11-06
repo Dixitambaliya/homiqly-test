@@ -1107,7 +1107,6 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { booking_id, status } = req.body;
