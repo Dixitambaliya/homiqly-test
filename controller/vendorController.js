@@ -1307,7 +1307,6 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         assignedRows.forEach(row => {
             if (!grouped[row.package_id]) {
                 grouped[row.package_id] = {
-                    vendor_packages_id: row.vendor_packages_id,
                     package_id: row.package_id,
                     package_name: row.packageName,
                     sub_packages: []
