@@ -30,7 +30,7 @@ const approveVendor = asyncHandler(async (req, res) => {
     await conn.beginTransaction();
 
     try {
-        // ✅ Fetch vendor info with join to details tables
+        // ✅ Fetch vendor info
         const [vendorRows] = await conn.query(`
             SELECT v.vendor_id, v.vendorType, 
                    i.name AS individual_name, c.companyName, 
@@ -55,11 +55,15 @@ const approveVendor = asyncHandler(async (req, res) => {
             email = vendor.companyEmail;
 
             if (is_authenticated === 1) {
-                plainPassword = generator.generate({ length: 10, numbers: true, uppercase: true, lowercase: true });
+                plainPassword = generator.generate({
+                    length: 10,
+                    numbers: true,
+                    uppercase: true,
+                    lowercase: true
+                });
                 const hashedPassword = await bcrypt.hash(plainPassword, 10);
                 await conn.query(verificationQueries.addVendorPassword, [hashedPassword, vendor_id]);
             }
-
         } else if (vendor_type === "individual") {
             vendorName = vendor.individual_name;
             email = vendor.individual_email;
@@ -70,46 +74,52 @@ const approveVendor = asyncHandler(async (req, res) => {
         // ✅ Update vendor approval status
         await conn.query(verificationQueries.vendorApprove, [is_authenticated, vendor_id]);
 
-        // ✅ Transfer approved packages and sub-packages
+        // ✅ Transfer approved packages and sub-packages directly into vendor_package_items_flat
         if (is_authenticated === 1) {
             const [applications] = await conn.query(`
-                SELECT * FROM vendor_package_applications WHERE vendor_id = ? AND status = 0
+                SELECT * FROM vendor_package_applications 
+                WHERE vendor_id = ? AND status = 0
             `, [vendor_id]);
 
             for (const app of applications) {
-                const [vpRes] = await conn.query(`
-                    INSERT INTO vendor_packages (vendor_id, package_id, serviceLocation)
-                    VALUES (?, ?, ?)
-                `, [vendor_id, app.package_id, app.serviceLocation]);
-
-                const vendorPackageId = vpRes.insertId;
-
                 const [subItems] = await conn.query(`
-                    SELECT package_item_id FROM vendor_package_item_application
+                    SELECT package_item_id 
+                    FROM vendor_package_item_application 
                     WHERE application_id = ?
                 `, [app.application_id]);
 
-                for (const sub of subItems) {
+                // If no sub-items found, still insert one row for package_id (no sub-package)
+                if (subItems.length === 0) {
                     await conn.query(`
-                        INSERT INTO vendor_package_items (vendor_packages_id, package_item_id, vendor_id, package_id)
-                        VALUES (?, ?, ?, ?)
-                    `, [vendorPackageId, sub.package_item_id, vendor_id, app.package_id]);
+                        INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
+                        VALUES (?, ?, 0)
+                    `, [vendor_id, app.package_id]);
+                } else {
+                    // ✅ Insert each sub-package directly into flat table
+                    for (const sub of subItems) {
+                        await conn.query(`
+                            INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
+                            VALUES (?, ?, ?)
+                        `, [vendor_id, app.package_id, sub.package_item_id]);
+                    }
                 }
 
+                // ✅ Clean up temporary application tables
                 await conn.query(`DELETE FROM vendor_package_item_application WHERE application_id = ?`, [app.application_id]);
                 await conn.query(`DELETE FROM vendor_package_applications WHERE application_id = ?`, [app.application_id]);
             }
 
+            // ✅ Ensure vendor_settings created or updated
             await conn.query(`
-                INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled, start_datetime, end_datetime)
-                VALUES (?, 1, NULL, NULL)
+                INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
+                VALUES (?, 1)
                 ON DUPLICATE KEY UPDATE manual_assignment_enabled = 1
             `, [vendor_id]);
         }
 
         await conn.commit();
 
-        // ✅ Send email asynchronously (fire-and-forget)
+        // ✅ Send mail async
         if (is_authenticated === 1) {
             sendVendorApprovalMail({ vendorName, vendorEmail: email, plainPassword })
                 .catch(err => console.error("Approval email failed:", err));
@@ -129,6 +139,7 @@ const approveVendor = asyncHandler(async (req, res) => {
         conn.release();
     }
 });
+
 
 
 const approveServiceType = asyncHandler(async (req, res) => {

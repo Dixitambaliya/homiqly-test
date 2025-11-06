@@ -278,7 +278,6 @@ const getVendorService = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -1273,7 +1272,6 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 
@@ -1337,7 +1335,6 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const removeVendorPackage = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;

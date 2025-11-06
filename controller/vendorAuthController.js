@@ -25,7 +25,7 @@ const generateResetCode = () =>
 
 // Create User
 
-const registerVendor = async (req, res) => {
+const registerVendor = async (req, res) => { 
     const conn = await db.getConnection();
     await conn.beginTransaction();
 
@@ -75,7 +75,8 @@ const registerVendor = async (req, res) => {
                 googleBusinessProfileLink,
                 companyPhone,
                 companyAddress,
-                expertise
+                expertise,
+                serviceLocation
             ]);
         } else {
             const resume = req.uploadedFiles?.resume?.[0]?.url || null;
@@ -86,7 +87,8 @@ const registerVendor = async (req, res) => {
                 email,
                 resume,
                 aboutme,
-                expertise
+                expertise,
+                serviceLocation
             ]);
         }
 
@@ -107,9 +109,9 @@ const registerVendor = async (req, res) => {
 
             // Insert vendor package application
             const [vpRes] = await conn.query(
-                `INSERT INTO vendor_package_applications (vendor_id, package_id, serviceLocation, status)
-                 VALUES (?, ?, ?, 0)`,
-                [vendor_id, package_id, serviceLocation]
+                `INSERT INTO vendor_package_applications (vendor_id, package_id, status)
+                 VALUES (?, ?, 0)`,
+                [vendor_id, package_id]
             );
             const application_id = vpRes.insertId;
 
