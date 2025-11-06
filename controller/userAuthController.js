@@ -815,7 +815,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
                 lastName,
                 phone,
                 email,
-                is_approved: isApproved,
                 created_at: new Date(),
             },
         });
