@@ -782,12 +782,11 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
         // ✅ Create user only if both phone & email are free
         const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
-        const isApproved = phone ? 1 : 0;
 
         const [result] = await db.query(
-            `INSERT INTO users (firstName, lastName, phone, email, password, is_approved, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-            [firstName, lastName, phone || null, email || null, hashedPassword, isApproved]
+            `INSERT INTO users (firstName, lastName, phone, email, password, created_at)
+             VALUES (?, ?, ?, ?, ?, NOW())`,
+            [firstName, lastName, phone || null, email || null, hashedPassword]
         );
 
         const user_id = result.insertId;
