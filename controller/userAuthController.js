@@ -1,10 +1,10 @@
+const asyncHandler = require("express-async-handler");
+const twilio = require('twilio');
+const jwt = require("jsonwebtoken");
 const { db } = require("../config/db");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
-const asyncHandler = require("express-async-handler");
 const { assignWelcomeCode } = require("../config/utils/email/mailer");
-const twilio = require('twilio');
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail, sendUserWelcomeMail } = require("../config/utils/email/mailer");
 
