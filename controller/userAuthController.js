@@ -528,7 +528,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Either phone or email is required" });
     }
 
-    // ✅ 1. Lookup phone & email separately
+    // 1️⃣ Check user existence
     let [byPhone] = phone
         ? await db.query("SELECT user_id, firstName, lastName, phone, email FROM users WHERE phone = ?", [phone])
         : [[]];
@@ -539,7 +539,6 @@ const sendOtp = asyncHandler(async (req, res) => {
     const phoneExists = byPhone.length > 0;
     const emailExists = byEmail.length > 0;
 
-    // ✅ 2. Determine final user (if both exist and same user_id)
     let user = null;
     if (phone && email) {
         if (phoneExists && emailExists && byPhone[0].user_id === byEmail[0].user_id) {
@@ -560,56 +559,71 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     const is_registered = phoneExists || emailExists;
 
-    // 🔢 3. Generate OTP
+    // 2️⃣ Generate OTP + Token
     const otp = generateOTP();
-
-    // 🔐 4. Create JWT (valid 30 min)
     const tokenPayload = { otp };
     if (phone) tokenPayload.phone = phone;
     if (email) tokenPayload.email = email;
+
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "30m" });
 
-    // 📱 5. Send OTP via SMS (async)
+    // 3️⃣ Send SMS (awaited, safe)
     if (phone) {
-        (async () => {
-            try {
-                const smsMessage = is_registered
-                    ? `Welcome back to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`
-                    : `Welcome to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`;
+        try {
+            const smsMessage = is_registered
+                ? `Welcome back to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`
+                : `Welcome to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`;
 
-                await client.messages.create({
-                    body: smsMessage,
-                    from: process.env.TWILIO_PHONE_NUMBER,
-                    to: phone,
+            await client.messages.create({
+                body: smsMessage,
+                from: process.env.TWILIO_PHONE_NUMBER,
+                to: phone,
+            });
+
+            console.log(`📱 OTP sent via SMS to ${phone}`);
+        } catch (error) {
+            console.error("❌ Failed to send SMS OTP:", error.message);
+
+            if (
+                error.message.includes("cannot be a landline") ||
+                error.code === 21614 ||
+                error.code === 21211
+            ) {
+                return res.status(400).json({
+                    message: "Invalid or unsupported phone number. Please use a valid mobile number.",
+                    error: error.message,
                 });
-
-                console.log(`📱 OTP sent via SMS to ${phone}`);
-            } catch (error) {
-                console.error("❌ Failed to send SMS OTP:", error.message);
             }
-        })();
+
+            return res.status(500).json({
+                message: "Failed to send OTP via SMS. Please try again later.",
+                error: error.message,
+            });
+        }
     }
 
-    // 📧 6. Send OTP via Email (async)
+    // 4️⃣ Send Email (awaited, safe)
     if (email) {
-        (async () => {
-            try {
-                await sendUserVerificationMail({
-                    userEmail: email,
-                    code: otp,
-                    subject: is_registered
-                        ? "Welcome back to Homiqly"
-                        : "Welcome to Homiqly",
-                });
+        try {
+            await sendUserVerificationMail({
+                userEmail: email,
+                code: otp,
+                subject: is_registered
+                    ? "Welcome back to Homiqly"
+                    : "Welcome to Homiqly",
+            });
 
-                console.log(`📧 OTP email sent to ${email}`);
-            } catch (error) {
-                console.error("❌ Failed to send email OTP:", error.message);
-            }
-        })();
+            console.log(`📧 OTP email sent to ${email}`);
+        } catch (error) {
+            console.error("❌ Failed to send email OTP:", error.message);
+            return res.status(500).json({
+                message: "Failed to send OTP email. Please try again later.",
+                error: error.message,
+            });
+        }
     }
 
-    // ✅ 7. Build response
+    // ✅ Final Response
     const responseMsg = is_registered
         ? `Welcome back${user?.firstName ? `, ${user.firstName}` : ""}! We've sent your OTP.`
         : "OTP sent successfully. Please continue registration.";
@@ -618,14 +632,12 @@ const sendOtp = asyncHandler(async (req, res) => {
         message: responseMsg,
         token,
         is_registered,
-        // ✅ FINAL LOGIC:
-        // if email provided AND it's new → true
-        // if only phone is provided and new → false
         is_email_registered: email && !emailExists ? true : false,
         firstName: user?.firstName || null,
         lastName: user?.lastName || null,
     });
 });
+;
 
 
 
