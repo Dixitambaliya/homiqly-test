@@ -1012,7 +1012,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         const payoutMap = new Map();
 
         payoutRows.forEach(row => {
-            if (!payoutMap.has(row.booking_id)) {
+            if (!payoutMap.has(row.payout_id)) {
                 payoutMap.set(row.booking_id, {
                     payout_id: row.payout_id,
                     booking_id: row.booking_id,
@@ -1063,6 +1063,11 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
         const allPayouts = Array.from(payoutMap.values());
 
+        // ✅ Apply pagination *after* grouping
+        const totalRecords = allPayouts.length;
+        const startIndex = (page - 1) * limit;
+        const paginatedPayouts = allPayouts.slice(startIndex, startIndex + limit);
+
         // 💰 Totals
         const totalPayout = parseFloat(
             allPayouts.reduce((sum, b) => sum + b.payout_amount, 0).toFixed(2)
@@ -1084,10 +1089,10 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         res.status(200).json({
             vendor_id,
             totalBookings: allPayouts.length,
-            totalPayout,
+            totalPayout: totalRecords,
             pendingPayout,
             paidPayout,
-            allPayouts,
+            allPayouts: paginatedPayouts,
             page,
             limit,
             totalPages: Math.ceil(total / limit),

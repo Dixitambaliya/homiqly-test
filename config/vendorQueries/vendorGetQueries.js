@@ -134,8 +134,7 @@ const vendorGetQueries = {
     LEFT JOIN package_items spi ON spi.item_id = sbs.sub_package_id
     LEFT JOIN packages pkg ON pkg.package_id = spi.package_id
     WHERE vp.vendor_id = ?
-    ORDER BY vp.payout_id DESC
-    LIMIT ? OFFSET ?;
+    ORDER BY vp.payout_id DESC;
 `,
 
 
