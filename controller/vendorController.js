@@ -945,6 +945,7 @@ const getManualAssignmentStatus = asyncHandler(async (req, res) => {
 
 const getVendorPayoutHistory = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+
     const { startDate, endDate } = req.query;
 
     if (!vendor_id) {
@@ -1008,10 +1009,11 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         }
 
         // ✅ Group by booking_id
-        const payoutMap = {};
+        const payoutMap = new Map();
+
         payoutRows.forEach(row => {
-            if (!payoutMap[row.booking_id]) {
-                payoutMap[row.booking_id] = {
+            if (!payoutMap.has(row.booking_id)) {
+                payoutMap.set(row.booking_id, {
                     payout_id: row.payout_id,
                     booking_id: row.booking_id,
                     vendor_id: row.vendor_id,
@@ -1030,29 +1032,26 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                     user_email: row.user_email,
                     user_phone: row.user_phone,
                     packages: []
-                };
+                });
             }
 
             if (row.package_id && row.sub_package_id) {
-                const pkgIndex = payoutMap[row.booking_id].packages.findIndex(
-                    p => p.package_id === row.package_id
-                );
+                const payout = payoutMap.get(row.booking_id);
+                const pkgIndex = payout.packages.findIndex(p => p.package_id === row.package_id);
                 if (pkgIndex === -1) {
-                    payoutMap[row.booking_id].packages.push({
+                    payout.packages.push({
                         package_id: row.package_id,
                         packageName: row.packageName,
                         packageMedia: row.packageMedia,
-                        sub_packages: [
-                            {
-                                sub_package_id: row.sub_package_id,
-                                sub_package_name: row.sub_package_name,
-                                sub_package_media: row.sub_package_media,
-                                sub_package_description: row.sub_package_description
-                            }
-                        ]
+                        sub_packages: [{
+                            sub_package_id: row.sub_package_id,
+                            sub_package_name: row.sub_package_name,
+                            sub_package_media: row.sub_package_media,
+                            sub_package_description: row.sub_package_description
+                        }]
                     });
                 } else {
-                    payoutMap[row.booking_id].packages[pkgIndex].sub_packages.push({
+                    payout.packages[pkgIndex].sub_packages.push({
                         sub_package_id: row.sub_package_id,
                         sub_package_name: row.sub_package_name,
                         sub_package_media: row.sub_package_media,
@@ -1062,7 +1061,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
             }
         });
 
-        const allPayouts = Object.values(payoutMap);
+        const allPayouts = Array.from(payoutMap.values());
 
         // 💰 Totals
         const totalPayout = parseFloat(

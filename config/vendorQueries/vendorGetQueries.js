@@ -128,13 +128,13 @@ const vendorGetQueries = {
         spi.description AS sub_package_description
 
     FROM vendor_payouts vp
-    JOIN service_booking sb ON vp.booking_id = sb.booking_id
-    JOIN users u ON vp.user_id = u.user_id
+    LEFT JOIN service_booking sb ON vp.booking_id = sb.booking_id
+    LEFT JOIN users u ON vp.user_id = u.user_id
     LEFT JOIN service_booking_sub_packages sbs ON sbs.booking_id = sb.booking_id
     LEFT JOIN package_items spi ON spi.item_id = sbs.sub_package_id
     LEFT JOIN packages pkg ON pkg.package_id = spi.package_id
     WHERE vp.vendor_id = ?
-    ORDER BY vp.created_at ASC
+    ORDER BY vp.payout_id DESC
     LIMIT ? OFFSET ?;
 `,
 
