@@ -278,6 +278,7 @@ const getVendorService = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -751,70 +752,6 @@ const getAllPackagesForVendor = asyncHandler(async (req, res) => {
     } catch (err) {
         console.error("Vendor package fetch error:", err);
         res.status(500).json({ error: "Failed to fetch vendor packages", details: err.message });
-    }
-});
-
-const getVendorAssignedPackages = asyncHandler(async (req, res) => {
-    const vendorId = req.user.vendor_id;
-
-    try {
-        // ✅ Fetch all package-subpackage pairs assigned to vendor
-        const [assignedRows] = await db.query(
-            `SELECT 
-                vpf.vendor_packages_id,
-                vpf.package_id,
-                vpf.package_item_id,
-                p.packageName,
-                pi.itemName AS sub_package_name,
-                pi.itemMedia,
-                pi.description
-             FROM vendor_package_items_flat vpf
-             JOIN packages p ON vpf.package_id = p.package_id
-             LEFT JOIN package_items pi ON vpf.package_item_id = pi.item_id
-             WHERE vpf.vendor_id = ?`,
-            [vendorId]
-        );
-
-        if (assignedRows.length === 0) {
-            return res.status(200).json({
-                message: "No packages assigned to this vendor",
-                result: []
-            });
-        }
-
-        // ✅ Group sub-packages by package_id
-        const grouped = {};
-        assignedRows.forEach(row => {
-            if (!grouped[row.package_id]) {
-                grouped[row.package_id] = {
-                    package_id: row.package_id,
-                    package_name: row.packageName,
-                    sub_packages: []
-                };
-            }
-
-            // Only add sub-package if package_item_id is not 0 (placeholder for no sub-packages)
-            if (row.package_item_id && row.package_item_id !== 0) {
-                grouped[row.package_id].sub_packages.push({
-                    vendor_packages_id: row.vendor_packages_id,
-                    package_item_id: row.package_item_id,
-                    sub_package_name: row.sub_package_name || "Unknown",
-                    sub_package_media: row.itemMedia || null,
-                    sub_package_description: row.description || null
-                });
-            }
-        });
-
-        const result = Object.values(grouped);
-
-        res.status(200).json({
-            message: "Vendor packages fetched successfully",
-            result
-        });
-
-    } catch (err) {
-        console.error("Error fetching vendor packages:", err);
-        res.status(500).json({ error: "Database error", details: err.message });
     }
 });
 
@@ -1335,6 +1272,73 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
+const getVendorAssignedPackages = asyncHandler(async (req, res) => {
+    const vendorId = req.user.vendor_id;
+
+    try {
+        // ✅ Fetch all package-subpackage pairs assigned to vendor
+        const [assignedRows] = await db.query(
+            `SELECT 
+                vpf.vendor_packages_id,
+                vpf.package_id,
+                vpf.package_item_id,
+                p.packageName,
+                pi.itemName AS sub_package_name,
+                pi.itemMedia,
+                pi.description
+             FROM vendor_package_items_flat vpf
+             JOIN packages p ON vpf.package_id = p.package_id
+             LEFT JOIN package_items pi ON vpf.package_item_id = pi.item_id
+             WHERE vpf.vendor_id = ?`,
+            [vendorId]
+        );
+
+        if (assignedRows.length === 0) {
+            return res.status(200).json({
+                message: "No packages assigned to this vendor",
+                result: []
+            });
+        }
+
+        // ✅ Group sub-packages by package_id
+        const grouped = {};
+        assignedRows.forEach(row => {
+            if (!grouped[row.package_id]) {
+                grouped[row.package_id] = {
+                    vendor_packages_id: row.vendor_packages_id,
+                    package_id: row.package_id,
+                    package_name: row.packageName,
+                    sub_packages: []
+                };
+            }
+
+            // Only add sub-package if package_item_id is not 0 (placeholder for no sub-packages)
+            if (row.package_item_id && row.package_item_id !== 0) {
+                grouped[row.package_id].sub_packages.push({
+                    package_item_id: row.package_item_id,
+                    vendor_packages_id: row.vendor_packages_id,
+                    sub_package_name: row.sub_package_name || "Unknown",
+                    sub_package_media: row.itemMedia || null,
+                    sub_package_description: row.description || null
+                });
+            }
+        });
+
+        const result = Object.values(grouped);
+
+        res.status(200).json({
+            message: "Vendor packages fetched successfully",
+            result
+        });
+
+    } catch (err) {
+        console.error("Error fetching vendor packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
 
 const removeVendorPackage = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
