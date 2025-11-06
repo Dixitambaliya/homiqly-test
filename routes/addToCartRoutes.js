@@ -29,4 +29,4 @@ router.patch('/addcartdetails/:cart_id', multiUpload, handleUploads, authenticat
 router.delete('/deletecart/:cart_id', authenticationToken, deleteCartItem);
 router.delete('/deletesubpackage/:cart_id', authenticationToken, deleteCartSubPackage);
 
-module.exports = router;
+module.exports = router;    

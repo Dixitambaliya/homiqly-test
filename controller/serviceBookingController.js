@@ -262,9 +262,9 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
         if (search && search.trim() !== "") {
             filterCondition += ` AND (
-                CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-                OR u.email LIKE ? 
-                OR u.phone LIKE ? 
+                CONCAT(u.firstName, ' ', u.lastName) LIKE ?
+                OR u.email LIKE ?
+                OR u.phone LIKE ?
                 OR sb.booking_id LIKE ?
             )`;
             const searchPattern = `%${search.trim()}%`;
@@ -328,7 +328,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                     const [[systemPromo]] = await db.query(`
                         SELECT spct.discountValue, spct.discount_type
                         FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spct 
+                        LEFT JOIN system_promo_code_templates spct
                         ON spc.template_id = spct.system_promo_code_template_id
                         WHERE spc.system_promo_code_id = ?
                     `, [booking.user_promo_code_id]);
@@ -373,7 +373,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             // 🔹 Fetch related data
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingPackages] = await db.query(`
-                SELECT 
+                SELECT
                     sbp.package_id,
                     p.packageName,
                     p.packageMedia
@@ -444,14 +444,13 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
         // 1️⃣ Fetch all bookings for the user, include payment info
         const [userBookings] = await db.query(
-            `SELECT 
+            `SELECT
                 sb.*,
                 v.vendor_id,
                 v.vendorType,
@@ -478,7 +477,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
             // 2️⃣ Fetch sub-packages (items with package + service type details)
             const [subPackages] = await db.query(`
-                SELECT 
+                SELECT
                     sbsp.sub_package_id,
                     p.package_id,
                     p.packageName,
@@ -497,7 +496,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
             // 3️⃣ Fetch related data
             const [bookingAddons] = await db.query(`
-                SELECT 
+                SELECT
                     sba.sub_package_id,
                     sba.addon_id,
                     a.addonName,
@@ -511,7 +510,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
             );
 
             const [bookingConsents] = await db.query(`
-                SELECT 
+                SELECT
                     c.consent_id,
                     c.question,
                     sbc.answer,
@@ -538,11 +537,11 @@ const getUserBookings = asyncHandler(async (req, res) => {
             let promo = null;
             if (booking.user_promo_code_id) {
                 const [[userPromo]] = await db.query(`
-                    SELECT upc.user_promo_code_id AS promo_id, 
-                        pc.code AS promoCode, 
-                        pc.discountValue, 
-                        pc.minSpend, 
-                        upc.usedCount AS usage_count, 
+                    SELECT upc.user_promo_code_id AS promo_id,
+                        pc.code AS promoCode,
+                        pc.discountValue,
+                        pc.minSpend,
+                        upc.usedCount AS usage_count,
                         upc.maxUse
                     FROM user_promo_codes upc
                     LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
@@ -554,11 +553,11 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     promo = { ...userPromo };
                 } else {
                     const [[systemPromo]] = await db.query(`
-                        SELECT 
-                            spc.system_promo_code_id AS promo_id, 
-                            spt.code AS promoCode, 
-                            spt.discount_type AS discountType, 
-                            spt.discountValue 
+                        SELECT
+                            spc.system_promo_code_id AS promo_id,
+                            spt.code AS promoCode,
+                            spt.discount_type AS discountType,
+                            spt.discountValue
                         FROM system_promo_codes spc
                         LEFT JOIN system_promo_code_templates spt ON spc.template_id = spt.system_promo_code_template_id
                         WHERE spc.system_promo_code_id = ?`,
@@ -570,7 +569,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
             // 5️⃣ Fetch Ratings for this booking
             const [ratings] = await db.query(`
-                SELECT 
+                SELECT
                     rating_id,
                     booking_id,
                     rating,
@@ -1142,7 +1141,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
         // 🧠 Step 1: Find vendors linked to given packages/subpackages
         const [vendorPackages] = await db.query(`
-            SELECT 
+            SELECT
                 v.vendor_id,
                 v.vendorType,
                 IF(v.vendorType='company', cdet.companyName, idet.name) AS vendorName,
@@ -1255,7 +1254,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             // ⭐ Step 5: Get rating info
             const [[rating]] = await db.query(`
-                SELECT 
+                SELECT
                     IFNULL(AVG(r.rating), 0) AS avgRating,
                     COUNT(r.rating_id) AS totalReviews
                 FROM ratings r
