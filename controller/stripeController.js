@@ -123,221 +123,224 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     const { cart_id } = req.body;
 
     if (!cart_id) {
-        return res.status(400).json({ error: "'cart_id' is required" });
+      return res.status(400).json({ error: "'cart_id' is required" });
     }
 
     const conn = await db.getConnection();
 
     try {
-        await conn.beginTransaction();
+      await conn.beginTransaction();
 
-        // ✅ Lock cart
-        const [cartRows] = await conn.query(
-            `SELECT * FROM service_cart WHERE cart_id = ? FOR UPDATE`,
-            [cart_id]
-        );
-        if (!cartRows.length) {
-            await conn.rollback();
-            conn.release();
-            return res.status(404).json({ error: "Cart not found" });
-        }
-
-        const cart = cartRows[0];
-
-        if (!cart.bookingDate || !cart.bookingTime) {
-            await conn.rollback();
-            conn.release();
-            return res.status(400).json({
-                error: "Incomplete booking details. Please select booking date and time.",
-            });
-        }
-
-        // ✅ Fetch sub-packages, addons, preferences
-        const [subPackages] = await conn.query(
-            `SELECT cpi.sub_package_id AS item_id, pi.itemName, cpi.price, cpi.quantity
-       FROM cart_package_items cpi
-       LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
-       WHERE cpi.cart_id = ?`,
-            [cart_id]
-        );
-
-        const [addons] = await conn.query(
-            `SELECT ca.sub_package_id, a.addonName, ca.price
-       FROM cart_addons ca
-       LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
-       WHERE ca.cart_id = ?`,
-            [cart_id]
-        );
-
-        const [preferences] = await conn.query(
-            `SELECT cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
-       FROM cart_preferences cp
-       LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
-       WHERE cp.cart_id = ?`,
-            [cart_id]
-        );
-
-        // ✅ Fetch active service tax
-        const [serviceTaxRows] = await conn.query(
-            `SELECT taxName, taxPercentage
-       FROM service_taxes
-       WHERE status = '1'
-       ORDER BY created_at ASC LIMIT 1`
-        );
-
-        let taxPercentage = 0;
-        let taxName = "Service Tax";
-        if (serviceTaxRows.length) {
-            taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
-            taxName = serviceTaxRows[0].taxName || "Service Tax";
-        }
-
-        // ✅ Step 1: Calculate subtotal (before promo/tax)
-        // ✅ Step 1: Calculate subtotal (before promo/tax)
-        let subtotal = 0;
-        const metadata = { cart_id };
-
-        // Create a lookup for subpackage quantities
-        const subQtyMap = {};
-        subPackages.forEach((item) => {
-            subQtyMap[item.item_id] = parseInt(item.quantity) || 1;
-        });
-
-        // 🟩 Sub-packages
-        subPackages.forEach((item, idx) => {
-            const quantity = parseInt(item.quantity) || 1;
-            const price = parseFloat(item.price) || 0;
-            subtotal += price * quantity;
-            metadata[`item_${idx}`] = `${item.itemName || "Item"} x${quantity} @${price}`;
-        });
-
-        // 🟦 Addons (multiplied by parent subpackage quantity)
-        addons.forEach((addon, idx) => {
-            const price = parseFloat(addon.price) || 0;
-            const qty = subQtyMap[addon.sub_package_id] || 1; // find matching subpackage quantity
-            subtotal += price * qty;
-            metadata[`addon_${idx}`] = `${addon.addonName || "Addon"} x${qty} @${price}`;
-        });
-
-        // 💜 Preferences (multiplied by parent subpackage quantity)
-        preferences.forEach((pref, idx) => {
-            const price = parseFloat(pref.preferencePrice) || 0;
-            const qty = subQtyMap[pref.sub_package_id] || 1; // find matching subpackage quantity
-            subtotal += price * qty;
-            metadata[`preference_${idx}`] = `${pref.preferenceValue || "Preference"} x${qty} @${price}`;
-        });
-
-        // ✅ Step 2: Apply Promo Discount FIRST
-        let appliedPromo = null;
-        let discountAmount = 0;
-        let discountedSubtotal = subtotal;
-
-        if (cart.user_promo_code_id) {
-            // Check user promo or system promo
-            const [userPromoRows] = await conn.query(
-                `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
-                [cart.user_id, cart.user_promo_code_id]
-            );
-
-            if (userPromoRows.length) {
-                const promo = userPromoRows[0];
-                if (promo.source_type === "admin" && promo.promo_id) {
-                    const [adminPromoRows] = await conn.query(
-                        `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
-                        [promo.promo_id]
-                    );
-                    if (adminPromoRows.length) {
-                        appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
-                    }
-                } else if (promo.source_type === "system") {
-                    const [systemPromoRows] = await conn.query(
-                        `SELECT sc.*, st.discount_type, st.discountValue, st.code
-             FROM system_promo_codes sc
-             JOIN system_promo_code_templates st
-               ON sc.template_id = st.system_promo_code_template_id
-             WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
-                        [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
-                    );
-                    if (systemPromoRows.length) {
-                        appliedPromo = { ...systemPromoRows[0], source_type: "system" };
-                    }
-                }
-            }
-        }
-
-        // ✅ Step 3: Apply discount to subtotal (before tax)
-        if (appliedPromo) {
-            const discountValue = parseFloat(appliedPromo.discountValue || 0);
-            const discountType = appliedPromo.discount_type || "percentage";
-
-            if (discountType === "fixed") {
-                discountAmount = discountValue;
-                discountedSubtotal = Math.max(0, subtotal - discountValue);
-            } else {
-                discountAmount = subtotal * (discountValue / 100);
-                discountedSubtotal = subtotal - discountAmount;
-            }
-
-            metadata.promo_code = appliedPromo.code;
-            metadata.discount = discountAmount.toFixed(2);
-            metadata.promo_source = appliedPromo.source_type || "system";
-        }
-
-        // ✅ Step 4: Apply Service Tax AFTER Discount
-        const taxAmount = discountedSubtotal * (taxPercentage / 100);
-        const totalAmount = discountedSubtotal + taxAmount;
-
-        metadata.subtotal = subtotal.toFixed(2);
-        metadata.discountedSubtotal = discountedSubtotal.toFixed(2);
-        metadata.service_tax_name = taxName;
-        metadata.service_tax_percentage = taxPercentage;
-        metadata.service_tax_amount = taxAmount.toFixed(2);
-        metadata.totalAmount = totalAmount.toFixed(2);
-
-        if (totalAmount <= 0) {
-            await conn.rollback();
-            conn.release();
-            return res.status(400).json({ error: "Total amount must be greater than 0" });
-        }
-
-        // ✅ Step 5: Create Stripe PaymentIntent
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(totalAmount * 100),
-            currency: "cad",
-            payment_method_types: ["card"],
-            capture_method: "manual",
-            metadata,
-        });
-
-        // ✅ Step 6: Log payment intent
-        await conn.query(
-            `INSERT INTO payments (cart_id, user_id, payment_intent_id, amount, currency, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-            [cart_id, cart.user_id, paymentIntent.id, totalAmount, "cad", "pending"]
-        );
-
-        await conn.commit();
-        conn.release();
-
-        // ✅ Step 7: Return success
-        return res.status(200).json({
-            clientSecret: paymentIntent.client_secret,
-            amount: totalAmount,
-            currency: "cad",
-            paymentIntentId: paymentIntent.id,
-            taxAmount,
-            discountAmount,
-            subtotal,
-            discountedSubtotal
-        });
-
-    } catch (err) {
+      // ✅ Lock cart
+      const [cartRows] = await conn.query(
+        `SELECT * FROM service_cart WHERE cart_id = ? FOR UPDATE`,
+        [cart_id]
+      );
+      if (!cartRows.length) {
         await conn.rollback();
         conn.release();
-        console.error("💥 Payment Intent Error:", err);
-        return res.status(500).json({ error: err.message });
+        return res.status(404).json({ error: "Cart not found" });
+      }
+
+      const cart = cartRows[0];
+
+      if (!cart.bookingDate || !cart.bookingTime) {
+        await conn.rollback();
+        conn.release();
+        return res.status(400).json({
+          error: "Incomplete booking details. Please select booking date and time.",
+        });
+      }
+
+      // ✅ Fetch sub-packages, addons, preferences
+      const [subPackages] = await conn.query(
+        `SELECT cpi.sub_package_id AS item_id, pi.itemName, cpi.price, cpi.quantity
+         FROM cart_package_items cpi
+         LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
+         WHERE cpi.cart_id = ?`,
+        [cart_id]
+      );
+
+      const [addons] = await conn.query(
+        `SELECT ca.sub_package_id, a.addonName, ca.price
+         FROM cart_addons ca
+         LEFT JOIN package_addons a ON ca.addon_id = a.addon_id
+         WHERE ca.cart_id = ?`,
+        [cart_id]
+      );
+
+      const [preferences] = await conn.query(
+        `SELECT cp.sub_package_id, bp.preferenceValue, bp.preferencePrice
+         FROM cart_preferences cp
+         LEFT JOIN booking_preferences bp ON cp.preference_id = bp.preference_id
+         WHERE cp.cart_id = ?`,
+        [cart_id]
+      );
+
+      // ✅ Fetch active service tax
+      const [serviceTaxRows] = await conn.query(
+        `SELECT taxName, taxPercentage
+         FROM service_taxes
+         WHERE status = '1'
+         ORDER BY created_at ASC LIMIT 1`
+      );
+
+      let taxPercentage = 0;
+      let taxName = "Service Tax";
+      if (serviceTaxRows.length) {
+        taxPercentage = parseFloat(serviceTaxRows[0].taxPercentage) || 0;
+        taxName = serviceTaxRows[0].taxName || "Service Tax";
+      }
+
+      // Helper: get quantity for a sub_package_id (default 1)
+      const getQuantityForSubPackage = (subPackageId) => {
+        if (!subPackageId) return 1;
+        const found = subPackages.find(sp => String(sp.item_id) === String(subPackageId));
+        if (!found) return 1;
+        return parseInt(found.quantity) > 0 ? parseInt(found.quantity) : 1;
+      };
+
+      // ✅ Step 1: Calculate subtotal (before promo/tax)
+      let subtotal = 0;
+      const metadata = { cart_id };
+
+      subPackages.forEach((item, idx) => {
+        const quantity = parseInt(item.quantity) || 1;
+        const price = parseFloat(item.price) || 0;
+        const lineTotal = price * quantity;
+        subtotal += lineTotal;
+        metadata[`item_${idx}`] = `${item.itemName || "Item"} x${quantity} @${price.toFixed(2)}`;
+      });
+
+      // IMPORTANT: multiply addon price by the related sub-package quantity (if any)
+      addons.forEach((addon, idx) => {
+        const price = parseFloat(addon.price) || 0;
+        const quantity = getQuantityForSubPackage(addon.sub_package_id); // multiply by linked sub-package qty
+        const lineTotal = price * quantity;
+        subtotal += lineTotal;
+        metadata[`addon_${idx}`] = `${addon.addonName || "Addon"} x${quantity} @${price.toFixed(2)}`;
+      });
+
+      // Preferences: also multiply by related sub-package quantity
+      preferences.forEach((pref, idx) => {
+        const price = parseFloat(pref.preferencePrice) || 0;
+        const quantity = getQuantityForSubPackage(pref.sub_package_id);
+        const lineTotal = price * quantity;
+        subtotal += lineTotal;
+        metadata[`preference_${idx}`] = `${pref.preferenceValue || "Preference"} x${quantity} @${price.toFixed(2)}`;
+      });
+
+      // ✅ Step 2: Apply Promo Discount FIRST
+      let appliedPromo = null;
+      let discountAmount = 0;
+      let discountedSubtotal = subtotal;
+
+      if (cart.user_promo_code_id) {
+        // Check user promo or system promo
+        const [userPromoRows] = await conn.query(
+          `SELECT * FROM user_promo_codes WHERE user_id = ? AND user_promo_code_id = ? LIMIT 1`,
+          [cart.user_id, cart.user_promo_code_id]
+        );
+
+        if (userPromoRows.length) {
+          const promo = userPromoRows[0];
+          if (promo.source_type === "admin" && promo.promo_id) {
+            const [adminPromoRows] = await conn.query(
+              `SELECT * FROM promo_codes WHERE promo_id = ? LIMIT 1`,
+              [promo.promo_id]
+            );
+            if (adminPromoRows.length) {
+              appliedPromo = { ...adminPromoRows[0], ...promo, source_type: "admin" };
+            }
+          } else if (promo.source_type === "system") {
+            const [systemPromoRows] = await conn.query(
+              `SELECT sc.*, st.discount_type, st.discountValue, st.code
+               FROM system_promo_codes sc
+               JOIN system_promo_code_templates st
+                 ON sc.template_id = st.system_promo_code_template_id
+               WHERE sc.system_promo_code_id = ? AND sc.user_id = ? LIMIT 1`,
+              [promo.system_promo_code_id || promo.user_promo_code_id, cart.user_id]
+            );
+            if (systemPromoRows.length) {
+              appliedPromo = { ...systemPromoRows[0], source_type: "system" };
+            }
+          }
+        }
+      }
+
+      // ✅ Step 3: Apply discount to subtotal (before tax)
+      if (appliedPromo) {
+        const discountValue = parseFloat(appliedPromo.discountValue || 0);
+        const discountType = appliedPromo.discount_type || "percentage";
+
+        if (discountType === "fixed") {
+          discountAmount = discountValue;
+          discountedSubtotal = Math.max(0, subtotal - discountValue);
+        } else {
+          discountAmount = subtotal * (discountValue / 100);
+          discountedSubtotal = subtotal - discountAmount;
+        }
+
+        metadata.promo_code = appliedPromo.code;
+        metadata.discount = discountAmount.toFixed(2);
+        metadata.promo_source = appliedPromo.source_type || "system";
+      }
+
+      // ✅ Step 4: Apply Service Tax AFTER Discount
+      const taxAmount = discountedSubtotal * (taxPercentage / 100);
+      const totalAmount = discountedSubtotal + taxAmount;
+
+      metadata.subtotal = subtotal.toFixed(2);
+      metadata.discountedSubtotal = discountedSubtotal.toFixed(2);
+      metadata.service_tax_name = taxName;
+      metadata.service_tax_percentage = taxPercentage;
+      metadata.service_tax_amount = taxAmount.toFixed(2);
+      metadata.totalAmount = totalAmount.toFixed(2);
+
+      if (totalAmount <= 0) {
+        await conn.rollback();
+        conn.release();
+        return res.status(400).json({ error: "Total amount must be greater than 0" });
+      }
+
+      // ✅ Step 5: Create Stripe PaymentIntent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(totalAmount * 100),
+        currency: "cad",
+        payment_method_types: ["card"],
+        capture_method: "manual",
+        metadata,
+      });
+
+      // ✅ Step 6: Log payment intent
+      await conn.query(
+        `INSERT INTO payments (cart_id, user_id, payment_intent_id, amount, currency, status)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [cart_id, cart.user_id, paymentIntent.id, totalAmount, "cad", "pending"]
+      );
+
+      await conn.commit();
+      conn.release();
+
+      // ✅ Step 7: Return success
+      return res.status(200).json({
+        clientSecret: paymentIntent.client_secret,
+        amount: totalAmount,
+        currency: "cad",
+        paymentIntentId: paymentIntent.id,
+        taxAmount,
+        discountAmount,
+        subtotal,
+        discountedSubtotal
+      });
+
+    } catch (err) {
+      await conn.rollback();
+      conn.release();
+      console.error("💥 Payment Intent Error:", err);
+      return res.status(500).json({ error: err.message });
     }
-});
+  });
 
 
 // ✅ stripeWebhook.js

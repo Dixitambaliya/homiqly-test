@@ -576,6 +576,9 @@ const sendOtp = asyncHandler(async (req, res) => {
                 ? `Welcome back to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`
                 : `Welcome to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`;
 
+            console.log("Twilio SID:", process.env.TWILIO_ACCOUNT_SID);
+            console.log("Twilio Token (first 4 chars):", process.env.TWILIO_AUTH_TOKEN);
+        ;
             // ✅ Await Twilio directly
             await client.messages.create({
                 body: smsMessage,

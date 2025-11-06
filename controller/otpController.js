@@ -38,6 +38,10 @@ const sendOtp = asyncHandler(async (req, res) => {
         // 🔐 Create JWT containing phone + OTP (expires in 5 minutes)
         const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "5m" });
 
+
+        console.log("Twilio SID:", process.env.TWILIO_ACCOUNT_SID);
+        console.log("Twilio Token (first 4 chars):", process.env.TWILIO_AUTH_TOKEN);
+
         // 📩 Send OTP via SMS (Twilio)
         await client.messages.create({
             body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
