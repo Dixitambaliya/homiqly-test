@@ -1,96 +1,93 @@
 const adminGetQueries = {
 
     vendorDetails: `
-SELECT
-    v.vendor_id,
-    v.vendorType,
-    v.is_authenticated,
+    SELECT
+        v.vendor_id,
+        v.vendorType,
+        v.is_authenticated,
 
-    -- Individual Vendor Details
-    i.vendor_id AS individual_id,
-    i.name AS individual_name,
-    i.email AS individual_email,
-    i.phone AS individual_phone,
-    i.otherInfo AS individual_otherInfo,
-    i.resume AS individual_resume,
-    i.expertise AS individual_expertise,
-    i.aboutMe AS individual_aboutMe,
+        -- Individual Vendor Details
+        i.vendor_id AS individual_id,
+        i.name AS individual_name,
+        i.email AS individual_email,
+        i.phone AS individual_phone,
+        i.otherInfo AS individual_otherInfo,
+        i.resume AS individual_resume,
+        i.expertise AS individual_expertise,
+        i.aboutMe AS individual_aboutMe,
 
-    -- Company Vendor Details
-    c.vendor_id AS company_id,
-    c.companyName AS company_companyName,
-    c.googleBusinessProfileLink AS company_googleBusinessProfileLink,
-    c.companyEmail AS company_companyEmail,
-    c.companyPhone AS company_companyPhone,
-    c.companyAddress AS company_companyAddress,
-    c.contactPerson AS company_contactPerson,
-    c.expertise AS company_expertise,
-    c.aboutMe AS company_aboutMe,
+        -- Company Vendor Details
+        c.vendor_id AS company_id,
+        c.companyName AS company_companyName,
+        c.googleBusinessProfileLink AS company_googleBusinessProfileLink,
+        c.companyEmail AS company_companyEmail,
+        c.companyPhone AS company_companyPhone,
+        c.companyAddress AS company_companyAddress,
+        c.contactPerson AS company_contactPerson,
+        c.expertise AS company_expertise,
+        c.aboutMe AS company_aboutMe,
 
-    vs.manual_assignment_enabled AS status,
+        vs.manual_assignment_enabled AS status,
 
-    -- Packages with Service info
-    COALESCE(
-        (
-            SELECT CONCAT(
-                '[',
-                GROUP_CONCAT(
-                    DISTINCT JSON_OBJECT(
-                        'vendor_packages_id', vp.vendor_packages_id,
-                        'package_id', p.package_id,
-                        'serviceLocation', vp.serviceLocation,
-                        'service_id', s.service_id,
-                        'serviceName', TRIM(s.serviceName),
-                        'serviceImage', s.serviceImage,
-                        'category_id', sc.service_categories_id,
-                        'categoryName', sc.serviceCategory
-                    )
-                ),
-                ']'
-            )
-            FROM vendor_packages vp
-            INNER JOIN packages p ON p.package_id = vp.package_id
-            INNER JOIN service_type st ON st.service_type_id = p.service_type_id
-            INNER JOIN services s ON s.service_id = st.service_id
-            INNER JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
-            WHERE vp.vendor_id = v.vendor_id
-        ),
-        '[]'
-    ) AS packages,
+        -- 🟩 Packages (via vendor_package_items_flat)
+        COALESCE(
+            (
+                SELECT CONCAT(
+                    '[',
+                    GROUP_CONCAT(
+                        DISTINCT JSON_OBJECT(
+                            'package_id', p.package_id,
+                            'serviceLocation', i.serviceLocation,
+                            'service_id', s.service_id,
+                            'serviceName', TRIM(s.serviceName),
+                            'serviceImage', s.serviceImage,
+                            'category_id', sc.service_categories_id,
+                            'categoryName', sc.serviceCategory
+                        )
+                    ),
+                    ']'
+                )
+                FROM vendor_package_items_flat vpf
+                INNER JOIN packages p ON p.package_id = vpf.package_id
+                INNER JOIN service_type st ON st.service_type_id = p.service_type_id
+                INNER JOIN services s ON s.service_id = st.service_id
+                INNER JOIN service_categories sc ON sc.service_categories_id = s.service_categories_id
+                WHERE vpf.vendor_id = v.vendor_id
+            ),
+            '[]'
+        ) AS packages,
 
-    -- Package Items
-    COALESCE(
-        (
-            SELECT CONCAT(
-                '[',
-                GROUP_CONCAT(
-                    JSON_OBJECT(
-                        'vendor_package_item_id', vpi.vendor_package_item_id,
-                        'vendor_packages_id', vpi.vendor_packages_id,
-                        'package_id', pi.package_id,
-                        'package_item_id', pi.item_id,
-                        'itemName', pi.itemName,
-                        'description', pi.description,
-                        'itemMedia', pi.itemMedia
-                    )
-                ),
-                ']'
-            )
-            FROM vendor_package_items vpi
-            INNER JOIN package_items pi ON pi.item_id = vpi.package_item_id
-            INNER JOIN vendor_packages vp2 ON vp2.vendor_packages_id = vpi.vendor_packages_id
-            WHERE vp2.vendor_id = v.vendor_id
-        ),
-        '[]'
-    ) AS package_items
+        -- 🟦 Package Items (via vendor_package_items_flat)
+        COALESCE(
+            (
+                SELECT CONCAT(
+                    '[',
+                    GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'package_id', p.package_id,
+                            'package_item_id', pi.item_id,
+                            'itemName', pi.itemName,
+                            'description', pi.description,
+                            'itemMedia', pi.itemMedia
+                        )
+                    ),
+                    ']'
+                )
+                FROM vendor_package_items_flat vpf
+                INNER JOIN package_items pi ON pi.item_id = vpf.package_item_id
+                INNER JOIN packages p ON p.package_id = vpf.package_id
+                WHERE vpf.vendor_id = v.vendor_id
+            ),
+            '[]'
+        ) AS package_items
 
-FROM vendors v
-LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
-LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
-GROUP BY v.vendor_id
-ORDER BY v.vendor_id DESC
-`,
+    FROM vendors v
+    LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+    LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+    LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
+    GROUP BY v.vendor_id
+    ORDER BY v.vendor_id DESC
+    `,
 
 
     getAllServiceTypes: `
@@ -167,9 +164,9 @@ ORDER BY v.vendor_id DESC
 `,
 
     getAllUserDetails: `
-SELECT 
-        user_id, 
-        firstName, 
+SELECT
+        user_id,
+        firstName,
         lastName,
         profileImage,
         email,

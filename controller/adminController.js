@@ -27,9 +27,9 @@ const getAdminProfile = asyncHandler(async (req, res) => {
 
         const rows = await db.query(
             `SELECT
-                admin_id, 
-                email, 
-                name, 
+                admin_id,
+                email,
+                name,
                 created_at
              FROM admin
              WHERE admin_id = ?`,
@@ -80,8 +80,8 @@ const editAdminProfile = asyncHandler(async (req, res) => {
         values.push(admin_id);
 
         const sql = `
-            UPDATE admin 
-            SET ${fields.join(", ")} 
+            UPDATE admin
+            SET ${fields.join(", ")}
             WHERE admin_id = ?
         `;
 
@@ -106,7 +106,7 @@ const getVendor = asyncHandler(async (req, res) => {
         // 📄 Pagination setup
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-        const offset = (page - 1) * limit; 
+        const offset = (page - 1) * limit;
 
         // 🔍 Optional search term
         const search = req.query.search?.trim() || null;
@@ -123,22 +123,22 @@ const getVendor = asyncHandler(async (req, res) => {
                 SELECT v.*
                 FROM (
                     ${adminGetQueries.vendorDetails}
-                ) AS v
-                WHERE 
+                    ) AS v
+                    WHERE
                     v.individual_name LIKE ? OR
                     v.individual_email LIKE ? OR
                     v.individual_phone LIKE ? OR
                     v.company_companyName LIKE ? OR
                     v.company_companyEmail LIKE ? OR
                     v.company_companyPhone LIKE ?;
-            `;
+                    `;
 
             countQuery = `
                 SELECT COUNT(*) AS totalCount
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS v
-                WHERE 
+                WHERE
                     v.individual_name LIKE ? OR
                     v.individual_email LIKE ? OR
                     v.individual_phone LIKE ? OR
@@ -388,16 +388,16 @@ const getBookings = asyncHandler(async (req, res) => {
             const searchPattern = `%${search.trim()}%`;
             if (!isNaN(search.trim())) {
                 filters += ` AND (
-          sb.booking_id = ? 
-          OR CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-          OR u.email LIKE ? 
+          sb.booking_id = ?
+          OR CONCAT(u.firstName, ' ', u.lastName) LIKE ?
+          OR u.email LIKE ?
           OR s.serviceName LIKE ?
         )`;
                 params.push(search.trim(), searchPattern, searchPattern, searchPattern);
             } else {
                 filters += ` AND (
-          CONCAT(u.firstName, ' ', u.lastName) LIKE ? 
-          OR u.email LIKE ? 
+          CONCAT(u.firstName, ' ', u.lastName) LIKE ?
+          OR u.email LIKE ?
           OR s.serviceName LIKE ?
         )`;
                 params.push(searchPattern, searchPattern, searchPattern);
@@ -444,7 +444,7 @@ const getBookings = asyncHandler(async (req, res) => {
 
         // ===== Fetch main booking data (permanent DESC order) =====
         const [bookings] = await db.query(`
-      SELECT 
+      SELECT
         sb.booking_id,
         sb.bookingDate,
         sb.bookingTime,
@@ -732,22 +732,22 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 const getPackageList = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT 
+            SELECT
                 p.package_id,
                 -- Show packageName if exists, otherwise show serviceName
-                CASE 
-                    WHEN (p.packageName IS NULL OR p.packageName = '') 
+                CASE
+                    WHEN (p.packageName IS NULL OR p.packageName = '')
                     THEN s.serviceName
                     ELSE p.packageName
                 END AS packageName,
-                
+
                 -- Show packageMedia if exists, otherwise show serviceImage
-                CASE 
-                    WHEN (p.packageMedia IS NULL OR p.packageMedia = '') 
+                CASE
+                    WHEN (p.packageMedia IS NULL OR p.packageMedia = '')
                     THEN s.serviceImage
                     ELSE p.packageMedia
                 END AS packageMedia,
-                
+
                 st.service_type_id,
                 s.service_id,
                 sc.serviceCategory AS service_category_name
@@ -1269,7 +1269,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
         // 1️⃣ Get total count for completed payments (with date filter)
         const [[{ total }]] = await db.query(
             `
-            SELECT COUNT(*) AS total 
+            SELECT COUNT(*) AS total
             FROM payments p
             ${whereClause}
             `,
@@ -1447,7 +1447,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
 
         if (search) {
             whereClause = `
-                WHERE 
+                WHERE
                     vpa.application_id LIKE ? OR
                     IF(v.vendorType = 'company', cdet.companyName, idet.name) LIKE ? OR
                     IF(v.vendorType = 'company', cdet.companyEmail, idet.email) LIKE ?
@@ -1512,7 +1512,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         const packageIds = applications.map(a => a.package_id);
         const [packageItems] = await db.query(
             `
-            SELECT 
+            SELECT
                 pi.item_id,
                 pi.package_id,
                 pi.itemName,
