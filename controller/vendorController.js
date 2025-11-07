@@ -1228,7 +1228,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { filterType, startDate, endDate } = req.query;
-    // filterType = 'all' | 'weekly' | 'monthly' | 'custom'
+    // filterType = 'all' | 'weekly' | 'monthly' | 'custo   m'
 
     try {
         // 1️⃣ Get vendor type
