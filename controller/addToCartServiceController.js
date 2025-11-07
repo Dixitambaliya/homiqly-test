@@ -585,11 +585,11 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
+        // 🔹 Fetch user carts
         const [carts] = await db.query(
             `SELECT * FROM service_cart WHERE user_id = ? ORDER BY created_at DESC`,
             [user_id]
@@ -602,6 +602,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         const promos = [];
 
         for (const cart of carts) {
+            // Always recalc to ensure accurate totals and multipliers
             const recalculated = await recalculateCartTotals(cart.cart_id, user_id);
             if (!recalculated) continue;
 
@@ -617,10 +618,9 @@ const getUserCart = asyncHandler(async (req, res) => {
                 promoDetails
             } = recalculated;
 
-            // Attach promo details
             if (promoDetails) promos.push(promoDetails);
 
-            // Attach consents
+            // 🔹 Fetch consents
             const cartPackageItemIds = detailedSubPackages.map(sp => sp.cart_package_items_id);
             const [consents] = await db.query(`
                 SELECT cc.cart_package_items_id, cc.answer, c.question AS consentText
@@ -629,17 +629,58 @@ const getUserCart = asyncHandler(async (req, res) => {
                 WHERE cc.cart_id = ? AND cc.cart_package_items_id IN (?)
             `, [cart.cart_id, cartPackageItemIds]);
 
-            const consentsByItem = consents.reduce((acc, x) => {
-                (acc[x.cart_package_items_id] = acc[x.cart_package_items_id] || []).push(x);
+            const consentsByItem = consents.reduce((acc, c) => {
+                (acc[c.cart_package_items_id] = acc[c.cart_package_items_id] || []).push(c);
                 return acc;
             }, {});
 
-            const mergedSubPackages = detailedSubPackages.map(sp => ({
-                ...sp,
-                consents: consentsByItem[sp.cart_package_items_id] || []
-            }));
+            // 🔹 Apply quantity multiplier to subpackage + addons + preferences
+            const mergedSubPackages = detailedSubPackages.map(sp => {
+                const qty = parseInt(sp.quantity) || 1;
 
-            // Group by package_id
+                // ✅ Multiply base subpackage price
+                const basePrice = parseFloat(sp.price) || 0;
+                const multipliedBase = basePrice * qty;
+
+                // ✅ Multiply each addon price
+                const addons = (sp.addons || []).map(a => {
+                    const addonPrice = parseFloat(a.price) || 0;
+                    const multipliedAddon = addonPrice * qty;
+                    return {
+                        ...a,
+                        basePrice: addonPrice,
+                        price: multipliedAddon
+                    };
+                });
+
+                // ✅ Multiply each preference price
+                const preferences = (sp.preferences || []).map(p => {
+                    const prefPrice = parseFloat(p.preferencePrice) || 0;
+                    const multipliedPref = prefPrice * qty;
+                    return {
+                        ...p,
+                        basePrice: prefPrice,
+                        preferencePrice: multipliedPref
+                    };
+                });
+
+                // ✅ Compute totals with multipliers
+                const addonTotal = addons.reduce((sum, a) => sum + a.price, 0);
+                const prefTotal = preferences.reduce((sum, p) => sum + p.preferencePrice, 0);
+                const total = multipliedBase + addonTotal + prefTotal;
+
+                return {
+                    ...sp,
+                    price: multipliedBase, // base price now multiplied
+                    quantity: qty,
+                    addons,
+                    preferences,
+                    total,
+                    consents: consentsByItem[sp.cart_package_items_id] || []
+                };
+            });
+
+            // 🔹 Group sub-packages by package_id
             const packagesMap = new Map();
             for (const sp of mergedSubPackages) {
                 if (!packagesMap.has(sp.package_id)) packagesMap.set(sp.package_id, []);
@@ -647,9 +688,13 @@ const getUserCart = asyncHandler(async (req, res) => {
             }
 
             const structuredPackages = Array.from(packagesMap.entries()).map(
-                ([package_id, sub_packages]) => ({ package_id, sub_packages })
+                ([package_id, sub_packages]) => ({
+                    package_id,
+                    sub_packages
+                })
             );
 
+            // 🔹 Final structured cart
             allCarts.push({
                 ...cart,
                 packages: structuredPackages,
@@ -665,6 +710,7 @@ const getUserCart = asyncHandler(async (req, res) => {
             });
         }
 
+        // ✅ Final API response
         res.status(200).json({
             message: "Cart retrieved successfully",
             carts: allCarts,
@@ -672,9 +718,13 @@ const getUserCart = asyncHandler(async (req, res) => {
         });
     } catch (err) {
         console.error("💥 Error retrieving cart:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
     }
 });
+
 
 
 

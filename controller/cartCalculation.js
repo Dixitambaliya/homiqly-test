@@ -4,19 +4,19 @@ const asyncHandler = require('express-async-handler');
 
 const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
     try {
-        // 🔹 Fetch active tax
         const [[taxRow]] = await db.query(`
             SELECT taxName, taxPercentage
             FROM service_taxes
             WHERE status = '1'
             LIMIT 1
         `);
+
         const taxName = taxRow?.taxName || 'Service Tax';
         const serviceTaxRate = taxRow ? parseFloat(taxRow.taxPercentage) : 0;
 
-        // 🔹 Fetch subpackages
         const [subPackages] = await db.query(`
-            SELECT cpi.*, pi.itemName, pi.itemMedia, pi.timeRequired, s.serviceName, s.serviceImage, st.service_type_id
+            SELECT cpi.*, pi.itemName, pi.itemMedia, pi.timeRequired,
+                   s.serviceName, s.serviceImage, st.service_type_id
             FROM cart_package_items cpi
             LEFT JOIN package_items pi ON cpi.sub_package_id = pi.item_id
             LEFT JOIN packages p ON cpi.package_id = p.package_id
@@ -29,7 +29,6 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
 
         const cartPackageItemIds = subPackages.map(sp => sp.cart_package_items_id);
 
-        // 🔹 Fetch addons
         const [addons] = await db.query(`
             SELECT ca.*, a.addonName
             FROM cart_addons ca
@@ -37,7 +36,6 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
             WHERE ca.cart_id = ? AND ca.cart_package_items_id IN (?)
         `, [cart_id, cartPackageItemIds]);
 
-        // 🔹 Fetch preferences
         const [preferences] = await db.query(`
             SELECT cp.*, bp.preferenceValue, bp.preferencePrice
             FROM cart_preferences cp
@@ -45,7 +43,6 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
             WHERE cp.cart_id = ? AND cp.cart_package_items_id IN (?)
         `, [cart_id, cartPackageItemIds]);
 
-        // 🔹 Group
         const groupBy = (arr, key) =>
             arr.reduce((acc, x) => {
                 (acc[x[key]] = acc[x[key]] || []).push(x);
@@ -55,7 +52,6 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
         const addonsByItem = groupBy(addons, 'cart_package_items_id');
         const prefsByItem = groupBy(preferences, 'cart_package_items_id');
 
-        // 🔹 Calculate totals
         let totalAmount = 0;
         const detailedSubPackages = [];
 
@@ -65,12 +61,14 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
 
             const subAddons = (addonsByItem[item.cart_package_items_id] || []).map(a => ({
                 ...a,
-                price: parseFloat(a.price) || 0
+                basePrice: parseFloat(a.price) || 0,
+                price: (parseFloat(a.price) || 0) * qty
             }));
 
             const subPrefs = (prefsByItem[item.cart_package_items_id] || []).map(p => ({
                 ...p,
-                preferencePrice: parseFloat(p.preferencePrice) || 0
+                basePrice: parseFloat(p.preferencePrice) || 0,
+                preferencePrice: (parseFloat(p.preferencePrice) || 0) * qty
             }));
 
             const addonTotal = subAddons.reduce((sum, a) => sum + a.price, 0);
@@ -82,13 +80,14 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
 
             detailedSubPackages.push({
                 ...item,
+                quantity: qty,
                 addons: subAddons,
                 preferences: subPrefs,
                 total
             });
         }
 
-        // 🔹 Promo
+        // Promo, tax, etc. same as before
         let discountedTotal = totalAmount;
         let promoDiscount = 0;
         let promoDetails = null;
@@ -98,48 +97,30 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
         `, [cart_id, user_id]);
 
         if (cart?.user_promo_code_id) {
-            const [adminPromo] = await db.query(`
-                SELECT up.user_id, up.usedCount, p.discount_type, p.discountValue, 'admin' AS source_type
-                FROM user_promo_codes up
-                JOIN promo_codes p ON up.promo_id = p.promo_id
-                WHERE up.user_promo_code_id = ? LIMIT 1
+            const [systemPromo] = await db.query(`
+                SELECT sc.system_promo_code_id, sc.template_id, sc.user_id, sc.usage_count,
+                       st.discount_type, st.discountValue, 'system' AS source_type
+                FROM system_promo_codes sc
+                JOIN system_promo_code_templates st
+                  ON sc.template_id = st.system_promo_code_template_id
+                WHERE sc.system_promo_code_id = ? LIMIT 1
             `, [cart.user_promo_code_id]);
 
-            if (adminPromo.length) {
-                const { discountValue, discount_type } = adminPromo[0];
+            if (systemPromo.length) {
+                const { discountValue, discount_type } = systemPromo[0];
                 const val = parseFloat(discountValue);
-                discountedTotal = discount_type === 'fixed'
-                    ? Math.max(0, totalAmount - val)
-                    : totalAmount - (totalAmount * val) / 100;
-                promoDiscount = totalAmount - discountedTotal;
-                promoDetails = adminPromo[0];
-            } else {
-                const [systemPromo] = await db.query(`
-                    SELECT sc.system_promo_code_id, sc.template_id, sc.user_id, sc.usage_count,
-                           st.discount_type, st.discountValue, 'system' AS source_type
-                    FROM system_promo_codes sc
-                    JOIN system_promo_code_templates st
-                      ON sc.template_id = st.system_promo_code_template_id
-                    WHERE sc.system_promo_code_id = ? LIMIT 1
-                `, [cart.user_promo_code_id]);
-
-                if (systemPromo.length) {
-                    const { discountValue, discount_type } = systemPromo[0];
-                    const val = parseFloat(discountValue);
-                    discountedTotal = discount_type === 'fixed'
+                discountedTotal =
+                    discount_type === 'fixed'
                         ? Math.max(0, totalAmount - val)
                         : totalAmount - (totalAmount * val) / 100;
-                    promoDiscount = totalAmount - discountedTotal;
-                    promoDetails = systemPromo[0];
-                }
+                promoDiscount = totalAmount - discountedTotal;
+                promoDetails = systemPromo[0];
             }
         }
 
-        // 🔹 Tax
         const taxAmount = (discountedTotal * serviceTaxRate) / 100;
         const finalTotal = discountedTotal + taxAmount;
 
-        // 🔹 Save totals
         await db.query(`
             INSERT INTO cart_totals (cart_id, subtotal, discounted_total, promo_discount, tax_amount, final_total)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -170,7 +151,6 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
         throw err;
     }
 });
-
 
 
 
