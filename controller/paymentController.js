@@ -57,8 +57,8 @@ const registerBankAccount = asyncHandler(async (req, res) => {
     // 🧩 Insert new record
     try {
         await db.query(
-            `INSERT INTO vendor_bank_accounts 
-             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number, 
+            `INSERT INTO vendor_bank_accounts
+             (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number,
               bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type,interac_email, interac_phone)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,? , ?)`,
             [
@@ -96,22 +96,22 @@ const getBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     const [rows] = await db.query(
-        `SELECT 
-            account_holder_name, 
-            bank_name, 
-            institution_number, 
-            transit_number, 
-            account_number, 
-            bank_address, 
-            email, 
-            legal_name, 
-            dob, 
-            business_name, 
+        `SELECT
+            account_holder_name,
+            bank_name,
+            institution_number,
+            transit_number,
+            account_number,
+            bank_address,
+            email,
+            legal_name,
+            dob,
+            business_name,
             government_id,
             preferred_transfer_type,
             interac_email,
             interac_phone
-         FROM vendor_bank_accounts 
+         FROM vendor_bank_accounts
          WHERE vendor_id = ?`,
         [vendor_id]
     );
@@ -145,6 +145,32 @@ const editBankAccount = asyncHandler(async (req, res) => {
         interac_phone
     } = req.body;
 
+    // ✅ Check all required fields
+    const requiredFields = {
+        account_holder_name,
+        bank_name,
+        institution_number,
+        transit_number,
+        account_number,
+        bank_address,
+        email,
+        legal_name,
+        dob,
+        business_name,
+        preferred_transfer_type,
+        interac_email,
+        interac_phone
+    };
+
+    for (const [key, value] of Object.entries(requiredFields)) {
+        if (value === undefined || value === null || value === "") {
+            return res.status(400).json({
+                message: `Field '${key}' is required.`
+            });
+        }
+    }
+
+
     // 🔍 Check if account exists
     const [rows] = await db.query(
         "SELECT vendor_bank_account_id, government_id FROM vendor_bank_accounts WHERE vendor_id = ?",
@@ -163,18 +189,18 @@ const editBankAccount = asyncHandler(async (req, res) => {
     // 🛠️ Perform update
     const [result] = await db.query(
         `UPDATE vendor_bank_accounts
-         SET 
-            account_holder_name=?, 
-            bank_name=?, 
-            institution_number=?, 
-            transit_number=?, 
-            account_number=?, 
-            bank_address=?, 
-            email=?, 
-            legal_name=?, 
-            dob=?, 
-            business_name=?, 
-            government_id=?, 
+         SET
+            account_holder_name=?,
+            bank_name=?,
+            institution_number=?,
+            transit_number=?,
+            account_number=?,
+            bank_address=?,
+            email=?,
+            legal_name=?,
+            dob=?,
+            business_name=?,
+            government_id=?,
             preferred_transfer_type=?,
             interac_email=?,
             interac_phone=?
@@ -212,9 +238,9 @@ const editBankAccount = asyncHandler(async (req, res) => {
 // ----------------------------
 const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
     const [rows] = await db.query(
-        `SELECT v.vendor_id, 
-                b.account_holder_name, b.bank_name, b.institution_number, 
-                b.transit_number, b.account_number, b.bank_address, b.email, 
+        `SELECT v.vendor_id,
+                b.account_holder_name, b.bank_name, b.institution_number,
+                b.transit_number, b.account_number, b.bank_address, b.email,
                 b.legal_name, b.dob, b.business_name, b.government_id, b.preferred_transfer_type
          FROM vendors v
           JOIN vendor_bank_accounts b ON v.vendor_id = b.vendor_id`
@@ -339,7 +365,7 @@ const getVendorPayoutStatus = asyncHandler(async (req, res) => {
 
     try {
         const [rows] = await db.query(
-            `SELECT 
+            `SELECT
                 payout_request_id,
                 vendor_id,
                 requested_amount,
@@ -373,7 +399,7 @@ const getVendorPayoutStatus = asyncHandler(async (req, res) => {
 
 const getAllPayoutRequests = asyncHandler(async (req, res) => {
     const [requests] = await db.query(`
-        SELECT r.*, 
+        SELECT r.*,
                COALESCE(idet.name, cdet.companyName) AS vendor_name,
                v.vendorType,
                b.*
@@ -405,7 +431,7 @@ const updatePayoutStatus = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Update the payout request status
         await db.query(
-            `UPDATE vendor_payout_requests 
+            `UPDATE vendor_payout_requests
              SET status = ?, admin_notes = ?, payout_media = ?
              WHERE payout_request_id = ?`,
             [status, admin_notes, payoutMedia, payout_request_id]
@@ -415,7 +441,7 @@ const updatePayoutStatus = asyncHandler(async (req, res) => {
         if (status === '1' || status === 'paid') {
             // Get all locked payouts associated with this request
             const [lockedPayouts] = await db.query(
-                `SELECT 
+                `SELECT
                  vp.payout_id
                  FROM vendor_payouts vp
                  JOIN vendor_payout_requests vpr ON vpr.vendor_id = vp.vendor_id
@@ -426,8 +452,8 @@ const updatePayoutStatus = asyncHandler(async (req, res) => {
             if (lockedPayouts.length > 0) {
                 const payoutIds = lockedPayouts.map(p => p.payout_id);
                 await db.query(
-                    `UPDATE vendor_payouts 
-                     SET payout_status = 'paid' 
+                    `UPDATE vendor_payouts
+                     SET payout_status = 'paid'
                      WHERE payout_id IN (?)`,
                     [payoutIds]
                 );
