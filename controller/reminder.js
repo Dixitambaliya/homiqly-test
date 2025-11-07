@@ -2,7 +2,6 @@ const cron = require("node-cron");
 const nodemailer = require("nodemailer");
 const { db } = require("../config/db"); // Update with your actual DB path
 
-const REMINDER_INTERVAL_MINUTES = 120; // 2 hours
 const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 5 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
@@ -147,24 +146,6 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
         console.error("❌ Service start reminder cron error:", err.message);
     }
 });
-
-// cron.schedule('*/10 * * * *', async () => {
-//     try {
-//         const [rows] = await db.query(`
-//             UPDATE vendor_settings
-//             SET manual_assignment_enabled = 0
-//             WHERE manual_assignment_enabled = 1
-//               AND end_datetime IS NOT NULL
-//               AND NOW() > end_datetime
-//         `);
-//         if (rows.affectedRows > 0) {
-//             console.log(`[${new Date().toISOString()}] Auto-disabled ${rows.affectedRows} vendor(s) manual assignment`);
-//         }
-//     } catch (err) {
-//         console.error("Cron error:", err);
-//     }
-// });
-
 
 // Email function (non-blocking)
 const sendPromoEmail = async (userEmail, promoCode, discountValue) => {

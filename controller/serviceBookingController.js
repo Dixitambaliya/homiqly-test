@@ -249,7 +249,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         // 2️⃣ Get platform fee (rounded)
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFeeRaw = platformSettings?.[0]?.platform_fee_percentage ?? 0;
-        const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // e.g. 10.00 or 15.00
+        const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // e.g. 10.00
 
         // 3️⃣ Build filters
         let filterCondition = "WHERE sb.vendor_id = ?";
@@ -257,20 +257,25 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
         if (status && !isNaN(status)) {
             filterCondition += " AND sb.bookingStatus = ?";
-            params.push(status);
+            params.push(Number(status));
+        } else {
+            // Default: approved, started, completed
+            filterCondition += " AND sb.bookingStatus IN (1, 3, 4)";
         }
 
+        // 🔍 Optional search filter
         if (search && search.trim() !== "") {
             filterCondition += ` AND (
-                CONCAT(u.firstName, ' ', u.lastName) LIKE ?
-                OR u.email LIKE ?
-                OR u.phone LIKE ?
-                OR sb.booking_id LIKE ?
-            )`;
+          CONCAT(u.firstName, ' ', u.lastName) LIKE ?
+          OR u.email LIKE ?
+          OR u.phone LIKE ?
+          OR sb.booking_id LIKE ?
+        )`;
             const searchPattern = `%${search.trim()}%`;
             params.push(searchPattern, searchPattern, searchPattern, searchPattern);
         }
 
+        // 📅 Date filters
         if (start_date && end_date) {
             filterCondition += " AND DATE(sb.bookingDate) BETWEEN ? AND ?";
             params.push(start_date, end_date);
@@ -284,80 +289,77 @@ const getVendorBookings = asyncHandler(async (req, res) => {
 
         const offset = (page - 1) * limit;
 
-        // 4️⃣ Count records
+        // 4️⃣ Count total records
         const [[{ totalRecords }]] = await db.query(`
-            SELECT COUNT(*) AS totalRecords
-            FROM service_booking sb
-            LEFT JOIN users u ON sb.user_id = u.user_id
-            ${filterCondition}
-        `, params);
+        SELECT COUNT(*) AS totalRecords
+        FROM service_booking sb
+        LEFT JOIN users u ON sb.user_id = u.user_id
+        ${filterCondition}
+      `, params);
 
         const totalPages = Math.ceil(totalRecords / limit);
 
-        // 5️⃣ Fetch paginated bookings
+        // 5️⃣ Fetch bookings
         const [bookings] = await db.query(`
-            ${bookingGetQueries.getVendorBookings}
-            ${filterCondition}
-            ORDER BY sb.booking_id DESC
-            LIMIT ? OFFSET ?
-        `, [...params, Number(limit), Number(offset)]);
+        ${bookingGetQueries.getVendorBookings}
+        ${filterCondition}
+        ORDER BY sb.bookingDate DESC
+        LIMIT ? OFFSET ?
+      `, [...params, Number(limit), Number(offset)]);
 
         // 6️⃣ Process each booking
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
-            const rawUserPaid = Number(booking.payment_amount) || 0;
+            const paidAmount = Number(booking.payment_amount) || 0; // from payments table
 
-            // 🔹 Fetch promo discount
+            // 🔹 Fetch promo discount (user first, then system)
             let promoDiscount = 0;
             let discountType = null;
 
             if (booking.user_promo_code_id) {
-                // Check user promo
                 const [[userPromo]] = await db.query(`
-                    SELECT pc.discountValue, pc.discount_type
-                    FROM user_promo_codes upc
-                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-                    WHERE upc.user_promo_code_id = ?
-                `, [booking.user_promo_code_id]);
+            SELECT pc.discountValue, pc.discount_type
+            FROM user_promo_codes upc
+            LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+            WHERE upc.user_promo_code_id = ?
+          `, [booking.user_promo_code_id]);
 
-                if (userPromo) {
+                if (userPromo && userPromo.discountValue != null) {
                     promoDiscount = Number(userPromo.discountValue);
                     discountType = userPromo.discount_type;
                 } else {
-                    // Check system promo
                     const [[systemPromo]] = await db.query(`
-                        SELECT spct.discountValue, spct.discount_type
-                        FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spct
-                        ON spc.template_id = spct.system_promo_code_template_id
-                        WHERE spc.system_promo_code_id = ?
-                    `, [booking.user_promo_code_id]);
+              SELECT spct.discountValue, spct.discount_type
+              FROM system_promo_codes spc
+              LEFT JOIN system_promo_code_templates spct
+                ON spc.template_id = spct.system_promo_code_template_id
+              WHERE spc.system_promo_code_id = ?
+            `, [booking.user_promo_code_id]);
 
-                    if (systemPromo) {
+                    if (systemPromo && systemPromo.discountValue != null) {
                         promoDiscount = Number(systemPromo.discountValue);
                         discountType = systemPromo.discount_type;
                     }
                 }
             }
 
-            // ✅ Calculate vendor’s payable base amount
-            let baseForVendor = Number(rawUserPaid.toFixed(2));
+            // 💰 Reconstruct gross (pre-promo) in cents
+            let grossCents = Math.round(paidAmount * 100);
 
-            // Add back organization-funded promo
             if (promoDiscount && discountType) {
                 if (discountType === "fixed") {
-                    // Add back fixed amount discount (e.g. $25 off)
-                    baseForVendor += promoDiscount;
+                    grossCents += Math.round(promoDiscount * 100);
                 } else if (discountType === "percentage") {
-                    // Add back percentage-based discount (e.g. 25% off)
-                    baseForVendor = baseForVendor / (1 - promoDiscount / 100);
+                    const pct = promoDiscount;
+                    if (pct < 100) {
+                        grossCents = Math.round(grossCents / (1 - pct / 100));
+                    }
                 }
             }
 
-            // 💯 Accurate cent-based math
-            const baseCents = Math.round(baseForVendor * 100);
-            const platformFeeCents = Math.round(baseCents * (platformFee / 100));
-            const vendorCents = baseCents - platformFeeCents;
+            // 💸 Platform fee and vendor payable
+            const platformFeeCents = Math.round(grossCents * (platformFee / 100));
+            const vendorCents = grossCents - platformFeeCents;
 
             const platformFeeAmount = platformFeeCents / 100;
             const vendorPayable = vendorCents / 100;
@@ -365,35 +367,30 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             booking.platformFeeAmount = Number(platformFeeAmount.toFixed(2));
             booking.payment_amount = Number(vendorPayable.toFixed(2));
 
-            // 🧹 Clean fields
+            // 🧹 Cleanup
             delete booking.user_promo_code_id;
             delete booking.platform_fee;
             delete booking.net_amount;
 
-            // 🔹 Fetch related data
+            // 🔹 Sub-packages & packages
             const [subPackages] = await db.query(bookingGetQueries.getBookedSubPackages, [bookingId]);
             const [bookingPackages] = await db.query(`
-                SELECT
-                    sbp.package_id,
-                    p.packageName,
-                    p.packageMedia
-                FROM service_booking_packages sbp
-                JOIN packages p ON sbp.package_id = p.package_id
-                WHERE sbp.booking_id = ?;
-            `, [bookingId]);
+          SELECT sbp.package_id, p.packageName, p.packageMedia
+          FROM service_booking_packages sbp
+          JOIN packages p ON sbp.package_id = p.package_id
+          WHERE sbp.booking_id = ?;
+        `, [bookingId]);
 
-            // ✅ Group subpackages by package
             const groupedByPackage = subPackages.reduce((acc, sp) => {
-                const packageId = sp.package_id;
-                if (!acc[packageId]) {
-                    acc[packageId] = {
-                        package_id: packageId,
+                if (!acc[sp.package_id]) {
+                    acc[sp.package_id] = {
+                        package_id: sp.package_id,
                         packageName: sp.packageName,
                         packageMedia: sp.packageMedia,
                         items: []
                     };
                 }
-                acc[packageId].items.push({
+                acc[sp.package_id].items.push({
                     sub_package_id: sp.sub_package_id,
                     itemName: sp.itemName,
                     itemMedia: sp.itemMedia,
@@ -417,9 +414,11 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 };
             }
 
-            // 🧹 Remove extras
+            // Remove redundant fields
             ['assignedEmployeeId', 'employeeFirstName', 'employeeLastName', 'employeeEmail', 'employeePhone']
                 .forEach(k => delete booking[k]);
+
+            // Clean nulls
             Object.keys(booking).forEach(k => {
                 if (booking[k] === null) delete booking[k];
             });
@@ -443,6 +442,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -1279,7 +1280,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-    
+
 const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
 
