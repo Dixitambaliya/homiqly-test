@@ -101,6 +101,7 @@ const editAdminProfile = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         // 📄 Pagination setup
@@ -192,7 +193,7 @@ const getVendor = asyncHandler(async (req, res) => {
                 const items = packageItems
                     .filter(item => item.package_id === pkg.package_id)
                     .map(item => ({
-                        vendor_package_item_id: item.vendor_package_item_id,
+                        vendor_packages_id: item.vendor_packages_id,
                         package_item_id: item.package_item_id,
                         itemName: item.itemName,
                         description: item.description,
@@ -228,6 +229,7 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
