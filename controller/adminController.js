@@ -1756,8 +1756,9 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
-    // Assumes admin auth middleware verified role/permissions already
+    // ✅ Assumes admin authentication and authorization middleware already applied
     const { vendor_packages_id } = req.params;
 
     if (!vendor_packages_id) {
@@ -1768,26 +1769,34 @@ const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        // Ensure package exists
-        const [[pkg]] = await connection.query(
+        // ✅ Ensure the vendor package (or sub-package entry) exists
+        const [existingRows] = await connection.query(
             `SELECT vendor_packages_id, vendor_id
-             FROM vendor_packages
+             FROM vendor_package_items_flat
              WHERE vendor_packages_id = ?`,
             [vendor_packages_id]
         );
 
-        if (!pkg) {
+        if (existingRows.length === 0) {
             await connection.rollback();
-            return res.status(404).json({ message: "Package not found" });
+            return res.status(404).json({
+                message: "Vendor package or sub-package not found."
+            });
         }
 
-        // Delete related sub-packages/items first
+        const vendor_id = existingRows[0].vendor_id;
+
+        // ✅ Delete from all related tables safely using the unique vendor_packages_id
+        await connection.query(
+            `DELETE FROM vendor_package_items_flat WHERE vendor_packages_id = ?`,
+            [vendor_packages_id]
+        );
+
         await connection.query(
             `DELETE FROM vendor_package_items WHERE vendor_packages_id = ?`,
             [vendor_packages_id]
         );
 
-        // Delete the vendor package
         await connection.query(
             `DELETE FROM vendor_packages WHERE vendor_packages_id = ?`,
             [vendor_packages_id]
@@ -1797,21 +1806,24 @@ const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: "Vendor package removed successfully by admin",
-            vendor_packages_id
+            message: "✅ Vendor package (or sub-package) deleted successfully by admin.",
+            vendor_packages_id,
+            vendor_id
         });
     } catch (err) {
         await connection.rollback();
-        console.error("Admin remove vendor package error:", err);
+        console.error("❌ Admin remove vendor package error:", err);
         res.status(500).json({
             success: false,
-            message: "Failed to remove vendor package",
+            message: "Failed to delete vendor package or sub-package",
             error: err.message
         });
     } finally {
         connection.release();
     }
 });
+
+
 
 const deleteUserByAdmin = asyncHandler(async (req, res) => {
     try {
