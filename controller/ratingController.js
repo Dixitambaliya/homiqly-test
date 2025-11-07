@@ -140,15 +140,19 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 1️⃣ Verify the booking belongs to this user
-        const [booked] = await db.query(
-            `SELECT 1 FROM service_booking WHERE user_id = ? AND booking_id = ?`,
+        // 1️⃣ Verify the booking belongs to this user and get vendor_id
+        const [bookingInfo] = await db.query(
+            `SELECT vendor_id
+             FROM service_booking
+             WHERE user_id = ? AND booking_id = ?`,
             [user_id, booking_id]
         );
 
-        if (booked.length === 0) {
+        if (bookingInfo.length === 0) {
             return res.status(403).json({ message: "You can only rate your own bookings." });
         }
+
+        const vendor_id = bookingInfo[0].vendor_id;
 
         // 2️⃣ Check if the user already rated this booking
         const [existingRatings] = await db.query(
@@ -160,10 +164,10 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "You have already rated this booking." });
         }
 
-        // 3️⃣ Fetch all package_ids linked to this booking from service_booking_packages
+        // 3️⃣ Fetch all package_ids linked to this booking
         const [packages] = await db.query(
-            `SELECT DISTINCT package_id 
-             FROM service_booking_packages 
+            `SELECT DISTINCT package_id
+             FROM service_booking_packages
              WHERE booking_id = ?`,
             [booking_id]
         );
@@ -172,7 +176,7 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found for this booking." });
         }
 
-        // 4️⃣ Prepare bulk insert values
+        // 4️⃣ Prepare bulk insert values with vendor_id
         const values = packages.map(pkg => [
             user_id,
             booking_id,
@@ -182,15 +186,16 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
             new Date()
         ]);
 
-        // 5️⃣ Insert rating for all packages in one go
+        // 5️⃣ Insert into ratings including vendor_id
         await db.query(
-            `INSERT INTO ratings (user_id, booking_id, package_id, rating, review, created_at)
+            `INSERT INTO ratings (user_id, booking_id, package_id, vendor_id, rating, review, created_at)
              VALUES ?`,
             [values]
         );
 
         res.status(201).json({
             message: "✅ Rating submitted successfully for all packages in this booking.",
+            vendor_id,
             packagesRated: packages.map(p => p.package_id)
         });
 
@@ -199,6 +204,7 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -264,7 +270,7 @@ const getVendorServicesForReview = asyncHandler(async (req, res) => {
 const getPackageRatings = asyncHandler(async (req, res) => {
     try {
         const [ratings] = await db.query(
-            `SELECT 
+            `SELECT
                 r.rating_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
                 r.package_id,
@@ -315,9 +321,9 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
     try {
         // 1. Get package details with average rating and total review count
         const [packageRows] = await db.query(
-            `SELECT 
+            `SELECT
                 p.packageName,
-                p.packageMedia, 
+                p.packageMedia,
                 AVG(r.rating) AS average_rating,
                 COUNT(r.rating_id) AS total_reviews
             FROM packages p
@@ -335,7 +341,7 @@ const getPackageAverageRating = asyncHandler(async (req, res) => {
 
         // 2. Get individual reviews with user names
         const [reviews] = await db.query(
-            `SELECT 
+            `SELECT
                 r.rating_id,
                 r.user_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
@@ -385,7 +391,7 @@ const getAllVendorRatings = asyncHandler(async (req, res) => {
             sc.serviceCategory,
 
             v.vendorType,
-            
+
             CONCAT_WS(' ', id.name, cd.companyName) AS vendor_name,
             CONCAT_WS(' ', id.email, cd.companyEmail) AS vendor_email,
             CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone

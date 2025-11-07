@@ -1280,6 +1280,115 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
     }
 });
 
+const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
+    const { booking_id } = req.params;
+
+    if (!booking_id) {
+        return res.status(400).json({ message: "booking_id is required" });
+    }
+
+    try {
+        // 1️⃣ Find vendor_id from booking
+        const [[booking]] = await db.query(
+            `SELECT vendor_id FROM service_booking WHERE booking_id = ?`,
+            [booking_id]
+        );
+
+        if (!booking) {
+            return res.status(404).json({ message: "Booking not found." });
+        }
+
+        const vendor_id = booking.vendor_id;
+
+        // 2️⃣ Get vendor base info
+        const [[vendor]] = await db.query(
+            `SELECT
+                v.vendor_id,
+                v.vendorType,
+                v.is_authenticated,
+
+                -- Individual details
+                i.name AS individual_name,
+                i.profileImage AS individual_profileImage,
+                i.expertise AS individual_expertise,
+                i.aboutMe AS individual_aboutMe,
+                i.resume AS individual_resume,
+                i.otherInfo AS individual_otherInfo,
+
+                -- Company details
+                c.companyName AS company_name,
+                c.profileImage AS company_profileImage,
+                c.expertise AS company_expertise,
+                c.aboutMe AS company_aboutMe
+            FROM vendors v
+            LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+            LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+            WHERE v.vendor_id = ?`,
+            [vendor_id]
+        );
+
+        if (!vendor) {
+            return res.status(404).json({ message: "Vendor not found." });
+        }
+
+        // 3️⃣ Fetch vendor’s ratings directly (no subquery)
+        const [ratings] = await db.query(
+            `SELECT
+                r.rating_id,
+                r.rating,
+                r.review,
+                r.created_at,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName
+            FROM ratings r
+            LEFT JOIN users u ON r.user_id = u.user_id
+            WHERE r.vendor_id = ?
+            ORDER BY r.created_at DESC`,
+            [vendor_id]
+        );
+
+        // 4️⃣ Format vendor info
+        let vendorDetails = {};
+
+        if (vendor.vendorType === "individual") {
+            vendorDetails = {
+                vendor_id: vendor.vendor_id,
+                vendorType: "individual",
+                name: vendor.individual_name,
+                address: vendor.individual_address,
+                profileImage: vendor.individual_profileImage,
+                expertise: vendor.individual_expertise,
+                aboutMe: vendor.individual_aboutMe,
+                otherInfo: vendor.individual_otherInfo,
+                ratings
+            };
+        } else {
+            vendorDetails = {
+                vendor_id: vendor.vendor_id,
+                vendorType: "company",
+                companyName: vendor.company_name,
+                address: vendor.company_address,
+                profileImage: vendor.company_profileImage,
+                expertise: vendor.company_expertise,
+                aboutMe: vendor.company_aboutMe,
+                ratings
+            };
+        }
+
+        res.status(200).json({
+            message: "Vendor details fetched successfully",
+            data: vendorDetails
+        });
+
+    } catch (error) {
+        console.error("Error fetching vendor details:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
+
+
 module.exports = {
     bookService,
     getVendorBookings,
@@ -1288,5 +1397,6 @@ module.exports = {
     assignBookingToVendor,
     getEligiblevendors,
     approveOrAssignBooking,
-    getAvailableVendors
+    getAvailableVendors,
+    getVendorDetailsByBookingId
 };
