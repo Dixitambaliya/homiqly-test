@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const twilio = require('twilio');
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const { assignWelcomeCode } = require("../config/utils/email/mailer");
 const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail, sendUserWelcomeMail } = require("../config/utils/email/mailer");
@@ -643,13 +644,35 @@ const sendOtp = asyncHandler(async (req, res) => {
 });
 
 
+function normalizePhone(phone) {
+    if (!phone) return null;
+    try {
+        const parsed = parsePhoneNumberFromString(phone);
+        if (!parsed) return phone;
+        return parsed.nationalNumber; // return only the local part (no +91 or +1)
+    } catch {
+        return phone; // fallback if invalid format
+    }
+}
 
 // ✅ Step 2: Verify OTP (Handles both Login & Registration)
 const verifyOtp = asyncHandler(async (req, res) => {
     let { phone, email, otp, firstName, lastName, password } = req.body;
     const authHeader = req.headers.authorization;
 
-    // ✅ Lookup separately
+    // ✅ Normalize incoming phone number
+    const normalizedInputPhone = normalizePhone(phone);
+
+    // ✅ Lookup all users
+    let [allUsers] = await db.query("SELECT user_id, phone, email, firstName, lastName FROM users");
+
+    // Normalize DB phones
+    const matchedByDigits = allUsers.find(u => {
+        const normalizedDbPhone = normalizePhone(u.phone);
+        return normalizedDbPhone && normalizedInputPhone && normalizedDbPhone === normalizedInputPhone;
+    });
+
+    // Check existence
     let [byPhone] = phone
         ? await db.query("SELECT * FROM users WHERE phone = ?", [phone])
         : [[]];
@@ -657,11 +680,18 @@ const verifyOtp = asyncHandler(async (req, res) => {
         ? await db.query("SELECT * FROM users WHERE email = ?", [email])
         : [[]];
 
-    const phoneExists = byPhone.length > 0;
+    const phoneExists = byPhone.length > 0 || !!matchedByDigits;
     const emailExists = byEmail.length > 0;
 
-    // 🧠 Determine user & check conflict
-    // 🧠 Determine user & check conflict
+    // 🚫 Cross-country duplicate check
+    if (!byPhone.length && matchedByDigits) {
+        return res.status(400).json({
+            message: `This phone number (same digits) is already registered with another country code.`,
+            conflict: true,
+        });
+    }
+
+        // 🧠 Determine user & check conflict
     let user = null;
 
     if (phone && email) {
