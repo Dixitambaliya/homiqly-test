@@ -1224,84 +1224,93 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { filterType, startDate, endDate } = req.query;
     // filterType = 'all' | 'weekly' | 'monthly' | 'custom'
 
     try {
-        // ✅ Get vendor type
-        const [[vendorRow]] = await db.query(
-            bookingGetQueries.getVendorIdForBooking,
-            [vendor_id]
-        );
-        const vendorType = vendorRow?.vendorType || null;
+      // ✅ Get vendor type
+      const [[vendorRow]] = await db.query(
+        bookingGetQueries.getVendorIdForBooking,
+        [vendor_id]
+      );
+      const vendorType = vendorRow?.vendorType || null;
 
-        // ✅ Get platform fee %
-        const [platformSettings] = await db.query(
-            bookingGetQueries.getPlateFormFee,
-            [vendorType]
-        );
-        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+      // ✅ Get platform fee %
+      const [platformSettings] = await db.query(
+        bookingGetQueries.getPlateFormFee,
+        [vendorType]
+      );
+      const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-        // ✅ Build WHERE clause for date filters
-        let dateFilter = "";
-        let params = [vendor_id];
+      // ✅ Build WHERE clause for date filters
+      let dateFilter = "";
+      let params = [vendor_id];
 
-        if (filterType === "weekly") {
-            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-        } else if (filterType === "monthly") {
-            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
-        } else if (filterType === "custom" && startDate && endDate) {
-            dateFilter = "AND sb.created_at BETWEEN ? AND ?";
-            params = [vendor_id, startDate, endDate];
-        } // else all-time → no filter
+      if (filterType === "weekly") {
+        dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+      } else if (filterType === "monthly") {
+        dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
+      } else if (filterType === "custom" && startDate && endDate) {
+        dateFilter = "AND sb.created_at BETWEEN ? AND ?";
+        params = [vendor_id, startDate, endDate];
+      }
+      // else 'all' → no date filter
 
-        // ✅ Get bookings summary
-        const [[bookingStats]] = await db.query(
-            `
-                SELECT
-                COUNT(*) AS totalBookings,
-                    SUM(CASE WHEN sb.bookingStatus = 0 THEN 1 ELSE 0 END) AS pendingBookings,
-                        SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS completedBookings
-            FROM service_booking sb
-            WHERE sb.vendor_id = ? ${dateFilter};
-                `,
-            params
-        );
+      // ✅ Get booking summary (Approved, Started, Completed)
+      const [[bookingStats]] = await db.query(
+        `
+        SELECT
+          COUNT(*) AS totalBookings,
+          SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS approvedBookings,
+          SUM(CASE WHEN sb.bookingStatus = 3 THEN 1 ELSE 0 END) AS startedBookings,
+          SUM(CASE WHEN sb.bookingStatus = 4 THEN 1 ELSE 0 END) AS completedBookings
+        FROM service_booking sb
+        WHERE sb.vendor_id = ? ${dateFilter};
+        `,
+        params
+      );
 
-        // ✅ Get earnings
-        const [[earnings]] = await db.query(
-            `
-                SELECT
-                CAST(SUM(p.amount * (1 - ? / 100)) AS DECIMAL(10, 2)) AS totalEarnings
-            FROM service_booking sb
-            JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-            WHERE sb.vendor_id = ? AND p.status = 'completed' ${dateFilter};
-                `,
-            [platformFee, ...params]
-        );
+      // ✅ Get total earnings (based on completed payments)
+      const [[earnings]] = await db.query(
+        `
+        SELECT
+          CAST(SUM(p.amount * (1 - ? / 100)) AS DECIMAL(10, 2)) AS totalEarnings
+        FROM service_booking sb
+        JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+        WHERE sb.vendor_id = ?
+          AND p.status = 'completed'
+          ${dateFilter};
+        `,
+        [platformFee, ...params]
+      );
 
-        res.status(200).json({
-            message: "Vendor dashboard stats fetched successfully",
-            filterType,
-            stats: {
-                totalBookings: bookingStats.totalBookings || 0,
-                pendingBookings: bookingStats.pendingBookings || 0,
-                completedBookings: bookingStats.completedBookings || 0,
-                totalEarnings: earnings.totalEarnings
-                    ? parseFloat(earnings.totalEarnings)
-                    : 0
-            }
-        });
+      // ✅ Response
+      res.status(200).json({
+        message: "Vendor dashboard stats fetched successfully",
+        filterType,
+        stats: {
+          totalBookings: bookingStats.totalBookings || 0,
+          approvedBookings: bookingStats.approvedBookings || 0,
+          startedBookings: bookingStats.startedBookings || 0,
+          completedBookings: bookingStats.completedBookings || 0,
+          totalEarnings: earnings.totalEarnings
+            ? parseFloat(earnings.totalEarnings)
+            : 0
+        }
+      });
     } catch (error) {
-        console.error("Error fetching vendor dashboard stats:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+      console.error("Error fetching vendor dashboard stats:", error);
+      res.status(500).json({
+        message: "Internal server error",
+        error: error.message
+      });
     }
-});
+  });
+
+
 
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
