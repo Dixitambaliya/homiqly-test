@@ -1279,7 +1279,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
+    
 const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
 

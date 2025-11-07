@@ -181,6 +181,7 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
             user_id,
             booking_id,
             pkg.package_id,
+            vendor_id,
             rating,
             review || null,
             new Date()
