@@ -931,13 +931,13 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
         // ✅ Apply date filters dynamically
         if (startDate && endDate) {
-            filterCondition += " AND DATE(vp.created_at) BETWEEN ? AND ?";
+            filterCondition += " AND DATE(sb.bookingDate) BETWEEN ? AND ?";
             filterParams.push(startDate, endDate);
         } else if (startDate) {
-            filterCondition += " AND DATE(vp.created_at) >= ?";
+            filterCondition += " AND DATE(sb.bookingDate) >= ?";
             filterParams.push(startDate);
         } else if (endDate) {
-            filterCondition += " AND DATE(vp.created_at) <= ?";
+            filterCondition += " AND DATE(sb.bookingDate) <= ?";
             filterParams.push(endDate);
         }
 
