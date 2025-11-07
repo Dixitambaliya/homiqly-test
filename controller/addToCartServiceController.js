@@ -585,7 +585,6 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -707,19 +706,6 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

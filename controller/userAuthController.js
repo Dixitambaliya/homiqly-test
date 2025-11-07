@@ -1,12 +1,12 @@
-const asyncHandler = require("express-async-handler");
-const twilio = require('twilio');
-const jwt = require("jsonwebtoken");
 const { db } = require("../config/db");
 const bcrypt = require("bcryptjs");
+const twilio = require('twilio');
+const asyncHandler = require("express-async-handler");
+const jwt = require("jsonwebtoken");
 const userAuthQueries = require("../config/userQueries/userAuthQueries");
 const { assignWelcomeCode } = require("../config/utils/email/mailer");
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const { sendPasswordUpdatedMail, sendPasswordResetCodeMail, sendUserVerificationMail, sendUserWelcomeMail } = require("../config/utils/email/mailer");
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 
 // Generate 6-digit OTP
@@ -575,10 +575,6 @@ const sendOtp = asyncHandler(async (req, res) => {
             const smsMessage = is_registered
                 ? `Welcome back to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`
                 : `Welcome to Homiqly! Your verification code is ${otp}. It expires in 5 minutes.`;
-
-            console.log("Twilio SID:", process.env.TWILIO_ACCOUNT_SID);
-            console.log("Twilio Token (first 4 chars):", process.env.TWILIO_AUTH_TOKEN);
-        ;
             // ✅ Await Twilio directly
             await client.messages.create({
                 body: smsMessage,
