@@ -239,6 +239,7 @@ const bookService = asyncHandler(async (req, res) => {
 
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+
     const { page = 1, limit = 10, status, search, start_date, end_date } = req.query;
 
     try {
@@ -250,6 +251,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFeeRaw = platformSettings?.[0]?.platform_fee_percentage ?? 0;
         const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // e.g. 10.00
+        console.log(platformFee);
 
         // 3️⃣ Build filters
         let filterCondition = "WHERE sb.vendor_id = ?";
@@ -311,7 +313,8 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
             const paidAmount = Number(booking.payment_amount) || 0; // from payments table
-
+            console.log(paidAmount);
+            
             // 🔹 Fetch promo discount (user first, then system)
             let promoDiscount = 0;
             let discountType = null;
@@ -335,7 +338,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
                 ON spc.template_id = spct.system_promo_code_template_id
               WHERE spc.system_promo_code_id = ?
             `, [booking.user_promo_code_id]);
-
+            console.log(systemPromo);
                     if (systemPromo && systemPromo.discountValue != null) {
                         promoDiscount = Number(systemPromo.discountValue);
                         discountType = systemPromo.discount_type;

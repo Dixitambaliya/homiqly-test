@@ -328,160 +328,170 @@ const getProfileVendor = asyncHandler(async (req, res) => {
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
-        name,
-        email,
-        phone,
-        aboutMe,
-        googleBusinessProfileLink,
-        companyAddress,
-        businessLicenseExpireDate,
-        certificateOfExpertiseExpireDate,
-        contactPerson,
-        birthDate,
-        address,
-        expertise,
-        certificateNames // assume array
+      name,
+      email,
+      phone,
+      aboutMe,
+      googleBusinessProfileLink,
+      companyAddress,
+      contactPerson,
+      birthDate,
+      address,
+      expertise,
+      certificateNames // assume array
     } = req.body;
 
     const newFiles = req.uploadedFiles || {};
 
     try {
-        // ✅ Fetch existing vendor record
-        let [existing] =
-            vendor_type === "individual"
-                ? await db.query(
-                    `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
-                            businessLicenseExpireDate, certificateOfExpertiseExpireDate,
-                            name, address, dob, email, phone, aboutMe, expertise
-                     FROM individual_details WHERE vendor_id = ?`,
-                    [vendor_id]
-                )
-                : vendor_type === "company"
-                    ? await db.query(
-                        `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
-                                businessLicenseExpireDate, certificateOfExpertiseExpireDate,
-                                companyName, dob, companyEmail, companyPhone,
-                                googleBusinessProfileLink, companyAddress, contactPerson, expertise
-                         FROM company_details WHERE vendor_id = ?`,
-                        [vendor_id]
-                    )
-                    : [];
+      // ✅ Fetch existing vendor record
+      let [existing] =
+        vendor_type === "individual"
+          ? await db.query(
+              `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
+                      businessLicenseExpireDate, certificateOfExpertiseExpireDate,
+                      name, address, dob, email, phone, aboutMe, expertise
+               FROM individual_details WHERE vendor_id = ?`,
+              [vendor_id]
+            )
+          : vendor_type === "company"
+          ? await db.query(
+              `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
+                      businessLicenseExpireDate, certificateOfExpertiseExpireDate,
+                      companyName, dob, companyEmail, companyPhone,
+                      googleBusinessProfileLink, companyAddress, contactPerson, expertise
+               FROM company_details WHERE vendor_id = ?`,
+              [vendor_id]
+            )
+          : [];
 
-        if (!existing || existing.length === 0) {
-            return res.status(404).json({ message: "Vendor not found" });
-        }
+      if (!existing || existing.length === 0) {
+        return res.status(404).json({ message: "Vendor not found" });
+      }
 
-        const current = existing[0];
+      const current = existing[0];
 
-        // ✅ Smart media handling: remove if empty, keep old if not sent
-        const handleMediaField = (fieldName, fileKey, currentValue) => {
-            if (req.body[fieldName] === "") return null; // explicit remove
-            return newFiles?.[fileKey]?.[0]?.url || currentValue; // preserve or replace
-        };
+      // ✅ Helper to handle media fields
+      const handleMediaField = (fieldName, fileKey, currentValue) => {
+        if (req.body[fieldName] === "") return null; // explicit remove
+        return newFiles?.[fileKey]?.[0]?.url || currentValue; // preserve or replace
+      };
 
-        const profileImageVendor = handleMediaField("profileImageVendor", "profileImageVendor", current.profileImage);
-        const policeClearance = handleMediaField("policeClearance", "policeClearance", current.policeClearance);
-        const certificateOfExpertise = handleMediaField("certificateOfExpertise", "certificateOfExpertise", current.certificateOfExpertise);
-        const businessLicense = handleMediaField("businessLicense", "businessLicense", current.businessLicense);
+      // ✅ Helper to handle date fields
+      const handleDateField = (fieldName, currentValue) => {
+        if (req.body[fieldName] === "") return null; // explicit remove
+        if (req.body[fieldName] === undefined) return currentValue; // preserve old
+        return req.body[fieldName]; // update with new date
+      };
 
-        // ✅ Update vendor profile
-        if (vendor_type === "individual") {
-            await db.query(
-                `UPDATE individual_details
-                 SET profileImage = ?,
-                     policeClearance = ?,
-                     certificateOfExpertise = ?,
-                     businessLicense = ?,
-                     businessLicenseExpireDate = ?,
-                     certificateOfExpertiseExpireDate = ?,
-                     name = ?,
-                     address = ?,
-                     dob = ?,
-                     email = ?,
-                     phone = ?,
-                     aboutMe = ?,
-                     expertise = ?
-                 WHERE vendor_id = ?`,
-                [
-                    profileImageVendor,
-                    policeClearance,
-                    certificateOfExpertise,
-                    businessLicense,
-                    businessLicenseExpireDate ?? current.businessLicenseExpireDate,
-                    certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
-                    name ?? current.name,
-                    address ?? current.address,
-                    birthDate ?? current.dob,
-                    email ?? current.email,
-                    phone ?? current.phone,
-                    aboutMe ?? current.aboutMe,
-                    expertise ?? current.expertise,
-                    vendor_id,
-                ]
+      // ✅ Handle media
+      const profileImageVendor = handleMediaField("profileImageVendor", "profileImageVendor", current.profileImage);
+      const policeClearance = handleMediaField("policeClearance", "policeClearance", current.policeClearance);
+      const certificateOfExpertise = handleMediaField("certificateOfExpertise", "certificateOfExpertise", current.certificateOfExpertise);
+      const businessLicense = handleMediaField("businessLicense", "businessLicense", current.businessLicense);
+
+      // ✅ Handle dates (smart delete or preserve)
+      const updatedBusinessLicenseExpireDate = handleDateField("businessLicenseExpireDate", current.businessLicenseExpireDate);
+      const updatedCertificateExpireDate = handleDateField("certificateOfExpertiseExpireDate", current.certificateOfExpertiseExpireDate);
+
+      // ✅ Update vendor profile
+      if (vendor_type === "individual") {
+        await db.query(
+          `UPDATE individual_details
+           SET profileImage = ?,
+               policeClearance = ?,
+               certificateOfExpertise = ?,
+               businessLicense = ?,
+               businessLicenseExpireDate = ?,
+               certificateOfExpertiseExpireDate = ?,
+               name = ?,
+               address = ?,
+               dob = ?,
+               email = ?,
+               phone = ?,
+               aboutMe = ?,
+               expertise = ?
+           WHERE vendor_id = ?`,
+          [
+            profileImageVendor,
+            policeClearance,
+            certificateOfExpertise,
+            businessLicense,
+            updatedBusinessLicenseExpireDate,
+            updatedCertificateExpireDate,
+            name ?? current.name,
+            address ?? current.address,
+            birthDate ?? current.dob,
+            email ?? current.email,
+            phone ?? current.phone,
+            aboutMe ?? current.aboutMe,
+            expertise ?? current.expertise,
+            vendor_id,
+          ]
+        );
+      } else if (vendor_type === "company") {
+        await db.query(
+          `UPDATE company_details
+           SET profileImage = ?,
+               policeClearance = ?,
+               certificateOfExpertise = ?,
+               businessLicense = ?,
+               businessLicenseExpireDate = ?,
+               certificateOfExpertiseExpireDate = ?,
+               companyName = ?,
+               dob = ?,
+               companyEmail = ?,
+               companyPhone = ?,
+               googleBusinessProfileLink = ?,
+               companyAddress = ?,
+               contactPerson = ?,
+               expertise = ?
+           WHERE vendor_id = ?`,
+          [
+            profileImageVendor,
+            policeClearance,
+            certificateOfExpertise,
+            businessLicense,
+            updatedBusinessLicenseExpireDate,
+            updatedCertificateExpireDate,
+            name ?? current.companyName,
+            birthDate ?? current.dob,
+            email ?? current.companyEmail,
+            phone ?? current.companyPhone,
+            googleBusinessProfileLink ?? current.googleBusinessProfileLink,
+            companyAddress ?? current.companyAddress,
+            contactPerson ?? current.contactPerson,
+            expertise ?? current.expertise,
+            vendor_id,
+          ]
+        );
+      }
+
+      // ✅ Handle new certificates
+      if (certificateNames?.length) {
+        const insertPromises = certificateNames.map((certName, i) => {
+          const certFile = newFiles?.[`certificateFiles_${i}`]?.[0]?.url;
+          if (certName && certFile) {
+            return db.query(
+              `INSERT INTO certificates (vendor_id, certificateName, certificateFile)
+               VALUES (?, ?, ?)`,
+              [vendor_id, certName, certFile]
             );
-        } else if (vendor_type === "company") {
-            await db.query(
-                `UPDATE company_details
-                 SET profileImage = ?,
-                     policeClearance = ?,
-                     certificateOfExpertise = ?,
-                     businessLicense = ?,
-                     businessLicenseExpireDate = ?,
-                     certificateOfExpertiseExpireDate = ?,
-                     companyName = ?,
-                     dob = ?,
-                     companyEmail = ?,
-                     companyPhone = ?,
-                     googleBusinessProfileLink = ?,
-                     companyAddress = ?,
-                     contactPerson = ?,
-                     expertise = ?
-                 WHERE vendor_id = ?`,
-                [
-                    profileImageVendor,
-                    policeClearance,
-                    certificateOfExpertise,
-                    businessLicense,
-                    businessLicenseExpireDate ?? current.businessLicenseExpireDate,
-                    certificateOfExpertiseExpireDate ?? current.certificateOfExpertiseExpireDate,
-                    name ?? current.companyName,
-                    birthDate ?? current.dob,
-                    email ?? current.companyEmail,
-                    phone ?? current.companyPhone,
-                    googleBusinessProfileLink ?? current.googleBusinessProfileLink,
-                    companyAddress ?? current.companyAddress,
-                    contactPerson ?? current.contactPerson,
-                    expertise ?? current.expertise,
-                    vendor_id,
-                ]
-            );
-        }
-
-        // ✅ Handle new certificates
-        if (certificateNames?.length) {
-            const insertPromises = certificateNames.map((certName, i) => {
-                const certFile = newFiles?.[`certificateFiles_${i}`]?.[0]?.url;
-                if (certName && certFile) {
-                    return db.query(
-                        `INSERT INTO certificates (vendor_id, certificateName, certificateFile)
-                         VALUES (?, ?, ?)`,
-                        [vendor_id, certName, certFile]
-                    );
-                }
-                return null;
-            });
-            await Promise.all(insertPromises);
-        }
-
-        res.status(200).json({
-            message: "✅ Vendor profile updated successfully (media preserved or cleared if empty)"
+          }
+          return null;
         });
+        await Promise.all(insertPromises);
+      }
+
+      res.status(200).json({
+        message: "✅ Vendor profile updated successfully (media and expiry dates handled properly)",
+      });
 
     } catch (err) {
-        console.error("❌ Error updating vendor profile:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+      console.error("❌ Error updating vendor profile:", err);
+      res.status(500).json({ message: "Internal server error", error: err.message });
     }
-});
+  });
 
 
 
