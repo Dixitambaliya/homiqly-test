@@ -328,76 +328,76 @@ const getProfileVendor = asyncHandler(async (req, res) => {
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
-      name,
-      email,
-      phone,
-      aboutMe,
-      googleBusinessProfileLink,
-      companyAddress,
-      contactPerson,
-      birthDate,
-      address,
-      expertise,
-      certificateNames // assume array
+        name,
+        email,
+        phone,
+        aboutMe,
+        googleBusinessProfileLink,
+        companyAddress,
+        contactPerson,
+        birthDate,
+        address,
+        expertise,
+        certificateNames // assume array
     } = req.body;
 
     const newFiles = req.uploadedFiles || {};
 
     try {
-      // ✅ Fetch existing vendor record
-      let [existing] =
-        vendor_type === "individual"
-          ? await db.query(
-              `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
+        // ✅ Fetch existing vendor record
+        let [existing] =
+            vendor_type === "individual"
+                ? await db.query(
+                    `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
                       businessLicenseExpireDate, certificateOfExpertiseExpireDate,
                       name, address, dob, email, phone, aboutMe, expertise
                FROM individual_details WHERE vendor_id = ?`,
-              [vendor_id]
-            )
-          : vendor_type === "company"
-          ? await db.query(
-              `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
+                    [vendor_id]
+                )
+                : vendor_type === "company"
+                    ? await db.query(
+                        `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
                       businessLicenseExpireDate, certificateOfExpertiseExpireDate,
                       companyName, dob, companyEmail, companyPhone,
                       googleBusinessProfileLink, companyAddress, contactPerson, expertise
                FROM company_details WHERE vendor_id = ?`,
-              [vendor_id]
-            )
-          : [];
+                        [vendor_id]
+                    )
+                    : [];
 
-      if (!existing || existing.length === 0) {
-        return res.status(404).json({ message: "Vendor not found" });
-      }
+        if (!existing || existing.length === 0) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
 
-      const current = existing[0];
+        const current = existing[0];
 
-      // ✅ Helper to handle media fields
-      const handleMediaField = (fieldName, fileKey, currentValue) => {
-        if (req.body[fieldName] === "") return null; // explicit remove
-        return newFiles?.[fileKey]?.[0]?.url || currentValue; // preserve or replace
-      };
+        // ✅ Helper to handle media fields
+        const handleMediaField = (fieldName, fileKey, currentValue) => {
+            if (req.body[fieldName] === "") return null; // explicit remove
+            return newFiles?.[fileKey]?.[0]?.url || currentValue; // preserve or replace
+        };
 
-      // ✅ Helper to handle date fields
-      const handleDateField = (fieldName, currentValue) => {
-        if (req.body[fieldName] === "") return null; // explicit remove
-        if (req.body[fieldName] === undefined) return currentValue; // preserve old
-        return req.body[fieldName]; // update with new date
-      };
+        // ✅ Helper to handle date fields
+        const handleDateField = (fieldName, currentValue) => {
+            if (req.body[fieldName] === "") return null; // explicit remove
+            if (req.body[fieldName] === undefined) return currentValue; // preserve old
+            return req.body[fieldName]; // update with new date
+        };
 
-      // ✅ Handle media
-      const profileImageVendor = handleMediaField("profileImageVendor", "profileImageVendor", current.profileImage);
-      const policeClearance = handleMediaField("policeClearance", "policeClearance", current.policeClearance);
-      const certificateOfExpertise = handleMediaField("certificateOfExpertise", "certificateOfExpertise", current.certificateOfExpertise);
-      const businessLicense = handleMediaField("businessLicense", "businessLicense", current.businessLicense);
+        // ✅ Handle media
+        const profileImageVendor = handleMediaField("profileImageVendor", "profileImageVendor", current.profileImage);
+        const policeClearance = handleMediaField("policeClearance", "policeClearance", current.policeClearance);
+        const certificateOfExpertise = handleMediaField("certificateOfExpertise", "certificateOfExpertise", current.certificateOfExpertise);
+        const businessLicense = handleMediaField("businessLicense", "businessLicense", current.businessLicense);
 
-      // ✅ Handle dates (smart delete or preserve)
-      const updatedBusinessLicenseExpireDate = handleDateField("businessLicenseExpireDate", current.businessLicenseExpireDate);
-      const updatedCertificateExpireDate = handleDateField("certificateOfExpertiseExpireDate", current.certificateOfExpertiseExpireDate);
+        // ✅ Handle dates (smart delete or preserve)
+        const updatedBusinessLicenseExpireDate = handleDateField("businessLicenseExpireDate", current.businessLicenseExpireDate);
+        const updatedCertificateExpireDate = handleDateField("certificateOfExpertiseExpireDate", current.certificateOfExpertiseExpireDate);
 
-      // ✅ Update vendor profile
-      if (vendor_type === "individual") {
-        await db.query(
-          `UPDATE individual_details
+        // ✅ Update vendor profile
+        if (vendor_type === "individual") {
+            await db.query(
+                `UPDATE individual_details
            SET profileImage = ?,
                policeClearance = ?,
                certificateOfExpertise = ?,
@@ -412,26 +412,26 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                aboutMe = ?,
                expertise = ?
            WHERE vendor_id = ?`,
-          [
-            profileImageVendor,
-            policeClearance,
-            certificateOfExpertise,
-            businessLicense,
-            updatedBusinessLicenseExpireDate,
-            updatedCertificateExpireDate,
-            name ?? current.name,
-            address ?? current.address,
-            birthDate ?? current.dob,
-            email ?? current.email,
-            phone ?? current.phone,
-            aboutMe ?? current.aboutMe,
-            expertise ?? current.expertise,
-            vendor_id,
-          ]
-        );
-      } else if (vendor_type === "company") {
-        await db.query(
-          `UPDATE company_details
+                [
+                    profileImageVendor,
+                    policeClearance,
+                    certificateOfExpertise,
+                    businessLicense,
+                    updatedBusinessLicenseExpireDate,
+                    updatedCertificateExpireDate,
+                    name ?? current.name,
+                    address ?? current.address,
+                    birthDate ?? current.dob,
+                    email ?? current.email,
+                    phone ?? current.phone,
+                    aboutMe ?? current.aboutMe,
+                    expertise ?? current.expertise,
+                    vendor_id,
+                ]
+            );
+        } else if (vendor_type === "company") {
+            await db.query(
+                `UPDATE company_details
            SET profileImage = ?,
                policeClearance = ?,
                certificateOfExpertise = ?,
@@ -447,51 +447,51 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                contactPerson = ?,
                expertise = ?
            WHERE vendor_id = ?`,
-          [
-            profileImageVendor,
-            policeClearance,
-            certificateOfExpertise,
-            businessLicense,
-            updatedBusinessLicenseExpireDate,
-            updatedCertificateExpireDate,
-            name ?? current.companyName,
-            birthDate ?? current.dob,
-            email ?? current.companyEmail,
-            phone ?? current.companyPhone,
-            googleBusinessProfileLink ?? current.googleBusinessProfileLink,
-            companyAddress ?? current.companyAddress,
-            contactPerson ?? current.contactPerson,
-            expertise ?? current.expertise,
-            vendor_id,
-          ]
-        );
-      }
-
-      // ✅ Handle new certificates
-      if (certificateNames?.length) {
-        const insertPromises = certificateNames.map((certName, i) => {
-          const certFile = newFiles?.[`certificateFiles_${i}`]?.[0]?.url;
-          if (certName && certFile) {
-            return db.query(
-              `INSERT INTO certificates (vendor_id, certificateName, certificateFile)
-               VALUES (?, ?, ?)`,
-              [vendor_id, certName, certFile]
+                [
+                    profileImageVendor,
+                    policeClearance,
+                    certificateOfExpertise,
+                    businessLicense,
+                    updatedBusinessLicenseExpireDate,
+                    updatedCertificateExpireDate,
+                    name ?? current.companyName,
+                    birthDate ?? current.dob,
+                    email ?? current.companyEmail,
+                    phone ?? current.companyPhone,
+                    googleBusinessProfileLink ?? current.googleBusinessProfileLink,
+                    companyAddress ?? current.companyAddress,
+                    contactPerson ?? current.contactPerson,
+                    expertise ?? current.expertise,
+                    vendor_id,
+                ]
             );
-          }
-          return null;
-        });
-        await Promise.all(insertPromises);
-      }
+        }
 
-      res.status(200).json({
-        message: "✅ Vendor profile updated successfully (media and expiry dates handled properly)",
-      });
+        // ✅ Handle new certificates
+        if (certificateNames?.length) {
+            const insertPromises = certificateNames.map((certName, i) => {
+                const certFile = newFiles?.[`certificateFiles_${i}`]?.[0]?.url;
+                if (certName && certFile) {
+                    return db.query(
+                        `INSERT INTO certificates (vendor_id, certificateName, certificateFile)
+               VALUES (?, ?, ?)`,
+                        [vendor_id, certName, certFile]
+                    );
+                }
+                return null;
+            });
+            await Promise.all(insertPromises);
+        }
+
+        res.status(200).json({
+            message: "✅ Vendor profile updated successfully (media and expiry dates handled properly)",
+        });
 
     } catch (err) {
-      console.error("❌ Error updating vendor profile:", err);
-      res.status(500).json({ message: "Internal server error", error: err.message });
+        console.error("❌ Error updating vendor profile:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
     }
-  });
+});
 
 
 
@@ -1231,84 +1231,142 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
     // filterType = 'all' | 'weekly' | 'monthly' | 'custom'
 
     try {
-      // ✅ Get vendor type
-      const [[vendorRow]] = await db.query(
-        bookingGetQueries.getVendorIdForBooking,
-        [vendor_id]
-      );
-      const vendorType = vendorRow?.vendorType || null;
+        // 1️⃣ Get vendor type
+        const [[vendorRow]] = await db.query(
+            bookingGetQueries.getVendorIdForBooking,
+            [vendor_id]
+        );
+        const vendorType = vendorRow?.vendorType || null;
 
-      // ✅ Get platform fee %
-      const [platformSettings] = await db.query(
-        bookingGetQueries.getPlateFormFee,
-        [vendorType]
-      );
-      const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
+        // 2️⃣ Get platform fee %
+        const [platformSettings] = await db.query(
+            bookingGetQueries.getPlateFormFee,
+            [vendorType]
+        );
+        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
 
-      // ✅ Build WHERE clause for date filters
-      let dateFilter = "";
-      let params = [vendor_id];
+        // 3️⃣ Date filter
+        let dateFilter = "";
+        let params = [vendor_id];
 
-      if (filterType === "weekly") {
-        dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-      } else if (filterType === "monthly") {
-        dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
-      } else if (filterType === "custom" && startDate && endDate) {
-        dateFilter = "AND sb.created_at BETWEEN ? AND ?";
-        params = [vendor_id, startDate, endDate];
-      }
-      // else 'all' → no date filter
-
-      // ✅ Get booking summary (Approved, Started, Completed)
-      const [[bookingStats]] = await db.query(
-        `
-        SELECT
-          COUNT(*) AS totalBookings,
-          SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS approvedBookings,
-          SUM(CASE WHEN sb.bookingStatus = 3 THEN 1 ELSE 0 END) AS startedBookings,
-          SUM(CASE WHEN sb.bookingStatus = 4 THEN 1 ELSE 0 END) AS completedBookings
-        FROM service_booking sb
-        WHERE sb.vendor_id = ? ${dateFilter};
-        `,
-        params
-      );
-
-      // ✅ Get total earnings (based on completed payments)
-      const [[earnings]] = await db.query(
-        `
-        SELECT
-          CAST(SUM(p.amount * (1 - ? / 100)) AS DECIMAL(10, 2)) AS totalEarnings
-        FROM service_booking sb
-        JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-        WHERE sb.vendor_id = ?
-          AND p.status = 'completed'
-          ${dateFilter};
-        `,
-        [platformFee, ...params]
-      );
-
-      // ✅ Response
-      res.status(200).json({
-        message: "Vendor dashboard stats fetched successfully",
-        filterType,
-        stats: {
-          totalBookings: bookingStats.totalBookings || 0,
-          approvedBookings: bookingStats.approvedBookings || 0,
-          startedBookings: bookingStats.startedBookings || 0,
-          completedBookings: bookingStats.completedBookings || 0,
-          totalEarnings: earnings.totalEarnings
-            ? parseFloat(earnings.totalEarnings)
-            : 0
+        if (filterType === "weekly") {
+            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+        } else if (filterType === "monthly") {
+            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
+        } else if (filterType === "custom" && startDate && endDate) {
+            dateFilter = "AND sb.created_at BETWEEN ? AND ?";
+            params = [vendor_id, startDate, endDate];
         }
-      });
+
+        // 4️⃣ Booking summary (Approved, Started, Completed)
+        const [[bookingStats]] = await db.query(`
+            SELECT
+              COUNT(*) AS totalBookings,
+              SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS approvedBookings,
+              SUM(CASE WHEN sb.bookingStatus = 3 THEN 1 ELSE 0 END) AS startedBookings,
+              SUM(CASE WHEN sb.bookingStatus = 4 THEN 1 ELSE 0 END) AS completedBookings
+            FROM service_booking sb
+            WHERE sb.vendor_id = ? ${dateFilter};
+        `, params);
+
+        // 5️⃣ Fetch all completed payment bookings for calculation
+        const [bookings] = await db.query(`
+            SELECT
+                sb.booking_id,
+                sb.user_promo_code_id,
+                p.amount AS payment_amount,
+                p.status
+            FROM service_booking sb
+            JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+            WHERE sb.vendor_id = ?
+              AND p.status = 'completed'
+              ${dateFilter};
+        `, params);
+
+        let totalEarningsCents = 0;
+
+        // 6️⃣ Loop each booking to compute promo-adjusted vendor earnings
+        for (const booking of bookings) {
+            const paidAmount = Number(booking.payment_amount) || 0;
+            const promoId = booking.user_promo_code_id;
+
+            let promoDiscount = 0;
+            let discountType = null;
+
+            // 🏷️ Check both user promo and system promo
+            if (promoId) {
+                const [[userPromo]] = await db.query(`
+                    SELECT pc.discountValue, pc.discount_type
+                    FROM user_promo_codes upc
+                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                    WHERE upc.user_promo_code_id = ?;
+                `, [promoId]);
+
+                if (userPromo && userPromo.discountValue != null) {
+                    promoDiscount = Number(userPromo.discountValue);
+                    discountType = userPromo.discount_type;
+                } else {
+                    const [[systemPromo]] = await db.query(`
+                        SELECT spct.discountValue, spct.discount_type
+                        FROM system_promo_codes spc
+                        LEFT JOIN system_promo_code_templates spct
+                          ON spc.template_id = spct.system_promo_code_template_id
+                        WHERE spc.system_promo_code_id = ?;
+                    `, [promoId]);
+
+                    if (systemPromo && systemPromo.discountValue != null) {
+                        promoDiscount = Number(systemPromo.discountValue);
+                        discountType = systemPromo.discount_type;
+                    }
+                }
+            }
+
+            // 🧮 Step 1: start from paid amount
+            let grossCents = Math.round(paidAmount * 100);
+
+            // 🧮 Step 2: add back promo discount if exists
+            if (promoDiscount && discountType) {
+                if (discountType === "fixed") {
+                    grossCents += Math.round(promoDiscount * 100);
+                } else if (discountType === "percentage") {
+                    const pct = promoDiscount;
+                    if (pct < 100) {
+                        grossCents = Math.round(grossCents / (1 - pct / 100));
+                    }
+                }
+            }
+
+            // 🧮 Step 3: subtract platform fee
+            const vendorCents = Math.round(grossCents * (1 - platformFee / 100));
+
+            totalEarningsCents += vendorCents;
+        }
+
+        // ✅ Convert cents to readable format
+        const totalEarnings = Number((totalEarningsCents / 100).toFixed(2));
+
+        // ✅ Final response
+        res.status(200).json({
+            message: "Vendor dashboard stats fetched successfully",
+            filterType,
+            stats: {
+                totalBookings: bookingStats.totalBookings || 0,
+                approvedBookings: bookingStats.approvedBookings || 0,
+                startedBookings: bookingStats.startedBookings || 0,
+                completedBookings: bookingStats.completedBookings || 0,
+                totalEarnings
+            }
+        });
+
     } catch (error) {
-      console.error("Error fetching vendor dashboard stats:", error);
-      res.status(500).json({
-        message: "Internal server error",
-        error: error.message
-      });
+        console.error("Error fetching vendor dashboard stats:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
     }
-  });
+});
+
 
 
 
