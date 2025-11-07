@@ -318,7 +318,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-    const { email, name, fcmToken, phone } = req.body;
+    const { email, name, fcmToken } = req.body;
 
     if (!email) {
         return res.status(400).json({ error: "Email is required" });
@@ -328,52 +328,29 @@ const googleLogin = asyncHandler(async (req, res) => {
         // ✂️ Split full name into first & last name
         let firstName = "";
         let lastName = "";
+
         if (name) {
             const parts = name.trim().split(" ");
             firstName = parts[0];
             lastName = parts.slice(1).join(" ") || "";
         }
 
-        // ✅ If phone provided → check for cross-country duplicates
-        if (phone) {
-            const normalizedInputPhone = normalizePhone(phone);
-            let [allUsers] = await db.query("SELECT user_id, phone FROM users");
-
-            const matchedByDigits = allUsers.find(u => {
-                const normalizedDbPhone = normalizePhone(u.phone);
-                return (
-                    normalizedDbPhone &&
-                    normalizedInputPhone &&
-                    normalizedDbPhone === normalizedInputPhone &&
-                    u.phone !== phone
-                );
-            });
-
-            if (matchedByDigits) {
-                return res.status(400).json({
-                    message:
-                        "This phone number (same digits) is already registered with another country code.",
-                    conflict: true,
-                });
-            }
-        }
-
-        // 1️⃣ Check if user already exists by email
+        // 1️⃣ Check if user exists
         const [existingUsers] = await db.query(userAuthQueries.userMailCheckGoogle, [email]);
         let user, user_id;
         let is_google_register = false; // false = already registered
 
         if (!existingUsers || existingUsers.length === 0) {
-            // 2️⃣ Not found → auto-register new Google user
+            // 2️⃣ Not found → auto-register a new Google user
             const [result] = await db.query(
-                `INSERT INTO users (email, firstName, lastName, phone, created_at)
-                 VALUES (?, ?, ?, ?, NOW())`,
-                [email, firstName, lastName, phone || null]
+                `INSERT INTO users (email, firstName, lastName, created_at)
+                 VALUES (?, ?, ?, NOW())`,
+                [email, firstName, lastName]
             );
 
             user_id = result.insertId;
-            user = { user_id, email, firstName, lastName, phone };
-            is_google_register = true; // new user
+            user = { user_id, email, firstName, lastName };
+            is_google_register = true; // true for new user
         } else {
             user = existingUsers[0];
             user_id = user.user_id;
@@ -398,7 +375,6 @@ const googleLogin = asyncHandler(async (req, res) => {
             email,
             firstName: user.firstName || firstName,
             lastName: user.lastName || lastName,
-            phone: user.phone || phone || null,
             token,
             is_google_register,
         });
@@ -407,10 +383,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         if (fcmToken && fcmToken !== user.fcmToken) {
             (async () => {
                 try {
-                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [
-                        fcmToken,
-                        user_id,
-                    ]);
+                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
                     console.log(`📱 FCM token updated for user ${user_id}`);
                 } catch (err) {
                     console.error("❌ FCM token update error:", err.message);
@@ -442,6 +415,7 @@ const googleLogin = asyncHandler(async (req, res) => {
                 }
             })();
         }
+
     } catch (err) {
         console.error("Google Login Error:", err);
         res.status(500).json({ error: "Server error", details: err.message });
