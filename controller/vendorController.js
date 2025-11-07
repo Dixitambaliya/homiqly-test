@@ -9,7 +9,7 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch services with their packages
         const [rows] = await db.query(`
-                SELECT 
+                SELECT
                     sc.service_categories_id AS serviceCategoryId,
                     sc.serviceCategory AS categoryName,
                     s.service_id AS serviceId,
@@ -29,7 +29,7 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
 
         // 2️⃣ Fetch all sub-packages (package_items)
         const [subPackageRows] = await db.query(`
-            SELECT 
+            SELECT
                 item_id,
                 package_id,
                 itemName AS itemName
@@ -130,7 +130,7 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
         // ✅ Fetch vendor details
         const [vendorDetails] = await connection.query(
             `
-            SELECT v.vendor_id, v.vendorType, 
+            SELECT v.vendor_id, v.vendorType,
                    COALESCE(i.name, c.companyName) AS vendorName,
                    COALESCE(i.email, c.companyEmail) AS vendorEmail
             FROM vendors v
@@ -154,8 +154,8 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
 
             // ✅ Check package exists
             const [packageExists] = await connection.query(
-                `SELECT 
-                 package_id 
+                `SELECT
+                 package_id
                  FROM packages WHERE package_id = ?`,
                 [package_id]
             );
@@ -168,7 +168,7 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
 
             // ✅ Store application
             const [insertResult] = await connection.query(
-                `INSERT INTO vendor_package_applications (vendor_id, package_id, status) 
+                `INSERT INTO vendor_package_applications (vendor_id, package_id, status)
                  VALUES (?, ?, 0)`,
                 [vendor_id, package_id]
             );
@@ -359,7 +359,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                     ? await db.query(
                         `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
                                 businessLicenseExpireDate, certificateOfExpertiseExpireDate,
-                                companyName, dob, companyEmail, companyPhone, 
+                                companyName, dob, companyEmail, companyPhone,
                                 googleBusinessProfileLink, companyAddress, contactPerson, expertise
                          FROM company_details WHERE vendor_id = ?`,
                         [vendor_id]
@@ -382,17 +382,17 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         if (vendor_type === "individual") {
             await db.query(
                 `UPDATE individual_details
-                 SET profileImage = ?, 
-                     policeClearance = ?, 
-                     certificateOfExpertise = ?, 
-                     businessLicense = ?, 
-                     businessLicenseExpireDate = ?, 
-                     certificateOfExpertiseExpireDate = ?, 
-                     name = ?, 
-                     address = ?, 
-                     dob = ?, 
-                     email = ?, 
-                     phone = ?, 
+                 SET profileImage = ?,
+                     policeClearance = ?,
+                     certificateOfExpertise = ?,
+                     businessLicense = ?,
+                     businessLicenseExpireDate = ?,
+                     certificateOfExpertiseExpireDate = ?,
+                     name = ?,
+                     address = ?,
+                     dob = ?,
+                     email = ?,
+                     phone = ?,
                      aboutMe = ?,
                      expertise = ?
                  WHERE vendor_id = ?`,
@@ -416,18 +416,18 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-                 SET profileImage = ?, 
-                     policeClearance = ?, 
-                     certificateOfExpertise = ?, 
-                     businessLicense = ?, 
-                     businessLicenseExpireDate = ?, 
-                     certificateOfExpertiseExpireDate = ?, 
-                     companyName = ?, 
-                     dob = ?, 
-                     companyEmail = ?, 
-                     companyPhone = ?, 
-                     googleBusinessProfileLink = ?, 
-                     companyAddress = ?, 
+                 SET profileImage = ?,
+                     policeClearance = ?,
+                     certificateOfExpertise = ?,
+                     businessLicense = ?,
+                     businessLicenseExpireDate = ?,
+                     certificateOfExpertiseExpireDate = ?,
+                     companyName = ?,
+                     dob = ?,
+                     companyEmail = ?,
+                     companyPhone = ?,
+                     googleBusinessProfileLink = ?,
+                     companyAddress = ?,
                      contactPerson = ?,
                      expertise = ?
                  WHERE vendor_id = ?`,
@@ -499,7 +499,7 @@ const editServiceType = asyncHandler(async (req, res) => {
 
             // Ensure the vendor actually owns this vendor_packages entry
             const [checkVendorPkg] = await connection.query(
-                `SELECT * FROM vendor_packages 
+                `SELECT * FROM vendor_packages
                  WHERE vendor_packages_id = ? AND vendor_id = ? AND package_id = ?`,
                 [vendor_packages_id, vendor_id, package_id]
             );
@@ -819,6 +819,16 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "vendor_id is required" });
     }
 
+    const [vendorExists] = await db.query(
+        "SELECT vendor_id FROM vendors WHERE vendor_id = ?",
+        [vendor_id]
+    );
+
+    if (vendorExists.length === 0) {
+        return res.status(400).json({ message: "Vendor does not exist." });
+    }
+
+
     try {
         await db.query(`
             INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
@@ -1047,7 +1057,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { booking_id, status } = req.body;
 
-    // ✅ Validate input    
+    // ✅ Validate input
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
     }
@@ -1055,8 +1065,8 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     try {
         // 🔐 Check if the booking is assigned to the current vendor
         const [checkBooking] = await db.query(
-            `SELECT sb.booking_id, 
-                    sb.vendor_id, 
+            `SELECT sb.booking_id,
+                    sb.vendor_id,
                     sb.user_id,
                     sb.bookingDate,
                     sb.bookingTime,
@@ -1101,8 +1111,8 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         // ✅ Build dynamic update query
         const updateKeys = Object.keys(updateFields);
         const updateValues = Object.values(updateFields);
-        const updateSQL = `UPDATE service_booking 
-                           SET ${updateKeys.map(k => `${k} = ?`).join(', ')} 
+        const updateSQL = `UPDATE service_booking
+                           SET ${updateKeys.map(k => `${k} = ?`).join(', ')}
                            WHERE booking_id = ?`;
 
         await db.query(updateSQL, [...updateValues, booking_id]);
@@ -1134,9 +1144,9 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         // ✅ Handle payout logic when booking is completed
         if (status === 4) {
             const [[paymentInfo]] = await db.query(
-                `SELECT 
-                    p.amount, 
-                    p.currency, 
+                `SELECT
+                    p.amount,
+                    p.currency,
                     p.status AS payment_status,
                     p.payment_intent_id,
                     v.vendorType
@@ -1149,8 +1159,8 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
             if (paymentInfo && paymentInfo.payment_status === 'completed') {
                 const [feeRows] = await db.query(
-                    `SELECT platform_fee_percentage 
-                     FROM platform_settings 
+                    `SELECT platform_fee_percentage
+                     FROM platform_settings
                      WHERE vendor_type = ? LIMIT 1`,
                     [paymentInfo.vendorType]
                 );
@@ -1160,7 +1170,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                 const payout_amount = Number((gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2));
 
                 await db.query(
-                    `INSERT INTO vendor_payouts 
+                    `INSERT INTO vendor_payouts
                      (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, platform_fee_percentage, payout_amount, currency)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                      ON DUPLICATE KEY UPDATE
@@ -1278,7 +1288,7 @@ const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     try {
         // ✅ Fetch all package-subpackage pairs assigned to vendor
         const [assignedRows] = await db.query(
-            `SELECT 
+            `SELECT
                 vpf.vendor_packages_id,
                 vpf.package_id,
                 vpf.package_item_id,
@@ -1423,8 +1433,8 @@ const editEmployeeProfileByCompany = asyncHandler(async (req, res) => {
     try {
         // Step 1: Fetch employee and check if belongs to this vendor/company
         const [existingRows] = await db.query(
-            `SELECT first_name, last_name, phone, email, profile_image, password 
-             FROM company_employees 
+            `SELECT first_name, last_name, phone, email, profile_image, password
+             FROM company_employees
              WHERE employee_id = ? AND vendor_id = ?`,
             [employee_id, vendorId]
         );

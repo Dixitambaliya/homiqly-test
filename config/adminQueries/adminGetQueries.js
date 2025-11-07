@@ -29,7 +29,7 @@ const adminGetQueries = {
 
         vs.manual_assignment_enabled AS status,
 
-        -- 🟩 Packages (via vendor_package_items_flat)
+        -- 🟩 Packages (via vendor_p    ackage_items_flat)
         COALESCE(
             (
                 SELECT CONCAT(
@@ -64,6 +64,7 @@ const adminGetQueries = {
                     '[',
                     GROUP_CONCAT(
                         JSON_OBJECT(
+                            'vendor_packages_id', vpf.vendor_packages_id,
                             'package_id', p.package_id,
                             'package_item_id', pi.item_id,
                             'itemName', pi.itemName,

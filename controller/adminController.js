@@ -200,7 +200,6 @@ const getVendor = asyncHandler(async (req, res) => {
                     }));
 
                 serviceMap[serviceId].packages.push({
-                    vendor_packages_id: pkg.vendor_packages_id,
                     package_id: pkg.package_id,
                     serviceLocation: pkg.serviceLocation,
                     items

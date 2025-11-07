@@ -87,11 +87,6 @@ const registerBankAccount = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-// ----------------------------
-// Get bank account details
-// ----------------------------
 const getBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -123,9 +118,6 @@ const getBankAccount = asyncHandler(async (req, res) => {
     res.json(rows[0]);
 });
 
-// ----------------------------
-// Edit Bank Account (PATCH)
-// ----------------------------
 const editBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -230,11 +222,6 @@ const editBankAccount = asyncHandler(async (req, res) => {
     res.json({ message: "Bank account edited successfully." });
 });
 
-
-
-// ----------------------------
-// Edit Bank Account (PATCH)
-// ----------------------------
 const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
     const [rows] = await db.query(
         `SELECT v.vendor_id,
@@ -251,7 +238,6 @@ const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
 
     res.json(rows);
 });
-
 
 const applyForPayout = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -352,8 +338,6 @@ const applyForPayout = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
-
 
 const getVendorPayoutStatus = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
