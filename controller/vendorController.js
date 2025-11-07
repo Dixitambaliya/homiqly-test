@@ -324,7 +324,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -492,8 +491,6 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1224,7 +1221,6 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { filterType, startDate, endDate } = req.query;
@@ -1366,9 +1362,6 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
-
 
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;

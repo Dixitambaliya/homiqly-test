@@ -1,31 +1,39 @@
 const analyticsGetQueries = {
+
     getDashboardStats: `
-SELECT 
-    (SELECT COUNT(*) FROM users) AS total_users,
-    (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) AS total_vendors,
-    (SELECT COUNT(*) FROM contractors WHERE is_active = 1) AS total_contractors,
-    (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1 AND completed_flag = 1 ) AS completed_bookings,
-    (SELECT COUNT(*) FROM service_booking WHERE bookingStatus = 1 AND completed_flag = 0)  AS pending_bookings,
-    (SELECT IFNULL(SUM(amount), 0) 
-     FROM payments 
-     WHERE status = 'completed') AS total_revenue
+    SELECT
+        (SELECT COUNT(*) FROM users) AS total_users,
+        (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) AS total_vendors,
+        (SELECT COUNT(*) FROM contractors WHERE is_active = 1) AS total_contractors,
+        (SELECT COUNT(*)
+         FROM service_booking
+         WHERE bookingStatus = 1 AND completed_flag = 1) AS completed_bookings,
+        (SELECT COUNT(*)
+         FROM service_booking
+         WHERE bookingStatus = 1 AND completed_flag = 0) AS pending_bookings,
+        (SELECT IFNULL(SUM(p.amount), 0)
+         FROM payments p
+         INNER JOIN service_booking sb
+             ON sb.payment_intent_id = p.payment_intent_id
+         WHERE p.status = 'completed') AS total_revenue
     `,
 
+
     getBookingTrends: `
-        SELECT 
+        SELECT
             DATE(bookingDate) as booking_date,
             COUNT(*) as booking_count,
             SUM(CASE WHEN bookingStatus = 1 THEN 1 ELSE 0 END) as completed_count,
             SUM(CASE WHEN bookingStatus = 0 THEN 1 ELSE 0 END) as pending_count,
             SUM(CASE WHEN bookingStatus = 2 THEN 1 ELSE 0 END) as cancelled_count
-        FROM service_booking 
+        FROM service_booking
         WHERE bookingDate >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         GROUP BY DATE(bookingDate)
         ORDER BY booking_date DESC
     `,
 
     getServiceCategoryStats: `
-        SELECT 
+        SELECT
             sc.serviceCategory,
             COUNT(sb.booking_id) as booking_count
         FROM service_categories sc
@@ -39,9 +47,9 @@ SELECT
     `,
 
     getVendorPerformance: `
-        SELECT 
+        SELECT
             v.vendor_id,
-            CASE 
+            CASE
                 WHEN v.vendorType = 'individual' THEN ind.name
                 WHEN v.vendorType = 'company' THEN comp.companyName
             END AS vendor_name,
@@ -63,7 +71,7 @@ SELECT
     `,
 
     getRevenueAnalytics: `
-        SELECT 
+        SELECT
             YEAR(sb.bookingDate) AS year,
             MONTH(sb.bookingDate) AS month,
             SUM(pay.amount) AS gross_revenue,

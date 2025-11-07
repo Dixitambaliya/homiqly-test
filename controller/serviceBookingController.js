@@ -440,8 +440,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
