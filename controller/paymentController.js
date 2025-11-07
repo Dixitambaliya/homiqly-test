@@ -162,7 +162,7 @@ const editBankAccount = asyncHandler(async (req, res) => {
     };
 
     for (const [key, value] of Object.entries(requiredFields)) {
-        if (value === undefined || value === null || value === "") {.
+        if (value === undefined || value === null || value === "") {
             return res.status(400).json({
                 message: `Field '${key}' is required.`
             });
