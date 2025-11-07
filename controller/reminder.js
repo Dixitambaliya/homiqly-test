@@ -19,84 +19,6 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
     });
 
     // =============================
-    // 1️⃣ PAYMENT REMINDER
-    // =============================
-    try {
-        console.log("🔍 Checking for payment reminders...");
-        const [paymentRows] = await db.query(
-            `
-            SELECT
-                sb.booking_id,
-                sb.user_id,
-                sb.bookingDate,
-                sb.bookingTime,
-                CONCAT(u.firstName, ' ', u.lastName) AS user_name,
-                u.email
-            FROM service_booking sb
-            JOIN users u ON u.user_id = sb.user_id
-            LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-            WHERE sb.bookingStatus = 1
-                AND (p.status IS NULL OR p.status <> 'completed')
-                AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime)) > NOW()
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM notifications n
-                    WHERE n.user_type = 'users'
-                        AND n.user_id = sb.user_id
-                        AND n.title = 'Payment reminder'
-                        AND COALESCE(JSON_EXTRACT(n.data, '$.booking_id'), 0) = sb.booking_id
-                        AND n.sent_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
-                )
-            `,
-            [REMINDER_INTERVAL_MINUTES]
-        );
-
-        for (const b of paymentRows) {
-            const name = b.user_name || `User #${b.user_id}`;
-            const subject = "Payment reminder";
-            const bodyText = `
-                Hi ${name},
-
-                Your booking (#${b.booking_id}) is approved, but payment hasn't been completed yet.
-                Please pay before the service starts on ${b.bookingDate} at ${b.bookingTime}.
-
-                Thanks,
-                Homiqly Team
-            `.trim();
-
-            try {
-                await transporter.sendMail({
-                    from: `"Homiqly" <${process.env.EMAIL_USER}>`,
-                    to: b.email,
-                    subject,
-                    text: bodyText,
-                    html: bodyText.replace(/\n/g, "<br/>"),
-                });
-                console.log(`✅ Payment reminder sent to ${b.email} for booking ${b.booking_id}`);
-            } catch (e) {
-                console.error(`❌ Email failed for booking ${b.booking_id}:`, e.message);
-            }
-
-            try {
-                const notifData = { booking_id: b.booking_id, user_id: b.user_id, name };
-                await db.query(
-                    `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
-                     VALUES ('users', ?, 'Payment reminder', ?, ?, 0, CURRENT_TIMESTAMP)`,
-                    [
-                        b.user_id,
-                        `Please complete payment for booking #${b.booking_id} before the service starts.`,
-                        JSON.stringify(notifData),
-                    ]
-                );
-            } catch (e) {
-                console.error(`⚠️ Notification insert failed for booking ${b.booking_id}:`, e.message);
-            }
-        }
-    } catch (err) {
-        console.error("❌ Payment reminder cron error:", err.message);
-    }
-
-    // =============================
     // 2️⃣ SERVICE START REMINDER
     // =============================
     try {
@@ -283,9 +205,9 @@ cron.schedule("0 0 * * *", async () => {
 
         for (const promo of promos) {
             const [eligibleUsers] = await db.query(
-                `SELECT 
-                 service_booking.user_id, 
-                 email, 
+                `SELECT
+                 service_booking.user_id,
+                 email,
                  COUNT(*) as completed_count
                  FROM service_booking
                  JOIN users ON users.user_id = service_booking.user_id

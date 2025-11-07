@@ -324,6 +324,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
     const {
@@ -372,11 +373,16 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
 
         const current = existing[0];
 
-        // ✅ Preserve old media if not provided
-        const profileImageVendor = newFiles?.profileImageVendor?.[0]?.url || current.profileImage;
-        const policeClearance = newFiles?.policeClearance?.[0]?.url || current.policeClearance;
-        const certificateOfExpertise = newFiles?.certificateOfExpertise?.[0]?.url || current.certificateOfExpertise;
-        const businessLicense = newFiles?.businessLicense?.[0]?.url || current.businessLicense;
+        // ✅ Smart media handling: remove if empty, keep old if not sent
+        const handleMediaField = (fieldName, fileKey, currentValue) => {
+            if (req.body[fieldName] === "") return null; // explicit remove
+            return newFiles?.[fileKey]?.[0]?.url || currentValue; // preserve or replace
+        };
+
+        const profileImageVendor = handleMediaField("profileImageVendor", "profileImageVendor", current.profileImage);
+        const policeClearance = handleMediaField("policeClearance", "policeClearance", current.policeClearance);
+        const certificateOfExpertise = handleMediaField("certificateOfExpertise", "certificateOfExpertise", current.certificateOfExpertise);
+        const businessLicense = handleMediaField("businessLicense", "businessLicense", current.businessLicense);
 
         // ✅ Update vendor profile
         if (vendor_type === "individual") {
@@ -457,7 +463,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                 const certFile = newFiles?.[`certificateFiles_${i}`]?.[0]?.url;
                 if (certName && certFile) {
                     return db.query(
-                        `INSERT INTO certificates (vendor_id, certificateName, certificateFile) VALUES (?, ?, ?)`,
+                        `INSERT INTO certificates (vendor_id, certificateName, certificateFile)
+                         VALUES (?, ?, ?)`,
                         [vendor_id, certName, certFile]
                     );
                 }
@@ -466,13 +473,17 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
             await Promise.all(insertPromises);
         }
 
-        res.status(200).json({ message: "Vendor profile updated successfully (media preserved)" });
+        res.status(200).json({
+            message: "✅ Vendor profile updated successfully (media preserved or cleared if empty)"
+        });
 
     } catch (err) {
-        console.error("Error updating vendor profile:", err);
+        console.error("❌ Error updating vendor profile:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

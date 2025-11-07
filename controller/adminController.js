@@ -101,7 +101,6 @@ const editAdminProfile = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendor = asyncHandler(async (req, res) => {
     try {
         // 📄 Pagination setup
@@ -229,7 +228,6 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
@@ -1756,7 +1754,6 @@ const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
     // ✅ Assumes admin authentication and authorization middleware already applied
     const { vendor_packages_id } = req.params;
@@ -1822,8 +1819,6 @@ const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
-
 
 const deleteUserByAdmin = asyncHandler(async (req, res) => {
     try {

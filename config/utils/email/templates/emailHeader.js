@@ -1,18 +1,26 @@
 const path = require("path");
 
-const emailHeader = () => {
+const emailHeader = (alignment = "left") => {
     const logoPath = path.resolve("config/media/homiqly.png");
     const cidName = "homiqlyLogo";
 
+    // alignment can be 'left' or 'right'
+    const textAlign = alignment === "right" ? "right" : "left";
+
     const html = `
-    <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
-      <div style="display: inline-block; background-color: #ffffff; padding: 10px; border-radius: 8px;">
-        <img src="cid:${cidName}" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />
+      <div>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="${textAlign}">
+              <img src="cid:${cidName}" alt="Homiqly Logo" width="130" />
+            </td>
+          </tr>
+        </table>
       </div>
-    </div>
-  `;
+    `;
 
     return { html, logoPath, cidName };
 };
+
 
 module.exports = { emailHeader };
