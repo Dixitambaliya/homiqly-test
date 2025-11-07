@@ -1,7 +1,19 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
 const userGetQueries = require("../config/userQueries/userGetQueries")
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const bcrypt = require("bcryptjs")
+
+function normalizePhone(phone) {
+    if (!phone) return null;
+    try {
+        const parsed = parsePhoneNumberFromString(phone);
+        if (!parsed) return phone;
+        return parsed.nationalNumber; // e.g., +91 9427988352 → "9427988352"
+    } catch {
+        return phone;
+    }
+}
 
 const getServiceCategories = asyncHandler(async (req, res) => {
     try {
@@ -91,7 +103,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
 
         // 2️⃣ Fetch average rating and review count per service
         const [ratings] = await db.query(`
-            SELECT 
+            SELECT
                 s.service_id,
                 ROUND(AVG(r.rating), 1) AS avgRating,
                 COUNT(r.rating_id) AS reviewCount
@@ -246,8 +258,8 @@ const updateUserData = asyncHandler(async (req, res) => {
     try {
         // Step 1: Fetch existing user data
         const [existingRows] = await db.query(
-            `SELECT firstName, lastName, email, phone, profileImage, is_approved 
-             FROM users 
+            `SELECT firstName, lastName, email, phone, profileImage, is_approved
+             FROM users
              WHERE user_id = ?`,
             [user_id]
         );
@@ -258,35 +270,83 @@ const updateUserData = asyncHandler(async (req, res) => {
 
         const existing = existingRows[0];
 
-        // Step 2: Prevent updating phone if user is approved
+        // Step 2: Determine if phone can be updated
         let updatedPhone = existing.phone;
+
         if (existing.is_approved !== 1 && phone) {
-            // Step 2a: Check if phone already exists for another user
+            // ✅ Normalize both new and DB phones
+            const normalizedInputPhone = normalizePhone(phone);
+
+            // ✅ Fetch all users (for cross-country check)
+            const [allUsers] = await db.query("SELECT user_id, phone FROM users");
+
+            const matchedByDigits = allUsers.find(u => {
+                const normalizedDbPhone = normalizePhone(u.phone);
+                return (
+                    normalizedDbPhone &&
+                    normalizedInputPhone &&
+                    normalizedDbPhone === normalizedInputPhone &&
+                    u.user_id !== user_id &&
+                    u.phone !== phone
+                );
+            });
+
+            if (matchedByDigits) {
+                return res.status(400).json({
+                    message:
+                        "This phone number (same digits) is already registered with another country code.",
+                    conflict: true,
+                });
+            }
+
+            // ✅ Check if exact phone already exists
             const [phoneRows] = await db.query(
                 `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
                 [phone, user_id]
             );
+
             if (phoneRows.length > 0) {
                 return res.status(400).json({ message: "Phone number already in use" });
             }
+
             updatedPhone = phone;
+        } else if (existing.is_approved === 1 && phone && phone !== existing.phone) {
+            return res.status(403).json({
+                message: "Approved users cannot update their phone number",
+            });
         }
 
         const updatedFirstName = firstName || existing.firstName;
         const updatedLastName = lastName || existing.lastName;
         const updatedEmail = email || existing.email;
-        const updatedProfileImage = req.uploadedFiles?.profileImage?.[0]?.url || existing.profileImage;
+        const updatedProfileImage =
+            req.uploadedFiles?.profileImage?.[0]?.url || existing.profileImage;
 
-        // Step 3: Update the user record
+        // Step 3: Update user record
         await db.query(
-            `UPDATE users SET profileImage = ?, firstName = ?, lastName = ?, email = ?, phone = ? WHERE user_id = ?`,
-            [updatedProfileImage, updatedFirstName, updatedLastName, updatedEmail, updatedPhone, user_id]
+            `UPDATE users
+             SET profileImage = ?, firstName = ?, lastName = ?, email = ?, phone = ?
+             WHERE user_id = ?`,
+            [
+                updatedProfileImage,
+                updatedFirstName,
+                updatedLastName,
+                updatedEmail,
+                updatedPhone,
+                user_id,
+            ]
         );
 
         res.status(200).json({
-            message: "User data updated successfully"
+            message: "User data updated successfully",
+            updated: {
+                firstName: updatedFirstName,
+                lastName: updatedLastName,
+                email: updatedEmail,
+                phone: updatedPhone,
+                profileImage: updatedProfileImage,
+            },
         });
-
     } catch (err) {
         console.error("Error updating user data:", err);
         res.status(500).json({ error: "Database error", details: err.message });
@@ -361,8 +421,8 @@ const addUserData = asyncHandler(async (req, res) => {
 
         // 5️⃣ Update user data
         await connection.query(
-            `UPDATE users 
-             SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ? 
+            `UPDATE users
+             SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ?
              WHERE user_id = ?`,
             [
                 firstName,
@@ -567,7 +627,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
 
     try {
         const [packages] = await db.query(
-            `SELECT 
+            `SELECT
                 p.package_id,
                 p.packageName,
                 p.packageMedia
@@ -608,7 +668,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch package + subpackages + related data
         const [rows] = await db.query(
-            `SELECT 
+            `SELECT
                 p.package_id,
                 p.packageName,
                 p.packageMedia,
@@ -649,7 +709,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
 
         // 2️⃣ Fetch average rating per sub_package that has booking data in service_booking_sub_packages
         const [ratingRows] = await db.query(
-            `SELECT 
+            `SELECT
                 sbsp.sub_package_id,
                 ROUND(AVG(r.rating), 1) AS avgRating,
                 COUNT(r.rating_id) AS reviewCount
@@ -805,14 +865,14 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
         // 1️⃣ Fetch user data
         // =======================
         const results = await db.query(
-            `SELECT 
-                user_id, 
-                firstName, 
-                lastName, 
-                email, 
-                phone, 
+            `SELECT
+                user_id,
+                firstName,
+                lastName,
+                email,
+                phone,
                 flatNumber
-             FROM users 
+             FROM users
              WHERE user_id = ?`,
             [user_id]
         );
@@ -830,8 +890,8 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
         // 2️⃣ Fetch active service tax
         // =======================
         const [[taxRow]] = await db.query(`
-            SELECT taxName, taxPercentage 
-            FROM service_taxes 
+            SELECT taxName, taxPercentage
+            FROM service_taxes
             WHERE status = '1'
         `);
 
@@ -842,7 +902,7 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
         // 3️⃣ Fetch specific cart OR all carts
         // =======================
         const [cartRows] = await db.query(
-            `SELECT 
+            `SELECT
                 sc.cart_id,
                 sc.service_id,
                 sc.user_id,
@@ -872,7 +932,7 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
 
             // ---- Sub-Packages ----
             const [subPackages] = await db.query(
-                `SELECT 
+                `SELECT
                     cpi.cart_package_items_id,
                     cpi.sub_package_id,
                     pi.itemName,
@@ -1000,7 +1060,7 @@ const getUserProfileWithCart = asyncHandler(async (req, res) => {
 
                 if (!promoDetails) {
                     const [systemPromoRows] = await db.query(
-                        `SELECT sc.*, st.discount_type, st.discountValue 
+                        `SELECT sc.*, st.discount_type, st.discountValue
                          FROM system_promo_codes sc
                          JOIN system_promo_code_templates st ON sc.template_id = st.system_promo_code_template_id
                          WHERE sc.system_promo_code_id = ? LIMIT 1`,
