@@ -129,18 +129,18 @@ const getBankAccount = asyncHandler(async (req, res) => {
 const editBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
-    const {
+    let {
         account_holder_name,
         bank_name,
         institution_number,
         transit_number,
         account_number,
-        bank_address,
-        email,
+        bank_address = null,
+        email = null,
         legal_name,
         dob,
-        business_name,
-        preferred_transfer_type,
+        business_name = null, // for business
+        preferred_transfer_type = "bank_transfer",
         interac_email,
         interac_phone
     } = req.body;
@@ -156,7 +156,6 @@ const editBankAccount = asyncHandler(async (req, res) => {
         email,
         legal_name,
         dob,
-        business_name,
         preferred_transfer_type,
         interac_email,
         interac_phone
