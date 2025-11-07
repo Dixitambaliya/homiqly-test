@@ -251,7 +251,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         const [platformSettings] = await db.query(bookingGetQueries.getPlateFormFee, [vendorType]);
         const platformFeeRaw = platformSettings?.[0]?.platform_fee_percentage ?? 0;
         const platformFee = Number(parseFloat(platformFeeRaw).toFixed(2)); // e.g. 10.00
-        console.log(platformFee);
 
         // 3️⃣ Build filters
         let filterCondition = "WHERE sb.vendor_id = ?";
@@ -312,63 +311,58 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         // 6️⃣ Process each booking
         for (const booking of bookings) {
             const bookingId = booking.booking_id;
-            const paidAmount = Number(booking.payment_amount) || 0; // from payments table
-            console.log(paidAmount);
-            
-            // 🔹 Fetch promo discount (user first, then system)
+
+            // ---------- Compute Vendor Payable ----------
+            const paidAmount = Number(booking.payment_amount) || 0; // Stripe final paid
             let promoDiscount = 0;
             let discountType = null;
 
+            // Fetch promo discount if applicable
             if (booking.user_promo_code_id) {
                 const [[userPromo]] = await db.query(`
-            SELECT pc.discountValue, pc.discount_type
-            FROM user_promo_codes upc
-            LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-            WHERE upc.user_promo_code_id = ?
-          `, [booking.user_promo_code_id]);
+                    SELECT pc.discountValue, pc.discount_type
+                    FROM user_promo_codes upc
+                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                    WHERE upc.user_promo_code_id = ?`,
+                    [booking.user_promo_code_id]
+                );
 
-                if (userPromo && userPromo.discountValue != null) {
+                if (userPromo) {
                     promoDiscount = Number(userPromo.discountValue);
                     discountType = userPromo.discount_type;
                 } else {
                     const [[systemPromo]] = await db.query(`
-              SELECT spct.discountValue, spct.discount_type
-              FROM system_promo_codes spc
-              LEFT JOIN system_promo_code_templates spct
-                ON spc.template_id = spct.system_promo_code_template_id
-              WHERE spc.system_promo_code_id = ?
-            `, [booking.user_promo_code_id]);
-            console.log(systemPromo);
-                    if (systemPromo && systemPromo.discountValue != null) {
+                        SELECT spct.discountValue, spct.discount_type
+                        FROM system_promo_codes spc
+                        LEFT JOIN system_promo_code_templates spct
+                        ON spc.template_id = spct.system_promo_code_template_id
+                        WHERE spc.system_promo_code_id = ?`,
+                        [booking.user_promo_code_id]
+                    );
+                    if (systemPromo) {
                         promoDiscount = Number(systemPromo.discountValue);
                         discountType = systemPromo.discount_type;
                     }
                 }
             }
+            // Apply promo back directly to main paid amount
+            let grossAmount = paidAmount;
 
-            // 💰 Reconstruct gross (pre-promo) in cents
-            let grossCents = Math.round(paidAmount * 100);
-
-            if (promoDiscount && discountType) {
-                if (discountType === "fixed") {
-                    grossCents += Math.round(promoDiscount * 100);
-                } else if (discountType === "percentage") {
-                    const pct = promoDiscount;
-                    if (pct < 100) {
-                        grossCents = Math.round(grossCents / (1 - pct / 100));
-                    }
-                }
+            if (promoDiscount && discountType === "percentage") {
+                grossAmount = paidAmount * (1 + promoDiscount / 100);
+            } else if (promoDiscount && discountType === "fixed") {
+                grossAmount = paidAmount + promoDiscount;
             }
 
-            // 💸 Platform fee and vendor payable
-            const platformFeeCents = Math.round(grossCents * (platformFee / 100));
-            const vendorCents = grossCents - platformFeeCents;
 
-            const platformFeeAmount = platformFeeCents / 100;
-            const vendorPayable = vendorCents / 100;
+            // Subtract platform fee (10%)
+            const platformFeeAmount = (grossAmount * (platformFee / 100));
+            const vendorPayable = grossAmount - platformFeeAmount;
 
+            booking.grossAmount = Number(grossAmount.toFixed(2)); // includes promo
             booking.platformFeeAmount = Number(platformFeeAmount.toFixed(2));
-            booking.payment_amount = Number(vendorPayable.toFixed(2));
+            booking.payment_amount = Number(vendorPayable.toFixed(2)); // vendor gets
+
 
             // 🧹 Cleanup
             delete booking.user_promo_code_id;
