@@ -684,7 +684,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 pa.addonName AS addon_name,
                 pa.addonDescription AS addon_description,
                 pa.addonPrice AS addon_price,
-                pa.addonTime AS time_required,
+                pa.addonTime AS timeRequired,
                 bp.preference_id,
                 bp.preferenceValue,
                 bp.preferencePrice,
