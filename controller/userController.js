@@ -793,7 +793,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                             preference_value: row.preferenceValue,
                             time_required: row.time_required,
                             preference_price: row.preferencePrice,
-
                         });
                     }
                 }

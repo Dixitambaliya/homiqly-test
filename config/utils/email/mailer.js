@@ -20,40 +20,50 @@ const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
     const subject = "Welcome to the Homiqly community";
 
     const bodyHtml = `
-  <div style="padding: 35px 30px; font-size: 15px; color: #333; max-width: 480px;">
-    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 10px;">
-      Welcome to Homiqly, ${firstName || "there"}!
-    </h2>
+    <div style="background-color: #ffffff; ">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-collapse: collapse;">
+        <tr>
+          <td style="padding:5px 40px 40px; font-family: Arial, sans-serif; text-align: left;">
+            <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 15px; color: #222;">
+              Test, Welcome to the Homiqly community — we’re thrilled to have you on board!
+            </h2>
 
-    <p style="font-size: 15px; line-height: 1.6; color: #444;">
-      We’re thrilled to have you join our community. Discover trusted vendors, explore personalized services, and make your life easier — all from one platform.
-    </p>
+            <p style="font-size: 15px; line-height: 1.6; color: #444; margin-bottom: 15px;">
+              Your account is all set up and ready to go. Log in anytime to discover tailored services, connect with trusted experts, and start your journey with Homiqly.
+            </p>
 
-    <p style="font-size: 14px; color: #555; margin-top: 15px;">
-      Start exploring now and enjoy exclusive offers curated just for you.
-    </p>
+            <p style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 15px;">
+              Got a question before you dive in? Our support team is always here to help — just visit
+              <a href="https://www.homiqly.com/help" style="color: #4da3ff; text-decoration: none;">Homiqly Help</a>
+              or reach out directly through the Help section in your dashboard.
+            </p>
 
-    <div style="text-align: center; margin-top: 25px;">
-      <a href="https://www.homiqly.com" style="background:#000000;color:white;padding:12px 24px;border-radius:5px;text-decoration:none;font-weight:600;display:inline-block;">
-        Explore Homiqly
-      </a>
-    </div>
+            <p style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 15px;">
+              Thanks for joining us — we can’t wait for you to experience everything Homiqly has to offer.
+            </p>
 
-    <p style="font-size: 14px; color: #555; margin-top: 20px;">
-      Thanks for joining us,<br/>
-      <strong>The Homiqly Team</strong>
-    </p>
-    </div>
+            <p style="font-size: 14px; color: #555; margin-bottom: 25px;">
+              Here’s to your next step,
+            </p>
+
+            <p style="font-size: 16px; color: #333; margin-top: 0;">
+              <strong>The Homiqly Team</strong>
+            </p>
+          </td>
+        </tr>
+      </table>
   `;
+
 
     await sendMail({
         to: userEmail,
         subject,
         bodyHtml,
+        layout: "welcomeMail",
     });
 };
 
-//done
+
 const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) => {
     try {
         // 📬 1. Fetch admin emails
@@ -112,7 +122,7 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
     }
 };
 
-//done
+
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     try {
         // 🧩 Fetch user
@@ -282,7 +292,6 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     }
 };
 
-//done
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
     try {
         // 🔹 Get vendor email/name from individual or company table
@@ -712,7 +721,7 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
         </h2>
 
         <p style="font-size: 15px; line-height: 1.6; color: #444; text-align:left">
-          We’re thrilled to have you join us! Please verify your account using the code below.
+         To verify your email address, please use the following One Time Password (OTP):
         </p>
 
         <!-- OTP Box -->
@@ -732,12 +741,7 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
         </div>
 
         <p style="font-size: 14px; color: #555; margin-top: 20px;">
-          This code is valid for <strong>5 minutes</strong>. If you didn’t request this, you can safely ignore this email.
-        </p>
-
-        <p style="font-size: 14px; color: #555; margin-top: 25px;">
-          Thanks for being part of our community,<br/>
-          <strong>The Homiqly Team</strong>
+         Do not share this OTP with anyone. This code will expire in 5 minutes.
         </p>
       </div>
     `;
@@ -821,7 +825,9 @@ const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorN
 }
 
 //done
-const assignWelcomeCode = async ({ user_id, user_email }) => {
+const assignWelcomeCode = async ({ user_id, user_email, user_name }) => {
+    console.log(user_name);
+    
     try {
         // ✅ 1. Check if auto-assign is enabled
         const [setting] = await db.query(
@@ -855,9 +861,7 @@ const assignWelcomeCode = async ({ user_id, user_email }) => {
         }
 
         const template = templates[0];
-        const { system_promo_code_template_id, code, discountValue, maxUse } = template;
-
-        console.log("Assigning template:", { user_id, system_promo_code_template_id, code });
+        const { system_promo_code_template_id, code, discountValue, maxUse, description } = template;
 
         // ✅ 4. Assign promo to user
         await db.query(
@@ -866,65 +870,44 @@ const assignWelcomeCode = async ({ user_id, user_email }) => {
             [user_id, system_promo_code_template_id]
         );
 
-        console.log(`✅ Promo template '${code}' assigned to user ID: ${user_id}`);
-
         // ✅ 5. Send email (using sendMail helper)
         if (user_email) {
             const subject = "Welcome to Homiqly community! Your Promo Code Inside";
             const bodyHtml = `
-              <div style="padding: 30px; font-size: 15px; color: #333; text-align: left;">
-                <h2 style="font-weight: 600; margin-bottom: 10px; font-size: 20px; color: #111;">
-                  We're excited to have you onboard!
-                </h2>
+            <div style="padding: 30px; font-size: 15px; color: #ffffff; text-align: left;
+                        font-family: Arial, sans-serif; background-color: #000;">
 
-                <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px; color: #333;">
-                  As a warm welcome, here’s your exclusive promo code:
-                </h3>
+              <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                <strong>Hi ${user_name || "there"},</strong><br><br>
+                Thanks for signing up! We want to make your Homiqly experience special, starting with
+                ${discountValue} off your first 3 at-home beauty services.
+              </p>
 
-                <div style="text-align: center; margin: 25px 0;">
-                  <div style="
-                  display: inline-block;
-                  font-size: 16px;
-                  font-weight: 600;
-                  color: #000;
-                  letter-spacing: 3px;
-                  padding: 6px 14px;
-                  border: 1.3px dotted #000;
-                  border-radius: 6px;
-                  ">
-                   ${code}
-                  </div>
-                </div>
+              <p style="margin-bottom: 10px; font-size: 15px;">
+                To claim your welcome offer, simply use the code <strong>${code}</strong> when booking your first service.
+                Your savings will be applied automatically at checkout.
+              </p>
 
-                <p style="font-size: 15px; color: #555; margin-top: 10px; line-height: 1.6;">
-                  <strong>Discount:</strong> ${discountValue}%<br/>
-                  <strong>Max Use:</strong> ${maxUse}
-                </p>
+              <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px;">
+                Hurry, pamper yourself and enjoy this offer while it lasts!
+              </h3>
 
-                <p style="font-size: 14px; color: #555; margin-top: 15px; line-height: 1.6;">
-                  Use this code on your next booking and enjoy great savings on our platform.
-                </p>
+              <p style="font-size: 14px; margin-top: 15px; line-height: 1.6;">
+                Valid on first ${maxUse} at-home beauty services only. Maximum discount of ${description} total across
+                your first 3 services. Discount is valid for services booked through the Homiqly website.
+                Offer valid only for customers who received this email directly from Homiqly.
+                Cannot be combined with other promotions. Non-transferable. Terms subject to change.
+              </p>
 
-                <div style="text-align: center; margin-top: 30px;">
-                  <a href="https://www.homiqly.com"
-                    style="background: #000; color: #fff; padding: 12px 28px; border-radius: 5px;
-                          text-decoration: none; font-weight: 600; display: inline-block;">
-                    Explore Homiqly
-                  </a>
-                </div>
-
-                <p style="font-size: 14px; color: #555; margin-top: 25px; line-height: 1.6;">
-                  Thanks for being part of the Homiqly community,<br/>
-                  <strong>The Homiqly Team</strong>
-                </p>
-              </div>
-`;
-
+            </div>
+          `;
 
             await sendMail({
                 to: user_email,
                 subject,
                 bodyHtml,
+                layout: "promoCode",
+                extraData: { description, code, discountValue, maxUse } // ✅ Add this line
             });
 
             console.log(`📧 Welcome promo email sent to ${user_email}`);

@@ -1088,8 +1088,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                     sub_package_id,
                                     groupName,
                                     pref.preference_value,
-                                    pref.preference_price ?? 0,
                                     pref.time_required ?? 0,
+                                    pref.preference_price ?? 0,
                                     groupRequired   // ✅ apply group-level is_required
                                 ]
                             );

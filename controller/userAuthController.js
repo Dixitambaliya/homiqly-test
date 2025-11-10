@@ -751,8 +751,29 @@ const verifyOtp = asyncHandler(async (req, res) => {
                 process.env.JWT_SECRET
             );
 
-            assignWelcomeCode({ user_id: user.user_id, user_email: user.email })
+            assignWelcomeCode({
+                user_id: user.user_id,
+                user_email: user.email,
+                user_name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+            })
+                .then(() => {
+                    console.log("👉 assignWelcomeCode executed successfully");
+                    console.log("📩 Passed values:", {
+                        user_id: user.user_id,
+                        user_email: user.email,
+                        user_name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+                    });
+                })
                 .catch(err => console.error("❌ Auto-assign welcome code error:", err.message));
+
+
+            console.log({
+                firstName: user.firstName,
+                lastName: user.lastName,
+                fullName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+                email: user.email,
+                userId: user.user_id,
+            });
 
             return res.status(200).json({
                 message: "Login successful via password",
@@ -848,7 +869,11 @@ const verifyOtp = asyncHandler(async (req, res) => {
             })();
         }
 
-        assignWelcomeCode({ user_id, user_email: email })
+        assignWelcomeCode({
+            user_id: user.user_id,
+            user_email: user.email,
+            user_name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        })
             .catch(err => console.error("❌ Auto-assign welcome code error:", err.message));
 
         return res.status(200).json({
