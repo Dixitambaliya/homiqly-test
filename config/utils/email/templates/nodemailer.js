@@ -32,7 +32,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
     let headerHtml = `
     <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
       <div style="display: inline-block; background-color: #ffffff; padding: 10px; border-radius: 8px;">
-        <img src="cid:${headerCid}" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />
+        <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />
       </div>
     </div>
   `;
@@ -89,7 +89,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
         headerHtml = `
             <div style="padding: 35px 35px 5px; text-align: left; background: #ffffff;">
             <div style="display: inline-block; background-color: #ffffff; padding: 10px 0; border-radius: 8px;">
-              <img src="cid:${headerCid}" alt="Homiqly Logo"
+              <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo"
                    style="width: 130px; display: block; margin: 0; vertical-align: middle;" />
             </div>
           </div>
@@ -100,11 +100,11 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
             <tr>
               <!-- Left: Logo | Right: Social Icons -->
               <td align="left" valign="middle" style="width: 50%;">
-                <img src="cid:${footerCid}" alt="Homiqly Logo" style="width: 110px; display: block;" />
+                <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
               </td>
               <td align="right" valign="middle" style="width: 50%;">
                 <div style="text-align: right;">
-                  <a href="https://www.instagram.com/homiqly" style="text-decoration: none; display: inline-block; margin-right: 18px;">
+                  <a href="https://www.instagram.com/public/Homiqly_Transparent_White.png" style="text-decoration: none; display: inline-block; margin-right: 18px;">
                     <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png"
                          alt="Instagram"
                          style="width: 24px; height: 24px; display: block;" />
@@ -160,7 +160,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
 
     <!-- Top White Homiqly Logo -->
     <div style="width: 140px; margin: 0 auto 25px;">
-      <img src="cid:${footerCid}" alt="Homiqly Logo"
+      <img src="https://www.instagram.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
            style="width: 140px; height: auto; display: block; margin: 0 auto;" />
     </div>
 
@@ -193,7 +193,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
           <tr>
             <!-- Left: Logo | Right: Social Icons -->
             <td align="left" valign="middle" style="width: 50%;">
-              <img src="cid:${footerCid}" alt="Homiqly Logo" style="width: 110px; display: block;" />
+              <img src="https://www.instagram.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
             </td>
             <td align="right" valign="middle" style="width: 50%;">
               <div style="text-align: right;">
@@ -251,7 +251,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
         let headerHtml = `
     <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
       <div style="display: inline-block; background-color: #ffffff; padding: 10px; border-radius: 8px;">
-        <img src="cid:${headerCid}" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />
+        <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />
       </div>
     </div>`
         footerHtml = `
@@ -260,7 +260,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
             <tr>
               <!-- Left: Logo | Right: Social Icons -->
               <td align="left" valign="middle" style="width: 50%;">
-                <img src="cid:${footerCid}" alt="Homiqly Logo" style="width: 110px; display: block;" />
+                <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
               </td>
               <td align="right" valign="middle" style="width: 50%;">
                 <div style="text-align: right;">
@@ -321,7 +321,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
             <!-- Left: Logo -->
             <div style="flex: 1;">
-              <img src="cid:${headerCid}" alt="Homiqly Logo" style="width: 150px; height: auto; display: block;" />
+              <img src="https://www.instagram.com/public/homiqly.png" alt="Homiqly Logo" style="width: 150px; height: auto; display: block;" />
             </div>
           </div>
 
@@ -350,7 +350,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
     <tr>
       <!-- Left: Logo | Right: Social Icons -->
       <td align="left" valign="middle" style="width: 50%;">
-        <img src="cid:${footerCid}" alt="Homiqly Logo" style="width: 110px; display: block;" />
+        <img src="https://www.instagram.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
       </td>
       <td align="right" valign="middle" style="width: 50%;">
         <div style="text-align: right;">
