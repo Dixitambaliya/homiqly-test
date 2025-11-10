@@ -382,7 +382,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
             subject: "Your Booking is Confirmed!",
             bodyHtml,
             layout: "userBookingMail",
-            variables: { userName, bookingDateFormatted, receiptUrl },
+            extraData: { userName, bookingDateFormatted, receiptUrl },
         });
 
         console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
@@ -1007,7 +1007,7 @@ const assignWelcomeCode = async ({ user_id, user_email, user_name }) => {
                 subject,
                 bodyHtml,
                 layout: "promoCode",
-                extraData: { description, code, discountValue, maxUse } // ✅ Add this line
+                extraData: { description, code, discountValue, maxUse }, // ✅ Add this line
             });
 
             console.log(`📧 Welcome promo email sent to ${user_email}`);

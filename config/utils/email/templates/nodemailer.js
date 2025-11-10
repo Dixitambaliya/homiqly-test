@@ -12,22 +12,15 @@ const transporter = nodemailer.createTransport({
 });
 
 // 🔹 Main mail sending function
-const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables = {} }) => {
-    const extraData = {
-        ...variables,
-        ...variables?.extraData,
-    };
-
+const sendMail = async ({ to, subject, bodyHtml, layout = "default",  extraData = {} }) => {
     const {
         userName = "",
         receiptUrl = "",
         code = "",
         description = "",
-    } = extraData;
-
-    // ----- HEADER -----
-    const headerLogoPath = path.resolve("https://www.homiqly.codegrin.com/public/homiqly.png");
-    const headerCid = "homiqlyLogo";
+        discountValue = "",
+        maxUse = "",
+    } = extraData || {};
 
     let headerHtml = `
     <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
@@ -37,9 +30,6 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
     </div>
   `;
 
-    // ----- FOOTER (DEFAULT) -----
-    const footerLogoPath = path.resolve("https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png");
-    const footerCid = "footerLogo";
 
     let footerHtml = `
     <div style="background: #111; color: #bbb; padding: 40px 30px;">
@@ -47,7 +37,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
         <tr>
           <!-- Left Side: Logo + Links -->
           <td align="left" valign="top" style="width: 60%; padding-right: 20px;">
-            <img src="cid:${footerCid}" alt="Homiqly Logo" style="width: 110px; display: block; margin-bottom: 12px;" />
+            <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block; margin-bottom: 12px;" />
             <a href="https://www.homiqly.com/help" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Help</a>
             <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Terms of Service</a>
             <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Privacy Policy</a>
@@ -100,7 +90,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
             <tr>
               <!-- Left: Logo | Right: Social Icons -->
               <td align="left" valign="middle" style="width: 50%;">
-                <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
+                <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
               </td>
               <td align="right" valign="middle" style="width: 50%;">
                 <div style="text-align: right;">
@@ -160,7 +150,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
 
     <!-- Top White Homiqly Logo -->
     <div style="width: 140px; margin: 0 auto 25px;">
-      <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
+      <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo"
            style="width: 140px; height: auto; display: block; margin: 0 auto;" />
     </div>
 
@@ -423,11 +413,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
         from: `<${process.env.NO_REPLAY_USER}>`,
         to,
         subject,
-        html: htmlBody,
-        attachments: [
-            { filename: "homiqly.png", path: headerLogoPath, cid: headerCid },
-            { filename: "Homiqly_Transparent_White.png", path: footerLogoPath, cid: footerCid },
-        ],
+        html: htmlBody
     });
 };
 
