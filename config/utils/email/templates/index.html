@@ -3,141 +3,171 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Homiqly Booking Receipt</title>
+  <title>Your Booking is Confirmed - Homiqly</title>
 </head>
 
-<body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f9fafb; color: #111827;">
+<body style="margin:0; padding:0; background-color:#f9fafb; font-family:Arial, Helvetica, sans-serif; color:#111827;">
 
-  <div style="max-width: 700px; margin: 30px auto; background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); overflow: hidden;">
+  <!-- WRAPPER -->
+  <div style="max-width:720px; margin:20px auto; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
 
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, #fbeec7, #fff9e3); padding: 40px 30px 30px 30px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-        <img src="cid:headerLogo" alt="Homiqly Logo" style="width: 150px; height: auto;" />
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 14px; color: #555;">${moment(booking.bookingDate).format("MMM DD, YYYY")}</p>
-        </div>
+    <!-- HEADER -->
+    <div style="background-color:#fbeec7; padding:30px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+        <img src="https://dummyimage.com/150x40/000/fff&text=Homiqly+Logo" alt="Homiqly Logo" style="width:150px; height:auto; display:block;" />
+        <p style="font-size:14px; color:#374151; margin:0;">Nov 10, 2025</p>
       </div>
 
-      <h1 style="margin-top: 20px; font-size: 26px; font-weight: bold; color: #000;">
-        Thanks for booking with <span style="color:#000;">Homiqly</span>, ${userName}
+      <h1 style="font-size:26px; font-weight:bold; color:#000; margin:25px 0 10px;">
+        Thanks for booking with <span style="color:#000;">Homiqly</span>, John Doe
       </h1>
-
-      <p style="color: #444; font-size: 15px; margin-top: 10px; line-height: 1.6;">
-        We’ve confirmed your appointment! Below are your service details and receipt summary.
+      <p style="color:#374151; font-size:14px; margin:0;">
+        Your booking is confirmed! Here’s your summary and receipt.
       </p>
 
-      <a href=${receiptUrl}
-        style="display: inline-block; background: #000; color: #fff; font-weight: 600; text-decoration: none;
-               padding: 12px 28px; border-radius: 50px; margin-top: 18px; font-size: 15px;">
-        View Full Receipt
+      <a href="#" style="background-color:#000; color:#fff; padding:10px 22px; border-radius:9999px;
+          font-weight:600; display:inline-block; margin-top:20px; font-size:14px; text-decoration:none;">
+        View Your Receipt
       </a>
     </div>
 
-    <!-- Booking Info -->
-    <div style="padding: 30px;">
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 15px; color:#111827;">Booking Overview</h2>
+    <!-- BODY -->
+    <div style="padding:30px;">
 
-      <div style="background: #f9fafb; border-radius: 10px; padding: 20px; margin-bottom: 25px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-          <span>💆‍♀️ <strong>${booking.serviceName}</strong></span>
-          <span style="font-weight: bold;">₹${booking.totalAmount || "N/A"}</span>
+      <!-- Booking Summary -->
+      <h2 style="font-size:18px; font-weight:700; color:#111827; margin-bottom:12px;">Booking Summary</h2>
+
+      <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+        <tbody>
+          <tr><td style="font-weight:bold; width:40%;">Service:</td><td>Luxury Spa Package</td></tr>
+          <tr><td style="font-weight:bold;">Category:</td><td>Beauty & Wellness</td></tr>
+          <tr><td style="font-weight:bold;">Date:</td><td>Nov 10, 2025</td></tr>
+          <tr><td style="font-weight:bold;">Time:</td><td>3:30 PM</td></tr>
+          <tr><td style="font-weight:bold;">Total Duration:</td><td>90 mins</td></tr>
+          <tr><td style="font-weight:bold;">Payment Status:</td><td>Paid</td></tr>
+        </tbody>
+      </table>
+
+      <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
+
+      <!-- Vendor Details -->
+      <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:12px;">Vendor Details</h3>
+      <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.7;">
+        <div style="flex:1; min-width:45%;">
+          <div><strong>Vendor Name:</strong> Bliss Wellness Spa</div>
+          <div><strong>Email:</strong> info@blissspa.com</div>
         </div>
-        <p style="margin: 4px 0; font-size: 14px; color: #555;">
-          <strong>Category:</strong> ${booking.serviceCategory}
-        </p>
-        <p style="margin: 4px 0; font-size: 14px; color: #555;">
-          <strong>Date:</strong> ${moment(booking.bookingDate).format("MMM DD, YYYY")}
-        </p>
-        <p style="margin: 4px 0; font-size: 14px; color: #555;">
-          <strong>Time:</strong> ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}
-        </p>
-        <p style="margin: 4px 0; font-size: 14px; color: #555;">
-          <strong>Total Duration:</strong> ${booking.totalTime || 0} mins
-        </p>
-        <p style="margin: 4px 0; font-size: 14px; color: #555;">
-          <strong>Payment Status:</strong> ${booking.payment_status}
-        </p>
-      </div>
-
-      <!-- Vendor Card -->
-      <div style="background: #fff6ed; border-radius: 10px; padding: 20px; margin-bottom: 25px; border: 1px solid #f2d9b0;">
-        <h3 style="margin: 0 0 10px; font-size: 16px; color:#111827;">👩‍🎨 Vendor Details</h3>
-        <p style="margin: 4px 0; font-size: 14px;"><strong>${booking.vendorName || "N/A"}</strong></p>
-        <p style="margin: 2px 0; font-size: 13px;">📧 ${booking.vendorEmail || "N/A"}</p>
-        <p style="margin: 2px 0; font-size: 13px;">📞 ${booking.vendorPhone || "N/A"}</p>
-      </div>
-
-      <!-- Items -->
-      <div style="margin-bottom: 25px;">
-        <h3 style="font-size: 18px; font-weight: 700; color:#111827;">💅 Selected Packages</h3>
-        <div style="border-radius: 10px; border: 1px solid #eee; overflow: hidden;">
-          ${itemRows}
+        <div style="flex:1; min-width:45%;">
+          <div><strong>Phone:</strong> +91 98765 43210</div>
+          <div><strong>Location:</strong> Mumbai, India</div>
         </div>
       </div>
 
-      <!-- Addons -->
-      <div style="margin-bottom: 25px;">
-        <h3 style="font-size: 18px; font-weight: 700; color:#111827;">✨ Addons</h3>
-        <div style="border-radius: 10px; border: 1px solid #eee; overflow: hidden;">
-          ${addonRows}
+      <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
+
+      <!-- RECEIPT BOX -->
+      <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px;">
+        <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Your Receipt</h3>
+
+        <!-- Packages -->
+        <div style="margin-bottom:15px;">
+          <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0f0f0;">
+            <span>Full Body Massage ×2</span>
+            <span style="text-align:right; font-weight:600;">₹1200.00</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0f0f0;">
+            <span>Head Spa</span>
+            <span style="text-align:right; font-weight:600;">₹500.00</span>
+          </div>
+        </div>
+
+        <!-- Addons -->
+        <div style="margin-bottom:15px;">
+          <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0f0f0;">
+            <span>Aromatherapy Addon</span>
+            <span style="text-align:right; font-weight:600;">₹150.00</span>
+          </div>
+        </div>
+
+        <!-- Preferences -->
+        <div style="margin-bottom:15px;">
+          <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0f0f0;">
+            <span>Preferred Oil: Lavender</span>
+            <span style="text-align:right; font-weight:600;">₹50.00</span>
+          </div>
+        </div>
+
+        <!-- Subtotal -->
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px; margin-bottom:6px;">
+          <span>Subtotal</span>
+          <span style="text-align:right;">₹1900.00</span>
+        </div>
+
+        <!-- Total -->
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="font-size:15px;">Total Charged</strong>
+          <strong style="font-size:16px;">₹1900.00</strong>
+        </div>
+
+        <!-- Tax note -->
+        <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
+          (Includes 20% service tax)
         </div>
       </div>
 
-      <!-- Preferences -->
-      <div style="margin-bottom: 25px;">
-        <h3 style="font-size: 18px; font-weight: 700; color:#111827;">🎀 Preferences</h3>
-        <div style="border-radius: 10px; border: 1px solid #eee; overflow: hidden;">
-          ${preferenceRows}
-        </div>
+      <!-- Button -->
+      <div style="text-align:center; margin-top:30px;">
+        <a href="#" style="background:#000; color:#fff; padding:10px 20px; border-radius:8px;
+          text-decoration:none; font-size:13px; font-weight:600;">
+          Download Full Receipt
+        </a>
       </div>
+    </div>
 
-      <!-- Concerns -->
-      ${concerns.length
-        ? `<div style="margin-bottom:25px;">
-            <h3 style="font-size:18px; font-weight:700; color:#111827;">💭 Concerns</h3>
-            <div style="border-radius:10px; border:1px solid #eee; overflow:hidden;">
-              ${concernRows}
+    <!-- FOOTER -->
+    <div style="background:#111; color:#bbb; padding:40px;">
+      <table width="100%" style="max-width:720px; margin:0 auto;">
+        <tr>
+          <td align="left">
+            <img src="https://dummyimage.com/100x30/fff/000&text=Homiqly" alt="Homiqly Logo" style="width:100px; display:block;" />
+          </td>
+          <td align="right">
+            <div>
+              <a href="https://www.instagram.com/homiqly" style="margin-right:12px;">
+                <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" alt="Instagram" style="width:20px;">
+              </a>
+              <a href="https://www.facebook.com/homiqly" style="margin-right:12px;">
+                <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" alt="Facebook" style="width:20px;">
+              </a>
+              <a href="https://www.linkedin.com/company/homiqly">
+                <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png" alt="LinkedIn" style="width:20px;">
+              </a>
             </div>
-           </div>`
-        : ""
-      }
-
-      <!-- Total -->
-      <div style="text-align:right; margin-top:30px;">
-        <p style="font-size:18px; font-weight:700; color:#000;">
-          Total Amount: ₹${booking.totalAmount || "N/A"}
-        </p>
-      </div>
-    </div>
-
-    <!-- Rate Experience -->
-    <div style="background-color:#fef8e7; text-align:center; padding:30px;">
-      <h3 style="margin:0 0 10px; font-size:18px; color:#111827;">Rate Your Experience</h3>
-      <p style="margin:0 0 15px; font-size:14px; color:#555;">Your feedback helps us improve and make beauty better ✨</p>
-      <div style="font-size:22px; color:#f6b400; letter-spacing:4px;">★★★★★</div>
-      <a href="#" style="display:inline-block; background:#000; color:#fff; text-decoration:none; margin-top:15px;
-                         padding:10px 20px; border-radius:6px; font-weight:600; font-size:14px;">
-        Leave a Review
-      </a>
-    </div>
-
-    <!-- Footer -->
-    <div style="background-color: #000; color: #bbb; text-align: center; padding: 30px 20px;">
-      <img src="cid:footerLogo" alt="Homiqly Logo" style="width: 120px; margin-bottom: 20px;" />
-
-      <div style="margin-top: 10px;">
-        <a href="https://www.homiqly.com/help" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Help Center</a> |
-        <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Terms</a> |
-        <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Privacy</a> |
-        <a href="#" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Unsubscribe</a>
-      </div>
-
-      <p style="font-size: 12px; color: #999; margin-top: 12px; line-height: 1.6;">
-        © 2025 Homiqly. All rights reserved.<br />
-        Offer and pricing subject to availability. Services provided by Homiqly verified partners.
-      </p>
+          </td>
+        </tr>
+        <tr><td colspan="2"><div style="border-top:1px solid rgba(255,255,255,0.3); margin:15px 0;"></div></td></tr>
+        <tr>
+          <td style="font-size:12px;">
+            <a href="https://www.homiqly.com/help" style="color:#4da3ff; display:block; margin-bottom:5px;">Help</a>
+            <a href="https://www.homiqly.com/termscondition" style="color:#4da3ff; display:block; margin-bottom:5px;">Terms</a>
+            <a href="https://www.homiqly.com/privacypolicy" style="color:#4da3ff; display:block;">Privacy</a>
+          </td>
+          <td align="right" style="font-size:12px; color:#fff;">
+            <p style="margin:0;">Need help?</p>
+            <p style="margin:3px 0 6px;">
+              <a href="mailto:support@homiqly.com" style="color:#4da3ff; text-decoration:none;">support@homiqly.com</a>
+            </p>
+            <p style="margin:0;">© 2025 Homiqly. All rights reserved.</p>
+          </td>
+        </tr>
+      </table>
     </div>
   </div>
+
 </body>
 </html>

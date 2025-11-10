@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const path = require("path");
+const moment = require('moment-timezone');
 
 // 🔹 Create mail transporter (using Gmail)
 const transporter = nodemailer.createTransport({
@@ -11,8 +12,18 @@ const transporter = nodemailer.createTransport({
 });
 
 // 🔹 Main mail sending function
-const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData = {} }) => {
-    const { description = "", code = "", bookingDate = "", userName = "", receiptUrl = "" } = extraData;
+const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables = {} }) => {
+    const extraData = {
+        ...variables,
+        ...variables?.extraData,
+    };
+
+    const {
+        userName = "",
+        receiptUrl = "",
+        code = "",
+        description = "",
+    } = extraData;
 
     // ----- HEADER -----
     const headerLogoPath = path.resolve("config/media/homiqly.png");
@@ -236,8 +247,6 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
         </table>
       </div>
   `;
-
-
     } else if (layout === "noUnsubscribe") {
         let headerHtml = `
     <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
@@ -303,56 +312,97 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
           </table>
         </div>
         `;
-    } else if (layout = "userBookingMail") {
+    } else if (layout === "userBookingMail") {
         headerHtml = `
-  <!-- Homiqly Receipt Header -->
-  <div style="background-color: #fbeec7; padding: 30px; border-radius: 8px 8px 0 0; font-family: Arial, sans-serif;">
+        <!-- Homiqly Receipt Header -->
+        <div style="background-color: #fbeec7; padding: 30px; border-radius: 8px 8px 0 0; font-family: Arial, sans-serif;">
 
-    <!-- Top Row -->
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-      <img src="cid:headerLogo" alt="Homiqly Logo" style="width: 140px; height: auto; display: block;" />
+          <!-- Top Row -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <!-- Left: Logo -->
+            <div style="flex: 1;">
+              <img src="cid:${headerCid}" alt="Homiqly Logo" style="width: 150px; height: auto; display: block;" />
+            </div>
+          </div>
 
-      <div style="text-align: right; font-size: 14px; color: #374151; margin-top: 10px;">
-        <p style="margin: 0;">${bookingDate}</p>
-      </div>
-    </div>
+          <!-- Main Heading -->
+          <h1 style="font-size: 28px; font-weight: bold; color: #000; margin: 25px 0 10px; line-height: 1.3;">
+            Thanks for booking with
+            <span style="color: #000;">Homiqly</span>, ${userName || "Valued Customer"}
+          </h1>
 
-    <!-- Main Heading -->
-    <h1 style="font-size: 28px; font-weight: bold; color: #000; margin: 20px 0 10px; line-height: 1.3;">
-      Thanks for booking with
-      <span style="color: #000;">Homiqly</span>, ${userName}
-    </h1>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">
+            Thank you for choosing Homiqly! Here is your receipt.
+          </p>
 
-    <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">
-      Thank you for choosing Homiqly! here is your receipt
-    </p>
+          <!-- Button -->
+          <a href="${receiptUrl || "#"}"
+             style="background-color: #000; color: #fff; padding: 12px 24px; border-radius: 9999px;
+                    font-weight: 600; display: inline-block; margin-top: 20px; font-size: 15px; text-decoration: none;">
+            View Your Receipt
+          </a>
+        </div>
+      `;
 
-    <!-- Button -->
-    <a href=${receiptUrl}
-       style="background-color: #000; color: #fff; padding: 12px 24px; border-radius: 9999px;
-              font-weight: 600; display: inline-block; margin-top: 20px; font-size: 15px; text-decoration: none;">
-      Here is your receipt
-    </a>
-  </div>
-`;
         footerHtml = `
-  <!-- Homiqly Email Footer -->
-  <div style="background-color: #000; color: #bbb; text-align: center; padding: 30px 20px;
-              border-radius: 0 0 8px 8px; font-family: Arial, sans-serif;">
-    <img src="cid:footerLogo" alt="Homiqly Logo" style="width: 120px; margin-bottom: 20px;" />
+<div style="background: #111; color: #bbb; padding: 40px 40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
+    <tr>
+      <!-- Left: Logo | Right: Social Icons -->
+      <td align="left" valign="middle" style="width: 50%;">
+        <img src="cid:${footerCid}" alt="Homiqly Logo" style="width: 110px; display: block;" />
+      </td>
+      <td align="right" valign="middle" style="width: 50%;">
+        <div style="text-align: right;">
+          <a href="https://www.instagram.com/homiqly" style="text-decoration: none; display: inline-block; margin-right: 18px;">
+            <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png"
+                 alt="Instagram"
+                 style="width: 24px; height: 24px; display: block;" />
+          </a>
+          <a href="https://www.facebook.com/homiqly" style="text-decoration: none; display: inline-block; margin-right: 18px;">
+            <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png"
+                 alt="Facebook"
+                 style="width: 24px; height: 24px; display: block;" />
+          </a>
+          <a href="https://www.linkedin.com/company/homiqly" style="text-decoration: none; display: inline-block;">
+            <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png"
+                 alt="LinkedIn"
+                 style="width: 24px; height: 24px; display: block;" />
+          </a>
+        </div>
+      </td>
+    </tr>
 
-    <div style="margin-top: 10px;">
-      <a href="https://www.homiqly.com/help" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Help Center</a> |
-      <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Terms</a> |
-      <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Privacy</a> |
-      <a href="#" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Unsubscribe</a>
+    <!-- White line under logo + icons -->
+    <tr>
+      <td colspan="2" style="padding: 0;">
+        <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); width: 100%; margin: 20px 0;"></div>
+      </td>
+    </tr>
+
+    <!-- Links Section (vertical left) + Support Section (bottom right) -->
+    <tr>
+      <td align="left" valign="top" style="padding-top: 10px;">
+        <div>
+          <a href="https://www.homiqly.com/help" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Help</a>
+          <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Terms of Service</a>
+          <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; text-decoration: none; display: block;  margin-bottom: 6px">Privacy Policy</a>
+          <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; text-decoration: none; display: block;  margin-bottom: 6px">Unsubscribe</a>
+        </div>
+      </td>
+
+    <td align="right">
+    <div style="text-align: right; font-size: 14px; line-height: 1.8;">
+      <p style="margin: 0; color:#FFFFFF;">Need help?</p>
+      <p style="margin: 2px 0 8px;">
+        <a href="mailto:support@homiqly.com" style="color: #4da3ff; text-decoration: none;">support@homiqly.com</a>
+      </p>
+      <p style="margin: 0; color:#FFFFFF;">© 2025 Homiqly. All rights reserved.</p>
     </div>
-
-    <p style="font-size: 12px; color: #999; margin-top: 12px; line-height: 1.6;">
-      © 2025 Homiqly. All rights reserved.<br />
-      Offer and pricing subject to availability. Services provided by Homiqly verified partners.
-    </p>
-  </div>
+  </td>
+    </tr>
+  </table>
+</div>
 `;
 
     }

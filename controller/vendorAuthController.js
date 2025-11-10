@@ -25,7 +25,7 @@ const generateResetCode = () =>
 
 // Create User
 
-const registerVendor = async (req, res) => { 
+const registerVendor = async (req, res) => {
     const conn = await db.getConnection();
     await conn.beginTransaction();
 
@@ -149,7 +149,7 @@ const registerVendor = async (req, res) => {
                 if (parsedPackages.length > 0) {
                     const firstPackageId = parsedPackages[0].package_id;
                     const [serviceRows] = await db.query(
-                        `SELECT s.serviceName 
+                        `SELECT s.serviceName
                          FROM packages p
                          JOIN service_type sp ON p.service_type_id = sp.service_type_id
                          JOIN services s ON sp.service_id = s.service_id

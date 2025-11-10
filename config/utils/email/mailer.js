@@ -127,7 +127,8 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     try {
         // 🧩 Fetch user
         const [[user]] = await db.query(
-            `SELECT CONCAT(firstName, ' ', lastName) AS name, email FROM users WHERE user_id = ? LIMIT 1`,
+            `SELECT firstName, lastName, CONCAT(firstName, ' ', lastName) AS name, email
+         FROM users WHERE user_id = ? LIMIT 1`,
             [user_id]
         );
         if (!user) return console.warn(`⚠️ No user found for user_id ${user_id}`);
@@ -135,24 +136,24 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         // 🧩 Fetch booking + vendor + service details
         const [[booking]] = await db.query(
             `
-      SELECT
-        sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.payment_status,
-        sb.notes, sb.created_at, p.amount AS totalAmount,
-        v.vendor_id,
-        CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS vendorName,
-        CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS vendorEmail,
-        CASE WHEN v.vendorType = 'individual' THEN i.phone ELSE c.companyPhone END AS vendorPhone,
-        s.serviceName, sc.serviceCategory
-      FROM service_booking sb
-      LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-      LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
-      LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-      LEFT JOIN services s ON sb.service_id = s.service_id
-      LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-      LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-      WHERE sb.booking_id = ?
-      LIMIT 1
-      `,
+        SELECT
+          sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.payment_status,
+          sb.notes, sb.created_at, p.amount AS totalAmount,
+          v.vendor_id,
+          CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS vendorName,
+          CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS vendorEmail,
+          CASE WHEN v.vendorType = 'individual' THEN i.phone ELSE c.companyPhone END AS vendorPhone,
+          s.serviceName, sc.serviceCategory
+        FROM service_booking sb
+        LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
+        LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+        LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+        LEFT JOIN services s ON sb.service_id = s.service_id
+        LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
+        WHERE sb.booking_id = ?
+        LIMIT 1
+        `,
             [booking_id]
         );
         if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
@@ -160,196 +161,228 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         // 🧾 Items, Addons, Preferences, and Concerns
         const [items] = await db.query(
             `SELECT pi.itemName, sbs.price, sbs.quantity
-       FROM service_booking_sub_packages sbs
-       JOIN package_items pi ON sbs.sub_package_id = pi.item_id
-       WHERE sbs.booking_id = ?`,
+         FROM service_booking_sub_packages sbs
+         JOIN package_items pi ON sbs.sub_package_id = pi.item_id
+         WHERE sbs.booking_id = ?`,
             [booking_id]
         );
 
         const [addons] = await db.query(
             `SELECT pa.addonName, sba.price
-       FROM service_booking_addons sba
-       JOIN package_addons pa ON sba.addon_id = pa.addon_id
-       WHERE sba.booking_id = ?`,
+         FROM service_booking_addons sba
+         JOIN package_addons pa ON sba.addon_id = pa.addon_id
+         WHERE sba.booking_id = ?`,
             [booking_id]
         );
 
         const [preferences] = await db.query(
             `SELECT pp.preferenceValue , pp.preferencePrice
-       FROM service_booking_preferences sbp
-       JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
-       WHERE sbp.booking_id = ?`,
+         FROM service_booking_preferences sbp
+         JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
+         WHERE sbp.booking_id = ?`,
             [booking_id]
         );
 
-        // Optional: only if you have a "concerns" table
         const [concerns] = await db.query(
             `SELECT pc.question , sbc.answer
-       FROM service_booking_consents sbc
-       JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
-       WHERE sbc.booking_id = ?`,
+         FROM service_booking_consents sbc
+         JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
+         WHERE sbc.booking_id = ?`,
             [booking_id]
         );
 
-        // 🧩 Build rows
+        // 🧩 Fetch tax percentage from service_taxes table
+        const [[taxRow]] = await db.query(
+            `SELECT taxPercentage FROM service_taxes WHERE status = 1 LIMIT 1`
+        );
+        const taxPercentage = taxRow?.taxPercentage || 0;
+
+        // 🧩 Build formatted rows (extreme right alignment)
         const buildRows = (data, rowFn, emptyText) =>
             data.length
                 ? data.map(rowFn).join("")
-                : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
+                : `<div style="color:#777; font-size:13px;">${emptyText}</div>`;
 
-        const itemRows = buildRows(items, (i) => `
-      <tr>
-        <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
-        <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
-        <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
-      </tr>`, "No items found");
+        const rowStyle = `
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        width:100%;
+        padding:6px 0;
+        border-bottom:1px solid #f0f0f0;
+      `;
 
-        const addonRows = buildRows(addons, (a) => `
-      <tr>
-        <td style="padding:10px; border:1px solid #ddd;" colspan="2">${a.addonName}</td>
-        <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
-      </tr>`, "No addons selected");
+        const nameStyle = `
+        flex:1;
+        text-align:left;
+        word-break:break-word;
+      `;
 
-        const preferenceRows = buildRows(preferences, (p) => `
-      <tr>
-        <td style="padding:10px; border:1px solid #ddd;">${p.preferenceValue}</td>
-        <td style="padding:10px; border:1px solid #ddd; text-align:right;">${p.preferencePrice}</td>
-      </tr>`, "No preferences set");
+        const priceStyle = `
+        text-align:right;
+        font-weight:600;
+        width:120px;
+        white-space:nowrap;
+      `;
 
-        const concernRows = buildRows(concerns, (c) => `
-      <tr>
-      <td style="padding:10px; border:1px solid #ddd;">${c.question}
-      <td style="padding:10px; border:1px solid #ddd; text-align:right;">${c.answer}
-      </td>
-      </tr>`, "No concerns listed");
+        const itemRows = buildRows(
+            items,
+            (i) => `
+        <div style="${rowStyle}">
+          <span style="${nameStyle}">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
+          <span style="${priceStyle}">₹${Number(i.price).toFixed(2)}</span>
+        </div>`,
+            "No items found"
+        );
 
+        const addonRows = buildRows(
+            addons,
+            (a) => `
+        <div style="${rowStyle}">
+          <span style="${nameStyle}">${a.addonName}</span>
+          <span style="${priceStyle}">₹${Number(a.price).toFixed(2)}</span>
+        </div>`,
+            "No addons selected"
+        );
+
+        const preferenceRows = buildRows(
+            preferences,
+            (p) => `
+        <div style="${rowStyle}">
+          <span style="${nameStyle}">${p.preferenceValue}</span>
+          <span style="${priceStyle}">₹${Number(p.preferencePrice).toFixed(2)}</span>
+        </div>`,
+            "No preferences set"
+        );
+
+        const concernRows = buildRows(
+            concerns,
+            (c) => `
+        <div style="${rowStyle.replace("border-bottom:1px solid #f0f0f0;", "")}">
+          <span style="${nameStyle}">${c.question}</span>
+          <span style="${priceStyle}">${c.answer}</span>
+        </div>`,
+            "No concerns listed"
+        );
+
+        // 🧩 Main body HTML (receipt layout)
         const bodyHtml = `
-      <div style="background-color: #f9fafb; font-family: Arial, Helvetica, sans-serif; padding: 0; margin: 0;">
-        <div style="background-color: #ffffff; margin: 20px auto; padding: 40px; max-width: 720px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); box-sizing: border-box;">
+        <div style="background-color:#f9fafb; font-family:Arial, Helvetica, sans-serif; margin:0; padding:0;">
+          <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.05); padding:30px;">
 
-          <!-- Header Section -->
-          <div style="background-color: #fbeec7; padding: 30px; border-radius: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-              <img src="cid:headerLogo" alt="Homiqly Logo" style="width: 140px; height: auto; display: block;" />
-              <div style="text-align: right; font-size: 14px; color: #374151;">
-                <p style="margin: 0; font-weight: bold;">Total: ₹${booking.totalAmount || "N/A"}</p>
-                <p style="margin: 0;">${moment(booking.bookingDate).format("MMM DD, YYYY")}</p>
+            <!-- Booking Summary -->
+            <h2 style="font-size:18px; font-weight:700; color:#111827; margin-bottom:12px;">Booking Summary</h2>
+            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+              <tbody>
+                <tr><td style="font-weight:bold; width:40%;">Service:</td><td>${booking.serviceName}</td></tr>
+                <tr><td style="font-weight:bold;">Category:</td><td>${booking.serviceCategory}</td></tr>
+                <tr><td style="font-weight:bold;">Date:</td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
+                <tr><td style="font-weight:bold;">Time:</td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
+                <tr><td style="font-weight:bold;">Total Duration:</td><td>${booking.totalTime || 0} mins</td></tr>
+              </tbody>
+            </table>
+
+            <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
+
+            <!-- Vendor Details -->
+            <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Vendor Details</h3>
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.8; gap:20px;">
+              <div style="flex:1; min-width:48%;">
+                <div><strong>Vendor Name:</strong> ${booking.vendorName}</div>
+                <div><strong>Email:</strong> ${booking.vendorEmail}</div>
+              </div>
+              <div style="flex:1; min-width:48%; text-align:right;">
+                <div><strong>Phone:</strong> ${booking.vendorPhone}</div>
               </div>
             </div>
 
-            <h1 style="font-size: 28px; font-weight: bold; color: #000; margin: 20px 0 10px; line-height: 1.3;">
-              Thanks for booking with <span style="color: #000;">Homiqly</span><span style="color: #f6b400;"> Beauty</span>, ${user.name}
-            </h1>
+            <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
+<!-- RECEIPT BOX -->
+<div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
+  <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Your Receipt</h3>
 
-            <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">
-              Your booking is confirmed! Here’s your full receipt and service details.
-            </p>
-
-            <a href="${receiptUrl || '#'}"
-               style="background-color: #000; color: #fff; padding: 12px 24px; border-radius: 9999px;
-                      font-weight: 600; display: inline-block; margin-top: 20px; font-size: 15px; text-decoration: none;">
-              View or Track Booking
-            </a>
-          </div>
-
-          <!-- Receipt Section -->
-          <div style="background-color: #fff; margin-top: 40px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px 30px;">
-            <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 12px;">Booking Summary</h2>
-
-            <table style="width:100%; font-size:14px; color:#374151; line-height:1.6;">
-              <tr><td><strong>Service:</strong></td><td>${booking.serviceName}</td></tr>
-              <tr><td><strong>Category:</strong></td><td>${booking.serviceCategory}</td></tr>
-              <tr><td><strong>Date:</strong></td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
-              <tr><td><strong>Time:</strong></td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
-              <tr><td><strong>Total Duration:</strong></td><td>${booking.totalTime || 0} mins</td></tr>
-              <tr><td><strong>Payment Status:</strong></td><td>${booking.payment_status}</td></tr>
-            </table>
-
-            <div style="margin-top:25px; border-top:1px solid #d1d5db; padding-top:15px;">
-              <h3 style="font-size:16px; font-weight:bold; color:#111827;">Vendor Details</h3>
-              <p style="margin:4px 0;"><strong>${booking.vendorName || "N/A"}</strong></p>
-              <p style="margin:2px 0; font-size:13px;">📧 ${booking.vendorEmail || "N/A"}</p>
-              <p style="margin:2px 0; font-size:13px;">📞 ${booking.vendorPhone || "N/A"}</p>
-            </div>
-          </div>
-
-          <!-- Package Items -->
-          <div style="margin-top:30px;">
-            <h3 style="font-size:18px; font-weight:700; color:#111827;">Selected Packages</h3>
-            <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
-              <thead>
-                <tr style="background:#f9fafb;">
-                  <th style="padding:10px; border:1px solid #ddd;">Item</th>
-                  <th style="padding:10px; border:1px solid #ddd;">Qty</th>
-                  <th style="padding:10px; border:1px solid #ddd;">Price</th>
-                </tr>
-              </thead>
-              <tbody>${itemRows}</tbody>
-            </table>
-          </div>
-
-          <!-- Addons -->
-          <div style="margin-top:25px;">
-            <h3 style="font-size:18px; font-weight:700; color:#111827;">Addons</h3>
-            <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
-              <thead>
-                <tr style="background:#f9fafb;">
-                  <th style="padding:10px; border:1px solid #ddd;" colspan="2">Addon</th>
-                  <th style="padding:10px; border:1px solid #ddd;">Price</th>
-                </tr>
-              </thead>
-              <tbody>${addonRows}</tbody>
-            </table>
-          </div>
-
-          <!-- Preferences -->
-          <div style="margin-top:25px;">
-            <h3 style="font-size:18px; font-weight:700; color:#111827;">Preferences</h3>
-            <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
-              <thead>
-                <tr style="background:#f9fafb;">
-                  <th style="padding:10px; border:1px solid #ddd;">Preference</th>
-                  <th style="padding:10px; border:1px solid #ddd;">Selected</th>
-                </tr>
-              </thead>
-              <tbody>${preferenceRows}</tbody>
-            </table>
-          </div>
-
-          <!-- Optional Concerns -->
-          ${concerns.length
-                ? `
-              <div style="margin-top:25px;">
-                <h3 style="font-size:18px; font-weight:700; color:#111827;">Concerns</h3>
-                <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
-                  <tbody>${concernRows}</tbody>
-                </table>
-              </div>`
-                : ""
+  <!-- Packages -->
+  <div style="margin-bottom:15px;">
+    <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
+    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+      ${items.length
+                ? items.map(i => `
+          <tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="padding:6px 10px 6px 0; text-align:left;">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}</td>
+            <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(i.price || 0).toFixed(2)}</td>
+          </tr>`).join('')
+                : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No packages</td></tr>`
             }
+    </table>
+  </div>
 
-          <!-- Total -->
-          <p style="margin-top:30px; text-align:right; font-size:16px; font-weight:bold; color:#111827;">
-            Total: ₹${booking.totalAmount || "N/A"}
-          </p>
-
-          ${receiptUrl
-                ? `<p style="text-align:center; margin-top:20px;">
-                   <a href="${receiptUrl}" style="background:#000; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">
-                     Download Full Receipt
-                   </a>
-                 </p>`
-                : ""
+  <!-- Addons -->
+  <div style="margin-bottom:15px;">
+    <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
+    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+      ${addons.length
+                ? addons.map(a => `
+          <tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="padding:6px 10px 6px 0; text-align:left;">${a.addonName}</td>
+            <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(a.price).toFixed(2)}</td>
+          </tr>`).join('')
+                : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No addons selected</td></tr>`
             }
-        </div>
-      </div>
-    `;
+    </table>
+  </div>
 
+  <!-- Preferences -->
+  <div style="margin-bottom:15px;">
+    <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
+    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+      ${preferences.length
+                ? preferences.map(p => `
+          <tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="padding:6px 10px 6px 0; text-align:left;">${p.preferenceValue}</td>
+            <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(p.preferencePrice).toFixed(2)}</td>
+          </tr>`).join('')
+                : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No preferences set</td></tr>`
+            }
+    </table>
+  </div>
+
+  <!-- Subtotal -->
+  <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
+  <table width="100%" cellpadding="4" cellspacing="0" style="font-size:14px; color:#333;">
+    <tr>
+      <td style="text-align:left;">Subtotal</td>
+      <td style="text-align:right; font-weight:600;">₹${Number(booking.totalAmount).toFixed(2)}</td>
+    </tr>
+  </table>
+
+  <!-- Total -->
+  <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
+  <table width="100%" cellpadding="4" cellspacing="0" style="font-size:15px; color:#111;">
+    <tr>
+      <td style="text-align:left; font-weight:bold;">Total Charged</td>
+      <td style="text-align:right; font-weight:bold; font-size:16px;">₹${Number(booking.totalAmount).toFixed(2)}</td>
+    </tr>
+  </table>
+
+  <!-- Tax note -->
+  <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
+    (Includes ${taxPercentage}% service tax)
+  </div>
+</div>
+          </div>
+        </div>`;
+
+        // 🧩 Format values for email
+        const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Valued Customer";
+        const bookingDateFormatted = moment(booking.bookingDate).format("MMM DD, YYYY");
+
+        // 🧩 Send email
         await sendMail({
             to: user.email,
             subject: "Your Booking is Confirmed!",
             bodyHtml,
             layout: "userBookingMail",
+            variables: { userName, bookingDateFormatted, receiptUrl },
         });
 
         console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
@@ -357,6 +390,8 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         console.error("⚠️ Failed to send booking email:", err.message);
     }
 };
+
+
 
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
     try {

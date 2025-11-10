@@ -249,314 +249,217 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // ✅ Acknowledge Stripe immediately
+    // ✅ Acknowledge Stripe immediately to prevent timeouts
     res.status(200).json({ received: true });
 
-    // ⚙️ Process in background
+    // ⚙️ Process events in background
     (async () => {
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
 
-        if (
-            event.type !== "payment_intent.amount_capturable_updated" &&
-            event.type !== "charge.captured"
-        ) {
+        // 🔹 Only handle capture-ready events
+        if (event.type !== "payment_intent.amount_capturable_updated") {
             console.log("ℹ️ Ignored event type:", event.type);
             return;
         }
 
         const connection = await db.getConnection();
+
         try {
             await connection.beginTransaction();
 
-            // -----------------------------------------------------
-            // CASE 1: Capture-ready PaymentIntent (before capture)
-            // -----------------------------------------------------
-            if (event.type === "payment_intent.amount_capturable_updated") {
-                const [paymentRows] = await connection.query(
-                    `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime,
+            // 🔹 Fetch cart and payment info
+            const [paymentRows] = await connection.query(
+                `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime,
                   sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
            FROM payments p
            LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
            WHERE p.payment_intent_id = ? LIMIT 1`,
+                [paymentIntentId]
+            );
+
+            if (!paymentRows.length) {
+                console.warn("⚠️ No cart found for payment intent:", paymentIntentId);
+                await connection.query(
+                    `UPDATE payments SET status = 'failed', notes = 'Cart not found' WHERE payment_intent_id = ?`,
                     [paymentIntentId]
                 );
+                await connection.commit();
+                return;
+            }
 
-                if (!paymentRows.length) {
-                    console.warn("⚠️ No cart found for payment intent:", paymentIntentId);
-                    await connection.query(
-                        `UPDATE payments SET status = 'failed', notes = 'Cart not found' WHERE payment_intent_id = ?`,
-                        [paymentIntentId]
-                    );
-                    await connection.commit();
-                    return;
-                }
+            const cart = paymentRows[0];
+            const { cart_id, user_id, status, user_promo_code_id } = cart;
 
-                const cart = paymentRows[0];
-                const { cart_id, user_id, status, user_promo_code_id } = cart;
+            if (status === "completed") {
+                console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
+                await connection.commit();
+                return;
+            }
 
-                if (status === "completed") {
-                    console.log(`ℹ️ PaymentIntent ${paymentIntentId} already captured, skipping.`);
-                    await connection.commit();
-                    return;
-                }
-
-                // 🔹 Fetch cart packages and sub-packages
-                const [cartPackages] = await connection.query(
-                    `SELECT cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, p.service_type_id
+            // 🔹 Fetch all sub-packages
+            const [cartPackages] = await connection.query(
+                `SELECT cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, p.service_type_id
            FROM cart_package_items cpi
            JOIN packages p ON cpi.package_id = p.package_id
            WHERE cpi.cart_id = ?`,
-                    [cart_id]
-                );
+                [cart_id]
+            );
 
-                if (!cartPackages.length) {
-                    console.warn("⚠️ Cart has no packages/sub-packages");
-                    await connection.query(
-                        `UPDATE payments SET status = 'failed', notes = 'Cart has no packages' WHERE payment_intent_id = ?`,
-                        [paymentIntentId]
-                    );
-                    await connection.commit();
-                    return;
-                }
-
-                // ✅ Create booking
-                const [insertBooking] = await connection.query(
-                    `INSERT INTO service_booking
-            (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia,
-             bookingStatus, payment_status, payment_intent_id, user_promo_code_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        user_id,
-                        cart.service_id,
-                        cart.bookingDate,
-                        cart.bookingTime,
-                        cart.vendor_id,
-                        cart.notes,
-                        cart.bookingMedia,
-                        0,
-                        "pending",
-                        paymentIntentId,
-                        user_promo_code_id || null,
-                    ]
-                );
-
-                const booking_id = insertBooking.insertId;
-                let totalBookingTime = 0;
-
-                // ✅ Insert into service_booking_packages (unique package IDs)
-                const uniquePackageIds = [...new Set(cartPackages.map(pkg => pkg.package_id))];
-                for (const packageId of uniquePackageIds) {
-                    await connection.query(
-                        `INSERT INTO service_booking_packages (booking_id, package_id, created_at)
-             VALUES (?, ?, NOW())`,
-                        [booking_id, packageId]
-                    );
-                }
-
-                // ✅ Loop through cart sub-packages
-                for (const pkg of cartPackages) {
-                    const { sub_package_id, service_type_id, price, quantity } = pkg;
-
-                    const [[itemTimeRow]] = await connection.query(
-                        `SELECT timeRequired FROM package_items WHERE item_id = ?`,
-                        [sub_package_id]
-                    );
-
-                    const itemTime = (itemTimeRow?.timeRequired || 0) * (quantity || 1);
-                    totalBookingTime += itemTime;
-
-                    await connection.query(
-                        `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, service_type_id, price, quantity)
-             VALUES (?, ?, ?, ?, ?)`,
-                        [booking_id, sub_package_id, service_type_id, price, quantity]
-                    );
-
-                    // 🔹 Addons
-                    const [addons] = await connection.query(
-                        `SELECT addon_id, price FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
-                        [cart_id, sub_package_id]
-                    );
-                    for (const addon of addons) {
-                        await connection.query(
-                            `INSERT INTO service_booking_addons (booking_id, sub_package_id, addon_id, price)
-               VALUES (?, ?, ?, ?)`,
-                            [booking_id, sub_package_id, addon.addon_id, addon.price]
-                        );
-
-                        const [[addonTimeRow]] = await connection.query(
-                            `SELECT addonTime FROM package_addons WHERE addon_id = ?`,
-                            [addon.addon_id]
-                        );
-                        totalBookingTime +=
-                            (addonTimeRow?.addonTime || 0) * (quantity || 1);
-                    }
-
-                    // 🔹 Preferences
-                    const [prefs] = await connection.query(
-                        `SELECT preference_id FROM cart_preferences WHERE cart_id = ? AND sub_package_id = ?`,
-                        [cart_id, sub_package_id]
-                    );
-                    for (const pref of prefs) {
-                        await connection.query(
-                            `INSERT INTO service_booking_preferences (booking_id, sub_package_id, preference_id)
-               VALUES (?, ?, ?)`,
-                            [booking_id, sub_package_id, pref.preference_id]
-                        );
-                    }
-
-                    // 🔹 Consents
-                    const [consents] = await connection.query(
-                        `SELECT consent_id, answer FROM cart_consents WHERE cart_id = ? AND sub_package_id = ?`,
-                        [cart_id, sub_package_id]
-                    );
-                    for (const consent of consents) {
-                        await connection.query(
-                            `INSERT INTO service_booking_consents (booking_id, sub_package_id, consent_id, answer)
-               VALUES (?, ?, ?, ?)`,
-                            [booking_id, sub_package_id, consent.consent_id, consent.answer]
-                        );
-                    }
-                }
-
-                // ✅ Update total time
+            if (!cartPackages.length) {
+                console.warn("⚠️ Cart has no packages/sub-packages");
                 await connection.query(
-                    `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
-                    [Math.round(totalBookingTime), booking_id]
+                    `UPDATE payments SET status = 'failed', notes = 'Cart has no packages' WHERE payment_intent_id = ?`,
+                    [paymentIntentId]
                 );
-
-                // ✅ Promo usage (user or system promo)
-                if (user_promo_code_id) {
-                    const [[userPromo]] = await connection.query(
-                        `SELECT upc.user_promo_code_id, upc.usedCount, pc.maxUse
-              FROM user_promo_codes upc
-              JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-              WHERE upc.user_promo_code_id = ?`,
-                        [user_promo_code_id]
-                    );
-
-                    const [[systemPromo]] = await connection.query(
-                        `SELECT spc.system_promo_code_id, spc.usage_count, spt.maxUse
-              FROM system_promo_codes spc
-              JOIN system_promo_code_templates spt
-              ON spc.template_id = spt.system_promo_code_template_id
-              WHERE spc.system_promo_code_id = ?`,
-                        [user_promo_code_id]
-                    );
-
-                    if (userPromo && userPromo.usedCount < userPromo.maxUse) {
-                        await connection.query(
-                            `UPDATE user_promo_codes
-               SET usedCount = usedCount + 1
-               WHERE user_promo_code_id = ?`,
-                            [user_promo_code_id]
-                        );
-                    } else if (systemPromo && systemPromo.usage_count < systemPromo.maxUse) {
-                        await connection.query(
-                            `UPDATE system_promo_codes
-               SET usage_count = usage_count + 1
-               WHERE system_promo_code_id = ?`,
-                            [user_promo_code_id]
-                        );
-                    }
-                }
-
-                // ✅ Capture Stripe payment and get receipt
-                const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
-
-                // 🔹 Get receipt URL safely (from latest charge object)
-                const receiptUrl =
-                    capturedPayment.latest_charge &&
-                        typeof capturedPayment.latest_charge === "string"
-                        ? (await stripe.charges.retrieve(capturedPayment.latest_charge)).receipt_url
-                        : null;
-
-                // ✅ Update payment + booking
-                await connection.query(
-                    `UPDATE payments
-            SET status = 'completed', receipt_url = ?
-            WHERE payment_intent_id = ?`,
-                    [receiptUrl, paymentIntentId]
-                );
-
-                await connection.query(
-                    `UPDATE service_booking
-            SET payment_status = 'completed', bookingStatus = 1
-            WHERE booking_id = ?`,
-                    [booking_id]
-                );
-
-
-                // ✅ Clear cart data
-                await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
-                await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
-                await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [cart_id]);
-                await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
-                await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
-                await connection.query(`DELETE FROM cart_totals WHERE cart_id = ?`, [cart_id]);
-
                 await connection.commit();
-                console.log(`✅ Booking transaction completed for booking #${booking_id}`);
+                return;
             }
 
-            // -----------------------------------------------------
-            // CASE 2: Charge Captured — Send Emails
-            // -----------------------------------------------------
-            // -----------------------------------------------------
-            // CASE 2: Charge Captured OR Charge Succeeded — Send Emails
-            // -----------------------------------------------------
-            if (event.type === "charge.captured" || event.type === "payment_intent.succeeded") {
-                const charge = event.data.object;
-                const receiptUrl = charge.receipt_url;
-                const paymentIntentId = charge.payment_intent;
+            // ✅ Create booking
+            const [insertBooking] = await connection.query(
+                `INSERT INTO service_booking
+             (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia,
+              bookingStatus, payment_status, payment_intent_id, user_promo_code_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    user_id,
+                    cart.service_id,
+                    cart.bookingDate,
+                    cart.bookingTime,
+                    cart.vendor_id,
+                    cart.notes,
+                    cart.bookingMedia,
+                    0,
+                    "pending",
+                    paymentIntentId,
+                    user_promo_code_id || null,
+                ]
+            );
 
-                console.log(`🧾 Handling ${event.type} for PaymentIntent ${paymentIntentId}`);
+            const booking_id = insertBooking.insertId;
+            let totalBookingTime = 0;
 
-                if (receiptUrl) {
-                    const [[booking]] = await connection.query(
-                        `SELECT booking_id, user_id, vendor_id
-             FROM service_booking WHERE payment_intent_id = ? LIMIT 1`,
-                        [paymentIntentId]
+            // ✅ Insert unique package IDs
+            const uniquePackageIds = [...new Set(cartPackages.map((pkg) => pkg.package_id))];
+            for (const packageId of uniquePackageIds) {
+                await connection.query(
+                    `INSERT INTO service_booking_packages (booking_id, package_id, created_at)
+             VALUES (?, ?, NOW())`,
+                    [booking_id, packageId]
+                );
+            }
+
+            // ✅ Insert sub-packages, addons, preferences, consents
+            for (const pkg of cartPackages) {
+                const { sub_package_id, service_type_id, price, quantity } = pkg;
+
+                const [[itemTimeRow]] = await connection.query(
+                    `SELECT timeRequired FROM package_items WHERE item_id = ?`,
+                    [sub_package_id]
+                );
+
+                const itemTime = (itemTimeRow?.timeRequired || 0) * (quantity || 1);
+                totalBookingTime += itemTime;
+
+                await connection.query(
+                    `INSERT INTO service_booking_sub_packages (booking_id, sub_package_id, service_type_id, price, quantity)
+             VALUES (?, ?, ?, ?, ?)`,
+                    [booking_id, sub_package_id, service_type_id, price, quantity]
+                );
+
+                // 🔸 Addons
+                const [addons] = await connection.query(
+                    `SELECT addon_id, price FROM cart_addons WHERE cart_id = ? AND sub_package_id = ?`,
+                    [cart_id, sub_package_id]
+                );
+                for (const addon of addons) {
+                    await connection.query(
+                        `INSERT INTO service_booking_addons (booking_id, sub_package_id, addon_id, price)
+               VALUES (?, ?, ?, ?)`,
+                        [booking_id, sub_package_id, addon.addon_id, addon.price]
                     );
 
-                    if (booking) {
-                        try {
-                            console.log(`📦 Booking found for PaymentIntent ${paymentIntentId}:`, {
-                                booking_id: booking.booking_id,
-                                user_id: booking.user_id,
-                                vendor_id: booking.vendor_id,
-                                receiptUrl,
-                            });
+                    const [[addonTimeRow]] = await connection.query(
+                        `SELECT addonTime FROM package_addons WHERE addon_id = ?`,
+                        [addon.addon_id]
+                    );
+                    totalBookingTime += (addonTimeRow?.addonTime || 0) * (quantity || 1);
+                }
 
-                            console.log("📧 Sending booking email to user...");
-                            await sendBookingEmail(booking.user_id, {
-                                booking_id: booking.booking_id,
-                                receiptUrl,
-                            });
-                            console.log("✅ User booking email sent successfully!");
+                // 🔸 Preferences
+                const [prefs] = await connection.query(
+                    `SELECT preference_id FROM cart_preferences WHERE cart_id = ? AND sub_package_id = ?`,
+                    [cart_id, sub_package_id]
+                );
+                for (const pref of prefs) {
+                    await connection.query(
+                        `INSERT INTO service_booking_preferences (booking_id, sub_package_id, preference_id)
+               VALUES (?, ?, ?)`,
+                        [booking_id, sub_package_id, pref.preference_id]
+                    );
+                }
 
-                            console.log("📧 Sending booking email to vendor...");
-                            await sendVendorBookingEmail(booking.vendor_id, {
-                                booking_id: booking.booking_id,
-                                receiptUrl,
-                            });
-                            console.log("✅ Vendor booking email sent successfully!");
-
-                            console.log("🎉 All booking-related emails sent successfully for booking:", booking.booking_id);
-
-                        } catch (mailErr) {
-                            console.error("❌ Failed to send booking or vendor email:", {
-                                message: mailErr.message,
-                                stack: mailErr.stack,
-                            });
-                        }
-                    } else {
-                        console.warn(`⚠️ No booking record found for paymentIntentId: ${paymentIntentId}`);
-                    }
-                } else {
-                    console.warn(`⚠️ No receipt URL found in charge object for PaymentIntent ${paymentIntentId}`);
+                // 🔸 Consents
+                const [consents] = await connection.query(
+                    `SELECT consent_id, answer FROM cart_consents WHERE cart_id = ? AND sub_package_id = ?`,
+                    [cart_id, sub_package_id]
+                );
+                for (const consent of consents) {
+                    await connection.query(
+                        `INSERT INTO service_booking_consents (booking_id, sub_package_id, consent_id, answer)
+               VALUES (?, ?, ?, ?)`,
+                        [booking_id, sub_package_id, consent.consent_id, consent.answer]
+                    );
                 }
             }
+
+            await connection.query(
+                `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
+                [Math.round(totalBookingTime), booking_id]
+            );
+
+            // ✅ Capture Stripe Payment
+            const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
+
+            const receiptUrl =
+                capturedPayment.latest_charge &&
+                    typeof capturedPayment.latest_charge === "string"
+                    ? (await stripe.charges.retrieve(capturedPayment.latest_charge)).receipt_url
+                    : null;
+
+            // ✅ Update payment + booking
+            await connection.query(
+                `UPDATE payments SET status = 'completed', receipt_url = ? WHERE payment_intent_id = ?`,
+                [receiptUrl, paymentIntentId]
+            );
+
+            await connection.query(
+                `UPDATE service_booking SET payment_status = 'completed', bookingStatus = 1 WHERE booking_id = ?`,
+                [booking_id]
+            );
+
+            // ✅ Clear cart
+            await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
+            await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
+            await connection.query(`DELETE FROM cart_consents WHERE cart_id = ?`, [cart_id]);
+            await connection.query(`DELETE FROM cart_package_items WHERE cart_id = ?`, [cart_id]);
+            await connection.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
+            await connection.query(`DELETE FROM cart_totals WHERE cart_id = ?`, [cart_id]);
+
+            await connection.commit();
+
+            console.log(`✅ Booking transaction completed for booking #${booking_id}`);
+            console.log(`🧾 Receipt URL: ${receiptUrl}`);
+
+            // ✅ Send Emails (immediately after commit)
+            console.log("📧 Sending booking email to user and vendor...");
+
+            await sendBookingEmail(user_id, { booking_id, receiptUrl });
+            console.log("✅ User booking email sent successfully!");
+
+            await sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
+            console.log("✅ Vendor booking email sent successfully!");
 
         } catch (err) {
             console.error("❌ Webhook processing error:", err.message);
@@ -573,14 +476,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             } catch (cancelErr) {
                 console.error("⚠️ Failed to cancel PaymentIntent:", cancelErr.message);
             }
-
-            // ✅ Cleanup in case rollback occurred
-            await connection.query(`DELETE FROM service_booking_packages WHERE booking_id IS NULL`);
         } finally {
             connection.release();
         }
     })();
 });
+
 
 
 
