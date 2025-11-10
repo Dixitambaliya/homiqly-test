@@ -26,7 +26,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
     } = extraData;
 
     // ----- HEADER -----
-    const headerLogoPath = path.resolve("config/media/homiqly.png");
+    const headerLogoPath = path.resolve("https://www.homiqly.codegrin.com/public/homiqly.png");
     const headerCid = "homiqlyLogo";
 
     let headerHtml = `
@@ -38,7 +38,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
   `;
 
     // ----- FOOTER (DEFAULT) -----
-    const footerLogoPath = path.resolve("config/media/Homiqly_Transparent_White.png");
+    const footerLogoPath = path.resolve("https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png");
     const footerCid = "footerLogo";
 
     let footerHtml = `
@@ -104,7 +104,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
               </td>
               <td align="right" valign="middle" style="width: 50%;">
                 <div style="text-align: right;">
-                  <a href="https://www.instagram.com/public/Homiqly_Transparent_White.png" style="text-decoration: none; display: inline-block; margin-right: 18px;">
+                  <a href="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" style="text-decoration: none; display: inline-block; margin-right: 18px;">
                     <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png"
                          alt="Instagram"
                          style="width: 24px; height: 24px; display: block;" />
@@ -160,7 +160,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
 
     <!-- Top White Homiqly Logo -->
     <div style="width: 140px; margin: 0 auto 25px;">
-      <img src="https://www.instagram.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
+      <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
            style="width: 140px; height: auto; display: block; margin: 0 auto;" />
     </div>
 
@@ -193,7 +193,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
           <tr>
             <!-- Left: Logo | Right: Social Icons -->
             <td align="left" valign="middle" style="width: 50%;">
-              <img src="https://www.instagram.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
+              <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
             </td>
             <td align="right" valign="middle" style="width: 50%;">
               <div style="text-align: right;">
@@ -350,7 +350,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", variables =
     <tr>
       <!-- Left: Logo | Right: Social Icons -->
       <td align="left" valign="middle" style="width: 50%;">
-        <img src="https://www.instagram.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
+        <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
       </td>
       <td align="right" valign="middle" style="width: 50%;">
         <div style="text-align: right;">
