@@ -6,20 +6,20 @@ const moment = require('moment-timezone');
 
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  }
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    }
 });
 
 //done
 const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
-  if (!userEmail) return console.warn("⚠️ No email provided for welcome mail");
+    if (!userEmail) return console.warn("⚠️ No email provided for welcome mail");
 
-  const subject = "Welcome to the Homiqly community";
+    const subject = "Welcome to the Homiqly community";
 
-  const bodyHtml = `
+    const bodyHtml = `
   <div style="padding: 35px 30px; font-size: 15px; color: #333; max-width: 480px;">
     <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 10px;">
       Welcome to Homiqly, ${firstName || "there"}!
@@ -46,24 +46,24 @@ const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
     </div>
   `;
 
-  await sendMail({
-    to: userEmail,
-    subject,
-    bodyHtml,
-  });
+    await sendMail({
+        to: userEmail,
+        subject,
+        bodyHtml,
+    });
 };
 
 //done
 const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) => {
-  try {
-    // 📬 1. Fetch admin emails
-    const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
-    if (!adminEmails.length) return console.warn("⚠️ No admin emails found.");
+    try {
+        // 📬 1. Fetch admin emails
+        const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
+        if (!adminEmails.length) return console.warn("⚠️ No admin emails found.");
 
-    const emailAddresses = adminEmails.map((row) => row.email);
+        const emailAddresses = adminEmails.map((row) => row.email);
 
-    // 🧩 2. Build email content (body only, header/footer added by sendMail)
-    const bodyHtml = `
+        // 🧩 2. Build email content (body only, header/footer added by sendMail)
+        const bodyHtml = `
       <div style="padding: 35px 30px; font-size: 15px; color: #333; max-width: 480px">
         <h2 style="font-size: 20px; color: #222; text-align: o; margin-bottom: 20px;">
           New Vendor Registration
@@ -99,33 +99,33 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
       </div>
     `;
 
-    // ✉️ 3. Send mail through common utility (adds header/footer + logo automatically)
-    await sendMail({
-      to: emailAddresses,
-      subject: "New Service Provider Registred on Homiqly",
-      bodyHtml,
-    });
+        // ✉️ 3. Send mail through common utility (adds header/footer + logo automatically)
+        await sendMail({
+            to: emailAddresses,
+            subject: "New Service Provider Registred on Homiqly",
+            bodyHtml,
+        });
 
-    console.log(`📧 Admin notified about new vendor: ${vendorName}`);
-  } catch (error) {
-    console.error("❌ Failed to send admin vendor registration email:", error.message);
-  }
+        console.log(`📧 Admin notified about new vendor: ${vendorName}`);
+    } catch (error) {
+        console.error("❌ Failed to send admin vendor registration email:", error.message);
+    }
 };
 
 //done
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
-  try {
-    // 🧩 Fetch user
-    const [[user]] = await db.query(
-      `SELECT CONCAT(firstName, ' ', lastName) AS name, email FROM users WHERE user_id = ? LIMIT 1`,
-      [user_id]
-    );
-    if (!user) return console.warn(`⚠️ No user found for user_id ${user_id}`);
+    try {
+        // 🧩 Fetch user
+        const [[user]] = await db.query(
+            `SELECT CONCAT(firstName, ' ', lastName) AS name, email FROM users WHERE user_id = ? LIMIT 1`,
+            [user_id]
+        );
+        if (!user) return console.warn(`⚠️ No user found for user_id ${user_id}`);
 
-    // 🧩 Fetch booking + vendor + service details
-    const [[booking]] = await db.query(
-      `
-      SELECT 
+        // 🧩 Fetch booking + vendor + service details
+        const [[booking]] = await db.query(
+            `
+      SELECT
         sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.payment_status,
         sb.notes, sb.created_at, p.amount AS totalAmount,
         v.vendor_id,
@@ -133,7 +133,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS vendorEmail,
         CASE WHEN v.vendorType = 'individual' THEN i.phone ELSE c.companyPhone END AS vendorPhone,
         s.serviceName, sc.serviceCategory
-      FROM service_booking sb 
+      FROM service_booking sb
       LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
       LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
       LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
@@ -143,77 +143,77 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
       WHERE sb.booking_id = ?
       LIMIT 1
       `,
-      [booking_id]
-    );
-    if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
+            [booking_id]
+        );
+        if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-    // 🧾 Items, Addons, Preferences, and Concerns
-    const [items] = await db.query(
-      `SELECT pi.itemName, sbs.price, sbs.quantity
+        // 🧾 Items, Addons, Preferences, and Concerns
+        const [items] = await db.query(
+            `SELECT pi.itemName, sbs.price, sbs.quantity
        FROM service_booking_sub_packages sbs
        JOIN package_items pi ON sbs.sub_package_id = pi.item_id
        WHERE sbs.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    const [addons] = await db.query(
-      `SELECT pa.addonName, sba.price
+        const [addons] = await db.query(
+            `SELECT pa.addonName, sba.price
        FROM service_booking_addons sba
        JOIN package_addons pa ON sba.addon_id = pa.addon_id
        WHERE sba.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    const [preferences] = await db.query(
-      `SELECT pp.preferenceValue , pp.preferencePrice
+        const [preferences] = await db.query(
+            `SELECT pp.preferenceValue , pp.preferencePrice
        FROM service_booking_preferences sbp
        JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
        WHERE sbp.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    // Optional: only if you have a "concerns" table
-    const [concerns] = await db.query(
-      `SELECT pc.question , sbc.answer
+        // Optional: only if you have a "concerns" table
+        const [concerns] = await db.query(
+            `SELECT pc.question , sbc.answer
        FROM service_booking_consents sbc
        JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
        WHERE sbc.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    // 🧩 Build rows
-    const buildRows = (data, rowFn, emptyText) =>
-      data.length
-        ? data.map(rowFn).join("")
-        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
+        // 🧩 Build rows
+        const buildRows = (data, rowFn, emptyText) =>
+            data.length
+                ? data.map(rowFn).join("")
+                : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
 
-    const itemRows = buildRows(items, (i) => `
+        const itemRows = buildRows(items, (i) => `
       <tr>
         <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
       </tr>`, "No items found");
 
-    const addonRows = buildRows(addons, (a) => `
+        const addonRows = buildRows(addons, (a) => `
       <tr>
         <td style="padding:10px; border:1px solid #ddd;" colspan="2">${a.addonName}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
       </tr>`, "No addons selected");
 
-    const preferenceRows = buildRows(preferences, (p) => `
+        const preferenceRows = buildRows(preferences, (p) => `
       <tr>
         <td style="padding:10px; border:1px solid #ddd;">${p.preferenceValue}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:right;">${p.preferencePrice}</td>
       </tr>`, "No preferences set");
 
-    const concernRows = buildRows(concerns, (c) => `
+        const concernRows = buildRows(concerns, (c) => `
       <tr>
       <td style="padding:10px; border:1px solid #ddd;">${c.question}
       <td style="padding:10px; border:1px solid #ddd; text-align:right;">${c.answer}
       </td>
       </tr>`, "No concerns listed");
 
-    const bodyHtml = `
+        const bodyHtml = `
       <div style="font-family: Arial, sans-serif; background-color: #ffffff; padding: 35px 40px;">
         <h2 style="text-align:center; color:#333;">Booking Confirmed</h2>
         <p style="font-size:15px; color:#555;">Hi <strong>${user.name}</strong>, your booking has been confirmed!</p>
@@ -263,45 +263,45 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         </p>
 
         ${receiptUrl
-        ? `<p style="text-align:center; margin-top:20px;">
+                ? `<p style="text-align:center; margin-top:20px;">
                <a href="${receiptUrl}" style="background:#000; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">View Receipt</a>
              </p>` : ""
-      }
+            }
       </div>
     `;
 
-    await sendMail({
-      to: user.email,
-      subject: "Your Booking is Confirmed!",
-      bodyHtml,
-    });
+        await sendMail({
+            to: user.email,
+            subject: "Your Booking is Confirmed!",
+            bodyHtml,
+        });
 
-    console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
-  } catch (err) {
-    console.error("⚠️ Failed to send booking email:", err.message);
-  }
+        console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
+    } catch (err) {
+        console.error("⚠️ Failed to send booking email:", err.message);
+    }
 };
 
 //done
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
-  try {
-    // 🔹 Get vendor email/name from individual or company table
-    const [[vendor]] = await db.query(
-      `SELECT 
+    try {
+        // 🔹 Get vendor email/name from individual or company table
+        const [[vendor]] = await db.query(
+            `SELECT
         CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS email,
         CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS name
        FROM vendors v
        LEFT JOIN individual_details i ON v.vendor_id = i.id
        LEFT JOIN company_details c ON v.vendor_id = c.id
        WHERE v.vendor_id = ? LIMIT 1`,
-      [vendor_id]
-    );
+            [vendor_id]
+        );
 
-    if (!vendor) return console.warn(`⚠️ No vendor found for vendor_id ${vendor_id}`);
+        if (!vendor) return console.warn(`⚠️ No vendor found for vendor_id ${vendor_id}`);
 
-    // 🔹 Booking + user info
-    const [[booking]] = await db.query(
-      `SELECT 
+        // 🔹 Booking + user info
+        const [[booking]] = await db.query(
+            `SELECT
         sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes,
         u.firstName AS userFirstName, u.lastName AS userLastName, u.email AS userEmail,
         s.serviceName, sc.serviceCategory, p.amount AS totalAmount
@@ -311,99 +311,99 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
       LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
       LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
       WHERE sb.booking_id = ? LIMIT 1`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
+        if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-    // 🔹 Package items
-    const [items] = await db.query(
-      `SELECT pi.itemName, sbs.price, sbs.quantity
+        // 🔹 Package items
+        const [items] = await db.query(
+            `SELECT pi.itemName, sbs.price, sbs.quantity
        FROM service_booking_sub_packages sbs
        JOIN package_items pi ON sbs.sub_package_id = pi.item_id
        WHERE sbs.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    // 🔹 Addons
-    const [addons] = await db.query(
-      `SELECT pa.addonName, sba.price
+        // 🔹 Addons
+        const [addons] = await db.query(
+            `SELECT pa.addonName, sba.price
        FROM service_booking_addons sba
        JOIN package_addons pa ON sba.addon_id = pa.addon_id
        WHERE sba.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    // 🔹 Preferences
-    const [preferences] = await db.query(
-      `SELECT pp.preferencePrice, pp.preferenceValue
+        // 🔹 Preferences
+        const [preferences] = await db.query(
+            `SELECT pp.preferencePrice, pp.preferenceValue
        FROM service_booking_preferences sbp
        JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
        WHERE sbp.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    // 🔹 Concerns (concepts)
-    const [concerns] = await db.query(
-      `SELECT pc.question , sbc.answer
+        // 🔹 Concerns (concepts)
+        const [concerns] = await db.query(
+            `SELECT pc.question , sbc.answer
        FROM service_booking_consents sbc
        JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
        WHERE sbc.booking_id = ?`,
-      [booking_id]
-    );
+            [booking_id]
+        );
 
-    // 🔹 Helper to build rows
-    const buildRows = (data, rowFn, emptyText) =>
-      data.length
-        ? data.map(rowFn).join("")
-        : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
+        // 🔹 Helper to build rows
+        const buildRows = (data, rowFn, emptyText) =>
+            data.length
+                ? data.map(rowFn).join("")
+                : `<tr><td colspan="3" style="padding:10px; text-align:center; border:1px solid #ddd;">${emptyText}</td></tr>`;
 
-    const itemRows = buildRows(
-      items,
-      (i) => `
+        const itemRows = buildRows(
+            items,
+            (i) => `
         <tr>
           <td style="padding:10px; border:1px solid #ddd;">${i.itemName}</td>
           <td style="padding:10px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
           <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${i.price}</td>
         </tr>`,
-      "No items"
-    );
+            "No items"
+        );
 
-    const addonRows = buildRows(
-      addons,
-      (a) => `
+        const addonRows = buildRows(
+            addons,
+            (a) => `
         <tr>
           <td colspan="2" style="padding:10px; border:1px solid #ddd;">${a.addonName}</td>
           <td style="padding:10px; border:1px solid #ddd; text-align:right;">₹${a.price}</td>
         </tr>`,
-      "No addons"
-    );
+            "No addons"
+        );
 
-    const preferenceRows = buildRows(
-      preferences,
-      (p) => `
+        const preferenceRows = buildRows(
+            preferences,
+            (p) => `
         <tr>
           <td style="padding:10px; border:1px solid #ddd;">${p.preferenceValue}</td>
           <td style="padding:10px; border:1px solid #ddd; text-align:right;">${p.preferencePrice}</td>
         </tr>`,
-      "No preferences"
-    );
+            "No preferences"
+        );
 
-    const concernRows = buildRows(
-      concerns,
-      (c) => `
+        const concernRows = buildRows(
+            concerns,
+            (c) => `
         <tr>
           <td style="padding:10px; border:1px solid #ddd;">${c.question}</td>
           <td style="padding:10px; border:1px solid #ddd;text-align:right;">${c.answer}</td>
         </tr>`,
-      "No concerns"
-    );
+            "No concerns"
+        );
 
-    // 🔹 Email HTML content
-    const bodyHtml = `
+        // 🔹 Email HTML content
+        const bodyHtml = `
       <div style="font-family:Arial, sans-serif; background:#fff; padding:30px;">
         <h2 style="text-align:center;">New Booking Received</h2>
-        <p>Hi <strong>${vendor.name}</strong>, you’ve received a new booking from 
+        <p>Hi <strong>${vendor.name}</strong>, you’ve received a new booking from
         <strong>${booking.userFirstName} ${booking.userLastName}</strong> (${booking.userEmail}).</p>
 
         <h3>Booking Details</h3>
@@ -442,33 +442,33 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
           <strong>Total:</strong> ₹${booking.totalAmount || "N/A"}
         </p>
         ${receiptUrl
-        ? `<p style="text-align:center; margin-top:20px;">
+                ? `<p style="text-align:center; margin-top:20px;">
                 <a href="${receiptUrl}" style="background:#000; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">View Receipt</a>
               </p>` : ""
-      }
+            }
       </div>
 
     `;
 
-    // 🔹 Send mail
-    await sendMail({
-      to: vendor.email,
-      subject: "New Booking Received",
-      bodyHtml,
-    });
+        // 🔹 Send mail
+        await sendMail({
+            to: vendor.email,
+            subject: "New Booking Received",
+            bodyHtml,
+        });
 
-    console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
-  } catch (err) {
-    console.error("⚠️ Failed to send vendor booking email:", err.message);
-  }
+        console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
+    } catch (err) {
+        console.error("⚠️ Failed to send vendor booking email:", err.message);
+    }
 };
 
 
 const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }) => {
-  try {
-    // 🧩 Conditionally include login credentials (for company vendors)
-    const passwordSection = plainPassword
-      ? `
+    try {
+        // 🧩 Conditionally include login credentials (for company vendors)
+        const passwordSection = plainPassword
+            ? `
         <div style="background:#f9f9f9; border-radius:8px; padding:15px 20px; margin:20px 0;">
           <p style="margin:0 0 10px 0; font-weight:600;">Your Login Credentials:</p>
           <ul style="line-height:1.8; padding-left:20px; margin:0;">
@@ -478,12 +478,12 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
         </div>
         <p style="color:#555; margin-top:10px;">Please reset your password after your first login for security.</p>
       `
-      : `
+            : `
         <p>You can now log in using your existing credentials and start accepting bookings.</p>
       `;
 
-    // 🧠 Build email body (header/footer are automatically added by sendMail)
-    const bodyHtml = `
+        // 🧠 Build email body (header/footer are automatically added by sendMail)
+        const bodyHtml = `
       <div style="padding: 35px 30px; font-size: 15px; color: #333;">
         <h2 style="font-size: 20px; font-weight: 600; color: #222; text-align: center; margin-bottom: 20px;">
           🎉 Congratulations, ${vendorName}!
@@ -515,25 +515,25 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
       </div>
     `;
 
-    // ✉️ Send via global sendMail utility (adds header + footer automatically)
-    await sendMail({
-      to: vendorEmail,
-      subject: "Welcome to Homiqly community! Your Application Has Been Approved",
-      bodyHtml,
-    });
+        // ✉️ Send via global sendMail utility (adds header + footer automatically)
+        await sendMail({
+            to: vendorEmail,
+            subject: "Welcome to Homiqly community! Your Application Has Been Approved",
+            bodyHtml,
+        });
 
-    console.log(`📧 Vendor approval email sent to: ${vendorName} (${vendorEmail})`);
-  } catch (error) {
-    console.error("❌ Failed to send vendor approval email:", error.message);
-  }
+        console.log(`📧 Vendor approval email sent to: ${vendorName} (${vendorEmail})`);
+    } catch (error) {
+        console.error("❌ Failed to send vendor approval email:", error.message);
+    }
 };
 
 const sendVendorRejectionMail = async ({ vendorName, vendorEmail }) => {
-  try {
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
+    try {
+        const logoPath = path.resolve("config/media/homiqly.webp");
+        const cidName = "homiqlyLogo";
 
-    const htmlBody = `
+        const htmlBody = `
       <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
         <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
 
@@ -559,29 +559,29 @@ const sendVendorRejectionMail = async ({ vendorName, vendorEmail }) => {
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
-      to: vendorEmail,
-      subject: "Your Homiqly Application Has Been Rejected",
-      html: htmlBody,
-      attachments: [
-        { filename: 'homiqly.webp', path: logoPath, cid: cidName, contentDisposition: "inline" }
-      ]
-    });
+        await transporter.sendMail({
+            from: `<${process.env.EMAIL_USER}>`,
+            to: vendorEmail,
+            subject: "Your Homiqly Application Has Been Rejected",
+            html: htmlBody,
+            attachments: [
+                { filename: 'homiqly.webp', path: logoPath, cid: cidName, contentDisposition: "inline" }
+            ]
+        });
 
-    console.log(`📧 Rejection email sent to ${vendorName} (${vendorEmail})`);
-  } catch (err) {
-    console.error("❌ Failed to send vendor rejection email:", err.message);
-  }
+        console.log(`📧 Rejection email sent to ${vendorName} (${vendorEmail})`);
+    } catch (err) {
+        console.error("❌ Failed to send vendor rejection email:", err.message);
+    }
 }
 
 const sendPasswordUpdatedMail = async ({ userName, userEmail }) => {
-  try {
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
-    const resetLink = "https://ts-homiqly-adminpanel.vercel.app/forgotpassword"; // update if needed
+    try {
+        const logoPath = path.resolve("config/media/homiqly.webp");
+        const cidName = "homiqlyLogo";
+        const resetLink = "https://ts-homiqly-adminpanel.vercel.app/forgotpassword"; // update if needed
 
-    const htmlBody = `
+        const htmlBody = `
       <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
         <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
 
@@ -597,8 +597,8 @@ const sendPasswordUpdatedMail = async ({ userName, userEmail }) => {
             <p>This is to confirm that your <strong>Homiqly</strong> account password has been successfully updated.</p>
             <p>If you did not make this change, please reset your password immediately using the link below:</p>
             <p>
-              <a href="${resetLink}" 
-                 style="display:inline-block; background:#007BFF; color:#fff; text-decoration:none; 
+              <a href="${resetLink}"
+                 style="display:inline-block; background:#007BFF; color:#fff; text-decoration:none;
                         padding:10px 20px; border-radius:6px; font-weight:bold;">
                  Reset Password
               </a>
@@ -616,33 +616,33 @@ const sendPasswordUpdatedMail = async ({ userName, userEmail }) => {
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
-      to: userEmail,
-      subject: "Password Updated Successfully",
-      html: htmlBody,
-      attachments: [
-        {
-          filename: "homiqly.webp",
-          path: logoPath,
-          cid: cidName,
-          contentDisposition: "inline",
-        },
-      ],
-    });
+        await transporter.sendMail({
+            from: `<${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: "Password Updated Successfully",
+            html: htmlBody,
+            attachments: [
+                {
+                    filename: "homiqly.webp",
+                    path: logoPath,
+                    cid: cidName,
+                    contentDisposition: "inline",
+                },
+            ],
+        });
 
-    console.log(`📧 Password update email sent to: ${userName} (${userEmail})`);
-  } catch (error) {
-    console.error("❌ Failed to send password update email:", error.message);
-  }
+        console.log(`📧 Password update email sent to: ${userName} (${userEmail})`);
+    } catch (error) {
+        console.error("❌ Failed to send password update email:", error.message);
+    }
 }
 
 const sendPasswordResetCodeMail = async ({ userEmail, code }) => {
-  try {
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
+    try {
+        const logoPath = path.resolve("config/media/homiqly.webp");
+        const cidName = "homiqlyLogo";
 
-    const htmlBody = `
+        const htmlBody = `
       <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
         <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
 
@@ -658,12 +658,12 @@ const sendPasswordResetCodeMail = async ({ userEmail, code }) => {
             <p>We received a request to reset your <strong>Homiqly</strong> account password.</p>
             <p>Your password reset code is:</p>
 
-            <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px; 
+            <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px;
                         text-align:center; padding:15px; font-size:24px; font-weight:bold; color:#007BFF; letter-spacing:3px;">
               ${code}
             </div>
 
-            <p style="margin-top:15px;">⚠️ This code will expire in <strong>5 minutes</strong>. 
+            <p style="margin-top:15px;">⚠️ This code will expire in <strong>5 minutes</strong>.
                If you didn’t request a password reset, you can safely ignore this email.</p>
 
             <p style="margin-top:20px;">Thanks,<br><strong>Homiqly Support Team</strong></p>
@@ -678,37 +678,37 @@ const sendPasswordResetCodeMail = async ({ userEmail, code }) => {
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
-      to: userEmail,
-      subject: "Your Homiqly Password Reset Code",
-      html: htmlBody,
-      attachments: [
-        {
-          filename: "homiqly.webp",
-          path: logoPath,
-          cid: cidName,
-          contentDisposition: "inline",
-        },
-      ],
-    });
+        await transporter.sendMail({
+            from: `<${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: "Your Homiqly Password Reset Code",
+            html: htmlBody,
+            attachments: [
+                {
+                    filename: "homiqly.webp",
+                    path: logoPath,
+                    cid: cidName,
+                    contentDisposition: "inline",
+                },
+            ],
+        });
 
-    console.log(`📧 Password reset code sent to: ${userEmail}`);
-  } catch (error) {
-    console.error("❌ Failed to send password reset email:", error.message);
-  }
+        console.log(`📧 Password reset code sent to: ${userEmail}`);
+    } catch (error) {
+        console.error("❌ Failed to send password reset email:", error.message);
+    }
 }
 
 //done
 const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
-  try {
-    const bodyHtml = `
+    try {
+        const bodyHtml = `
       <div style="padding: 30px 34px; text-align:left; max-width: 480px;">
         <h2 style="font-size: 20px; font-weight: 600; color: #000;">
           ${subject?.toLowerCase().includes("back")
-        ? "Welcome back to the Homiqly community"
-        : "Welcome to the Homiqly community"
-      }
+                ? "Welcome back to the Homiqly community"
+                : "Welcome to the Homiqly community"
+            }
         </h2>
 
         <p style="font-size: 15px; line-height: 1.6; color: #444; text-align:left">
@@ -742,27 +742,28 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
       </div>
     `;
 
-    // ✉️ Send the mail using your reusable wrapper
-    await sendMail({
-      to: userEmail,
-      subject,
-      bodyHtml,
-    });
+        // ✉️ Send the mail using your reusable wrapper
+        await sendMail({
+            to: userEmail,
+            subject,
+            bodyHtml,
+            layout: "noUnsubscribe",
+        });
 
-    console.log(`📧 Verification email sent to ${userEmail}`);
-  } catch (error) {
-    console.error("❌ Error sending verification mail:", error.message);
-  }
+        console.log(`📧 Verification email sent to ${userEmail}`);
+    } catch (error) {
+        console.error("❌ Error sending verification mail:", error.message);
+    }
 };
 
 
 const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorName }) => {
-  try {
-    const logoPath = path.resolve("config/media/homiqly.webp");
-    const cidName = "homiqlyLogo";
-    const reviewLink = `https://homiqly-h81s.vercel.app/Profile/history`;
+    try {
+        const logoPath = path.resolve("config/media/homiqly.webp");
+        const cidName = "homiqlyLogo";
+        const reviewLink = `https://homiqly-h81s.vercel.app/Profile/history`;
 
-    const htmlBody = `
+        const htmlBody = `
       <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
         <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
 
@@ -779,8 +780,8 @@ const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorN
             <p>Your feedback helps us improve and recognize our top professionals.</p>
 
             <div style="text-align:center; margin:30px 0;">
-              <a href="${reviewLink}" 
-                 style="background:#FF6F61; color:#fff; padding:12px 28px; border-radius:30px; 
+              <a href="${reviewLink}"
+                 style="background:#FF6F61; color:#fff; padding:12px 28px; border-radius:30px;
                  font-size:16px; text-decoration:none; font-weight:bold;">
                  👉 Leave a Review
               </a>
@@ -798,79 +799,79 @@ const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorN
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
-      to: userEmail,
-      subject: "How Was Your Homiqly Experience? 👉",
-      html: htmlBody,
-      attachments: [
-        {
-          filename: "homiqly.webp",
-          path: logoPath,
-          cid: cidName,
-          contentDisposition: "inline",
-        },
-      ],
-    });
+        await transporter.sendMail({
+            from: `<${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: "How Was Your Homiqly Experience? 👉",
+            html: htmlBody,
+            attachments: [
+                {
+                    filename: "homiqly.webp",
+                    path: logoPath,
+                    cid: cidName,
+                    contentDisposition: "inline",
+                },
+            ],
+        });
 
-    console.log(`📧 Review request sent to: ${userName} (${userEmail})`);
-  } catch (error) {
-    console.error("❌ Failed to send review request email:", error.message);
-  }
+        console.log(`📧 Review request sent to: ${userName} (${userEmail})`);
+    } catch (error) {
+        console.error("❌ Failed to send review request email:", error.message);
+    }
 }
 
 //done
 const assignWelcomeCode = async ({ user_id, user_email }) => {
-  try {
-    // ✅ 1. Check if auto-assign is enabled
-    const [setting] = await db.query(
-      "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
-    );
+    try {
+        // ✅ 1. Check if auto-assign is enabled
+        const [setting] = await db.query(
+            "SELECT setting_value FROM settings WHERE setting_key = 'AUTO_ASSIGN_WELCOME_CODE'"
+        );
 
-    if (!setting[0] || setting[0].setting_value != 1) {
-      console.log("⚙️ Auto-assign welcome code is disabled");
-      return null;
-    }
+        if (!setting[0] || setting[0].setting_value != 1) {
+            console.log("⚙️ Auto-assign welcome code is disabled");
+            return null;
+        }
 
-    // ✅ 2. Check if user already has a promo assigned
-    const [existing] = await db.query(
-      "SELECT * FROM system_promo_codes WHERE user_id = ?",
-      [user_id]
-    );
+        // ✅ 2. Check if user already has a promo assigned
+        const [existing] = await db.query(
+            "SELECT * FROM system_promo_codes WHERE user_id = ?",
+            [user_id]
+        );
 
-    if (existing.length > 0) {
-      console.log("ℹ️ User already has a promo code assigned");
-      return null;
-    }
+        if (existing.length > 0) {
+            console.log("ℹ️ User already has a promo code assigned");
+            return null;
+        }
 
-    // ✅ 3. Get the active welcome promo template
-    const [templates] = await db.query(
-      "SELECT * FROM system_promo_code_templates WHERE is_active = 1 AND source_type = 'system' LIMIT 1"
-    );
+        // ✅ 3. Get the active welcome promo template
+        const [templates] = await db.query(
+            "SELECT * FROM system_promo_code_templates WHERE is_active = 1 AND source_type = 'system' LIMIT 1"
+        );
 
-    if (!templates || templates.length === 0) {
-      console.log("⚠️ No active promo template found");
-      return null;
-    }
+        if (!templates || templates.length === 0) {
+            console.log("⚠️ No active promo template found");
+            return null;
+        }
 
-    const template = templates[0];
-    const { system_promo_code_template_id, code, discountValue, maxUse } = template;
+        const template = templates[0];
+        const { system_promo_code_template_id, code, discountValue, maxUse } = template;
 
-    console.log("Assigning template:", { user_id, system_promo_code_template_id, code });
+        console.log("Assigning template:", { user_id, system_promo_code_template_id, code });
 
-    // ✅ 4. Assign promo to user
-    await db.query(
-      `INSERT INTO system_promo_codes (user_id, template_id, usage_count)
+        // ✅ 4. Assign promo to user
+        await db.query(
+            `INSERT INTO system_promo_codes (user_id, template_id, usage_count)
        VALUES (?, ?, 0)`,
-      [user_id, system_promo_code_template_id]
-    );
+            [user_id, system_promo_code_template_id]
+        );
 
-    console.log(`✅ Promo template '${code}' assigned to user ID: ${user_id}`);
+        console.log(`✅ Promo template '${code}' assigned to user ID: ${user_id}`);
 
-    // ✅ 5. Send email (using sendMail helper)
-    if (user_email) {
-      const subject = "Welcome to Homiqly community! Your Promo Code Inside";
-      const bodyHtml = `
+        // ✅ 5. Send email (using sendMail helper)
+        if (user_email) {
+            const subject = "Welcome to Homiqly community! Your Promo Code Inside";
+            const bodyHtml = `
               <div style="padding: 30px; font-size: 15px; color: #333; text-align: left;">
                 <h2 style="font-weight: 600; margin-bottom: 10px; font-size: 20px; color: #111;">
                   We're excited to have you onboard!
@@ -920,78 +921,78 @@ const assignWelcomeCode = async ({ user_id, user_email }) => {
 `;
 
 
-      await sendMail({
-        to: user_email,
-        subject,
-        bodyHtml,
-      });
+            await sendMail({
+                to: user_email,
+                subject,
+                bodyHtml,
+            });
 
-      console.log(`📧 Welcome promo email sent to ${user_email}`);
+            console.log(`📧 Welcome promo email sent to ${user_email}`);
+        }
+
+        return code;
+    } catch (err) {
+        console.error("❌ Error assigning welcome promo code:", err.message);
+        return null;
     }
-
-    return code;
-  } catch (err) {
-    console.error("❌ Error assigning welcome promo code:", err.message);
-    return null;
-  }
 };
 
 const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) => {
-  if (!vendorData?.vendorEmail) {
-    console.warn("⚠️ No vendor email found, skipping email notification.");
-    return;
-  }
+    if (!vendorData?.vendorEmail) {
+        console.warn("⚠️ No vendor email found, skipping email notification.");
+        return;
+    }
 
-  try {
+    try {
 
-    const emailHtml = `
+        const emailHtml = `
             <p>Dear ${vendorData.vendorName},</p>
             <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
             <ul>
                 ${newlyAssigned
-        .map(
-          (p) => `
+                .map(
+                    (p) => `
                         <li>
                             <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
-                            <strong>Sub-Packages:</strong> 
+                            <strong>Sub-Packages:</strong>
                             ${p.selected_subpackages.length > 0
-              ? p.selected_subpackages
-                .map((sp) => `${sp.name} (ID: ${sp.id})`)
-                .join(", ")
-              : "None"
-            }
+                            ? p.selected_subpackages
+                                .map((sp) => `${sp.name} (ID: ${sp.id})`)
+                                .join(", ")
+                            : "None"
+                        }
                         </li>`
-        )
-        .join("")}
+                )
+                .join("")}
             </ul>
             <p>You can now manage and offer these packages from your dashboard.</p>
         `;
 
-    await transporter.sendMail({
-      from: `<${process.env.EMAIL_USER}>`,
-      to: vendorData.vendorEmail,
-      subject: "New Packages Assigned to You",
-      html: emailHtml
-    });
+        await transporter.sendMail({
+            from: `<${process.env.EMAIL_USER}>`,
+            to: vendorData.vendorEmail,
+            subject: "New Packages Assigned to You",
+            html: emailHtml
+        });
 
-    console.log(`✅ Email sent to vendor ${vendorData.vendorEmail}`);
-  } catch (mailErr) {
-    console.error("⚠️ Failed to send vendor email:", mailErr.message);
-  }
+        console.log(`✅ Email sent to vendor ${vendorData.vendorEmail}`);
+    } catch (mailErr) {
+        console.error("⚠️ Failed to send vendor email:", mailErr.message);
+    }
 };
 
 module.exports = {
-  sendBookingEmail,
-  sendVendorBookingEmail,
-  sendAdminVendorRegistrationMail,
-  sendVendorApprovalMail,
-  sendVendorRejectionMail,
-  sendPasswordUpdatedMail,
-  sendPasswordResetCodeMail,
-  sendUserVerificationMail,
-  sendReviewRequestMail,
-  assignWelcomeCode,
-  sendVendorAssignedPackagesEmail,
-  sendUserWelcomeMail
+    sendBookingEmail,
+    sendVendorBookingEmail,
+    sendAdminVendorRegistrationMail,
+    sendVendorApprovalMail,
+    sendVendorRejectionMail,
+    sendPasswordUpdatedMail,
+    sendPasswordResetCodeMail,
+    sendUserVerificationMail,
+    sendReviewRequestMail,
+    assignWelcomeCode,
+    sendVendorAssignedPackagesEmail,
+    sendUserWelcomeMail
 
 };

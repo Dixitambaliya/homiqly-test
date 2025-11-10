@@ -589,6 +589,7 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -675,13 +676,14 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                                 for (const pref of groupData.items) {
                                     await connection.query(
                                         `INSERT INTO booking_preferences
-                                         (package_item_id, preferenceValue, preferencePrice, preferenceGroup, is_required)
-                                         VALUES (?, ?, ?, ?, ?)`,
+                                         (package_item_id, preferenceValue, preferencePrice, preferenceGroup, timeRequired, is_required)
+                                         VALUES (?, ?, ?, ?, ?, ?)`,
                                         [
                                             itemId,
                                             pref.preference_value,
                                             pref.preference_price || 0,
                                             groupName,
+                                            pref.time_required || 0,
                                             isRequired
                                         ]
                                     );
@@ -727,6 +729,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
+
 
 const getPackageList = asyncHandler(async (req, res) => {
     try {
@@ -791,6 +794,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         pcf.is_required AS consent_is_required,
         bp.preference_id,
         bp.preferenceValue,
+        bp.timeRequired,
         bp.preferencePrice,
         bp.is_required AS preference_is_required,
         bp.preferenceGroup
@@ -844,6 +848,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                         sp.preferences[groupKey].items.push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
+                            time_required: row.timeRequired,
                             preference_price: row.preferencePrice
                         });
                     }
@@ -1077,13 +1082,14 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         for (const pref of groupData.items) {
                             await connection.query(
                                 `INSERT INTO booking_preferences
-                                (package_item_id, preferenceGroup, preferenceValue, preferencePrice, is_required)
-                                VALUES (?, ?, ?, ?, ?)`,
+                                (package_item_id, preferenceGroup, preferenceValue, timeRequired ,preferencePrice, is_required)
+                                VALUES (?, ?, ?, ?, ?, ?)`,
                                 [
                                     sub_package_id,
                                     groupName,
                                     pref.preference_value,
                                     pref.preference_price ?? 0,
+                                    pref.time_required ?? 0,
                                     groupRequired   // ✅ apply group-level is_required
                                 ]
                             );
