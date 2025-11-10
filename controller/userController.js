@@ -791,7 +791,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                         sp.preferences[groupName].selections.push({
                             preference_id: row.preference_id,
                             preference_value: row.preferenceValue,
-                            time_required: row.timeRequired,
+                            time_required: row.time_required,
                             preference_price: row.preferencePrice,
 
                         });
