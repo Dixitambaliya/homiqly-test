@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 
 // 🔹 Main mail sending function
 const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData = {} }) => {
-    const { description = "", code = "" } = extraData;
+    const { description = "", code = "", bookingDate = "", userName = "", receiptUrl = "" } = extraData;
 
     // ----- HEADER -----
     const headerLogoPath = path.resolve("config/media/homiqly.png");
@@ -145,7 +145,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
     `;
     } else if (layout === "promoCode") {
         headerHtml = `
-  <div style="background-color: #000; text-align: center; padding: 40px 0 50px; border-bottom: 1px solid #333;">
+  <div style="background-color: #000; text-align: center; padding: 40px 0 50px;x">
 
     <!-- Top White Homiqly Logo -->
     <div style="width: 140px; margin: 0 auto 25px;">
@@ -303,6 +303,58 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
           </table>
         </div>
         `;
+    } else if (layout = "userBookingMail") {
+        headerHtml = `
+  <!-- Homiqly Receipt Header -->
+  <div style="background-color: #fbeec7; padding: 30px; border-radius: 8px 8px 0 0; font-family: Arial, sans-serif;">
+
+    <!-- Top Row -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+      <img src="cid:headerLogo" alt="Homiqly Logo" style="width: 140px; height: auto; display: block;" />
+
+      <div style="text-align: right; font-size: 14px; color: #374151; margin-top: 10px;">
+        <p style="margin: 0;">${bookingDate}</p>
+      </div>
+    </div>
+
+    <!-- Main Heading -->
+    <h1 style="font-size: 28px; font-weight: bold; color: #000; margin: 20px 0 10px; line-height: 1.3;">
+      Thanks for booking with
+      <span style="color: #000;">Homiqly</span>, ${userName}
+    </h1>
+
+    <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">
+      Thank you for choosing Homiqly! here is your receipt
+    </p>
+
+    <!-- Button -->
+    <a href=${receiptUrl}
+       style="background-color: #000; color: #fff; padding: 12px 24px; border-radius: 9999px;
+              font-weight: 600; display: inline-block; margin-top: 20px; font-size: 15px; text-decoration: none;">
+      Here is your receipt
+    </a>
+  </div>
+`;
+        footerHtml = `
+  <!-- Homiqly Email Footer -->
+  <div style="background-color: #000; color: #bbb; text-align: center; padding: 30px 20px;
+              border-radius: 0 0 8px 8px; font-family: Arial, sans-serif;">
+    <img src="cid:footerLogo" alt="Homiqly Logo" style="width: 120px; margin-bottom: 20px;" />
+
+    <div style="margin-top: 10px;">
+      <a href="https://www.homiqly.com/help" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Help Center</a> |
+      <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Terms</a> |
+      <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Privacy</a> |
+      <a href="#" style="color: #4da3ff; font-size: 13px; margin: 0 8px; text-decoration: none;">Unsubscribe</a>
+    </div>
+
+    <p style="font-size: 12px; color: #999; margin-top: 12px; line-height: 1.6;">
+      © 2025 Homiqly. All rights reserved.<br />
+      Offer and pricing subject to availability. Services provided by Homiqly verified partners.
+    </p>
+  </div>
+`;
+
     }
 
     // ----- FINAL WRAPPER -----

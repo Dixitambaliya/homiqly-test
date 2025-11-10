@@ -502,10 +502,15 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             // -----------------------------------------------------
             // CASE 2: Charge Captured — Send Emails
             // -----------------------------------------------------
-            if (event.type === "charge.captured") {
+            // -----------------------------------------------------
+            // CASE 2: Charge Captured OR Charge Succeeded — Send Emails
+            // -----------------------------------------------------
+            if (event.type === "charge.captured" || event.type === "payment_intent.succeeded") {
                 const charge = event.data.object;
                 const receiptUrl = charge.receipt_url;
                 const paymentIntentId = charge.payment_intent;
+
+                console.log(`🧾 Handling ${event.type} for PaymentIntent ${paymentIntentId}`);
 
                 if (receiptUrl) {
                     const [[booking]] = await connection.query(
@@ -515,27 +520,44 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     );
 
                     if (booking) {
-                        // 🔹 Send emails asynchronously (no DB locks)
-                        (async () => {
-                            try {
-                                await sendBookingEmail(booking.user_id, {
-                                    booking_id: booking.booking_id,
-                                    receiptUrl,
-                                });
+                        try {
+                            console.log(`📦 Booking found for PaymentIntent ${paymentIntentId}:`, {
+                                booking_id: booking.booking_id,
+                                user_id: booking.user_id,
+                                vendor_id: booking.vendor_id,
+                                receiptUrl,
+                            });
 
-                                await sendVendorBookingEmail(booking.vendor_id, {
-                                    booking_id: booking.booking_id,
-                                    receiptUrl,
-                                });
+                            console.log("📧 Sending booking email to user...");
+                            await sendBookingEmail(booking.user_id, {
+                                booking_id: booking.booking_id,
+                                receiptUrl,
+                            });
+                            console.log("✅ User booking email sent successfully!");
 
-                                console.log("📧 Booking + Vendor emails sent asynchronously");
-                            } catch (mailErr) {
-                                console.error("⚠️ Failed to send booking emails:", mailErr.message);
-                            }
-                        })();
+                            console.log("📧 Sending booking email to vendor...");
+                            await sendVendorBookingEmail(booking.vendor_id, {
+                                booking_id: booking.booking_id,
+                                receiptUrl,
+                            });
+                            console.log("✅ Vendor booking email sent successfully!");
+
+                            console.log("🎉 All booking-related emails sent successfully for booking:", booking.booking_id);
+
+                        } catch (mailErr) {
+                            console.error("❌ Failed to send booking or vendor email:", {
+                                message: mailErr.message,
+                                stack: mailErr.stack,
+                            });
+                        }
+                    } else {
+                        console.warn(`⚠️ No booking record found for paymentIntentId: ${paymentIntentId}`);
                     }
+                } else {
+                    console.warn(`⚠️ No receipt URL found in charge object for PaymentIntent ${paymentIntentId}`);
                 }
             }
+
         } catch (err) {
             console.error("❌ Webhook processing error:", err.message);
             await connection.rollback();
