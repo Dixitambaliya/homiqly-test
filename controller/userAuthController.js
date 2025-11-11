@@ -734,18 +734,19 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
 
     // ✅ Direct password login (if password exists)
-    if ((email || phone) && password && user && user.password) {
-        const storedPassword =
-            typeof user.password === "object" && user.password !== null
-                ? user.password.toString()
-                : user.password;
+    // ✅ Direct password login (no OTP required)
+    if (password && user) {
+        const storedPassword = user.password
+            ? (typeof user.password === "object" ? user.password.toString() : user.password)
+            : null;
 
-        if (typeof storedPassword === "string" && storedPassword.trim() !== "") {
+        if (storedPassword) {
             const isMatch = await bcrypt.compare(password, storedPassword);
             if (!isMatch) {
                 return res.status(401).json({ message: "Invalid credentials" });
             }
 
+            // Successful password login — return immediately
             const loginToken = jwt.sign(
                 { user_id: user.user_id, phone: user.phone, email: user.email },
                 process.env.JWT_SECRET
@@ -772,6 +773,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
             });
         }
     }
+
 
     // ✅ OTP required
     if (!otp) {
@@ -833,7 +835,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
         const [result] = await db.query(
             `INSERT INTO users (firstName, lastName, phone, email, password, created_at)
-             VALUES (?, ?, ?, ?, ?, NOW())`,
+                VALUES (?, ?, ?, ?, ?, NOW())`,
             [firstName, lastName, phone || null, email || null, hashedPassword]
         );
 
