@@ -403,18 +403,11 @@ const sendOtp = asyncHandler(async (req, res) => {
         try {
             const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
             // ✅ Await Twilio directly
-            const message = await client.messages.create({
+            await client.messages.create({
                 body: smsMessage,
                 from: process.env.TWILIO_PHONE_NUMBER,
                 to: phone,
             });
-
-            console.log("✅ Twilio Message SID:", message.sid);
-
-            setTimeout(async () => {
-                const status = await client.messages(message.sid).fetch();
-                console.log("📬 Delivery status:", status.status);
-            }, 5000);
 
         } catch (error) {
             console.error("❌ Failed to send SMS OTP:", error.message);
