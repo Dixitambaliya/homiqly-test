@@ -1460,7 +1460,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             params.push(search, search, search);
         }
 
-        // 1️⃣ Fetch total count for pagination info (with search filter)
+        // 1️⃣ Fetch total count
         const [[{ total }]] = await db.query(`
             SELECT COUNT(*) AS total
             FROM vendor_package_applications vpa
@@ -1470,7 +1470,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             ${whereClause}
         `, params);
 
-        // 2️⃣ Fetch paginated vendor package applications
+        // 2️⃣ Fetch main applications
         const [applications] = await db.query(`
             SELECT
                 vpa.application_id,
@@ -1513,11 +1513,13 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             });
         }
 
-        // 3️⃣ Extract all package_ids to fetch sub-packages (items) in one query
+        // 3️⃣ Get all package_ids & application_ids
         const packageIds = applications.map(a => a.package_id);
+        const applicationIds = applications.map(a => a.application_id);
+
+        // 4️⃣ Fetch all subpackages (items)
         const [packageItems] = await db.query(
-            `
-            SELECT
+            `SELECT
                 pi.item_id,
                 pi.package_id,
                 pi.itemName,
@@ -1530,20 +1532,46 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
             [packageIds]
         );
 
-        // 4️⃣ Group sub-packages by package_id
+        // 5️⃣ Fetch only applied subpackages (vendor_package_item_application)
+        const [appliedItems] = await db.query(
+            `SELECT
+                vpia.application_id,
+                vpia.package_item_id
+            FROM vendor_package_item_application vpia
+            WHERE vpia.application_id IN (?)
+            `,
+            [applicationIds]
+        );
+
+        // 6️⃣ Group applied subpackage IDs by application_id
+        const appliedByApp = {};
+        appliedItems.forEach(ai => {
+            if (!appliedByApp[ai.application_id]) appliedByApp[ai.application_id] = [];
+            appliedByApp[ai.application_id].push(ai.package_item_id);
+        });
+
+        // 7️⃣ Group all items by package_id for reference
         const itemsByPackage = {};
         packageItems.forEach(item => {
             if (!itemsByPackage[item.package_id]) itemsByPackage[item.package_id] = [];
             itemsByPackage[item.package_id].push(item);
         });
 
-        // 5️⃣ Combine everything into structured response
-        const detailedApplications = applications.map(app => ({
-            ...app,
-            subPackages: itemsByPackage[app.package_id] || []
-        }));
+        // 8️⃣ Attach filtered subPackages to applications
+        const detailedApplications = applications.map(app => {
+            const allItems = itemsByPackage[app.package_id] || [];
+            const appliedIds = appliedByApp[app.application_id] || [];
 
-        // 6️⃣ Send final response with pagination info
+            // Keep only applied subpackages for this application
+            const filteredItems = allItems.filter(item => appliedIds.includes(item.item_id));
+
+            return {
+                ...app,
+                subPackages: filteredItems
+            };
+        });
+
+        // 9️⃣ Final response
         res.status(200).json({
             message: "Vendor package requests fetched successfully",
             applications: detailedApplications,
@@ -1561,6 +1589,7 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
