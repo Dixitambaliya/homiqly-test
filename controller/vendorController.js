@@ -1163,43 +1163,97 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         if (status === 4) {
             const [[paymentInfo]] = await db.query(
                 `SELECT
-                    p.amount,
-                    p.currency,
-                    p.status AS payment_status,
-                    p.payment_intent_id,
-                    v.vendorType
-                 FROM payments p
-                 JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-                 JOIN vendors v ON v.vendor_id = sb.vendor_id
-                 WHERE sb.booking_id = ? LIMIT 1`,
+            p.amount,
+            p.currency,
+            p.status AS payment_status,
+            p.payment_intent_id,
+            v.vendorType,
+            sb.user_promo_code_id
+         FROM payments p
+         JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+         JOIN vendors v ON v.vendor_id = sb.vendor_id
+         WHERE sb.booking_id = ? LIMIT 1`,
                 [booking_id]
             );
 
             if (paymentInfo && paymentInfo.payment_status === 'completed') {
+                // 🏷️ Step 1: Base paid amount from payment
+                const paidAmount = Number(paymentInfo.amount || 0);
+                const vendorType = paymentInfo.vendorType;
+                const promoId = paymentInfo.user_promo_code_id;
+                let promoDiscount = 0;
+                let discountType = null;
+
+                // 🧾 Step 2: Fetch promo discount (if used)
+                if (promoId) {
+                    // Try normal user promo
+                    const [[userPromo]] = await db.query(`
+                SELECT pc.discountValue, pc.discount_type
+                FROM user_promo_codes upc
+                LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                WHERE upc.user_promo_code_id = ?;`,
+                        [promoId]
+                    );
+
+                    if (userPromo && userPromo.discountValue != null) {
+                        promoDiscount = Number(userPromo.discountValue);
+                        discountType = userPromo.discount_type;
+                    } else {
+                        // Try system promo
+                        const [[systemPromo]] = await db.query(`
+                    SELECT spct.discountValue, spct.discount_type
+                    FROM system_promo_codes spc
+                    LEFT JOIN system_promo_code_templates spct
+                    ON spc.template_id = spct.system_promo_code_template_id
+                    WHERE spc.system_promo_code_id = ?;`,
+                            [promoId]
+                        );
+
+                        if (systemPromo && systemPromo.discountValue != null) {
+                            promoDiscount = Number(systemPromo.discountValue);
+                            discountType = systemPromo.discount_type;
+                        }
+                    }
+                }
+
+                // 🧮 Step 3: Rebuild gross amount (add promo back)
+                let grossAmount = paidAmount;
+                if (promoDiscount && discountType === "percentage") {
+                    grossAmount = paidAmount * (1 + promoDiscount / 100);
+                } else if (promoDiscount && discountType === "fixed") {
+                    grossAmount = paidAmount + promoDiscount;
+                }
+
+                // ⚙️ Step 4: Get platform fee
                 const [feeRows] = await db.query(
                     `SELECT platform_fee_percentage
-                     FROM platform_settings
-                     WHERE vendor_type = ? LIMIT 1`,
-                    [paymentInfo.vendorType]
+             FROM platform_settings
+             WHERE vendor_type = ? LIMIT 1`,
+                    [vendorType]
                 );
 
                 const platform_fee_percentage = Number(feeRows?.[0]?.platform_fee_percentage ?? 0);
-                const gross_amount = Number(paymentInfo.amount || 0);
-                const payout_amount = Number((gross_amount * (1 - platform_fee_percentage / 100)).toFixed(2));
 
+                // 🧾 Step 5: Subtract platform fee from gross amount
+                const platformFeeAmount = grossAmount * (platform_fee_percentage / 100);
+                const payout_amount = Number((grossAmount - platformFeeAmount).toFixed(2));
+
+                // ✅ Step 6: Store payout record
                 await db.query(
                     `INSERT INTO vendor_payouts
-                     (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, platform_fee_percentage, payout_amount, currency)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                     ON DUPLICATE KEY UPDATE
-                     payout_amount = VALUES(payout_amount),
-                     platform_fee_percentage = VALUES(platform_fee_percentage)`,
+             (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, discount_amount, platform_fee_percentage, payout_amount, currency)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                discount_amount = VALUES(discount_amount),
+                payout_amount = VALUES(payout_amount),
+                platform_fee_percentage = VALUES(platform_fee_percentage)`,
                     [
                         booking_id,
                         vendor_id,
                         user_id,
                         paymentInfo.payment_intent_id,
-                        gross_amount,
+                        grossAmount, // includes promo
+                        promoDiscount || 0,
                         platform_fee_percentage,
                         payout_amount,
                         paymentInfo.currency

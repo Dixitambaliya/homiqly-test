@@ -349,7 +349,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
             let grossAmount = paidAmount;
 
             if (promoDiscount && discountType === "percentage") {
-                grossAmount = paidAmount * (1 + promoDiscount / 100);
+                grossAmount = paidAmount / (1 - promoDiscount / 100);
             } else if (promoDiscount && discountType === "fixed") {
                 grossAmount = paidAmount + promoDiscount;
             }

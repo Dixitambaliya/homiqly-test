@@ -9,7 +9,9 @@ const { registerBankAccount,
     applyForPayout,
     updatePayoutStatus,
     getAllPayoutRequests,
-    getVendorPayoutStatus
+    getVendorPayoutStatus,
+    getAdminPayoutHistory,
+    getAdminPaidPayoutHistory
 } = require("../controller/paymentController.js")
 const { authenticationToken } = require("../middleware/authMiddleware.js")
 const multiUpload = upload.any();
@@ -22,7 +24,10 @@ router.get("/getallpayout", authenticationToken, getAllPayoutRequests);
 router.get("/getpaymentstatus", authenticationToken, getVendorPayoutStatus);
 router.patch("/edit-bank-details", authenticationToken, multiUpload, handleUploads, editBankAccount);
 router.post("/applypayout", authenticationToken, applyForPayout);
-router.post("/updatepayout/:payout_request_id", authenticationToken, multiUpload, handleUploads, updatePayoutStatus);
+router.post("/updatepayout/:payout_id", authenticationToken, multiUpload, handleUploads, updatePayoutStatus);
+
+router.get("/getpayouthistory", authenticationToken, getAdminPayoutHistory);
+router.get("/getpaidpayouthistory", authenticationToken, getAdminPaidPayoutHistory);
 
 
 module.exports = router;

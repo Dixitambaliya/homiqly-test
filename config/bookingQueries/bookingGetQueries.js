@@ -2,15 +2,15 @@ const bookingGetQueries = {
 
     getVendorBookings: `
   SELECT
-    sb.booking_id, 
-    sb.bookingDate, 
-    sb.bookingTime, 
-    sb.bookingStatus, 
-    sb.notes, 
-    sb.bookingMedia, 
+    sb.booking_id,
+    sb.bookingDate,
+    sb.bookingTime,
+    sb.bookingStatus,
+    sb.notes,
+    sb.bookingMedia,
     sb.package_id,
     sb.assigned_employee_id,
-    sb.payment_status, 
+    sb.payment_status,
     sb.start_time,
     sb.user_promo_code_id,
     sb.end_time,
@@ -42,17 +42,17 @@ const bookingGetQueries = {
 
 
     getVendorIdForBooking: `
-SELECT 
-vendorType 
-FROM vendors 
+SELECT
+vendorType
+FROM vendors
 WHERE vendor_id = ?;
 
 `,
 
     getPlateFormFee: `
-SELECT 
-    platform_fee_percentage 
-FROM platform_settings 
+SELECT
+    platform_fee_percentage
+FROM platform_settings
 WHERE vendor_type = ?
 ORDER BY id DESC
 LIMIT 1;
@@ -115,7 +115,7 @@ LIMIT 1;
         c.question,
         sbc.answer
     FROM service_booking_consents sbc
-    LEFT JOIN package_consent_forms c 
+    LEFT JOIN package_consent_forms c
         ON sbc.consent_id = c.consent_id
     WHERE sbc.booking_id = ? AND sbc.sub_package_id IS NOT NULL;
 `,
@@ -144,21 +144,21 @@ LIMIT 1;
     p.currency AS payment_currency
 
 FROM service_booking sb
-LEFT JOIN services s 
+LEFT JOIN services s
     ON sb.service_id = s.service_id
-LEFT JOIN service_categories sc 
+LEFT JOIN service_categories sc
     ON s.service_categories_id = sc.service_categories_id
-LEFT JOIN service_booking_types sbt 
+LEFT JOIN service_booking_types sbt
     ON sb.booking_id = sbt.booking_id
-LEFT JOIN service_type st 
+LEFT JOIN service_type st
     ON sbt.service_type_id = st.service_type_id
-LEFT JOIN vendors v 
+LEFT JOIN vendors v
     ON sb.vendor_id = v.vendor_id
-LEFT JOIN individual_details idet 
+LEFT JOIN individual_details idet
     ON v.vendor_id = idet.vendor_id
-LEFT JOIN company_details cdet 
+LEFT JOIN company_details cdet
     ON v.vendor_id = cdet.vendor_id
-LEFT JOIN payments p 
+LEFT JOIN payments p
     ON p.payment_intent_id = sb.payment_intent_id
 WHERE sb.user_id = ?
 ORDER BY sb.bookingDate DESC, sb.bookingTime DESC;
@@ -167,7 +167,7 @@ ORDER BY sb.bookingDate DESC, sb.bookingTime DESC;
 
     getUserBookedAddons: `
 -- Addons
-SELECT 
+SELECT
     sba.sub_package_id,
     sba.addon_id,
     a.addonName,
@@ -182,7 +182,7 @@ WHERE sba.booking_id = ?
 
     getUserBookedConsents: `
 -- Consents
-SELECT 
+SELECT
     c.consent_id,
     c.question,
     sbc.answer,
@@ -193,21 +193,21 @@ WHERE sbc.booking_id = ?
 `,
 
     getUserBookedPromos: `
-        SELECT 
-        upu.booking_id, 
-        upu.promo_id, 
-        upu.user_id, 
+        SELECT
+        upu.booking_id,
+        upu.promo_id,
+        upu.user_id,
         upu.usage_count,
-        pc.code AS promoCode, 
-        pc.discountValue, 
-        pc.minSpend, 
+        pc.code AS promoCode,
+        pc.discountValue,
+        pc.minSpend,
         pc.maxUse
     FROM user_promo_usage upu
     LEFT JOIN promo_codes pc ON upu.promo_id = pc.promo_id
     WHERE upu.booking_id = ? AND upu.user_id = ?`,
 
     getUserBookedpackages: `
-SELECT 
+SELECT
     sbsp.sub_package_id,
     p.package_id,
     p.packageName,
@@ -324,8 +324,8 @@ WHERE sb.booking_id = ?;
 `,
 
     getBookedSubPackagesMulti: `
-  SELECT sbsp.booking_id, sbsp.sub_package_id, pi.package_id, 
-         p.packageName, p.packageMedia, pi.itemName, pi.itemMedia, 
+  SELECT sbsp.booking_id, sbsp.sub_package_id, pi.package_id,
+         p.packageName, p.packageMedia, pi.itemName, pi.itemMedia,
          pi.timeRequired, sbsp.quantity, pi.price
   FROM service_booking_sub_packages sbsp
   JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
@@ -333,27 +333,27 @@ WHERE sb.booking_id = ?;
   WHERE sbsp.booking_id IN (?);
 `,
     getBookedAddonsMulti: `
-  SELECT 
-  sba.booking_id, 
+  SELECT
+  sba.booking_id,
   sba.sub_package_id,
-  sba.addon_id, 
-  a.addonName, 
-  a.addonMedia, 
-  sba.price, 
+  sba.addon_id,
+  a.addonName,
+  a.addonMedia,
+  sba.price,
   sba.quantity
   FROM service_booking_addons sba
   JOIN package_addons a ON sba.addon_id = a.addon_id
   WHERE sba.booking_id IN (?) AND sba.sub_package_id IS NOT NULL;
 `,
     getBoookedPrefrencesMulti: `
-  SELECT sp.booking_id, sp.sub_package_id, sp.preference_id, 
+  SELECT sp.booking_id, sp.sub_package_id, sp.preference_id,
          bp.preferenceValue, bp.preferencePrice
   FROM service_booking_preferences sp
   JOIN booking_preferences bp ON sp.preference_id = bp.preference_id
   WHERE sp.booking_id IN (?) AND sp.sub_package_id IS NOT NULL;
 `,
     getBoookedConsentsMulti: `
-  SELECT sbc.booking_id, sbc.sub_package_id, c.consent_id, 
+  SELECT sbc.booking_id, sbc.sub_package_id, c.consent_id,
          c.question, sbc.answer
   FROM service_booking_consents sbc
   LEFT JOIN package_consent_forms c ON sbc.consent_id = c.consent_id

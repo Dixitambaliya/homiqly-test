@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const { db } = require("../config/db")
+const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
 
 const registerBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -402,54 +403,387 @@ const getAllPayoutRequests = asyncHandler(async (req, res) => {
 });
 
 const updatePayoutStatus = asyncHandler(async (req, res) => {
-    const { payout_request_id } = req.params;
+    const { payout_id } = req.params; // direct payout reference
     const { status, admin_notes } = req.body;
-
     const payoutMedia = req.uploadedFiles?.payoutMedia?.[0]?.url || null;
 
-    if (!payout_request_id || !status) {
-        return res.status(400).json({ message: "payout_request_id and status required" });
+    if (!payout_id || !status) {
+        return res.status(400).json({ message: "payout_id and status are required" });
     }
 
+    const connection = await db.getConnection(); // transaction-safe
+
     try {
-        // 1️⃣ Update the payout request status
-        await db.query(
-            `UPDATE vendor_payout_requests
-             SET status = ?, admin_notes = ?, payout_media = ?
-             WHERE payout_request_id = ?`,
-            [status, admin_notes, payoutMedia, payout_request_id]
+        await connection.beginTransaction();
+
+        // ✅ 1. Fetch the payout record with vendor details
+        const [[existingPayout]] = await connection.query(
+            `SELECT vp.*
+             FROM vendor_payouts vp
+             WHERE vp.payout_id = ? LIMIT 1`,
+            [payout_id]
         );
 
-        // 2️⃣ If admin approves, mark corresponding vendor_payouts as paid
-        if (status === '1' || status === 'paid') {
-            // Get all locked payouts associated with this request
-            const [lockedPayouts] = await db.query(
-                `SELECT
-                 vp.payout_id
-                 FROM vendor_payouts vp
-                 JOIN vendor_payout_requests vpr ON vpr.vendor_id = vp.vendor_id
-                 WHERE vp.payout_status = 'hold' AND vpr.payout_request_id = ?`,
-                [payout_request_id]
-            );
-
-            if (lockedPayouts.length > 0) {
-                const payoutIds = lockedPayouts.map(p => p.payout_id);
-                await db.query(
-                    `UPDATE vendor_payouts
-                     SET payout_status = 'paid'
-                     WHERE payout_id IN (?)`,
-                    [payoutIds]
-                );
-            }
+        if (!existingPayout) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Payout record not found" });
         }
 
-        res.status(200).json({ message: `Payout request marked as ${status}` });
+        const { vendor_id, payout_amount, currency } = existingPayout;
+
+        // ✅ 2. Insert a new record in vendor_payout_requests (admin’s transaction log)
+        const [insertResult] = await connection.query(
+            `INSERT INTO vendor_payout_requests
+             (vendor_id, requested_amount, status, admin_notes, payout_media, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+            [vendor_id, payout_amount, status, admin_notes || null, payoutMedia]
+        );
+
+        const payout_request_id = insertResult.insertId;
+
+        // ✅ 3. Update vendor_payouts to mark as paid and link the payout_request_id
+        await connection.query(
+            `UPDATE vendor_payouts
+             SET payout_status = ?,
+                 payout_request_id = ?,
+                 admin_notes = ?,
+                 payout_media = ?,
+                 updated_at = NOW()
+             WHERE payout_id = ?`,
+            [status, payout_request_id, admin_notes || null, payoutMedia, payout_id]
+        );
+
+        // ✅ 4. Commit transaction
+        await connection.commit();
+
+        // ✅ 5. Notify vendor
+        await db.query(
+            `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+             VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+            [
+                'vendors',
+                vendor_id,
+                'Payout Released 🎉',
+                `Your payout of ${payout_amount} ${currency} has been marked as paid by admin.`,
+            ]
+        );
+
+        // ✅ 6. Respond
+        res.status(200).json({
+            message: `Payout marked as ${status} successfully`,
+            payout_id,
+            payout_request_id,
+            vendor: {
+                vendor_id
+            },
+            amount: payout_amount,
+            currency,
+            payout_media: payoutMedia,
+            admin_notes,
+            paid_at: new Date()
+        });
 
     } catch (err) {
         console.error("❌ Error updating payout status:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+        if (connection) await connection.rollback();
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    } finally {
+        if (connection) connection.release();
     }
 });
+
+
+
+const getAdminPayoutHistory = asyncHandler(async (req, res) => {
+    const { vendor_id, startDate, endDate, payout_status } = req.query;
+
+    // Pagination setup
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    try {
+        // 🧭 Dynamic filters
+        let filterCondition = "WHERE 1=1";
+        const filterParams = [];
+
+        if (vendor_id) {
+            filterCondition += " AND vp.vendor_id = ?";
+            filterParams.push(vendor_id);
+        }
+
+        if (startDate && endDate) {
+            filterCondition += " AND DATE(sb.bookingDate) BETWEEN ? AND ?";
+            filterParams.push(startDate, endDate);
+        } else if (startDate) {
+            filterCondition += " AND DATE(sb.bookingDate) >= ?";
+            filterParams.push(startDate);
+        } else if (endDate) {
+            filterCondition += " AND DATE(sb.bookingDate) <= ?";
+            filterParams.push(endDate);
+        }
+
+        if (payout_status) {
+            filterCondition += " AND vp.payout_status = ?";
+            filterParams.push(payout_status);
+        }
+
+        // 🔢 Count total records
+        const [[{ total }]] = await db.query(
+            `SELECT COUNT(*) AS total FROM vendor_payouts vp ${filterCondition}`,
+            filterParams
+        );
+
+        // 🧾 Fetch payout data
+        const finalQuery = `
+            ${vendorGetQueries.getAdminPayoutHistory.replace(
+            "WHERE vp.vendor_id = ?",
+            filterCondition
+        )}
+        `;
+
+        const [rows] = await db.query(finalQuery, [...filterParams, limit, offset]);
+
+        if (!rows.length) {
+            return res.status(200).json({
+                totalRecords: 0,
+                totalPayout: 0,
+                pendingPayout: 0,
+                paidPayout: 0,
+                allPayouts: [],
+                pagination: {
+                    page,
+                    limit,
+                    totalPages: 0,
+                },
+            });
+        }
+
+        // ✅ Group by vendor + booking
+        const grouped = new Map();
+
+        for (const row of rows) {
+            const key = `${row.vendor_id}_${row.booking_id}`;
+            if (!grouped.has(key)) {
+                grouped.set(key, {
+                    payout_id: row.payout_id,
+                    booking_id: row.booking_id,
+                    vendor_id: row.vendor_id,
+                    vendor_name: row.vendor_name,
+                    vendor_email: row.vendor_email,
+                    vendor_phone: row.vendor_phone,
+                    user_id: row.user_id,
+                    user_name: row.user_name,
+                    user_email: row.user_email,
+                    user_phone: row.user_phone,
+                    platform_fee_percentage: parseFloat(row.platform_fee_percentage || 0),
+                    payout_amount: parseFloat(row.payout_amount || 0),
+                    currency: row.currency,
+                    payout_status: String(row.payout_status || "").toLowerCase(),
+                    created_at: row.created_at,
+                    bookingDate: row.bookingDate,
+                    bookingTime: row.bookingTime,
+                    admin_notes: row.admin_notes || null,
+                    payout_media: row.payout_media || null,
+                    packages: []
+                });
+            }
+
+            if (row.package_id && row.sub_package_id) {
+                const payout = grouped.get(key);
+                const pkgIndex = payout.packages.findIndex(p => p.package_id === row.package_id);
+                if (pkgIndex === -1) {
+                    payout.packages.push({
+                        package_id: row.package_id,
+                        packageName: row.packageName,
+                        packageMedia: row.packageMedia,
+                        sub_packages: [{
+                            sub_package_id: row.sub_package_id,
+                            sub_package_name: row.sub_package_name,
+                            sub_package_media: row.sub_package_media,
+                            sub_package_description: row.sub_package_description
+                        }]
+                    });
+                } else {
+                    payout.packages[pkgIndex].sub_packages.push({
+                        sub_package_id: row.sub_package_id,
+                        sub_package_name: row.sub_package_name,
+                        sub_package_media: row.sub_package_media,
+                        sub_package_description: row.sub_package_description
+                    });
+                }
+            }
+        }
+
+        const allPayouts = Array.from(grouped.values());
+
+        // 💰 Totals (directly from DB values)
+        const totalPayout = parseFloat(
+            allPayouts.reduce((sum, p) => sum + p.payout_amount, 0).toFixed(2)
+        );
+
+        const pendingPayout = parseFloat(
+            allPayouts
+                .filter(p => ["pending", "0"].includes(String(p.payout_status)))
+                .reduce((sum, p) => sum + p.payout_amount, 0)
+                .toFixed(2)
+        );
+
+        const paidPayout = parseFloat(
+            allPayouts
+                .filter(p => ["paid", "approved"].includes(String(p.payout_status)))
+                .reduce((sum, p) => sum + p.payout_amount, 0)
+                .toFixed(2)
+        );
+
+        // ✅ Pagination slice
+        const paginatedPayouts = allPayouts.slice(offset, offset + limit);
+
+        res.status(200).json({
+            totalRecords: allPayouts.length,
+            totalPayout,
+            pendingPayout,
+            paidPayout,
+            allPayouts: paginatedPayouts,
+            pagination: {
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        });
+
+    } catch (err) {
+        console.error("❌ Error fetching admin payout history:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message,
+        });
+    }
+});
+
+
+const getAdminPaidPayoutHistory = asyncHandler(async (req, res) => {
+    const { vendor_id, startDate, endDate, status } = req.query;
+
+    // Pagination setup
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    try {
+        // 🔍 Dynamic filters
+        let filterCondition = "WHERE 1=1";
+        const filterParams = [];
+
+        if (vendor_id) {
+            filterCondition += " AND vp.vendor_id = ?";
+            filterParams.push(vendor_id);
+        }
+
+        if (status) {
+            filterCondition += " AND vpr.status = ?";
+            filterParams.push(status);
+        } else {
+            filterCondition += " AND vpr.status IN ('paid', 'approved')";
+        }
+
+        if (startDate && endDate) {
+            filterCondition += " AND DATE(vpr.created_at) BETWEEN ? AND ?";
+            filterParams.push(startDate, endDate);
+        } else if (startDate) {
+            filterCondition += " AND DATE(vpr.created_at) >= ?";
+            filterParams.push(startDate);
+        } else if (endDate) {
+            filterCondition += " AND DATE(vpr.created_at) <= ?";
+            filterParams.push(endDate);
+        }
+
+        // 🧾 Count total
+        const [[{ totalRecords }]] = await db.query(`
+            SELECT COUNT(*) AS totalRecords
+            FROM vendor_payouts vp
+            JOIN vendor_payout_requests vpr ON vp.payout_request_id = vpr.payout_request_id
+            ${filterCondition}
+        `, filterParams);
+
+        // 🧭 Query main data
+        const [rows] = await db.query(`
+            SELECT
+                vpr.payout_request_id,
+                vp.payout_id,
+                vp.booking_id,
+                vp.vendor_id,
+                id.name AS vendor_name,
+                id.phone AS vendor_phone,
+                id.email AS vendor_email,
+                vpr.requested_amount,
+                vp.payout_amount,
+                vp.currency,
+                vpr.status,
+                vpr.admin_notes,
+                vpr.payout_media,
+                vpr.created_at,
+                vpr.updated_at
+            FROM vendor_payouts vp
+            JOIN vendor_payout_requests vpr ON vp.payout_request_id = vpr.payout_request_id
+            JOIN vendors v ON v.vendor_id = vp.vendor_id
+            LEFT JOIN individual_details id ON id.vendor_id = v.vendor_id
+            ${filterCondition}
+            ORDER BY vpr.created_at DESC
+            LIMIT ? OFFSET ?
+        `, [...filterParams, limit, offset]);
+
+        if (!rows.length) {
+            return res.status(200).json({
+                message: "No payout history found",
+                totalRecords: 0,
+                data: [],
+                pagination: { page, limit, totalPages: 0 }
+            });
+        }
+
+        // 🧩 Format results
+        const formatted = rows.map(r => ({
+            payout_request_id: r.payout_request_id,
+            payout_id: r.payout_id,
+            booking_id: r.booking_id,
+            vendor_id: r.vendor_id,
+            vendor_name: `${r.vendor_first_name || ""} ${r.vendor_last_name || ""}`.trim() || null,
+            vendor_phone: r.vendor_phone || null,
+            vendor_email: r.vendor_email || null,
+            requested_amount: Number(r.requested_amount || 0),
+            payout_amount: Number(r.payout_amount || 0),
+            currency: r.currency,
+            status: r.status,
+            admin_notes: r.admin_notes,
+            payout_media: r.payout_media,
+            created_at: r.created_at,
+            updated_at: r.updated_at
+        }));
+
+        res.status(200).json({
+            message: "Admin payout history fetched successfully",
+            totalRecords,
+            data: formatted,
+            pagination: {
+                page,
+                limit,
+                totalPages: Math.ceil(totalRecords / limit)
+            }
+        });
+
+    } catch (err) {
+        console.error("❌ Error fetching admin payout history:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+});
+
 
 
 module.exports = {
@@ -460,5 +794,7 @@ module.exports = {
     applyForPayout,
     getAllPayoutRequests,
     updatePayoutStatus,
-    getVendorPayoutStatus
+    getVendorPayoutStatus,
+    getAdminPayoutHistory,
+    getAdminPaidPayoutHistory
 };
