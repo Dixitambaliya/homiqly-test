@@ -753,7 +753,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
             assignWelcomeCode({
                 user_email: email,
-                user_id,
+                user_id: user.user_id,
                 user_name: `${firstName || ""} ${lastName || ""}`.trim(),
             }).catch(err => console.error("❌ Auto-assign welcome code error:", err.message));
 
@@ -774,35 +774,9 @@ const verifyOtp = asyncHandler(async (req, res) => {
     }
 
     // ✅ OTP required
-    // ✅ OTP check logic refined
     if (!otp) {
-        // Allow skipping OTP for existing users logging in with password
-        if (user && password && user.password) {
-            // password flow already handled above
-            return;
-        }
-
-        // Allow skipping OTP if user already verified OTP earlier (e.g. frontend passed a valid authHeader token)
-        if (authHeader?.startsWith("Bearer ")) {
-            try {
-                const token = authHeader.split(" ")[1];
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                if (decoded && (decoded.phone === phone || decoded.email === email)) {
-                    console.log("✅ OTP previously verified via token");
-                } else {
-                    return res.status(400).json({ message: "Invalid verification token" });
-                }
-            } catch (err) {
-                return res.status(400).json({ message: "OTP required or token invalid/expired" });
-            }
-        } else {
-            // 🚫 New users still need OTP verification once
-            if (!user) {
-                return res.status(400).json({ message: "OTP verification required for new registration" });
-            }
-        }
+        return res.status(400).json({ message: "OTP is required for login/registration" });
     }
-
 
     // 🧩 Decode OTP token
     if (!authHeader?.startsWith("Bearer ")) {
@@ -904,7 +878,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         process.env.JWT_SECRET
     );
 
-    assignWelcomeCode({ user_id, user_email: email, user_name: `${firstName || ""} ${lastName || ""}`.trim(), })
+    assignWelcomeCode({ user_id: user.user_id, user_email: email, user_name: `${firstName || ""} ${lastName || ""}`.trim(), })
         .catch(err => console.error("❌ Auto-assign welcome code error:", err.message));
 
     return res.status(200).json({
