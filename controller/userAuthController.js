@@ -878,7 +878,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         process.env.JWT_SECRET
     );
 
-    assignWelcomeCode({ user_id: user_id, user_email: email, user_name: `${firstName || ""} ${lastName || ""}`.trim(), })
+    assignWelcomeCode({ user_id, user_email: email, user_name: `${firstName || ""} ${lastName || ""}`.trim(), })
         .catch(err => console.error("❌ Auto-assign welcome code error:", err.message));
 
     return res.status(200).json({
