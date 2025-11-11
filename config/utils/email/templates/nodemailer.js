@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // 🔹 Main mail sending function
-const sendMail = async ({ to, subject, bodyHtml, layout = "default",  extraData = {} }) => {
+const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData = {} }) => {
     const {
         userName = "",
         receiptUrl = "",
@@ -22,57 +22,8 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default",  extraData 
         maxUse = "",
     } = extraData || {};
 
-    let headerHtml = `
-    <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
-      <div style="display: inline-block; background-color: #ffffff; padding: 10px; border-radius: 8px;">
-        <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />
-      </div>
-    </div>
-  `;
-
-
-    let footerHtml = `
-    <div style="background: #111; color: #bbb; padding: 40px 30px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
-        <tr>
-          <!-- Left Side: Logo + Links -->
-          <td align="left" valign="top" style="width: 60%; padding-right: 20px;">
-            <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block; margin-bottom: 12px;" />
-            <a href="https://www.homiqly.com/help" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Help</a>
-            <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Terms of Service</a>
-            <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Privacy Policy</a>
-            <a href="https://www.homiqly.com/unsubscribe" style="color: #4da3ff; text-decoration: none; display: block;">Unsubscribe</a>
-          </td>
-
-          <!-- Right Side: Social Links -->
-          <td align="right" valign="top" style="width: 40%;">
-            <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">Social Links</h3>
-            <div>
-              <a href="https://www.instagram.com/homiqly" style="margin-right: 12px; text-decoration: none;">
-                <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" alt="Instagram" width="22" height="22" />
-              </a>
-              <a href="https://www.facebook.com/homiqly" style="margin-right: 12px; text-decoration: none;">
-                <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" alt="Facebook" width="22" height="22" />
-              </a>
-              <a href="https://www.linkedin.com/company/homiqly" style="text-decoration: none;">
-                <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png" alt="LinkedIn" width="22" height="22" />
-              </a>
-            </div>
-          </td>
-        </tr>
-      </table>
-
-      <hr style="border: 0.5px solid #797a79; margin: 25px 0;">
-
-      <!-- Bottom Row: Support -->
-      <div style="text-align: center;">
-        <p style="margin: 0; font-size: 14px; line-height: 1.8;">
-          Need help? <a href="mailto:support@homiqly.com" style="color: #4da3ff; text-decoration: none;">support@homiqly.com</a><br/>
-          © ${new Date().getFullYear()} Homiqly. All rights reserved.
-        </p>
-      </div>
-    </div>
-  `;
+    let headerHtml = "";
+    let footerHtml = "";
 
     // ----- CUSTOM LAYOUT VARIANTS -----
     if (layout === "welcomeMail") {
@@ -146,11 +97,11 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default",  extraData 
     `;
     } else if (layout === "promoCode") {
         headerHtml = `
-  <div style="background-color: #000; text-align: center; padding: 40px 0 50px;x">
+  <div style="background-color: #000000; text-align: center; padding: 40px 0 50px;">
 
     <!-- Top White Homiqly Logo -->
     <div style="width: 140px; margin: 0 auto 25px;">
-      <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo"
+      <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
            style="width: 140px; height: auto; display: block; margin: 0 auto;" />
     </div>
 
@@ -238,7 +189,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default",  extraData 
       </div>
   `;
     } else if (layout === "noUnsubscribe") {
-        let headerHtml = `
+        headerHtml = `
     <div style="padding: 18px 20px; text-align: center; background: #ffffff; border-bottom: 1px solid #eaeaea;">
       <div style="display: inline-block; background-color: #ffffff; padding: 10px; border-radius: 8px;">
         <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 130px; display: block; margin: auto;" />

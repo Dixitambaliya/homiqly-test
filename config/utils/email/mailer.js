@@ -974,33 +974,33 @@ const assignWelcomeCode = async ({ user_id, user_email, user_name }) => {
         if (user_email) {
             const subject = "Welcome to Homiqly community! Your Promo Code Inside";
             const bodyHtml = `
-            <div style="padding: 30px; font-size: 15px; color: #ffffff; text-align: left;
-                        font-family: Arial, sans-serif; background-color: #000;">
+                <div style="padding: 30px; font-size: 15px; color: #ffffff; text-align: left;
+                            font-family: Arial, sans-serif; background-color: #000;">
 
-              <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
-                <strong>Hi ${user_name || "there"},</strong><br><br>
-                Thanks for signing up! We want to make your Homiqly experience special, starting with
-                ${discountValue} off your first ${maxUse} at-home beauty services.
-              </p>
+                <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                    <strong>Hi ${user_name || "there"},</strong><br><br>
+                    Thanks for signing up! We want to make your Homiqly experience special, starting with
+                    ${discountValue} off your first ${maxUse} at-home beauty services.
+                </p>
 
-              <p style="margin-bottom: 10px; font-size: 15px;">
-                To claim your welcome offer, simply use the code <strong>${code}</strong> when booking your first service.
-                Your savings will be applied automatically at checkout.
-              </p>
+                <p style="margin-bottom: 10px; font-size: 15px;">
+                    To claim your welcome offer, simply use the code <strong>${code}</strong> when booking your first service.
+                    Your savings will be applied automatically at checkout.
+                </p>
 
-              <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px;">
-                Hurry, pamper yourself and enjoy this offer while it lasts!
-              </h3>
+                <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px;">
+                    Hurry, pamper yourself and enjoy this offer while it lasts!
+                </h3>
 
-              <p style="font-size: 14px; margin-top: 15px; line-height: 1.6;">
-                Valid on first ${maxUse} at-home beauty services only. Maximum discount of ${description} total across
-                your first ${maxUse} services. Discount is valid for services booked through the Homiqly website.
-                Offer valid only for customers who received this email directly from Homiqly.
-                Cannot be combined with other promotions. Non-transferable. Terms subject to change.
-              </p>
+                <p style="font-size: 14px; margin-top: 15px; line-height: 1.6;">
+                    Valid on first ${maxUse} at-home beauty services only. Maximum discount of ${description} total across
+                    your first ${maxUse} services. Discount is valid for services booked through the Homiqly website.
+                    Offer valid only for customers who received this email directly from Homiqly.
+                    Cannot be combined with other promotions. Non-transferable. Terms subject to change.
+                </p>
 
-            </div>
-          `;
+                </div>
+            `;
 
             await sendMail({
                 to: user_email,
