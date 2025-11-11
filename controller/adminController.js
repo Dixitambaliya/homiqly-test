@@ -1590,7 +1590,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     }
 });
 
-
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();

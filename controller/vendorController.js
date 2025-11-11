@@ -993,8 +993,6 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
                     bookingDate: row.bookingDate,
                     bookingTime: row.bookingTime,
                     user_name: row.user_name,
-                    user_email: row.user_email,
-                    user_phone: row.user_phone,
                     packages: []
                 });
             }
