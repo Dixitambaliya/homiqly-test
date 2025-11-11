@@ -262,7 +262,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
             <!-- Left: Logo -->
             <div style="flex: 1;">
-              <img src="https://www.instagram.com/public/homiqly.png" alt="Homiqly Logo" style="width: 150px; height: auto; display: block;" />
+              <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo" style="width: 150px; height: auto; display: block;" />
             </div>
           </div>
 
