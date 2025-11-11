@@ -457,9 +457,21 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             await sendBookingEmail(user_id, { booking_id, receiptUrl });
             console.log("✅ User booking email sent successfully!");
+            // Fetch vendor_id from service_booking for safety
+            const [[bookingVendor]] = await connection.query(
+                `SELECT vendor_id FROM service_booking WHERE booking_id = ? LIMIT 1`,
+                [booking_id]
+            );
 
-            await sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
-            console.log("✅ Vendor booking email sent successfully!");
+            const vendor_id = bookingVendor?.vendor_id;
+
+            if (vendor_id) {
+                await sendVendorBookingEmail(vendor_id, { booking_id, receiptUrl });
+                console.log("✅ Vendor booking email sent successfully!");
+            } else {
+                console.warn(`⚠️ Could not find vendor_id for booking #${booking_id}`);
+            }
+
 
         } catch (err) {
             console.error("❌ Webhook processing error:", err.message);

@@ -16,6 +16,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
     const {
         userName = "",
         receiptUrl = "",
+        usersName = "",
         code = "",
         description = "",
         discountValue = "",
@@ -30,7 +31,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
         headerHtml = `
             <div style="padding: 35px 35px 5px; text-align: left; background: #ffffff;">
             <div style="display: inline-block; background-color: #ffffff; padding: 10px 0; border-radius: 8px;">
-              <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo"
+              <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
                    style="width: 130px; display: block; margin: 0; vertical-align: middle;" />
             </div>
           </div>
@@ -346,22 +347,112 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
 </div>
 `;
 
+    } else if (layout === "vendorBookingMail") {
+        headerHtml = `
+        <!-- Homiqly Vendor Booking Header -->
+        <div style="background-color: #fbeec7; padding: 30px; border-radius: 8px 8px 0 0; font-family: Arial, sans-serif;">
+
+          <!-- Top Row -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <!-- Left: Logo -->
+            <div style="flex: 1;">
+              <img src="https://www.homiqly.codegrin.com/public/homiqly.png" alt="Homiqly Logo"
+                   style="width: 150px; height: auto; display: block;" />
+            </div>
+          </div>
+
+          <!-- Main Heading -->
+          <h1 style="font-size: 28px; font-weight: bold; color: #000; margin: 25px 0 10px; line-height: 1.3;">
+            You’ve received a new booking via
+            <span style="color: #000;">Homiqly</span>!
+          </h1>
+
+          <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">
+            Great news, <strong>${usersName || "Vendor"}</strong> — a customer just confirmed a booking with you.
+          </p>
+          <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 10px 0 0;">
+            Below are the full booking details so you can prepare in advance.
+          </p>
+        </div>
+        `;
+
+        footerHtml = `
+            <div style = "background: #111; color: #bbb; padding: 40px 40px;" >
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
+                    <tr>
+                        <!-- Left: Logo | Right: Social Icons -->
+                        <td align="left" valign="middle" style="width: 50%;">
+                            <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 110px; display: block;" />
+                        </td>
+                        <td align="right" valign="middle" style="width: 50%;">
+                            <div style="text-align: right;">
+                                <a href="https://www.instagram.com/homiqly" style="text-decoration: none; display: inline-block; margin-right: 18px;">
+                                    <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png"
+                                        alt="Instagram"
+                                        style="width: 24px; height: 24px; display: block;" />
+                                </a>
+                                <a href="https://www.facebook.com/homiqly" style="text-decoration: none; display: inline-block; margin-right: 18px;">
+                                    <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png"
+                                        alt="Facebook"
+                                        style="width: 24px; height: 24px; display: block;" />
+                                </a>
+                                <a href="https://www.linkedin.com/company/homiqly" style="text-decoration: none; display: inline-block;">
+                                    <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png"
+                                        alt="LinkedIn"
+                                        style="width: 24px; height: 24px; display: block;" />
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- White line under logo + icons -->
+                    <tr>
+                        <td colspan="2" style="padding: 0;">
+                            <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); width: 100%; margin: 20px 0;"></div>
+                        </td>
+                    </tr>
+
+                    <!-- Links Section (vertical left) + Support Section (bottom right) -->
+                    <tr>
+                        <td align="left" valign="top" style="padding-top: 10px;">
+                            <div>
+                                <a href="https://www.homiqly.com/help" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Help</a>
+                                <a href="https://www.homiqly.com/termscondition" style="color: #4da3ff; text-decoration: none; display: block; margin-bottom: 6px;">Terms of Service</a>
+                                <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; text-decoration: none; display: block;  margin-bottom: 6px">Privacy Policy</a>
+                                <a href="https://www.homiqly.com/privacypolicy" style="color: #4da3ff; text-decoration: none; display: block;  margin-bottom: 6px">Unsubscribe</a>
+                            </div>
+                        </td>
+
+                        <td align="right">
+                            <div style="text-align: right; font-size: 14px; line-height: 1.8;">
+                                <p style="margin: 0; color:#FFFFFF;">Need help?</p>
+                                <p style="margin: 2px 0 8px;">
+                                    <a href="mailto:support@homiqly.com" style="color: #4da3ff; text-decoration: none;">support@homiqly.com</a>
+                                </p>
+                                <p style="margin: 0; color:#FFFFFF;">© 2025 Homiqly. All rights reserved.</p>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+</ >
+    `;
+
     }
 
     // ----- FINAL WRAPPER -----
     const htmlBody = `
-    <div style="font-family: Arial, sans-serif; background-color: #f6f6f6; padding: 30px 0;">
-      <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-        ${headerHtml}
-        ${bodyHtml}
-        ${footerHtml}
-      </div>
-    </div>
-  `;
+    <div style = "font-family: Arial, sans-serif; background-color: #f6f6f6; padding: 30px 0;" >
+        <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            ${headerHtml}
+            ${bodyHtml}
+            ${footerHtml}
+        </div>
+    </ >
+    `;
 
     // ----- SEND MAIL -----
     await transporter.sendMail({
-        from: `<${process.env.NO_REPLAY_USER}>`,
+        from: `< ${ process.env.NO_REPLAY_USER }> `,
         to,
         subject,
         html: htmlBody
