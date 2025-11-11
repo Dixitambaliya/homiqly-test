@@ -403,60 +403,74 @@ const getAllPayoutRequests = asyncHandler(async (req, res) => {
 });
 
 const updatePayoutStatus = asyncHandler(async (req, res) => {
-    const { payout_id } = req.params; // direct payout reference
+    const { payout_ids } = req.body; // array of payout_ids
     const { status, admin_notes } = req.body;
-    const payoutMedia = req.uploadedFiles?.payoutMedia?.[0]?.url || null;
 
-    if (!payout_id || !status) {
-        return res.status(400).json({ message: "payout_id and status are required" });
+    if (!Array.isArray(payout_ids) || payout_ids.length === 0) {
+        return res.status(400).json({ message: "payout_ids must be a non-empty array" });
     }
 
-    const connection = await db.getConnection(); // transaction-safe
+    if (!status) {
+        return res.status(400).json({ message: "status is required" });
+    }
+
+    const connection = await db.getConnection();
 
     try {
         await connection.beginTransaction();
 
-        // ✅ 1. Fetch the payout record with vendor details
-        const [[existingPayout]] = await connection.query(
-            `SELECT vp.*
-             FROM vendor_payouts vp
-             WHERE vp.payout_id = ? LIMIT 1`,
-            [payout_id]
+        // ✅ 1️⃣ Fetch all selected payout records (ensure same vendor)
+        const [payoutRecords] = await connection.query(
+            `SELECT * FROM vendor_payouts WHERE payout_id IN (?)`,
+            [payout_ids]
         );
 
-        if (!existingPayout) {
+        if (payoutRecords.length === 0) {
             await connection.rollback();
-            return res.status(404).json({ message: "Payout record not found" });
+            return res.status(404).json({ message: "No matching payouts found" });
         }
 
-        const { vendor_id, payout_amount, currency } = existingPayout;
+        // 🧩 Ensure all payouts belong to the same vendor
+        const vendorIds = [...new Set(payoutRecords.map(p => p.vendor_id))];
+        if (vendorIds.length > 1) {
+            await connection.rollback();
+            return res.status(400).json({
+                message: "All selected payouts must belong to the same vendor"
+            });
+        }
 
-        // ✅ 2. Insert a new record in vendor_payout_requests (admin’s transaction log)
+        const vendor_id = vendorIds[0];
+        const currency = payoutRecords[0].currency;
+        const totalPayoutAmount = payoutRecords.reduce(
+            (sum, p) => sum + Number(p.payout_amount || 0),
+            0
+        );
+
+        // ✅ 2️⃣ Create a single vendor_payout_request record (batch log)
         const [insertResult] = await connection.query(
             `INSERT INTO vendor_payout_requests
-             (vendor_id, requested_amount, status, admin_notes, payout_media, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-            [vendor_id, payout_amount, status, admin_notes || null, payoutMedia]
+             (vendor_id, requested_amount, status, admin_notes, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NOW(), NOW())`,
+            [vendor_id, totalPayoutAmount, status, admin_notes || null]
         );
 
         const payout_request_id = insertResult.insertId;
 
-        // ✅ 3. Update vendor_payouts to mark as paid and link the payout_request_id
+        // ✅ 3️⃣ Update all selected vendor_payouts at once
         await connection.query(
             `UPDATE vendor_payouts
              SET payout_status = ?,
                  payout_request_id = ?,
                  admin_notes = ?,
-                 payout_media = ?,
                  updated_at = NOW()
-             WHERE payout_id = ?`,
-            [status, payout_request_id, admin_notes || null, payoutMedia, payout_id]
+             WHERE payout_id IN (?)`,
+            [status, payout_request_id, admin_notes || null, payout_ids]
         );
 
-        // ✅ 4. Commit transaction
+        // ✅ 4️⃣ Commit the transaction
         await connection.commit();
 
-        // ✅ 5. Notify vendor
+        // ✅ 5️⃣ Notify the vendor
         await db.query(
             `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
              VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
@@ -464,27 +478,17 @@ const updatePayoutStatus = asyncHandler(async (req, res) => {
                 'vendors',
                 vendor_id,
                 'Payout Released 🎉',
-                `Your payout of ${payout_amount} ${currency} has been marked as paid by admin.`,
+                `Your total payout of ${totalPayoutAmount.toFixed(2)} ${currency} covering ${payout_ids.length} bookings has been marked as paid by admin.`
             ]
         );
 
-        // ✅ 6. Respond
+        // ✅ 6️⃣ Respond with success summary
         res.status(200).json({
-            message: `Payout marked as ${status} successfully`,
-            payout_id,
-            payout_request_id,
-            vendor: {
-                vendor_id
-            },
-            amount: payout_amount,
-            currency,
-            payout_media: payoutMedia,
-            admin_notes,
-            paid_at: new Date()
+            message: `Payouts (${payout_ids.length}) marked as ${status} successfully`
         });
 
     } catch (err) {
-        console.error("❌ Error updating payout status:", err);
+        console.error("❌ Error updating multiple payouts:", err);
         if (connection) await connection.rollback();
         res.status(500).json({
             message: "Internal server error",
@@ -495,15 +499,8 @@ const updatePayoutStatus = asyncHandler(async (req, res) => {
     }
 });
 
-
-
-const getAdminPayoutHistory = asyncHandler(async (req, res) => {
-    const { vendor_id, startDate, endDate, payout_status } = req.query;
-
-    // Pagination setup
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
+const getVendorPayoutOverview = asyncHandler(async (req, res) => {
+    const { vendor_id, startDate, endDate } = req.query;
 
     try {
         // 🧭 Dynamic filters
@@ -516,99 +513,195 @@ const getAdminPayoutHistory = asyncHandler(async (req, res) => {
         }
 
         if (startDate && endDate) {
-            filterCondition += " AND DATE(sb.bookingDate) BETWEEN ? AND ?";
+            filterCondition += " AND DATE(vp.created_at) BETWEEN ? AND ?";
             filterParams.push(startDate, endDate);
         } else if (startDate) {
-            filterCondition += " AND DATE(sb.bookingDate) >= ?";
+            filterCondition += " AND DATE(vp.created_at) >= ?";
             filterParams.push(startDate);
         } else if (endDate) {
-            filterCondition += " AND DATE(sb.bookingDate) <= ?";
+            filterCondition += " AND DATE(vp.created_at) <= ?";
             filterParams.push(endDate);
         }
 
-        if (payout_status) {
-            filterCondition += " AND vp.payout_status = ?";
-            filterParams.push(payout_status);
-        }
+        // 🧾 Fetch aggregate payouts by vendor
+        const [vendorStats] = await db.query(`
+            SELECT
+                v.vendor_id,
+                id.name AS vendor_name,
+                id.email AS vendor_email,
+                id.phone AS vendor_phone,
+                COALESCE(SUM(vp.payout_amount), 0) AS totalPayout,
+                COALESCE(SUM(CASE WHEN vp.payout_status = 'pending' THEN vp.payout_amount ELSE 0 END), 0) AS pendingPayout,
+                COALESCE(SUM(CASE WHEN vp.payout_status IN ('paid', 'approved') THEN vp.payout_amount ELSE 0 END), 0) AS paidPayout,
+                COUNT(vp.payout_id) AS totalTransactions,
+                COUNT(CASE WHEN vp.payout_status = 'pending' THEN 1 END) AS pendingCount
+            FROM vendor_payouts vp
+            JOIN vendors v ON v.vendor_id = vp.vendor_id
+            LEFT JOIN individual_details id ON id.vendor_id = v.vendor_id
+            ${filterCondition}
+            GROUP BY v.vendor_id
+            ORDER BY pendingPayout DESC;
+        `, filterParams);
 
-        // 🔢 Count total records
-        const [[{ total }]] = await db.query(
-            `SELECT COUNT(*) AS total FROM vendor_payouts vp ${filterCondition}`,
-            filterParams
-        );
-
-        // 🧾 Fetch payout data
-        const finalQuery = `
-            ${vendorGetQueries.getAdminPayoutHistory.replace(
-            "WHERE vp.vendor_id = ?",
-            filterCondition
-        )}
-        `;
-
-        const [rows] = await db.query(finalQuery, [...filterParams, limit, offset]);
-
-        if (!rows.length) {
+        if (!vendorStats.length) {
             return res.status(200).json({
-                totalRecords: 0,
+                message: "No vendor payout data found",
+                totalVendors: 0,
                 totalPayout: 0,
-                pendingPayout: 0,
-                paidPayout: 0,
-                allPayouts: [],
-                pagination: {
-                    page,
-                    limit,
-                    totalPages: 0,
-                },
+                totalPending: 0,
+                totalPaid: 0,
+                totalPendingCount: 0,
+                vendorPayouts: []
             });
         }
 
-        // ✅ Group by vendor + booking
+        // 🧮 Convert string values to numbers safely
+        const parsedVendors = vendorStats.map(v => ({
+            ...v,
+            totalPayout: Number(v.totalPayout) || 0,
+            pendingPayout: Number(v.pendingPayout) || 0,
+            paidPayout: Number(v.paidPayout) || 0,
+            pendingCount: Number(v.pendingCount) || 0
+        }));
+
+        // 🧮 Calculate global totals
+        const totalPayout = parsedVendors.reduce((sum, v) => sum + v.totalPayout, 0);
+        const totalPending = parsedVendors.reduce((sum, v) => sum + v.pendingPayout, 0);
+        const totalPaid = parsedVendors.reduce((sum, v) => sum + v.paidPayout, 0);
+        const totalPendingCount = parsedVendors.reduce((sum, v) => sum + v.pendingCount, 0);
+
+        // ✅ Final response
+        res.status(200).json({
+            message: "Vendor payout overview fetched successfully",
+            totalVendors: parsedVendors.length,
+            totalPayout: parseFloat(totalPayout.toFixed(2)),
+            totalPending: parseFloat(totalPending.toFixed(2)),
+            totalPaid: parseFloat(totalPaid.toFixed(2)),
+            totalPendingCount,
+            vendorPayouts: parsedVendors
+        });
+
+    } catch (err) {
+        console.error("❌ Error fetching vendor payout overview:", err);
+        res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+});
+
+const getVendorPendingPayouts = asyncHandler(async (req, res) => {
+    const { vendor_id, startDate, endDate } = req.query;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    try {
+        // 🧭 Dynamic filters
+        let filterCondition = "WHERE vp.vendor_id = ? AND vp.payout_status = 'pending'";
+        const filterParams = [vendor_id];
+
+        if (startDate && endDate) {
+            filterCondition += " AND DATE(vp.created_at) BETWEEN ? AND ?";
+            filterParams.push(startDate, endDate);
+        } else if (startDate) {
+            filterCondition += " AND DATE(vp.created_at) >= ?";
+            filterParams.push(startDate);
+        } else if (endDate) {
+            filterCondition += " AND DATE(vp.created_at) <= ?";
+            filterParams.push(endDate);
+        }
+
+        // 🧾 Query full payout + booking + package data
+        const [rows] = await db.query(`
+            SELECT
+                vp.payout_id,
+                vp.booking_id,
+                vp.vendor_id,
+                vp.platform_fee_percentage,
+                vp.payout_amount,
+                vp.currency,
+                vp.payout_status,
+                vp.created_at,
+
+                id.name AS vendor_name,
+                id.email AS vendor_email,
+                id.phone AS vendor_phone,
+
+                sb.bookingDate,
+                sb.bookingTime,
+                CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+
+                sbs.sub_package_id,
+                pkg.package_id,
+                pkg.packageName,
+                pkg.packageMedia,
+                spi.itemName AS sub_package_name,
+                spi.itemMedia AS sub_package_media,
+                spi.description AS sub_package_description
+
+            FROM vendor_payouts vp
+            LEFT JOIN service_booking sb ON vp.booking_id = sb.booking_id
+            LEFT JOIN users u ON vp.user_id = u.user_id
+            LEFT JOIN service_booking_sub_packages sbs ON sbs.booking_id = sb.booking_id
+            LEFT JOIN package_items spi ON spi.item_id = sbs.sub_package_id
+            LEFT JOIN packages pkg ON pkg.package_id = spi.package_id
+            LEFT JOIN individual_details id ON vp.vendor_id = id.vendor_id
+            ${filterCondition}
+            ORDER BY sb.bookingDate DESC;
+        `, filterParams);
+
+        if (!rows.length) {
+            return res.status(200).json({
+                message: "No pending payouts found for this vendor",
+                totalPending: 0,
+                count: 0,
+                pendingPayouts: []
+            });
+        }
+
+        // 🧩 Group results by payout → package → subpackage
         const grouped = new Map();
 
         for (const row of rows) {
-            const key = `${row.vendor_id}_${row.booking_id}`;
-            if (!grouped.has(key)) {
-                grouped.set(key, {
+            const payoutKey = row.payout_id;
+            if (!grouped.has(payoutKey)) {
+                grouped.set(payoutKey, {
                     payout_id: row.payout_id,
                     booking_id: row.booking_id,
                     vendor_id: row.vendor_id,
                     vendor_name: row.vendor_name,
                     vendor_email: row.vendor_email,
                     vendor_phone: row.vendor_phone,
-                    user_id: row.user_id,
                     user_name: row.user_name,
-                    user_email: row.user_email,
-                    user_phone: row.user_phone,
-                    platform_fee_percentage: parseFloat(row.platform_fee_percentage || 0),
-                    payout_amount: parseFloat(row.payout_amount || 0),
+                    payout_amount: Number(row.payout_amount) || 0,
                     currency: row.currency,
-                    payout_status: String(row.payout_status || "").toLowerCase(),
-                    created_at: row.created_at,
+                    platform_fee_percentage: row.platform_fee_percentage,
                     bookingDate: row.bookingDate,
                     bookingTime: row.bookingTime,
-                    admin_notes: row.admin_notes || null,
-                    payout_media: row.payout_media || null,
+                    created_at: row.created_at,
                     packages: []
                 });
             }
 
-            if (row.package_id && row.sub_package_id) {
-                const payout = grouped.get(key);
-                const pkgIndex = payout.packages.findIndex(p => p.package_id === row.package_id);
-                if (pkgIndex === -1) {
-                    payout.packages.push({
+            // Group sub-packages under packages
+            const payout = grouped.get(payoutKey);
+
+            if (row.package_id) {
+                let pkg = payout.packages.find(p => p.package_id === row.package_id);
+                if (!pkg) {
+                    pkg = {
                         package_id: row.package_id,
                         packageName: row.packageName,
                         packageMedia: row.packageMedia,
-                        sub_packages: [{
-                            sub_package_id: row.sub_package_id,
-                            sub_package_name: row.sub_package_name,
-                            sub_package_media: row.sub_package_media,
-                            sub_package_description: row.sub_package_description
-                        }]
-                    });
-                } else {
-                    payout.packages[pkgIndex].sub_packages.push({
+                        sub_packages: []
+                    };
+                    payout.packages.push(pkg);
+                }
+
+                if (row.sub_package_id) {
+                    pkg.sub_packages.push({
                         sub_package_id: row.sub_package_id,
                         sub_package_name: row.sub_package_name,
                         sub_package_media: row.sub_package_media,
@@ -618,52 +711,30 @@ const getAdminPayoutHistory = asyncHandler(async (req, res) => {
             }
         }
 
-        const allPayouts = Array.from(grouped.values());
+        const pendingPayouts = Array.from(grouped.values());
 
-        // 💰 Totals (directly from DB values)
-        const totalPayout = parseFloat(
-            allPayouts.reduce((sum, p) => sum + p.payout_amount, 0).toFixed(2)
+        // 🧮 Total pending amount
+        const totalPending = pendingPayouts.reduce(
+            (sum, p) => sum + Number(p.payout_amount || 0),
+            0
         );
-
-        const pendingPayout = parseFloat(
-            allPayouts
-                .filter(p => ["pending", "0"].includes(String(p.payout_status)))
-                .reduce((sum, p) => sum + p.payout_amount, 0)
-                .toFixed(2)
-        );
-
-        const paidPayout = parseFloat(
-            allPayouts
-                .filter(p => ["paid", "approved"].includes(String(p.payout_status)))
-                .reduce((sum, p) => sum + p.payout_amount, 0)
-                .toFixed(2)
-        );
-
-        // ✅ Pagination slice
-        const paginatedPayouts = allPayouts.slice(offset, offset + limit);
 
         res.status(200).json({
-            totalRecords: allPayouts.length,
-            totalPayout,
-            pendingPayout,
-            paidPayout,
-            allPayouts: paginatedPayouts,
-            pagination: {
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-            },
+            message: "Vendor pending payouts fetched successfully",
+            vendor_id,
+            totalPending: parseFloat(totalPending.toFixed(2)),
+            count: pendingPayouts.length,
+            pendingPayouts
         });
 
     } catch (err) {
-        console.error("❌ Error fetching admin payout history:", err);
+        console.error("❌ Error fetching vendor pending payouts:", err);
         res.status(500).json({
             message: "Internal server error",
-            error: err.message,
+            error: err.message
         });
     }
 });
-
 
 const getAdminPaidPayoutHistory = asyncHandler(async (req, res) => {
     const { vendor_id, startDate, endDate, status } = req.query;
@@ -795,6 +866,7 @@ module.exports = {
     getAllPayoutRequests,
     updatePayoutStatus,
     getVendorPayoutStatus,
-    getAdminPayoutHistory,
-    getAdminPaidPayoutHistory
+    getVendorPendingPayouts,
+    getAdminPaidPayoutHistory,
+    getVendorPayoutOverview
 };

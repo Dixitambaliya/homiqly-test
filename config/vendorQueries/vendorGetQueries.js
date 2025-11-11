@@ -156,8 +156,6 @@ SELECT
     sb.bookingDate,
     sb.bookingTime,
     CONCAT(u.firstName, ' ', u.lastName) AS user_name,
-    u.email AS user_email,
-    u.phone AS user_phone,
 
     sbs.sub_package_id,
 
