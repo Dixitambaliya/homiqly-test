@@ -1051,7 +1051,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         res.status(200).json({
             vendor_id,
             totalBookings: allPayouts.length,
-            totalPayout: totalRecords,
+            totalPayout: totalPayout,
             pendingPayout,
             paidPayout,
             allPayouts: paginatedPayouts,
