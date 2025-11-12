@@ -1281,124 +1281,48 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { filterType, startDate, endDate } = req.query;
-    // filterType = 'all' | 'weekly' | 'monthly' | 'custo   m'
+    // filterType = 'all' | 'weekly' | 'monthly' | 'custom'
 
     try {
-        // 1️⃣ Get vendor type
-        const [[vendorRow]] = await db.query(
-            bookingGetQueries.getVendorIdForBooking,
-            [vendor_id]
-        );
-        const vendorType = vendorRow?.vendorType || null;
-
-        // 2️⃣ Get platform fee %
-        const [platformSettings] = await db.query(
-            bookingGetQueries.getPlateFormFee,
-            [vendorType]
-        );
-        const platformFee = Number(platformSettings?.[0]?.platform_fee_percentage ?? 0);
-
-        // 3️⃣ Date filter
+        // 1️⃣ Build date filter dynamically
         let dateFilter = "";
         let params = [vendor_id];
 
         if (filterType === "weekly") {
-            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+            dateFilter = "AND vp.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
         } else if (filterType === "monthly") {
-            dateFilter = "AND sb.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
+            dateFilter = "AND vp.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
         } else if (filterType === "custom" && startDate && endDate) {
-            dateFilter = "AND sb.created_at BETWEEN ? AND ?";
+            dateFilter = "AND DATE(vp.created_at) BETWEEN ? AND ?";
             params = [vendor_id, startDate, endDate];
         }
 
-        // 4️⃣ Booking summary (Approved, Started, Completed)
-        const [[bookingStats]] = await db.query(`
-            SELECT
-              COUNT(*) AS totalBookings,
-              SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS approvedBookings,
-              SUM(CASE WHEN sb.bookingStatus = 3 THEN 1 ELSE 0 END) AS startedBookings,
-              SUM(CASE WHEN sb.bookingStatus = 4 THEN 1 ELSE 0 END) AS completedBookings
-            FROM service_booking sb
-            WHERE sb.vendor_id = ? ${dateFilter};
-        `, params);
+        // 2️⃣ Fetch booking counts
+        const [[bookingStats]] = await db.query(
+            `
+        SELECT
+          COUNT(sb.booking_id) AS totalBookings,
+          SUM(CASE WHEN sb.bookingStatus = 1 THEN 1 ELSE 0 END) AS approvedBookings,
+          SUM(CASE WHEN sb.bookingStatus = 3 THEN 1 ELSE 0 END) AS startedBookings,
+          SUM(CASE WHEN sb.bookingStatus = 4 THEN 1 ELSE 0 END) AS completedBookings
+        FROM service_booking sb
+        WHERE sb.vendor_id = ? ${dateFilter.replace(/vp\./g, "sb.")};
+      `,
+            params
+        );
 
-        // 5️⃣ Fetch all completed payment bookings for calculation
-        const [bookings] = await db.query(`
-            SELECT
-                sb.booking_id,
-                sb.user_promo_code_id,
-                p.amount AS payment_amount,
-                p.status
-            FROM service_booking sb
-            JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-            WHERE sb.vendor_id = ?
-              AND p.status = 'completed'
-              ${dateFilter};
-        `, params);
+        // 3️⃣ Fetch earnings directly from vendor_payouts table
+        const [[earningsStats]] = await db.query(
+            `
+        SELECT
+          COALESCE(SUM(vp.payout_amount), 0) AS totalEarnings
+        FROM vendor_payouts vp
+        WHERE vp.vendor_id = ? ${dateFilter};
+      `,
+            params
+        );
 
-        let totalEarningsCents = 0;
-
-        // 6️⃣ Loop each booking to compute promo-adjusted vendor earnings
-        for (const booking of bookings) {
-            const paidAmount = Number(booking.payment_amount) || 0;
-            const promoId = booking.user_promo_code_id;
-
-            let promoDiscount = 0;
-            let discountType = null;
-
-            // 🏷️ Check both user promo and system promo
-            if (promoId) {
-                const [[userPromo]] = await db.query(`
-                    SELECT pc.discountValue, pc.discount_type
-                    FROM user_promo_codes upc
-                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-                    WHERE upc.user_promo_code_id = ?;
-                `, [promoId]);
-
-                if (userPromo && userPromo.discountValue != null) {
-                    promoDiscount = Number(userPromo.discountValue);
-                    discountType = userPromo.discount_type;
-                } else {
-                    const [[systemPromo]] = await db.query(`
-                        SELECT spct.discountValue, spct.discount_type
-                        FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spct
-                          ON spc.template_id = spct.system_promo_code_template_id
-                        WHERE spc.system_promo_code_id = ?;
-                    `, [promoId]);
-
-                    if (systemPromo && systemPromo.discountValue != null) {
-                        promoDiscount = Number(systemPromo.discountValue);
-                        discountType = systemPromo.discount_type;
-                    }
-                }
-            }
-
-            // 🧮 Step 1: start from paid amount
-            let grossCents = Math.round(paidAmount * 100);
-
-            // 🧮 Step 2: add back promo discount if exists
-            if (promoDiscount && discountType) {
-                if (discountType === "fixed") {
-                    grossCents += Math.round(promoDiscount * 100);
-                } else if (discountType === "percentage") {
-                    const pct = promoDiscount;
-                    if (pct < 100) {
-                        grossCents = Math.round(grossCents / (1 - pct / 100));
-                    }
-                }
-            }
-
-            // 🧮 Step 3: subtract platform fee
-            const vendorCents = Math.round(grossCents * (1 - platformFee / 100));
-
-            totalEarningsCents += vendorCents;
-        }
-
-        // ✅ Convert cents to readable format
-        const totalEarnings = Number((totalEarningsCents / 100).toFixed(2));
-
-        // ✅ Final response
+        // ✅ Format and respond
         res.status(200).json({
             message: "Vendor dashboard stats fetched successfully",
             filterType,
@@ -1407,18 +1331,18 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
                 approvedBookings: bookingStats.approvedBookings || 0,
                 startedBookings: bookingStats.startedBookings || 0,
                 completedBookings: bookingStats.completedBookings || 0,
-                totalEarnings
-            }
+                totalEarnings: Number(earningsStats.totalEarnings).toFixed(2),
+            },
         });
-
     } catch (error) {
-        console.error("Error fetching vendor dashboard stats:", error);
+        console.error("❌ Error fetching vendor dashboard stats:", error);
         res.status(500).json({
             message: "Internal server error",
-            error: error.message
+            error: error.message,
         });
     }
 });
+
 
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;

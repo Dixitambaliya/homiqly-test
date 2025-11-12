@@ -467,7 +467,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
         `;
 
         footerHtml = `
-            <div style = "background: #000000; color: #bbb; padding: 40px 40px;" >
+            <div style = "background: #000000; padding: 40px 40px;" >
                 <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
                     <tr>
                         <!-- Left: Logo | Right: Social Icons -->

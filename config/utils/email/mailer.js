@@ -63,56 +63,57 @@ const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
     });
 };
 
+//done
 const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) => {
     try {
-        // 📬 1. Fetch admin emails
+        // 1️⃣ Fetch admin emails
         const [adminEmails] = await db.query("SELECT email FROM admin WHERE email IS NOT NULL");
         if (!adminEmails.length) return console.warn("⚠️ No admin emails found.");
 
         const emailAddresses = adminEmails.map((row) => row.email);
+        const subject = "New Service Provider Registered on Homiqly";
 
-        // 🧩 2. Build email content (body only, header/footer added by sendMail)
         const bodyHtml = `
-      <div style="padding: 35px 30px; font-size: 15px; color: #333; max-width: 480px">
-        <h2 style="font-size: 20px; color: #222; text-align: o; margin-bottom: 20px;">
-          New Vendor Registration
-        </h2>
+        <div style="padding: 35px 30px; font-size: 15px; color: #333; background-color: #ffffff; max-width: 570px; margin: 0 auto; line-height: 1.6;">
+          <h2 style="font-size: 20px; color: #000; margin-bottom: 20px;">
+            New Vendor Registration
+          </h2>
 
-        <p style="margin-bottom: 15px;">
-          Hello <strong>Homiqly Admin Team</strong>,
-        </p>
+          <p style="margin-bottom: 15px;">
+            Hello <strong>Homiqly Admin Team</strong>,
+          </p>
 
-        <p style="margin-bottom: 15px;">
-          A new service provider has just registered on <strong>Homiqly</strong>!
-        </p>
+          <p style="margin-bottom: 15px;">
+            A new service provider has just registered on <strong>Homiqly</strong>!
+          </p>
 
-        <div style="background: #f9f9f9; border-radius: 8px; padding: 15px 20px; margin: 20px 0;">
-          <p style="font-weight: 600; margin-bottom: 8px;">Vendor Details:</p>
-          <ul style="line-height: 1.8; padding-left: 20px; margin: 0;">
-            <li><strong>Type:</strong> ${vendorType}</li>
-            <li><strong>Name:</strong> ${vendorName}</li>
-            <li><strong>Email:</strong> ${vendorEmail}</li>
-            <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
-            <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
-          </ul>
+          <div style="background: #f9f9f9; border-radius: 8px; padding: 15px 20px; margin: 20px 0;">
+            <p style="font-weight: 600; margin-bottom: 8px;">Vendor Details:</p>
+            <ul style="line-height: 1.8; padding-left: 20px; margin: 0;">
+              <li><strong>Type:</strong> ${vendorType}</li>
+              <li><strong>Name:</strong> ${vendorName}</li>
+              <li><strong>Email:</strong> ${vendorEmail}</li>
+              <li><strong>City:</strong> ${vendorCity || "N/A"}</li>
+              <li><strong>Service Category:</strong> ${vendorService || "N/A"}</li>
+            </ul>
+          </div>
+
+          <p style="margin-top: 20px;">
+            Please review their profile and documentation to proceed with verification.
+          </p>
+
+          <p style="margin-top: 25px;">
+            Best regards,<br/>
+            <strong>The Homiqly Team</strong>
+          </p>
         </div>
+      `;
 
-        <p style="margin-top: 20px;">
-          Please review their profile and documentation to proceed with verification.
-        </p>
-
-        <p style="margin-top: 25px;">
-          Best regards,<br/>
-          <strong>The Homiqly Team</strong>
-        </p>
-      </div>
-    `;
-
-        // ✉️ 3. Send mail through common utility (adds header/footer + logo automatically)
         await sendMail({
             to: emailAddresses,
-            subject: "New Service Provider Registred on Homiqly",
+            subject,
             bodyHtml,
+            layout: "vendorNotificationMail"
         });
 
         console.log(`📧 Admin notified about new vendor: ${vendorName}`);
@@ -121,6 +122,7 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
     }
 };
 
+//done
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     try {
         // 🧩 Fetch user
@@ -389,6 +391,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     }
 };
 
+//done
 const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
     try {
         // 🧩 Fetch vendor info
@@ -583,6 +586,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
     }
 };
 
+//done
 const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }) => {
     try {
         // 🧩 Conditionally include login credentials (for company vendors)
@@ -605,7 +609,7 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
         const bodyHtml = `
       <div style="padding: 35px 30px; font-size: 15px; color: #333;">
         <h2 style="font-size: 20px; font-weight: 600; color: #222; text-align: center; margin-bottom: 20px;">
-          🎉 Congratulations, ${vendorName}!
+          Congratulations, ${vendorName}!
         </h2>
 
         <p style="margin-bottom: 15px;">
@@ -618,7 +622,7 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
 
         <p style="margin:20px 0;">
           <a href="https://glistening-marigold-c9df83.netlify.app/vendor/login"
-            style="background:#4CAF50; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
+            padding:10px 18px; border-radius:6px; text-decoration:none; font-weight:600;">
             Login to Dashboard
           </a>
         </p>
@@ -639,6 +643,7 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
             to: vendorEmail,
             subject: "Welcome to Homiqly community! Your Application Has Been Approved",
             bodyHtml,
+            layout: "vendorNotificationMail",
         });
 
         console.log(`📧 Vendor approval email sent to: ${vendorName} (${vendorEmail})`);
@@ -1029,6 +1034,7 @@ const assignWelcomeCode = async ({ user_id, user_email, user_name }) => {
     }
 };
 
+//done
 const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) => {
     if (!vendorData?.vendorEmail) {
         console.warn("⚠️ No vendor email found, skipping email notification.");
@@ -1051,7 +1057,7 @@ const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) =>
                     (p) => `
           <li style="margin-bottom: 10px;">
             <strong>Package:</strong> ${p.packageName} <br/>
-            <strong>Sub-Packages:</strong> ${p.selected_subpackages.length > 0  
+            <strong>Sub-Packages:</strong> ${p.selected_subpackages.length > 0
                             ? p.selected_subpackages
                                 .map((sp) => `<span>${sp.name} </span>`)
                                 .join(", ")
@@ -1087,6 +1093,7 @@ const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) =>
     }
 };
 
+//done
 const sendManualAssignmentMail = async (vendor_id, status, note = null) => {
     try {
         // 1️⃣ Fetch vendor info (individual or company)
@@ -1196,5 +1203,4 @@ module.exports = {
     sendVendorAssignedPackagesEmail,
     sendUserWelcomeMail,
     sendManualAssignmentMail
-
-};
+}
