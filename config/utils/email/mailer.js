@@ -1036,37 +1036,51 @@ const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) =>
     }
 
     try {
+        const subject = `New Packages Assigned to You`
+        const bodyHtml = `
+  <div style="font-family: Arial, Helvetica, sans-serif; color: #333; background-color: #ffffff; padding: 25px; max-width: 600px; margin: 0 auto; border-radius: 8px; line-height: 1.6;">
+    <p style="font-size: 15px; margin-bottom: 15px;">Dear <strong>${vendorData.vendorName}</strong>,</p>
 
-        const emailHtml = `
-            <p>Dear ${vendorData.vendorName},</p>
-            <p>The following packages have been <strong>assigned to you</strong> by the admin:</p>
-            <ul>
-                ${newlyAssigned
+    <p style="font-size: 15px; margin-bottom: 15px;">
+      The following packages have been assigned to you by the admin:
+    </p>
+
+    <ul style="padding-left: 18px; margin: 15px 0; font-size: 14px;">
+      ${newlyAssigned
                 .map(
                     (p) => `
-                        <li>
-                            <strong>Package:</strong> ${p.packageName} (ID: ${p.package_id}) <br/>
-                            <strong>Sub-Packages:</strong>
-                            ${p.selected_subpackages.length > 0
+          <li style="margin-bottom: 10px;">
+            <strong>Package:</strong> ${p.packageName} <br/>
+            <strong>Sub-Packages:</strong> ${p.selected_subpackages.length > 0  
                             ? p.selected_subpackages
-                                .map((sp) => `${sp.name} (ID: ${sp.id})`)
+                                .map((sp) => `<span>${sp.name} </span>`)
                                 .join(", ")
-                            : "None"
+                            : "<span>None</span>"
                         }
-                        </li>`
+          </li>`
                 )
                 .join("")}
-            </ul>
-            <p>You can now manage and offer these packages from your dashboard.</p>
-        `;
+    </ul>
 
-        await transporter.sendMail({
-            from: `<${process.env.EMAIL_USER}>`,
-            to: vendorData.vendorEmail,
-            subject: "New Packages Assigned to You",
-            html: emailHtml
+    <p style="font-size: 15px; margin-top: 15px;">
+      You can now manage and offer these packages from your vendor dashboard.
+    </p>
+
+    <p style="font-size: 14px; color: #555; margin-top: 25px;">
+      Best regards,<br/>
+      <strong>Team Homiqly</strong>
+    </p>
+  </div>
+`;
+
+
+        // 4️⃣ Send the email using your wrapper
+        await sendMail({
+            to: vendorData.vendorEmail, // ✅
+            subject,
+            bodyHtml,
+            layout: "vendorNotificationMail", // use consistent layout naming
         });
-
         console.log(`✅ Email sent to vendor ${vendorData.vendorEmail}`);
     } catch (mailErr) {
         console.error("⚠️ Failed to send vendor email:", mailErr.message);

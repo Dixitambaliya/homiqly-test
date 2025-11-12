@@ -458,8 +458,8 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
 
     } else if (layout === "vendorNotificationMail") {
         headerHtml = `
-            <div style="padding: 35px 35px 5px; text-align: left; background: #000000;">
-            <div style="display: inline-block; background-color: #ffffff; padding: 10px 0; border-radius: 8px;">
+            <div style="padding: 35px 35px 25px; text-align: left; background: #000000;">
+            <div style="display: inline-block; padding: 10px 0; border-radius: 8px;">
               <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
                    style="width: 130px; display: block; margin: 0; vertical-align: middle;" />
             </div>
