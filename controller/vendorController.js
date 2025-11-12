@@ -940,7 +940,11 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
 
         // 🔢 Count total payouts (with filters)
         const [[{ total }]] = await db.query(
-            `SELECT COUNT(*) AS total FROM vendor_payouts vp ${filterCondition}`,
+            `SELECT COUNT(DISTINCT vp.payout_id) AS total
+             FROM vendor_payouts vp
+             LEFT JOIN service_booking sb ON vp.booking_id = sb.booking_id
+            ${filterCondition}
+            `,
             filterParams
         );
 

@@ -120,6 +120,7 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
         console.error("❌ Failed to send admin vendor registration email:", error.message);
     }
 };
+
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     try {
         // 🧩 Fetch user
