@@ -297,78 +297,78 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
             </div>
 
             <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
-<!-- RECEIPT BOX -->
-<div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
-  <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Your Receipt</h3>
+        <!-- RECEIPT BOX -->
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
+        <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Your Receipt</h3>
 
-  <!-- Packages -->
-  <div style="margin-bottom:15px;">
-    <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
-    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-      ${items.length
+        <!-- Packages -->
+        <div style="margin-bottom:15px;">
+            <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
+            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+            ${items.length
                 ? items.map(i => `
-          <tr style="border-bottom:1px solid #f0f0f0;">
-            <td style="padding:6px 10px 6px 0; text-align:left;">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}</td>
-            <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(i.price || 0).toFixed(2)}</td>
-          </tr>`).join('')
+                <tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:6px 10px 6px 0; text-align:left;">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}</td>
+                    <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(i.price || 0).toFixed(2)}</td>
+                </tr>`).join('')
                 : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No packages</td></tr>`
             }
-    </table>
-  </div>
+            </table>
+        </div>
 
-  <!-- Addons -->
-  <div style="margin-bottom:15px;">
-    <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
-    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-      ${addons.length
+        <!-- Addons -->
+        <div style="margin-bottom:15px;">
+            <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
+            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+            ${addons.length
                 ? addons.map(a => `
-          <tr style="border-bottom:1px solid #f0f0f0;">
-            <td style="padding:6px 10px 6px 0; text-align:left;">${a.addonName}</td>
-            <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(a.price).toFixed(2)}</td>
-          </tr>`).join('')
+                <tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:6px 10px 6px 0; text-align:left;">${a.addonName}</td>
+                    <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(a.price).toFixed(2)}</td>
+                </tr>`).join('')
                 : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No addons selected</td></tr>`
             }
-    </table>
-  </div>
+            </table>
+        </div>
 
-  <!-- Preferences -->
-  <div style="margin-bottom:15px;">
-    <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
-    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-      ${preferences.length
+        <!-- Preferences -->
+        <div style="margin-bottom:15px;">
+            <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
+            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+            ${preferences.length
                 ? preferences.map(p => `
-          <tr style="border-bottom:1px solid #f0f0f0;">
-            <td style="padding:6px 10px 6px 0; text-align:left;">${p.preferenceValue}</td>
-            <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(p.preferencePrice).toFixed(2)}</td>
-          </tr>`).join('')
+                <tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:6px 10px 6px 0; text-align:left;">${p.preferenceValue}</td>
+                    <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(p.preferencePrice).toFixed(2)}</td>
+                </tr>`).join('')
                 : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No preferences set</td></tr>`
             }
-    </table>
-  </div>
+            </table>
+        </div>
 
-  <!-- Subtotal -->
-  <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
-  <table width="100%" cellpadding="4" cellspacing="0" style="font-size:14px; color:#333;">
-    <tr>
-      <td style="text-align:left;">Subtotal</td>
-      <td style="text-align:right; font-weight:600;">₹${Number(booking.totalAmount).toFixed(2)}</td>
-    </tr>
-  </table>
+        <!-- Subtotal -->
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
+        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:14px; color:#333;">
+            <tr>
+            <td style="text-align:left;">Subtotal</td>
+            <td style="text-align:right; font-weight:600;">₹${Number(booking.totalAmount).toFixed(2)}</td>
+            </tr>
+        </table>
 
-  <!-- Total -->
-  <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
-  <table width="100%" cellpadding="4" cellspacing="0" style="font-size:15px; color:#111;">
-    <tr>
-      <td style="text-align:left; font-weight:bold;">Total Charged</td>
-      <td style="text-align:right; font-weight:bold; font-size:16px;">₹${Number(booking.totalAmount).toFixed(2)}</td>
-    </tr>
-  </table>
+        <!-- Total -->
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
+        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:15px; color:#111;">
+            <tr>
+            <td style="text-align:left; font-weight:bold;">Total Charged</td>
+            <td style="text-align:right; font-weight:bold; font-size:16px;">₹${Number(booking.totalAmount).toFixed(2)}</td>
+            </tr>
+        </table>
 
-  <!-- Tax note -->
-  <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
-    (Includes ${taxPercentage}% service tax)
-  </div>
-</div>
+            <!-- Tax note -->
+            <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
+                (Includes ${taxPercentage}% service tax)
+            </div>
+            </div>
           </div>
         </div>`;
 
@@ -395,7 +395,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
 
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
     try {
-        // 🧩 Fetch vendor info (individual/company)
+        // 🧩 Fetch vendor info
         const [[vendor]] = await db.query(`
         SELECT
           CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS email,
@@ -413,31 +413,27 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
         SELECT
           sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes, sb.created_at,
           u.firstName AS userFirstName, u.lastName AS userLastName, u.email AS userEmail, u.phone AS userPhone,
-          s.serviceName, sc.serviceCategory, p.amount AS totalAmount
+          s.serviceName, sc.serviceCategory
         FROM service_booking sb
         LEFT JOIN users u ON sb.user_id = u.user_id
         LEFT JOIN services s ON sb.service_id = s.service_id
         LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
         WHERE sb.booking_id = ? LIMIT 1
       `, [booking_id]);
 
-        const usersName = `${booking.userFirstName || ""} ${booking.userLastName || ""}`.trim() || "Valued Customer";
-        const bookingDateFormatted = moment(booking.bookingDate).format("MMM DD, YYYY");
-
         if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-        // 🧾 Package items
+        // 🧾 Package items (no price info)
         const [items] = await db.query(`
-        SELECT pi.itemName, sbs.price, sbs.quantity
+        SELECT pi.itemName, sbs.quantity
         FROM service_booking_sub_packages sbs
         JOIN package_items pi ON sbs.sub_package_id = pi.item_id
         WHERE sbs.booking_id = ?
       `, [booking_id]);
 
-        // 🧾 Addons
+        // 🧾 Addons (no price)
         const [addons] = await db.query(`
-        SELECT pa.addonName, sba.price
+        SELECT pa.addonName
         FROM service_booking_addons sba
         JOIN package_addons pa ON sba.addon_id = pa.addon_id
         WHERE sba.booking_id = ?
@@ -445,7 +441,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
 
         // 🧾 Preferences
         const [preferences] = await db.query(`
-        SELECT pp.preferenceValue, pp.preferencePrice
+        SELECT pp.preferenceValue
         FROM service_booking_preferences sbp
         JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
         WHERE sbp.booking_id = ?
@@ -459,11 +455,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
         WHERE sbc.booking_id = ?
       `, [booking_id]);
 
-        // 🧩 Fetch tax percentage (for user info only)
-        const [[taxRow]] = await db.query(`SELECT taxPercentage FROM service_taxes WHERE status = 1 LIMIT 1`);
-        const taxPercentage = taxRow?.taxPercentage || 0;
-
-        // 🧩 Build rows (reusable)
+        // 🧩 Build rows
         const buildRows = (data, rowFn, emptyText) =>
             data.length
                 ? data.map(rowFn).join("")
@@ -484,19 +476,11 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
         word-break:break-word;
       `;
 
-        const priceStyle = `
-        text-align:right;
-        font-weight:600;
-        width:120px;
-        white-space:nowrap;
-      `;
-
         const itemRows = buildRows(
             items,
             (i) => `
           <div style="${rowStyle}">
             <span style="${nameStyle}">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
-            <span style="${priceStyle}">₹${Number(i.price).toFixed(2)}</span>
           </div>`,
             "No items found"
         );
@@ -506,7 +490,6 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
             (a) => `
           <div style="${rowStyle}">
             <span style="${nameStyle}">${a.addonName}</span>
-            <span style="${priceStyle}">₹${Number(a.price).toFixed(2)}</span>
           </div>`,
             "No addons selected"
         );
@@ -516,7 +499,6 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
             (p) => `
           <div style="${rowStyle}">
             <span style="${nameStyle}">${p.preferenceValue}</span>
-            <span style="${priceStyle}">₹${Number(p.preferencePrice).toFixed(2)}</span>
           </div>`,
             "No preferences set"
         );
@@ -526,83 +508,70 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
             (c) => `
           <div style="${rowStyle.replace("border-bottom:1px solid #f0f0f0;", "")}">
             <span style="${nameStyle}">${c.question}</span>
-            <span style="${priceStyle}">${c.answer}</span>
+            <span style="font-weight:600;">${c.answer}</span>
           </div>`,
             "No concerns listed"
         );
 
-        // 🧩 Main Email Layout (mirrors userBookingMail but for vendor)
+        // 🧩 Simplified Vendor Email (No price, totals, tax)
         const bodyHtml = `
-      <div style="background-color:#f9fafb; font-family:Arial, Helvetica, sans-serif; margin:0; padding:0;">
-        <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.05); padding:30px;">
+        <div style="background-color:#f9fafb; font-family:Arial, Helvetica, sans-serif; margin:0; padding:0;">
+          <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.05); padding:30px;">
 
-          <!-- Header -->
-          <h2 style="font-size:18px; font-weight:700; color:#111827; margin-bottom:12px;">New Booking Received</h2>
-          <p style="font-size:14px; color:#444; margin-bottom:20px;">
-            Hello <strong>${vendor.name}</strong>, you’ve received a new booking from
-            <strong>${booking.userFirstName} ${booking.userLastName}</strong> (${booking.userEmail}) via Homiqly.
-          </p>
-
-          <!-- Booking Summary -->
-          <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Booking Details</h3>
-          <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-            <tbody>
-              <tr><td style="font-weight:bold; width:40%;">Service:</td><td>${booking.serviceName}</td></tr>
-              <tr><td style="font-weight:bold;">Category:</td><td>${booking.serviceCategory}</td></tr>
-              <tr><td style="font-weight:bold;">Date:</td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
-              <tr><td style="font-weight:bold;">Time:</td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
-              <tr><td style="font-weight:bold;">Total Duration:</td><td>${booking.totalTime || 0} mins</td></tr>
-            </tbody>
-          </table>
-
-          <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
-
-          <!-- Customer Details -->
-          <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Customer Details</h3>
-          <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.8; gap:20px;">
-            <div style="flex:1; min-width:48%;">
-              <div><strong>Name:</strong> ${booking.userFirstName} ${booking.userLastName}</div>
-              <div><strong>Email:</strong> ${booking.userEmail}</div>
-            </div>
-            <div style="flex:1; min-width:48%; text-align:right;">
-              <div><strong>Phone:</strong> ${booking.userPhone || "N/A"}</div>
-            </div>
-          </div>
-
-          <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
-
-          <!-- RECEIPT BOX -->
-          <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
-            <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Booking Summary</h3>
-
-            <div style="margin-bottom:15px;">
-              <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
-              ${itemRows}
-            </div>
-
-            <div style="margin-bottom:15px;">
-              <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
-              ${addonRows}
-            </div>
-
-            <div style="margin-bottom:15px;">
-              <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
-              ${preferenceRows}
-            </div>
-
-            <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
-            <table width="100%" cellpadding="4" cellspacing="0" style="font-size:14px; color:#333;">
-              <tr>
-                <td style="text-align:left;">Total Price</td>
-                <td style="text-align:right; font-weight:600;">₹${Number(booking.totalAmount).toFixed(2)}</td>
-              </tr>
+            <!-- Booking Summary -->
+            <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Booking Details</h3>
+            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
+              <tbody>
+                <tr><td style="font-weight:bold; width:40%;">Service:</td><td>${booking.serviceName}</td></tr>
+                <tr><td style="font-weight:bold;">Category:</td><td>${booking.serviceCategory}</td></tr>
+                <tr><td style="font-weight:bold;">Date:</td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
+                <tr><td style="font-weight:bold;">Time:</td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
+                <tr><td style="font-weight:bold;">Total Duration:</td><td>${booking.totalTime || 0} mins</td></tr>
+              </tbody>
             </table>
-            <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
-              (Includes ${taxPercentage}% service tax — user paid)
+
+            <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
+
+            <!-- Customer Details -->
+            <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Customer Details</h3>
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.8; gap:20px;">
+              <div style="flex:1; min-width:48%;">
+                <div><strong>Name:</strong> ${booking.userFirstName} ${booking.userLastName}</div>
+                <div><strong>Email:</strong> ${booking.userEmail}</div>
+              </div>
+              <div style="flex:1; min-width:48%; text-align:right;">
+                <div><strong>Phone:</strong> ${booking.userPhone || "N/A"}</div>
+              </div>
+            </div>
+
+            <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
+
+            <!-- Service Items -->
+            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
+              <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Booking Summary</h3>
+
+              <div style="margin-bottom:15px;">
+                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
+                ${itemRows}
+              </div>
+
+              <div style="margin-bottom:15px;">
+                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
+                ${addonRows}
+              </div>
+
+              <div style="margin-bottom:15px;">
+                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
+                ${preferenceRows}
+              </div>
+
+              <div style="margin-bottom:15px;">
+                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Customer Concerns</h4>
+                ${concernRows}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       `;
 
         // 🧩 Send Email
@@ -610,11 +579,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
             to: vendor.email,
             subject: "New Booking Received",
             bodyHtml,
-            layout: "vendorBookingMail", // reuse same branded header/footer
-            extraData: {
-                usersName,
-                bookingDateFormatted,
-            },
+            layout: "vendorBookingMail",
         });
 
         console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
@@ -622,6 +587,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
         console.error("⚠️ Failed to send vendor booking email:", err.message);
     }
 };
+
 
 
 

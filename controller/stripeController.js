@@ -229,10 +229,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-
-
-
 // ✅ stripeWebhook.js
 exports.stripeWebhook = asyncHandler(async (req, res) => {
     let event;
@@ -493,9 +489,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         }
     })();
 });
-
-
-
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
     const { paymentIntentId } = req.body;
