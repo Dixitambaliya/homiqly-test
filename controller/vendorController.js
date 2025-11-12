@@ -872,7 +872,7 @@ const toggleManualVendorAssignment = asyncHandler(async (req, res) => {
 
 
         res.status(200).json({
-            message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (disabled)' : 'OFF (enabled)'}`,
+            message: `Manual assignment for vendor ${vendor_id} is now ${value === 1 ? 'ON (enabled)' : 'OFF (disabled)'}`,
             vendor_id,
             manual_assignment_enabled: value
         });

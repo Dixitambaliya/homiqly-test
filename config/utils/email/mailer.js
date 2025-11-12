@@ -389,7 +389,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     }
 };
 
-const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
+const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
     try {
         // 🧩 Fetch vendor info
         const [[vendor]] = await db.query(`
@@ -408,7 +408,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
         const [[booking]] = await db.query(`
         SELECT
           sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes, sb.created_at,
-          u.firstName AS userFirstName, u.lastName AS userLastName, u.email AS userEmail, u.phone AS userPhone,
+          u.firstName AS userFirstName, u.lastName AS userLastName, u.address AS userAddress,
           s.serviceName, sc.serviceCategory
         FROM service_booking sb
         LEFT JOIN users u ON sb.user_id = u.user_id
@@ -533,10 +533,9 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
             <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.8; gap:20px;">
               <div style="flex:1; min-width:48%;">
                 <div><strong>Name:</strong> ${booking.userFirstName} ${booking.userLastName}</div>
-                <div><strong>Email:</strong> ${booking.userEmail}</div>
               </div>
               <div style="flex:1; min-width:48%; text-align:right;">
-                <div><strong>Phone:</strong> ${booking.userPhone || "N/A"}</div>
+                <div><strong>Phone:</strong> ${booking.userAddress || "N/A"}</div>
               </div>
             </div>
 
@@ -822,39 +821,39 @@ const sendPasswordResetCodeMail = async ({ userEmail, code }) => {
 //done
 const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
     try {
+        // 🧩 BODY
         const bodyHtml = `
-      <div style="padding: 30px 34px; text-align:left; max-width: 480px;">
-        <h2 style="font-size: 20px; font-weight: 600; color: #000;">
-          ${subject?.toLowerCase().includes("back")
+<div style="padding: 25px; text-align:left; max-width: 470px; margin: 0 auto; background-color: #ffffff;">
+  <h2 style="font-size: 20px; font-weight: 600; color: #000;">
+    ${subject?.toLowerCase().includes("back")
                 ? "Welcome back to the Homiqly community"
                 : "Welcome to the Homiqly community"
             }
         </h2>
 
-        <p style="font-size: 15px; line-height: 1.6; color: #444; text-align:left">
-         To verify your email address, please use the following One Time Password (OTP):
+        <p style="font-size: 15px; line-height: 1.6; color: #444; text-align:left;">
+            To verify your email address, please use the following One Time Password (OTP):
         </p>
 
         <!-- OTP Box -->
         <div style="text-align:left; margin: 20px 0;">
-          <div style="
-            display: inline-block;
-            font-size: 16px;
-            font-weight: 600;
-            color: #000;
-            letter-spacing: 3px;
-            padding: 6px 14px;
-            border: 1.3px dotted #000;
-            border-radius: 6px;
-          ">
+            <div
+            style="
+                display: inline-block;
+                font-size: 16px;
+                font-weight: 600;
+                color: #000;
+                letter-spacing: 3px;
+            "
+            >
             ${code}
-          </div>
+            </div>
         </div>
 
         <p style="font-size: 14px; color: #555; margin-top: 20px;">
-         Do not share this OTP with anyone. This code will expire in 5 minutes.
+            Do not share this OTP with anyone. This code will expire in 5 minutes.
         </p>
-      </div>
+        </div>
     `;
 
         // ✉️ Send the mail using your reusable wrapper
@@ -1074,6 +1073,101 @@ const sendVendorAssignedPackagesEmail = async ({ vendorData, newlyAssigned }) =>
     }
 };
 
+const sendManualAssignmentMail = async (vendor_id, status, note = null) => {
+    try {
+        // 1️⃣ Fetch vendor info (individual or company)
+        let vendorEmail = null;
+        let vendorName = "Vendor";
+
+        const [individualRows] = await db.query(
+            "SELECT email, name FROM individual_details WHERE vendor_id = ?",
+            [vendor_id]
+        );
+
+        if (individualRows.length > 0) {
+            vendorEmail = individualRows[0].email;
+            vendorName = individualRows[0].name;
+        } else {
+            const [companyRows] = await db.query(
+                "SELECT companyEmail, companyName FROM company_details WHERE vendor_id = ?",
+                [vendor_id]
+            );
+
+            if (companyRows.length > 0) {
+                vendorEmail = companyRows[0].companyEmail;
+                vendorName = companyRows[0].companyName || "Company Vendor";
+            }
+        }
+
+        if (!vendorEmail) {
+            console.warn(`⚠️ No email found for vendor_id ${vendor_id}`);
+            return;
+        }
+
+        // 2️⃣ Prepare readable message
+        const readableStatus =
+            status === 1
+                ? "enabled (Your visibility turned ON)"
+                : "disabled (Your visibility turned OFF)";
+
+        const subject = "Your visibility from the booking changed by Admin";
+
+        // 3️⃣ Build email HTML (same format as welcome mail)
+        const bodyHtml = `
+      <div style="background-color: #ffffff;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 5px 40px 40px; font-family: Arial, sans-serif; text-align: left;">
+              <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 15px; color: #222;">
+                Hello ${vendorName},
+              </h2>
+
+              <p style="font-size: 15px; line-height: 1.6; color: #444; margin-bottom: 15px;">
+                Your manual assignment setting has been <strong>${readableStatus}</strong> by the admin.
+              </p>
+
+              ${note
+                ? `<p style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 15px;">
+                      <strong>Admin Note:</strong> ${note}
+                     </p>`
+                : ""
+            }
+
+              <p style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 15px;">
+                If you have any questions or concerns, feel free to reach out to our support team anytime through the Help section in your dashboard.
+              </p>
+
+              <p style="font-size: 14px; color: #555; margin-bottom: 25px;">
+                Best regards,
+              </p>
+
+              <p style="font-size: 16px; color: #333; margin-top: 0;">
+                <strong>The Homiqly Team</strong>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </div>
+      `;
+
+        // 4️⃣ Send the email using your wrapper
+        await sendMail({
+            to: vendorEmail,
+            subject,
+            bodyHtml,
+            layout: "vendorNotificationMail", // use consistent layout naming
+            extraData: {
+                vendorName,
+                readableStatus,
+            },
+        });
+
+        console.log(`📧 Manual assignment mail sent to ${vendorEmail}`);
+    } catch (err) {
+        console.error("❌ Failed to send manual assignment mail:", err.message);
+    }
+};
+
 module.exports = {
     sendBookingEmail,
     sendVendorBookingEmail,
@@ -1086,6 +1180,7 @@ module.exports = {
     sendReviewRequestMail,
     assignWelcomeCode,
     sendVendorAssignedPackagesEmail,
-    sendUserWelcomeMail
+    sendUserWelcomeMail,
+    sendManualAssignmentMail
 
 };
