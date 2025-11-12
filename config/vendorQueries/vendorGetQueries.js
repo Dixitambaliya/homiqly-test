@@ -114,7 +114,6 @@ const vendorGetQueries = {
         sb.bookingDate,
         sb.bookingTime,
         CONCAT(u.firstName, ' ', u.lastName) AS user_name,
-        u.email AS user_email,
 
         sbs.sub_package_id,
 

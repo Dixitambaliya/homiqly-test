@@ -878,61 +878,38 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
 
 const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorName }) => {
     try {
-        const logoPath = path.resolve("config/media/homiqly.webp");
-        const cidName = "homiqlyLogo";
         const reviewLink = `https://homiqly-h81s.vercel.app/Profile/history`;
+        // 🧩 Email body (content between header & footer)
+        const bodyHtml = `
+ <div style="padding: 35px 35px 25px; background-color: #ffffff; font-family: Arial, Helvetica, sans-serif;">
+   <h2 style="font-size: 20px; font-weight: 600; color: #000;">We’d Love Your Feedback!</h2>
 
-        const htmlBody = `
-      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
-        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+   <p style="font-size: 15px; line-height: 1.6; color: #444;">
+     Hello <strong>${userName}</strong>,<br><br>
+     We hope you enjoyed your recent <strong>${serviceName}</strong> service with <strong>${vendorName}</strong>.
+     Your feedback helps us improve and celebrate our top professionals.
+   </p>
 
-          <!-- Header -->
-          <div style="background:#FF6F61; padding:20px; text-align:center;">
-            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
-            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">How Was Your Homiqly Experience?</h1>
-          </div>
+   <div style="text-align: center; margin: 30px 0;">
+     <a href="${reviewLink}"
+        style="background: #4da3ff; color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 15px; text-decoration: none; font-weight: 600;">
+        👉 Leave a Review
+     </a>
+   </div>
 
-          <!-- Body -->
-          <div style="padding:25px 30px; font-size:15px; color:#333;">
-            <p>Hello <strong>${userName}</strong>,</p>
-            <p>We hope you loved your recent <strong>${serviceName}</strong> service with <strong>${vendorName}</strong>!</p>
-            <p>Your feedback helps us improve and recognize our top professionals.</p>
-
-            <div style="text-align:center; margin:30px 0;">
-              <a href="${reviewLink}"
-                 style="background:#FF6F61; color:#fff; padding:12px 28px; border-radius:30px;
-                 font-size:16px; text-decoration:none; font-weight:bold;">
-                 👉 Leave a Review
-              </a>
-            </div>
-
-            <p>Thank you for choosing Homiqly — beauty, comfort, and care at your doorstep.</p>
-            <p>Warm regards,<br><strong>Team Homiqly</strong></p>
-          </div>
-
-          <!-- Footer -->
-          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
-            <p>&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
-          </div>
-        </div>
-      </div>
-    `;
-
-        await transporter.sendMail({
+   <p style="font-size: 14px; color: #555;">
+     Thank you for choosing Homiqly — where comfort, beauty, and care come together.<br>
+     <br>Warm regards,<br><strong>Team Homiqly</strong>
+   </p>
+ </div>
+`;
+        await sendMail({
             from: `<${process.env.EMAIL_USER}>`,
             to: userEmail,
-            subject: "How Was Your Homiqly Experience? 👉",
-            html: htmlBody,
-            attachments: [
-                {
-                    filename: "homiqly.webp",
-                    path: logoPath,
-                    cid: cidName,
-                    contentDisposition: "inline",
-                },
-            ],
+            subject: "How Was Your Homiqly Experience?",
+            bodyHtml,
+            layout: "vendorNotificationMail",
         });
-
         console.log(`📧 Review request sent to: ${userName} (${userEmail})`);
     } catch (error) {
         console.error("❌ Failed to send review request email:", error.message);

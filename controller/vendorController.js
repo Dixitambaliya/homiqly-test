@@ -1078,20 +1078,14 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { booking_id, status } = req.body;
 
-    // ✅ Validate input
     if (!booking_id || ![3, 4].includes(status)) {
         return res.status(400).json({ message: "Invalid booking ID or status" });
     }
 
     try {
-        // 🔐 Check if the booking is assigned to the current vendor
+        // 🔐 Validate vendor ownership
         const [checkBooking] = await db.query(
-            `SELECT sb.booking_id,
-                    sb.vendor_id,
-                    sb.user_id,
-                    sb.bookingDate,
-                    sb.bookingTime,
-                    p.status AS payment_status
+            `SELECT sb.booking_id, sb.vendor_id, sb.user_id, sb.bookingDate, sb.bookingTime, p.status AS payment_status
              FROM service_booking sb
              LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
              WHERE sb.booking_id = ? AND sb.vendor_id = ?`,
@@ -1104,12 +1098,10 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
         const { payment_status, user_id, bookingDate, bookingTime } = checkBooking[0];
 
-        // ✅ Restrict start time (status = 3) → only within 10 min before start
+        // ✅ Restrict start service window (10 min before start)
         if (status === 3) {
             const bookingDateTime = new Date(`${bookingDate} ${bookingTime}`);
             const now = new Date();
-
-            // Allow start only if current time >= booking time - 10 minutes
             const startWindow = new Date(bookingDateTime.getTime() - 10 * 60000);
             if (now < startWindow) {
                 return res.status(400).json({
@@ -1118,18 +1110,12 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ Determine completed_flag
+        // ✅ Update service booking record
         const completed_flag = status === 4 ? 1 : 0;
-
-        // ✅ Set start_time / end_time
         let updateFields = { bookingStatus: status, completed_flag };
-        if (status === 3) {
-            updateFields.start_time = new Date(); // Record service start
-        } else if (status === 4) {
-            updateFields.end_time = new Date(); // Record service completion
-        }
+        if (status === 3) updateFields.start_time = new Date();
+        else if (status === 4) updateFields.end_time = new Date();
 
-        // ✅ Build dynamic update query
         const updateKeys = Object.keys(updateFields);
         const updateValues = Object.values(updateFields);
         const updateSQL = `UPDATE service_booking
@@ -1138,17 +1124,16 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
         await db.query(updateSQL, [...updateValues, booking_id]);
 
-        // ✅ Notifications
+        // ✅ Send user notifications
         let notificationTitle, notificationBody;
-
         if (status === 4) {
             notificationTitle = "Your service has been completed";
             notificationBody = `Your service for booking ID ${booking_id} has been completed. Please take a moment to rate your experience.`;
             const ratingLink = `https://homiqly-h81s.vercel.app/Profile/history`;
 
             await db.query(
-                `INSERT INTO notifications(user_type, user_id, title, body, action_link, is_read, sent_at)
-                 VALUES(?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                `INSERT INTO notifications (user_type, user_id, title, body, action_link, is_read, sent_at)
+                 VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody, ratingLink]
             );
         } else {
@@ -1156,61 +1141,56 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
             notificationBody = `Your service for booking ID ${booking_id} has been started by the vendor`;
 
             await db.query(
-                `INSERT INTO notifications(user_type, user_id, title, body, is_read, sent_at)
-                 VALUES(?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+                `INSERT INTO notifications (user_type, user_id, title, body, is_read, sent_at)
+                 VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
                 ['users', user_id, notificationTitle, notificationBody]
             );
         }
 
-        // ✅ Handle payout logic when booking is completed
+        // ✅ Handle payout when completed
         if (status === 4) {
             const [[paymentInfo]] = await db.query(
                 `SELECT
-            p.amount,
-            p.currency,
-            p.status AS payment_status,
-            p.payment_intent_id,
-            v.vendorType,
-            sb.user_promo_code_id
-         FROM payments p
-         JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
-         JOIN vendors v ON v.vendor_id = sb.vendor_id
-         WHERE sb.booking_id = ? LIMIT 1`,
+                    p.amount,
+                    p.currency,
+                    p.status AS payment_status,
+                    p.payment_intent_id,
+                    v.vendorType,
+                    sb.user_promo_code_id
+                 FROM payments p
+                 JOIN service_booking sb ON sb.payment_intent_id = p.payment_intent_id
+                 JOIN vendors v ON v.vendor_id = sb.vendor_id
+                 WHERE sb.booking_id = ? LIMIT 1`,
                 [booking_id]
             );
 
             if (paymentInfo && paymentInfo.payment_status === 'completed') {
-                // 🏷️ Step 1: Base paid amount from payment
                 const paidAmount = Number(paymentInfo.amount || 0);
                 const vendorType = paymentInfo.vendorType;
                 const promoId = paymentInfo.user_promo_code_id;
                 let promoDiscount = 0;
                 let discountType = null;
 
-                // 🧾 Step 2: Fetch promo discount (if used)
+                // 🔹 Fetch promo if exists
                 if (promoId) {
-                    // Try normal user promo
                     const [[userPromo]] = await db.query(`
-                SELECT pc.discountValue, pc.discount_type
-                FROM user_promo_codes upc
-                LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-                WHERE upc.user_promo_code_id = ?;`,
-                        [promoId]
-                    );
+                        SELECT pc.discountValue, pc.discount_type
+                        FROM user_promo_codes upc
+                        LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                        WHERE upc.user_promo_code_id = ?;
+                    `, [promoId]);
 
                     if (userPromo && userPromo.discountValue != null) {
                         promoDiscount = Number(userPromo.discountValue);
                         discountType = userPromo.discount_type;
                     } else {
-                        // Try system promo
                         const [[systemPromo]] = await db.query(`
-                    SELECT spct.discountValue, spct.discount_type
-                    FROM system_promo_codes spc
-                    LEFT JOIN system_promo_code_templates spct
-                    ON spc.template_id = spct.system_promo_code_template_id
-                    WHERE spc.system_promo_code_id = ?;`,
-                            [promoId]
-                        );
+                            SELECT spct.discountValue, spct.discount_type
+                            FROM system_promo_codes spc
+                            LEFT JOIN system_promo_code_templates spct
+                            ON spc.template_id = spct.system_promo_code_template_id
+                            WHERE spc.system_promo_code_id = ?;
+                        `, [promoId]);
 
                         if (systemPromo && systemPromo.discountValue != null) {
                             promoDiscount = Number(systemPromo.discountValue);
@@ -1219,52 +1199,80 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                     }
                 }
 
-                // 🧮 Step 3: Rebuild gross amount (add promo back)
+                // 🧮 Compute gross & payout
                 let grossAmount = paidAmount;
-                if (promoDiscount && discountType === "percentage") {
+                if (promoDiscount && discountType === "percentage")
                     grossAmount = paidAmount * (1 + promoDiscount / 100);
-                } else if (promoDiscount && discountType === "fixed") {
+                else if (promoDiscount && discountType === "fixed")
                     grossAmount = paidAmount + promoDiscount;
-                }
 
-                // ⚙️ Step 4: Get platform fee
                 const [feeRows] = await db.query(
-                    `SELECT platform_fee_percentage
-             FROM platform_settings
-             WHERE vendor_type = ? LIMIT 1`,
+                    `SELECT platform_fee_percentage FROM platform_settings WHERE vendor_type = ? LIMIT 1`,
                     [vendorType]
                 );
 
                 const platform_fee_percentage = Number(feeRows?.[0]?.platform_fee_percentage ?? 0);
-
-                // 🧾 Step 5: Subtract platform fee from gross amount
                 const platformFeeAmount = grossAmount * (platform_fee_percentage / 100);
                 const payout_amount = Number((grossAmount - platformFeeAmount).toFixed(2));
 
-                // ✅ Step 6: Store payout record
                 await db.query(
                     `INSERT INTO vendor_payouts
-             (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, discount_amount, platform_fee_percentage, payout_amount, currency)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-                discount_amount = VALUES(discount_amount),
-                payout_amount = VALUES(payout_amount),
-                platform_fee_percentage = VALUES(platform_fee_percentage)`,
+                     (booking_id, vendor_id, user_id, payment_intent_id, gross_amount, discount_amount, platform_fee_percentage, payout_amount, currency)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                        discount_amount = VALUES(discount_amount),
+                        payout_amount = VALUES(payout_amount),
+                        platform_fee_percentage = VALUES(platform_fee_percentage)`,
                     [
                         booking_id,
                         vendor_id,
                         user_id,
                         paymentInfo.payment_intent_id,
-                        grossAmount, // includes promo
+                        grossAmount,
                         promoDiscount || 0,
                         platform_fee_percentage,
                         payout_amount,
                         paymentInfo.currency
                     ]
                 );
+
+                // ✅ Fire & Forget Review Email
+                (async () => {
+                    try {
+                        const [[userData]] = await db.query(
+                            `SELECT u.firstName AS userName, u.email AS userEmail,
+                                    s.serviceName AS serviceName,
+                                    CASE
+                                        WHEN v.vendorType = 'company' THEN cd.companyName
+                                        ELSE id.name
+                                    END AS vendorName
+                             FROM service_booking sb
+                             JOIN users u ON sb.user_id = u.user_id
+                             JOIN service_booking_sub_packages sbs ON sbs.booking_id = sb.booking_id
+                             JOIN package_items s ON s.item_id = sbs.sub_package_id
+                             JOIN vendors v ON v.vendor_id = sb.vendor_id
+                             LEFT JOIN company_details cd ON cd.vendor_id = v.vendor_id
+                             LEFT JOIN individual_details id ON id.vendor_id = v.vendor_id
+                             WHERE sb.booking_id = ? LIMIT 1;`,
+                            [booking_id]
+                        );
+
+                        if (userData && userData.userEmail) {
+                            sendReviewRequestMail({
+                                userName: userData.userName,
+                                userEmail: userData.userEmail,
+                                serviceName: userData.serviceName,
+                                vendorName: userData.vendorName
+                            });
+                        }
+                    } catch (mailErr) {
+                        console.error("⚠️ Failed to trigger review email:", mailErr.message);
+                    }
+                })();
             }
         }
 
+        // ✅ Success Response
         res.status(200).json({
             message: `Booking marked as ${status === 3 ? 'started' : 'completed'} successfully`
         });
