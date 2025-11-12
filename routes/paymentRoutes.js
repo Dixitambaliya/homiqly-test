@@ -25,7 +25,7 @@ router.get("/getallpayout", authenticationToken, getAllPayoutRequests);
 router.get("/getpaymentstatus", authenticationToken, getVendorPayoutStatus);
 router.patch("/edit-bank-details", authenticationToken, multiUpload, handleUploads, editBankAccount);
 router.post("/applypayout", authenticationToken, applyForPayout);
-router.post("/updatepayout/:payout_id", authenticationToken, updatePayoutStatus);
+router.post("/updatepayout", authenticationToken, updatePayoutStatus);
 
 router.get("/getvendorspayout", authenticationToken, getVendorPendingPayouts);
 router.get("/getpaidpayouthistory", authenticationToken, getAdminPaidPayoutHistory);
