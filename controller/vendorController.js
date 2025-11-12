@@ -1042,7 +1042,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         );
         const paidPayout = parseFloat(
             allPayouts
-                .filter(b => b.payout_status === 3 || b.payout_status === "paid")
+                .filter(b => b.payout_status === 3 || b.payout_status === "approved")
                 .reduce((sum, b) => sum + b.payout_amount, 0)
                 .toFixed(2)
         );
@@ -1068,6 +1068,7 @@ const getVendorPayoutHistory = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;

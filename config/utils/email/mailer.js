@@ -63,7 +63,6 @@ const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
     });
 };
 
-
 const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorEmail, vendorCity, vendorService }) => {
     try {
         // 📬 1. Fetch admin emails
@@ -121,8 +120,6 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
         console.error("❌ Failed to send admin vendor registration email:", error.message);
     }
 };
-
-
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     try {
         // 🧩 Fetch user
@@ -391,8 +388,6 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     }
 };
 
-
-
 const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => {
     try {
         // 🧩 Fetch vendor info
@@ -587,10 +582,6 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id, receiptUrl }) => 
         console.error("⚠️ Failed to send vendor booking email:", err.message);
     }
 };
-
-
-
-
 
 const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }) => {
     try {
