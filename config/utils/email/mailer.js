@@ -305,9 +305,9 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
                 We are scheduled to bring the beauty studio to your home on
             </p>
             <span>${bookingDateFormatted} at ${bookingTimeFormatted}.</span>
-            <p style="color: #000000; font-size: 15px; line-height: 1.6; margin: 0;">
-                (#${booking_id})
-            </p>
+            <p style="color: #000000; font-size: 15px; line-height: 1.6; margin-top: 20px;">
+               <span> (# ${booking_id} ) </span>
+             </p>
 
     <!-- TOP TOTAL -->
     <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;">
@@ -525,7 +525,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
                 Hello <strong>${vendor.name || "Vendor"}</strong> you have been assigned a new Homiqly booking!.
             </h1>
 
-            <p style="color: #FFFFFF; font-size: 15px; line-height: 1.6; margin-top: 20px;">
+            <p style="color: #00000; font-size: 15px; line-height: 1.6; margin-top: 20px;">
             <strong>( #${booking_id || " "} )</strong>
             </p>
             <!-- TOTAL (Hidden for vendors) -->
