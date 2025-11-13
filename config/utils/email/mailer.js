@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
 });
 
 //done
-const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
+const sendUserWelcomeMail = async ({ userEmail, firstName, lastName, fullName }) => {
     if (!userEmail) return console.warn("⚠️ No email provided for welcome mail");
 
     const subject = "Welcome to the Homiqly community";
@@ -25,7 +25,8 @@ const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
         <tr>
           <td style="padding:5px 40px 40px; font-family: Arial, sans-serif; text-align: left;">
             <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 15px; color: #222;">
-              Test, Welcome to the Homiqly community — we’re thrilled to have you on board!
+             ${fullName || firstName || "Hello"} ,
+             Welcome to the Homiqly community - we’re thrilled to have you on board!
             </h2>
 
             <p style="font-size: 15px; line-height: 1.6; color: #444; margin-bottom: 15px;">
@@ -33,13 +34,13 @@ const sendUserWelcomeMail = async ({ userEmail, firstName }) => {
             </p>
 
             <p style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 15px;">
-              Got a question before you dive in? Our support team is always here to help — just visit
+              Got a question before you dive in? Our support team is always here to help - just visit
               <a href="https://www.homiqly.com/help" style="color: #4da3ff; text-decoration: none;">Homiqly Help</a>
               or reach out directly through the Help section in your dashboard.
             </p>
 
             <p style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 15px;">
-              Thanks for joining us — we can’t wait for you to experience everything Homiqly has to offer.
+              Thanks for joining us - we can’t wait for you to experience everything Homiqly has to offer.
             </p>
 
             <p style="font-size: 14px; color: #555; margin-bottom: 25px;">
@@ -125,264 +126,267 @@ const sendAdminVendorRegistrationMail = async ({ vendorType, vendorName, vendorE
 //done
 const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     try {
-        // 🧩 Fetch user
+        // ---------------------------
+        // 1) USER
+        // ---------------------------
         const [[user]] = await db.query(
-            `SELECT firstName, lastName, CONCAT(firstName, ' ', lastName) AS name, email
-         FROM users WHERE user_id = ? LIMIT 1`,
+            `SELECT firstName, lastName, email
+             FROM users WHERE user_id = ? LIMIT 1`,
             [user_id]
         );
+
         if (!user) return console.warn(`⚠️ No user found for user_id ${user_id}`);
 
-        // 🧩 Fetch booking + vendor + service details
+        const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Valued Customer";
+
+        // ---------------------------
+        // 2) BOOKING MAIN DETAILS
+        // ---------------------------
         const [[booking]] = await db.query(
             `
-        SELECT
-          sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.payment_status,
-          sb.notes, sb.created_at, p.amount AS totalAmount,
-          v.vendor_id,
-          CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS vendorName,
-          CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS vendorEmail,
-          CASE WHEN v.vendorType = 'individual' THEN i.phone ELSE c.companyPhone END AS vendorPhone,
-          s.serviceName, sc.serviceCategory
-        FROM service_booking sb
-        LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
-        LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
-        LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-        LEFT JOIN services s ON sb.service_id = s.service_id
-        LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-        LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
-        WHERE sb.booking_id = ?
-        LIMIT 1
-        `,
+            SELECT booking_id, bookingDate, bookingTime, user_promo_code_id
+            FROM service_booking
+            WHERE booking_id = ? LIMIT 1
+            `,
             [booking_id]
         );
+
         if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-        // 🧾 Items, Addons, Preferences, and Concerns
-        const [items] = await db.query(
-            `SELECT pi.itemName, sbs.price, sbs.quantity
-         FROM service_booking_sub_packages sbs
-         JOIN package_items pi ON sbs.sub_package_id = pi.item_id
-         WHERE sbs.booking_id = ?`,
-            [booking_id]
-        );
-
-        const [addons] = await db.query(
-            `SELECT pa.addonName, sba.price
-         FROM service_booking_addons sba
-         JOIN package_addons pa ON sba.addon_id = pa.addon_id
-         WHERE sba.booking_id = ?`,
-            [booking_id]
-        );
-
-        const [preferences] = await db.query(
-            `SELECT pp.preferenceValue , pp.preferencePrice
-         FROM service_booking_preferences sbp
-         JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
-         WHERE sbp.booking_id = ?`,
-            [booking_id]
-        );
-
-        const [concerns] = await db.query(
-            `SELECT pc.question , sbc.answer
-         FROM service_booking_consents sbc
-         JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
-         WHERE sbc.booking_id = ?`,
-            [booking_id]
-        );
-
-        // 🧩 Fetch tax percentage from service_taxes table
-        const [[taxRow]] = await db.query(
-            `SELECT taxPercentage FROM service_taxes WHERE status = 1 LIMIT 1`
-        );
-        const taxPercentage = taxRow?.taxPercentage || 0;
-
-        // 🧩 Build formatted rows (extreme right alignment)
-        const buildRows = (data, rowFn, emptyText) =>
-            data.length
-                ? data.map(rowFn).join("")
-                : `<div style="color:#777; font-size:13px;">${emptyText}</div>`;
-
-        const rowStyle = `
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        width:100%;
-        padding:6px 0;
-        border-bottom:1px solid #f0f0f0;
-      `;
-
-        const nameStyle = `
-        flex:1;
-        text-align:left;
-        word-break:break-word;
-      `;
-
-        const priceStyle = `
-        text-align:right;
-        font-weight:600;
-        width:120px;
-        white-space:nowrap;
-      `;
-
-        const itemRows = buildRows(
-            items,
-            (i) => `
-        <div style="${rowStyle}">
-          <span style="${nameStyle}">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
-          <span style="${priceStyle}">₹${Number(i.price).toFixed(2)}</span>
-        </div>`,
-            "No items found"
-        );
-
-        const addonRows = buildRows(
-            addons,
-            (a) => `
-        <div style="${rowStyle}">
-          <span style="${nameStyle}">${a.addonName}</span>
-          <span style="${priceStyle}">₹${Number(a.price).toFixed(2)}</span>
-        </div>`,
-            "No addons selected"
-        );
-
-        const preferenceRows = buildRows(
-            preferences,
-            (p) => `
-        <div style="${rowStyle}">
-          <span style="${nameStyle}">${p.preferenceValue}</span>
-          <span style="${priceStyle}">₹${Number(p.preferencePrice).toFixed(2)}</span>
-        </div>`,
-            "No preferences set"
-        );
-
-        const concernRows = buildRows(
-            concerns,
-            (c) => `
-        <div style="${rowStyle.replace("border-bottom:1px solid #f0f0f0;", "")}">
-          <span style="${nameStyle}">${c.question}</span>
-          <span style="${priceStyle}">${c.answer}</span>
-        </div>`,
-            "No concerns listed"
-        );
-
-        // 🧩 Main body HTML (receipt layout)
-        const bodyHtml = `
-        <div style="background-color:#f9fafb; font-family:Arial, Helvetica, sans-serif; margin:0; padding:0;">
-          <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.05); padding:30px;">
-
-            <!-- Booking Summary -->
-            <h2 style="font-size:18px; font-weight:700; color:#111827; margin-bottom:12px;">Booking Summary</h2>
-            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-              <tbody>
-                <tr><td style="font-weight:bold; width:40%;">Service:</td><td>${booking.serviceName}</td></tr>
-                <tr><td style="font-weight:bold;">Category:</td><td>${booking.serviceCategory}</td></tr>
-                <tr><td style="font-weight:bold;">Date:</td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
-                <tr><td style="font-weight:bold;">Time:</td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
-                <tr><td style="font-weight:bold;">Total Duration:</td><td>${booking.totalTime || 0} mins</td></tr>
-              </tbody>
-            </table>
-
-            <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
-
-            <!-- Vendor Details -->
-            <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Vendor Details</h3>
-            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.8; gap:20px;">
-              <div style="flex:1; min-width:48%;">
-                <div><strong>Vendor Name:</strong> ${booking.vendorName}</div>
-                <div><strong>Email:</strong> ${booking.vendorEmail}</div>
-              </div>
-              <div style="flex:1; min-width:48%; text-align:right;">
-                <div><strong>Phone:</strong> ${booking.vendorPhone}</div>
-              </div>
-            </div>
-
-            <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
-        <!-- RECEIPT BOX -->
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
-        <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Your Receipt</h3>
-
-        <!-- Packages -->
-        <div style="margin-bottom:15px;">
-            <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
-            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-            ${items.length
-                ? items.map(i => `
-                <tr style="border-bottom:1px solid #f0f0f0;">
-                    <td style="padding:6px 10px 6px 0; text-align:left;">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}</td>
-                    <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(i.price || 0).toFixed(2)}</td>
-                </tr>`).join('')
-                : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No packages</td></tr>`
-            }
-            </table>
-        </div>
-
-        <!-- Addons -->
-        <div style="margin-bottom:15px;">
-            <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
-            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-            ${addons.length
-                ? addons.map(a => `
-                <tr style="border-bottom:1px solid #f0f0f0;">
-                    <td style="padding:6px 10px 6px 0; text-align:left;">${a.addonName}</td>
-                    <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(a.price).toFixed(2)}</td>
-                </tr>`).join('')
-                : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No addons selected</td></tr>`
-            }
-            </table>
-        </div>
-
-        <!-- Preferences -->
-        <div style="margin-bottom:15px;">
-            <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
-            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-            ${preferences.length
-                ? preferences.map(p => `
-                <tr style="border-bottom:1px solid #f0f0f0;">
-                    <td style="padding:6px 10px 6px 0; text-align:left;">${p.preferenceValue}</td>
-                    <td style="padding:6px 0 6px 10px; text-align:right; font-weight:600; white-space:nowrap;">₹${Number(p.preferencePrice).toFixed(2)}</td>
-                </tr>`).join('')
-                : `<tr><td colspan="2" style="color:#777; padding:6px 0;">No preferences set</td></tr>`
-            }
-            </table>
-        </div>
-
-        <!-- Subtotal -->
-        <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
-        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:14px; color:#333;">
-            <tr>
-            <td style="text-align:left;">Subtotal</td>
-            <td style="text-align:right; font-weight:600;">₹${Number(booking.totalAmount).toFixed(2)}</td>
-            </tr>
-        </table>
-
-        <!-- Total -->
-        <hr style="border:none; border-top:1px solid #e5e7eb; margin:15px 0;" />
-        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:15px; color:#111;">
-            <tr>
-            <td style="text-align:left; font-weight:bold;">Total Charged</td>
-            <td style="text-align:right; font-weight:bold; font-size:16px;">₹${Number(booking.totalAmount).toFixed(2)}</td>
-            </tr>
-        </table>
-
-            <!-- Tax note -->
-            <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
-                (Includes ${taxPercentage}% service tax)
-            </div>
-            </div>
-          </div>
-        </div>`;
-
-        // 🧩 Format values for email
-        const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Valued Customer";
         const bookingDateFormatted = moment(booking.bookingDate).format("MMM DD, YYYY");
+        const bookingTimeFormatted = moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A");
 
-        // 🧩 Send email
+        // ---------------------------
+        // 3) FINAL TOTALS
+        // ---------------------------
+        const [[bookingTotals]] = await db.query(
+            `
+            SELECT subtotal, promo_discount, tax_amount, final_total
+            FROM booking_totals
+            WHERE booking_id = ? LIMIT 1
+            `,
+            [booking_id]
+        );
+
+        if (!bookingTotals) {
+            console.warn(`⚠️ No booking_totals found for booking_id ${booking_id}`);
+            return;
+        }
+
+        const subtotal = Number(bookingTotals.subtotal);
+        const promoDiscount = Number(bookingTotals.promo_discount);
+        const taxAmount = Number(bookingTotals.tax_amount);
+        const finalTotal = Number(bookingTotals.final_total);
+
+        // ---------------------------
+        // 4) CURRENCY DETECTION
+        // ---------------------------
+        const [[payoutRow]] = await db.query(
+            `SELECT currency FROM vendor_payouts WHERE booking_id = ? LIMIT 1`,
+            [booking_id]
+        );
+
+        const currency = (payoutRow?.currency || "CA$").toUpperCase();
+        const currencySymbol = (cur) => {
+            const map = { INR: "₹", USD: "$", CAD: "CA$", EUR: "€", GBP: "£" };
+            return map[cur] || cur + " ";
+        };
+        const curSym = currencySymbol(currency);
+
+        // ---------------------------
+        // 5) FETCH PACKAGES + ADDONS + PREFS
+        // ---------------------------
+
+        // PACKAGES (sub-packages)
+        const [packages] = await db.query(
+            `
+            SELECT
+                sbs.sub_package_id,
+                sbs.quantity,
+                sbs.price,
+                pi.itemName
+            FROM service_booking_sub_packages sbs
+            JOIN package_items pi ON sbs.sub_package_id = pi.item_id
+            WHERE sbs.booking_id = ?
+            `,
+            [booking_id]
+        );
+
+        // ADDONS linked via sub_package_id
+        const [addons] = await db.query(
+            `
+            SELECT
+                sba.sub_package_id,
+                sba.addon_id,
+                sba.price,
+                pa.addonName
+            FROM service_booking_addons sba
+            JOIN package_addons pa ON sba.addon_id = pa.addon_id
+            WHERE sba.booking_id = ?
+            `,
+            [booking_id]
+        );
+
+        // PREFS linked via sub_package_id
+        const [prefs] = await db.query(
+            `
+            SELECT
+                bp.sub_package_id,
+                pm.preferencePrice,
+                pm.preferenceValue
+            FROM service_booking_preferences bp
+            JOIN booking_preferences pm ON bp.preference_id = pm.preference_id
+            WHERE bp.booking_id = ?
+            `,
+            [booking_id]
+        );
+
+        // ---------------------------
+        // 6) BUILD RECEIPT ROWS (MULTIPLIED)
+        // ---------------------------
+
+        let receiptRows = "";
+
+        for (let pkg of packages) {
+            const pkgQty = Number(pkg.quantity);
+            const pkgTotal = pkgQty * Number(pkg.price);
+
+            // package row
+            receiptRows += `
+                <tr>
+                    <td width="70%" style="padding:4px 0;">${pkg.itemName} ×${pkgQty}</td>
+                    <td width="30%" style="text-align:right; font-weight:600;">
+                        ${curSym}${pkgTotal.toFixed(2)}
+                    </td>
+                </tr>
+            `;
+
+            // ADDONS under this package
+            const pkgAddons = addons.filter(a => a.sub_package_id === pkg.sub_package_id);
+            for (let a of pkgAddons) {
+                const addonTotal = pkgQty * Number(a.price);
+                receiptRows += `
+                    <tr>
+                        <td width="70%" style="padding:2px 0; color:#000;">• ${a.addonName}</td>
+                        <td width="30%" style="text-align:right;">
+                            ${curSym}${addonTotal.toFixed(2)}
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // PREFS under this package
+            const pkgPrefs = prefs.filter(p => p.sub_package_id === pkg.sub_package_id);
+            for (let p of pkgPrefs) {
+                const prefTotal = pkgQty * Number(p.preferencePrice);
+                receiptRows += `
+                    <tr>
+                        <td width="70%" style="padding:2px 0; color:#000;">• ${p.preferenceValue}</td>
+                        <td width="30%" style="text-align:right;">
+                            ${curSym}${prefTotal.toFixed(2)}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // ---------------------------
+        // 7) EMAIL UI (Apple style)
+        // ---------------------------
+        const bodyHtml = `
+<div style="background:#fff; font-family:Arial, sans-serif; padding:30px;">
+
+   <!-- Main Heading -->
+            <h1 style="font-size: 20px; font-weight: bold; color: #000000; margin: 5px 0 8px; line-height: 1.3;">
+                Hello <strong> ${userName || "Valued Customer"}</strong>, your booking with Homiqly is confirmed!
+            </h1>
+
+            <p style="color: #000000; font-size: 15px; line-height: 1.6; margin: 0;">
+                We are scheduled to bring the beauty studio to your home on
+            </p>
+            <span>${bookingDateFormatted} at ${bookingTimeFormatted}.</span>
+            <p style="color: #000000; font-size: 15px; line-height: 1.6; margin: 0;">
+                (#${booking_id})
+            </p>
+
+    <!-- TOP TOTAL -->
+    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;">
+        <tr>
+            <td style="font-size:20px; font-weight:bold;">Total</td>
+            <td style="text-align:right; font-size:22px; font-weight:bold;">
+                ${curSym}${finalTotal.toFixed(2)}
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+            <td style="text-align:right; font-size:12px; color:#666;">
+                You saved ${curSym}${promoDiscount.toFixed(2)} with promos
+            </td>
+        </tr>
+    </table>
+
+    <hr style="border:none; border-top:1px solid #000; margin:10px 0;" />
+
+    <div style="font-size:14px; margin-bottom:12px;">For ${userName}</div>
+
+    <!-- ITEMS + ADDONS + PREFS -->
+    <table width="100%" cellspacing="0" cellpadding="5" style="font-size:14px;">
+        ${receiptRows}
+    </table>
+
+    <hr style="border:none; border-top:1px solid #000; margin:15px 0;" />
+
+    <!-- FINAL BREAKDOWN -->
+    <table width="100%" cellspacing="0" cellpadding="5" style="font-size:14px;">
+        <tr>
+            <td width="70%">Subtotal</td>
+            <td width="30%" style="text-align:right; font-weight:600;">
+                ${curSym}${subtotal.toFixed(2)}
+            </td>
+        </tr>
+
+        <tr>
+            <td width="70%">Promo Discount</td>
+            <td width="30%" style="text-align:right; font-weight:600; color:red;">
+                -${curSym}${promoDiscount.toFixed(2)}
+            </td>
+        </tr>
+
+        <tr>
+            <td width="70%">Taxes</td>
+            <td width="30%" style="text-align:right; font-weight:600;">
+                ${curSym}${taxAmount.toFixed(2)}
+            </td>
+        </tr>
+
+        <tr><td colspan="2"><hr style="border:none; border-top:1px solid #ccc;" /></td></tr>
+
+        <tr>
+            <td width="70%" style="font-weight:bold;">Total Charged</td>
+            <td width="30%" style="text-align:right; font-weight:bold; font-size:16px;">
+                ${curSym}${finalTotal.toFixed(2)}
+            </td>
+        </tr>
+    </table>
+
+</div>
+        `;
+
+        // ---------------------------
+        // 8) SEND EMAIL
+        // ---------------------------
         await sendMail({
             to: user.email,
             subject: "Your Booking is Confirmed!",
             bodyHtml,
             layout: "userBookingMail",
-            extraData: { userName, bookingDateFormatted, receiptUrl },
+            extraData: {
+                booking_id,
+                userName,
+                bookingDateFormatted,
+                bookingTimeFormatted,
+                receiptUrl
+            },
         });
 
         console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
@@ -391,68 +395,69 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     }
 };
 
+
 //done
 const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
     try {
         // 🧩 Fetch vendor info
         const [[vendor]] = await db.query(`
-        SELECT
-          CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS email,
-          CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS name
-        FROM vendors v
-        LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
-        LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-        WHERE v.vendor_id = ? LIMIT 1
-      `, [vendor_id]);
+            SELECT
+              CASE WHEN v.vendorType = 'individual' THEN i.email ELSE c.companyEmail END AS email,
+              CASE WHEN v.vendorType = 'individual' THEN i.name ELSE c.companyName END AS name
+            FROM vendors v
+            LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+            LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+            WHERE v.vendor_id = ? LIMIT 1
+        `, [vendor_id]);
 
         if (!vendor) return console.warn(`⚠️ No vendor found for vendor_id ${vendor_id}`);
 
         // 🧩 Fetch booking details
         const [[booking]] = await db.query(`
-        SELECT
-          sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes, sb.created_at,
-          u.firstName AS userFirstName, u.lastName AS userLastName, u.address AS userAddress,
-          s.serviceName, sc.serviceCategory
-        FROM service_booking sb
-        LEFT JOIN users u ON sb.user_id = u.user_id
-        LEFT JOIN services s ON sb.service_id = s.service_id
-        LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-        WHERE sb.booking_id = ? LIMIT 1
-      `, [booking_id]);
+            SELECT
+              sb.booking_id, sb.bookingDate, sb.bookingTime, sb.totalTime, sb.notes, sb.created_at,
+              u.firstName AS userFirstName, u.lastName AS userLastName, u.address AS userAddress,
+              s.serviceName, sc.serviceCategory
+            FROM service_booking sb
+            LEFT JOIN users u ON sb.user_id = u.user_id
+            LEFT JOIN services s ON sb.service_id = s.service_id
+            LEFT JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+            WHERE sb.booking_id = ? LIMIT 1
+        `, [booking_id]);
 
         if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
         // 🧾 Package items (no price info)
         const [items] = await db.query(`
-        SELECT pi.itemName, sbs.quantity
-        FROM service_booking_sub_packages sbs
-        JOIN package_items pi ON sbs.sub_package_id = pi.item_id
-        WHERE sbs.booking_id = ?
-      `, [booking_id]);
+            SELECT pi.itemName, sbs.quantity
+            FROM service_booking_sub_packages sbs
+            JOIN package_items pi ON sbs.sub_package_id = pi.item_id
+            WHERE sbs.booking_id = ?
+        `, [booking_id]);
 
         // 🧾 Addons (no price)
         const [addons] = await db.query(`
-        SELECT pa.addonName
-        FROM service_booking_addons sba
-        JOIN package_addons pa ON sba.addon_id = pa.addon_id
-        WHERE sba.booking_id = ?
-      `, [booking_id]);
+            SELECT pa.addonName
+            FROM service_booking_addons sba
+            JOIN package_addons pa ON sba.addon_id = pa.addon_id
+            WHERE sba.booking_id = ?
+        `, [booking_id]);
 
         // 🧾 Preferences
         const [preferences] = await db.query(`
-        SELECT pp.preferenceValue
-        FROM service_booking_preferences sbp
-        JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
-        WHERE sbp.booking_id = ?
-      `, [booking_id]);
+            SELECT pp.preferenceValue
+            FROM service_booking_preferences sbp
+            JOIN booking_preferences pp ON sbp.preference_id = pp.preference_id
+            WHERE sbp.booking_id = ?
+        `, [booking_id]);
 
         // 🧾 Concerns
         const [concerns] = await db.query(`
-        SELECT pc.question, sbc.answer
-        FROM service_booking_consents sbc
-        JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
-        WHERE sbc.booking_id = ?
-      `, [booking_id]);
+            SELECT pc.question, sbc.answer
+            FROM service_booking_consents sbc
+            JOIN package_consent_forms pc ON sbc.consent_id = pc.consent_id
+            WHERE sbc.booking_id = ?
+        `, [booking_id]);
 
         // 🧩 Build rows
         const buildRows = (data, rowFn, emptyText) =>
@@ -461,123 +466,152 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
                 : `<div style="color:#777; font-size:13px;">${emptyText}</div>`;
 
         const rowStyle = `
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        width:100%;
-        padding:6px 0;
-        border-bottom:1px solid #f0f0f0;
-      `;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            width:100%;
+            padding:6px 0;
+            border-bottom:1px solid #f0f0f0;
+        `;
 
         const nameStyle = `
-        flex:1;
-        text-align:left;
-        word-break:break-word;
-      `;
+            flex:1;
+            text-align:left;
+            word-break:break-word;
+        `;
 
         const itemRows = buildRows(
             items,
             (i) => `
-          <div style="${rowStyle}">
-            <span style="${nameStyle}">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
-          </div>`,
+              <div style="${rowStyle}">
+                <span style="${nameStyle}">${i.itemName}${i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
+              </div>`,
             "No items found"
         );
 
         const addonRows = buildRows(
             addons,
             (a) => `
-          <div style="${rowStyle}">
-            <span style="${nameStyle}">${a.addonName}</span>
-          </div>`,
+              <div style="${rowStyle}">
+                <span style="${nameStyle}">${a.addonName}</span>
+              </div>`,
             "No addons selected"
         );
 
         const preferenceRows = buildRows(
             preferences,
             (p) => `
-          <div style="${rowStyle}">
-            <span style="${nameStyle}">${p.preferenceValue}</span>
-          </div>`,
+              <div style="${rowStyle}">
+                <span style="${nameStyle}">${p.preferenceValue}</span>
+              </div>`,
             "No preferences set"
         );
 
         const concernRows = buildRows(
             concerns,
             (c) => `
-          <div style="${rowStyle.replace("border-bottom:1px solid #f0f0f0;", "")}">
-            <span style="${nameStyle}">${c.question}</span>
-            <span style="font-weight:600;">${c.answer}</span>
-          </div>`,
+              <div style="${rowStyle.replace("border-bottom:1px solid #f0f0f0;", "")}">
+                <span style="${nameStyle}">${c.question}</span>
+                <span style="font-weight:600;">${c.answer}</span>
+              </div>`,
             "No concerns listed"
         );
 
         // 🧩 Simplified Vendor Email (No price, totals, tax)
         const bodyHtml = `
-        <div style="background-color:#f9fafb; font-family:Arial, Helvetica, sans-serif; margin:0; padding:0;">
-          <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.05); padding:30px;">
+        <div style="background:#fff; font-family:Arial, sans-serif; padding:20px;">
+         <!-- Main Heading -->
+            <h1 style="font-size: 20px; font-weight: bold; color: #00000; margin: 25px 0 10px; line-height: 1.3;">
+                Hello <strong>${vendor.name || "Vendor"}</strong> you have been assigned a new Homiqly booking!.
+            </h1>
 
-            <!-- Booking Summary -->
-            <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Booking Details</h3>
-            <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px; color:#333;">
-              <tbody>
-                <tr><td style="font-weight:bold; width:40%;">Service:</td><td>${booking.serviceName}</td></tr>
-                <tr><td style="font-weight:bold;">Category:</td><td>${booking.serviceCategory}</td></tr>
-                <tr><td style="font-weight:bold;">Date:</td><td>${moment(booking.bookingDate).format("MMM DD, YYYY")}</td></tr>
-                <tr><td style="font-weight:bold;">Time:</td><td>${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td></tr>
-                <tr><td style="font-weight:bold;">Total Duration:</td><td>${booking.totalTime || 0} mins</td></tr>
-              </tbody>
+            <p style="color: #FFFFFF; font-size: 15px; line-height: 1.6; margin-top: 20px;">
+            <strong>( #${booking_id || " "} )</strong>
+            </p>
+            <!-- TOTAL (Hidden for vendors) -->
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:10px;">
+                <tr>
+                    <td style="font-size:20px; font-weight:bold; color:#000;">Booking Summary</td>
+                    <td></td>
+                </tr>
             </table>
 
-            <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;" />
+            <!-- LINE -->
+            <hr style="border:none; border-top:1px solid #000; margin:10px 0;" />
 
-            <!-- Customer Details -->
-            <h3 style="font-size:16px; font-weight:700; color:#111827; margin-bottom:15px;">Customer Details</h3>
-            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; font-size:13px; color:#333; line-height:1.8; gap:20px;">
-              <div style="flex:1; min-width:48%;">
-                <div><strong>Name:</strong> ${booking.userFirstName} ${booking.userLastName}</div>
-              </div>
-              <div style="flex:1; min-width:48%; text-align:right;">
-                <div><strong>Phone:</strong> ${booking.userAddress || "N/A"}</div>
-              </div>
+            <!-- NAME BLOCK -->
+            <div style="font-size:14px; color:#000; margin-bottom:12px;">
+                For ${booking.userFirstName} ${booking.userLastName}
             </div>
 
-            <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
+            <!-- ITEMS / ADDONS / PREFS -->
+            <table width="100%" cellspacing="0" cellpadding="5" style="font-size:14px; color:#000;">
 
-            <!-- Service Items -->
-            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:25px;">
-              <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0 0 15px;">Booking Summary</h3>
+                ${items
+                .map((i) => {
+                    const qty = parseInt(i.quantity || 1);
+                    return `
+                        <tr>
+                            <td width="100%" style="padding:4px 0;">
+                                ${i.itemName}${qty > 1 ? ` ×${qty}` : ""}
+                            </td>
+                        </tr>`;
+                })
+                .join("")}
 
-              <div style="margin-bottom:15px;">
-                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Package</h4>
-                ${itemRows}
-              </div>
+                ${preferences
+                .map((p) => {
+                    return `
+                        <tr>
+                            <td width="100%" style="padding:2px 0; color:#000;">
+                                • preference: ${p.preferenceValue}
+                            </td>
+                        </tr>`;
+                })
+                .join("")}
 
-              <div style="margin-bottom:15px;">
-                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Addons</h4>
-                ${addonRows}
-              </div>
+                ${addons
+                .map((a) => {
+                    return `
+                        <tr>
+                            <td width="100%" style="padding:2px 0; color:#000;">
+                                • Add-on: ${a.addonName}
+                            </td>
+                        </tr>`;
+                })
+                .join("")}
 
-              <div style="margin-bottom:15px;">
-                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Preferences</h4>
-                ${preferenceRows}
-              </div>
+            </table>
 
-              <div style="margin-bottom:15px;">
-                <h4 style="font-size:14px; font-weight:700; color:#000; margin:0 0 8px;">Customer Concerns</h4>
-                ${concernRows}
-              </div>
-            </div>
-          </div>
+            <!-- LINE -->
+            <hr style="border:none; border-top:1px solid #000; margin:15px 0;" />
+
+            <!-- CUSTOMER DETAILS -->
+            <table width="100%" cellspacing="0" cellpadding="5" style="font-size:14px; color:#000;">
+                <tr>
+                    <td><strong>Customer Name:</strong> ${booking.userFirstName} ${booking.userLastName}</td>
+                </tr>
+                <tr>
+                    <td><strong>Address:</strong> ${booking.userAddress || "N/A"}</td>
+                </tr>
+                <tr>
+                    <td><strong>Date:</strong> ${moment(booking.bookingDate).format("MMM DD, YYYY")}</td>
+                </tr>
+                <tr>
+                    <td><strong>Time:</strong> ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}</td>
+                </tr>
+            </table>
+
         </div>
-      `;
+        `;
 
-        // 🧩 Send Email
+        // 🧩 Send Email (with extra data vendorName and booking_id)
         await sendMail({
             to: vendor.email,
             subject: "New Booking Received",
             bodyHtml,
             layout: "vendorBookingMail",
+            extraData: { vendorName: vendor.name, booking_id }
         });
 
         console.log(`📧 Vendor email sent to ${vendor.email} for booking #${booking_id}`);
@@ -613,7 +647,7 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
         </h2>
 
         <p style="margin-bottom: 15px;">
-          We’re excited to welcome you to <strong>Homiqly</strong> — where beauty and convenience meet!
+          We’re excited to welcome you to <strong>Homiqly</strong> - where beauty and convenience meet!
         </p>
 
         <p>Your registration has been <strong>approved</strong>, and you’re now part of our trusted network of service providers.</p>
@@ -633,7 +667,7 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
 
         <p style="margin-top:25px;">
           Welcome aboard and we’re thrilled to have you on the Homiqly platform!<br/>
-          <strong>— The Homiqly Team</strong>
+          <strong>- The Homiqly Team</strong>
         </p>
       </div>
     `;
@@ -763,58 +797,52 @@ const sendPasswordUpdatedMail = async ({ userName, userEmail }) => {
 
 const sendPasswordResetCodeMail = async ({ userEmail, code }) => {
     try {
-        const logoPath = path.resolve("config/media/homiqly.webp");
-        const cidName = "homiqlyLogo";
+        const bodyHtml = `
+            < div style = "font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;" >
+                <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
 
-        const htmlBody = `
-      <div style="font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px 0;">
-        <div style="max-width:700px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <div style="background:#007BFF; padding:20px; text-align:center;">
+                        <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png"
+                            alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
+                    </div>
 
-          <!-- Header -->
-          <div style="background:#007BFF; padding:20px; text-align:center;">
-            <img src="cid:${cidName}" alt="Homiqly Logo" style="width:150px; display:block; margin:auto;" />
-            <h1 style="color:#fff; font-size:22px; margin:10px 0 0;">Password Reset Request</h1>
-          </div>
+                    <!-- Body -->
+                    <div style="padding:25px 30px; font-size:15px; color:#333;">
+                        <p>Hello,</p>
+                        <p>To Reset your account password, please use the following One Time Password (OTP):</p>
 
-          <!-- Body -->
-          <div style="padding:25px 30px; font-size:15px; color:#333;">
-            <p>Hello,</p>
-            <p>We received a request to reset your <strong>Homiqly</strong> account password.</p>
-            <p>Your password reset code is:</p>
+                        <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px;
+                        text-align:center; padding:15px; font-size:24px; font-weight:bold;
+                        color:#007BFF; letter-spacing:3px; margin:20px 0;">
+                            ${code}
+                        </div>
 
-            <div style="background:#f0f3ff; border:1px dashed #007BFF; border-radius:8px;
-                        text-align:center; padding:15px; font-size:24px; font-weight:bold; color:#007BFF; letter-spacing:3px;">
-              ${code}
-            </div>
+                        <p style="margin-top:15px;">
+                            ⚠️ Do not share this OTP with anyone. This code will expire in <strong>5 minutes</strong>.
+                        </p>
 
-            <p style="margin-top:15px;">⚠️ This code will expire in <strong>5 minutes</strong>.
-               If you didn’t request a password reset, you can safely ignore this email.</p>
+                        <p style="margin-top:20px;">Thanks,<br><strong>Homiqly Team</strong></p>
+                    </div>
 
-            <p style="margin-top:20px;">Thanks,<br><strong>Homiqly Support Team</strong></p>
-          </div>
+                    <!-- Footer -->
+                    <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
+                        <p style="margin:4px 0;">Need help? Contact
+                            <a href="mailto:support@homiqly.com" style="color:#007BFF; text-decoration:none;">
+                                support@homiqly.com
+                            </a>
+                        </p>
+                        <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
+                    </div>
+                </div>
+               </ >
+               `;
 
-          <!-- Footer -->
-          <div style="background:#f0f3f8; text-align:center; font-size:13px; color:#555; padding:15px;">
-            <p style="margin:4px 0;">Need help? Contact <a href="mailto:support@homiqly.com" style="color:#007BFF; text-decoration:none;">support@homiqly.com</a></p>
-            <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Homiqly. All rights reserved.</p>
-          </div>
-        </div>
-      </div>
-    `;
-
-        await transporter.sendMail({
-            from: `<${process.env.EMAIL_USER}>`,
+        await sendMail({
             to: userEmail,
             subject: "Your Homiqly Password Reset Code",
-            html: htmlBody,
-            attachments: [
-                {
-                    filename: "homiqly.webp",
-                    path: logoPath,
-                    cid: cidName,
-                    contentDisposition: "inline",
-                },
-            ],
+            bodyHtml,
+            layout: "noUnsubscribe",
         });
 
         console.log(`📧 Password reset code sent to: ${userEmail}`);
@@ -828,9 +856,9 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
     try {
         // 🧩 BODY
         const bodyHtml = `
-<div style="padding: 25px; text-align:left; max-width: 470px; margin: 0 auto; background-color: #ffffff;">
-  <h2 style="font-size: 20px; font-weight: 600; color: #000;">
-    ${subject?.toLowerCase().includes("back")
+        <div style="padding: 25px; text-align:left; max-width: 570px; margin: 0 auto; background-color: #ffffff;">
+        <h2 style="font-size: 20px; font-weight: 600; color: #000;">
+            ${subject?.toLowerCase().includes("back")
                 ? "Welcome back to the Homiqly community"
                 : "Welcome to the Homiqly community"
             }
@@ -875,10 +903,10 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
     }
 };
 
-
+//done
 const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorName }) => {
     try {
-        const reviewLink = `https://homiqly-h81s.vercel.app/Profile/history`;
+        const reviewLink = `https://homiqly-development.vercel.app/Profile/history`;
         // 🧩 Email body (content between header & footer)
         const bodyHtml = `
  <div style="padding: 35px 35px 25px; background-color: #ffffff; font-family: Arial, Helvetica, sans-serif;">
@@ -890,15 +918,15 @@ const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorN
      Your feedback helps us improve and celebrate our top professionals.
    </p>
 
-   <div style="text-align: center; margin: 30px 0;">
+   <div style="text-align: left; margin: 30px 0;">
      <a href="${reviewLink}"
-        style="background: #4da3ff; color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 15px; text-decoration: none; font-weight: 600;">
-        👉 Leave a Review
+        style="background-color: #00000; color: #00000; padding: 12px 30px; border-radius: 10px; font-size: 15px; text-decoration: none; font-weight: 600;">
+        Leave a Review
      </a>
    </div>
 
    <p style="font-size: 14px; color: #555;">
-     Thank you for choosing Homiqly — where comfort, beauty, and care come together.<br>
+     Thank you for choosing Homiqly - where comfort, beauty, and care come together.<br>
      <br>Warm regards,<br><strong>Team Homiqly</strong>
    </p>
  </div>
@@ -965,33 +993,34 @@ const assignWelcomeCode = async ({ user_id, user_email, user_name }) => {
         if (user_email) {
             const subject = "Welcome to Homiqly community! Your Promo Code Inside";
             const bodyHtml = `
-                <div style="padding: 30px; font-size: 15px; color: #ffffff; text-align: left;
-                            font-family: Arial, sans-serif; background-color: #000;">
+            <div style="padding: 1px 40px 10px; font-size: 15px; color: #ffffff; text-align: left;
+                        font-family: Arial, sans-serif; background-color: #000;">
+              <p style="font-size: 15px; line-height: 1.6; margin-bottom: 18px;">
+                <strong>Hi ${user_name || "there"},</strong><br><br>
+                Thanks for signing up! We want to make your Homiqly experience special, starting with
+                ${discountValue} off your first ${maxUse} at-home beauty services.
+              </p>
 
-                <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
-                    <strong>Hi ${user_name || "there"},</strong><br><br>
-                    Thanks for signing up! We want to make your Homiqly experience special, starting with
-                    ${discountValue} off your first ${maxUse} at-home beauty services.
-                </p>
+              <p style="margin-bottom: 10px; font-size: 15px;">
+                To claim your welcome offer, simply use the code <strong>${code}</strong> when booking your first service.
+                Your savings will be applied automatically at checkout.
+              </p>
 
-                <p style="margin-bottom: 10px; font-size: 15px;">
-                    To claim your welcome offer, simply use the code <strong>${code}</strong> when booking your first service.
-                    Your savings will be applied automatically at checkout.
-                </p>
+              <h3 style="font-weight: 500; margin-bottom: 18px; font-size: 16px;">
+                Hurry, pamper yourself and enjoy this offer while it lasts!
+              </h3>
 
-                <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px;">
-                    Hurry, pamper yourself and enjoy this offer while it lasts!
-                </h3>
+              <p style="font-size: 14px; margin-top: 10px; line-height: 1.6; margin-bottom: 10px;">
+                Valid on first ${maxUse} at-home beauty services only. Maximum discount of ${description} total across
+                your first ${maxUse} services. Discount is valid for services booked through the Homiqly website.
+                Offer valid only for customers who received this email directly from Homiqly.
+                Cannot be combined with other promotions. Non-transferable. Terms subject to change.
+              </p>
 
-                <p style="font-size: 14px; margin-top: 15px; line-height: 1.6;">
-                    Valid on first ${maxUse} at-home beauty services only. Maximum discount of ${description} total across
-                    your first ${maxUse} services. Discount is valid for services booked through the Homiqly website.
-                    Offer valid only for customers who received this email directly from Homiqly.
-                    Cannot be combined with other promotions. Non-transferable. Terms subject to change.
-                </p>
+              <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); width: 100%; margin: 15px 0 0;"></div>
+            </div>
+          `;
 
-                </div>
-            `;
 
             await sendMail({
                 to: user_email,

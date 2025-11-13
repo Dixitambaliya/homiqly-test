@@ -435,6 +435,27 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 [booking_id]
             );
 
+            const [[totals]] = await connection.query(
+                `SELECT * FROM cart_totals WHERE cart_id = ? LIMIT 1`,
+                [cart_id]
+            );
+
+            await connection.query(
+                `INSERT INTO booking_totals
+                  (booking_id, subtotal, discounted_total, promo_discount, tax_amount, final_total)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    booking_id,
+                    totals.subtotal,
+                    totals.discounted_total,
+                    totals.promo_discount,
+                    totals.tax_amount,
+                    totals.final_total
+                ]
+            );
+
+
+
             // ✅ Clear cart
             await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
             await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
@@ -452,6 +473,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             console.log("📧 Sending booking email to user and vendor...");
 
             await sendBookingEmail(user_id, { booking_id, receiptUrl });
+            console.log(booking_id);
+            
             console.log("✅ User booking email sent successfully!");
             // Fetch vendor_id from service_booking for safety
             const [[bookingVendor]] = await connection.query(

@@ -333,7 +333,7 @@ const googleLogin = asyncHandler(async (req, res) => {
                 try {
                     await sendUserWelcomeMail({
                         userEmail: email,
-                        firstName,
+                        fullName: `${firstName}${lastName ? " " + lastName : ""}`,
                     });
                     console.log(`📧 Welcome email sent to ${email}`);
                 } catch (error) {
@@ -668,7 +668,8 @@ const verifyOtp = asyncHandler(async (req, res) => {
         if (email) {
             (async () => {
                 try {
-                    await sendUserWelcomeMail({ userEmail: email, firstName });
+                    await
+                        sendUserWelcomeMail({ userEmail: email, fullName: `${firstName}${lastName ? " " + lastName : ""}` });
                     console.log(`📧 Welcome email sent to ${email}`);
                 } catch (err) {
                     console.error("❌ Failed to send welcome email:", err.message);

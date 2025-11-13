@@ -4,6 +4,7 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs")
 const asyncHandler = require("express-async-handler");
 const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries");
+const { sendReviewRequestMail } = require ("../config/utils/email/mailer")
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
@@ -1248,8 +1249,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
                                     END AS vendorName
                              FROM service_booking sb
                              JOIN users u ON sb.user_id = u.user_id
-                             JOIN service_booking_sub_packages sbs ON sbs.booking_id = sb.booking_id
-                             JOIN package_items s ON s.item_id = sbs.sub_package_id
+                             JOIN services s ON sb.service_id = s.service_id
                              JOIN vendors v ON v.vendor_id = sb.vendor_id
                              LEFT JOIN company_details cd ON cd.vendor_id = v.vendor_id
                              LEFT JOIN individual_details id ON id.vendor_id = v.vendor_id

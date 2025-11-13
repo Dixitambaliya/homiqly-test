@@ -1,8 +1,9 @@
 const cron = require("node-cron");
 const nodemailer = require("nodemailer");
 const { db } = require("../config/db"); // Update with your actual DB path
+const { sendMail } = require('../config/utils/email/templates/nodemailer');
 
-const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 5 minutes (change as needed)
+const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 10 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
@@ -148,27 +149,48 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 });
 
 // Email function (non-blocking)
-const sendPromoEmail = async (userEmail, promoCode, discountValue) => {
+const sendPromoEmail = async (userEmail, promoCode) => {
     try {
-        // Configure your transporter
-        const transport = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-        const mailOptions = {
-            from: 'homiqlydevelopment@gmail.com',
-            to: userEmail,
-            subject: `You've received a new promo code!`,
-            html: `<p>Hi,</p>
-                   <p>You've received a new promo code: <b>${promoCode}</b></p>
-                   <p>Discount Value: ${discountValue}</p>
-                   <p>Use it on your next booking!</p>`
-        };
+        const subject = `You've received a new promo code!`
 
-        await transport.sendMail(mailOptions);
+        const bodyHtml = `
+   <div style="padding: 5px 30px 30px; font-size: 15px; color: #ffffff; text-align: left;
+            font-family: Arial, sans-serif; background-color: #000;">
+
+
+            <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                <strong>Hi ${user_name || "there"},</strong><br><br>
+                Great news! You’ve just completed the minimum number of bookings required to unlock your special reward on Homiqly.
+                We appreciate your trust in our at-home beauty services.
+            </p>
+
+            <p style="margin-bottom: 10px; font-size: 15px;">
+                As a thank-you for reaching this milestone, your reward is now active on your account.
+                You can apply it automatically on your next eligible booking—no extra steps needed.
+            </p>
+
+            <h3 style="font-weight: 500; margin-bottom: 20px; font-size: 16px;">
+                Keep exploring, keep glowing. More perks await as you continue booking with Homiqly!
+            </h3>
+
+            <p style="font-size: 14px; margin-top: 15px; line-height: 1.6;">
+                This reward is available only to users who have completed the required number of bookings.
+                It applies to eligible at-home beauty services booked through the Homiqly website.
+                Rewards are non-transferable and cannot be combined with other promotions.
+                Terms may change without prior notice.
+            </p>
+
+        </div>
+ `;
+
+        await sendMail({
+            to: userEmail,
+            subject,
+            bodyHtml,
+            layout: "adminCode",
+            extraData: { promoCode }, // ✅ Add this line
+        })
+
         console.log(`📧 Promo email sent to ${userEmail}`);
     } catch (err) {
         console.error(`❌ Error sending promo email to ${userEmail}:`, err.message);
