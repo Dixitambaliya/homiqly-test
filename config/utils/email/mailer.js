@@ -395,7 +395,6 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
     }
 };
 
-
 //done
 const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
     try {
