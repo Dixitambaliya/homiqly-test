@@ -466,7 +466,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             // ✅ Update payment + booking
             await connection.query(
-                `UPDATE payments SET status = 'failed', receipt_url = ? WHERE payment_intent_id = ?`,
+                `UPDATE payments SET status = 'completed', receipt_url = ? WHERE payment_intent_id = ?`,
                 [receiptUrl, paymentIntentId]
             );
 
