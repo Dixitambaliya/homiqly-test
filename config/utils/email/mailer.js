@@ -25,7 +25,7 @@ const sendUserWelcomeMail = async ({ userEmail, firstName, lastName, fullName })
         <tr>
           <td style="padding:5px 40px 40px; font-family: Arial, sans-serif; text-align: left;">
             <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 15px; color: #222;">
-             ${fullName || firstName || "Hello"} ,
+             ${fullName || firstName || "Hello"},
              Welcome to the Homiqly community - we’re thrilled to have you on board!
             </h2>
 
@@ -306,7 +306,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
             </p>
             <span>${bookingDateFormatted} at ${bookingTimeFormatted}.</span>
             <p style="color: #000000; font-size: 15px; line-height: 1.6; margin-top: 20px;">
-               <span> (# ${booking_id} ) </span>
+               <span>( #${booking_id || " "} )</span>
              </p>
 
     <!-- TOP TOTAL -->
