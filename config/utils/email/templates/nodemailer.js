@@ -192,12 +192,14 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
 
     } else if (layout === "vendorNotificationMail") {
         headerHtml = `
-    <div style = "padding: 20px 25px 15px; text-align: left; background: #000000;">
-        <div style="display: inline-block; padding: 8px 0; border-radius: 8px;">
-            <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
-                style="width: 130px; display: block; margin: 0; vertical-align: middle;" />
-        </div>
-          </ >
+     <div style="background-color: #000000; padding: 30px; border-radius: 8px 8px 0 0; font-family: Arial, sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                <!-- Left: Logo -->
+                <div style="flex: 1;">
+                    <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo" style="width: 150px; height: auto; display: block;" />
+                </div>
+            </div>
+        </div >
     `;
     } else if (layout === "adminCode") {
         headerHtml = `

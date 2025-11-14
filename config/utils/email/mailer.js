@@ -906,32 +906,43 @@ const sendUserVerificationMail = async ({ userEmail, code, subject }) => {
 const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorName }) => {
     try {
         const reviewLink = `https://homiqly-development.vercel.app/Profile/history`;
-        // 🧩 Email body (content between header & footer)
+
+        
         const bodyHtml = `
- <div style="padding: 35px 35px 25px; background-color: #ffffff; font-family: Arial, Helvetica, sans-serif;">
+<div style="max-width:550px; padding: 25px 30px 20px; background-color: #ffffff; font-family: Arial, Helvetica, sans-serif;">
    <h2 style="font-size: 20px; font-weight: 600; color: #000;">We’d Love Your Feedback!</h2>
 
    <p style="font-size: 15px; line-height: 1.6; color: #444;">
-     Hello <strong>${userName}</strong>,<br><br>
-     We hope you enjoyed your recent <strong>${serviceName}</strong> service with <strong>${vendorName}</strong>.
+     Hello <strong>${userName}</strong>,<br>
+     <p style="line-height:1.5; font-size: 15px">We hope you enjoyed your recent <strong>${serviceName}</strong> service with <strong>${vendorName}</strong>.
      Your feedback helps us improve and celebrate our top professionals.
+      </p>
    </p>
 
-   <div style="text-align: left; margin: 30px 0;">
-     <a href="${reviewLink}"
-        style="background-color: #00000; color: #00000; padding: 12px 30px; border-radius: 10px; font-size: 15px; text-decoration: none; font-weight: 600;">
-        Leave a Review
-     </a>
-   </div>
+    <a href="${reviewLink}"
+    style="
+        display: inline-block;
+        padding: 12px 28px;
+        background: linear-gradient(135deg, #000000, #333333);
+        color: #ffffff;
+        border-radius: 8px;
+        font-size: 15px;
+        text-decoration: none;
+        font-weight: 600;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+    ">
+    Leave a Review
+    </a>
+        <p style="font-size: 15px; margin-bottom: 18px;">
+        Thank you for choosing Homiqly – where comfort, beauty, and care come together.
+        </p>
 
-   <p style="font-size: 14px; color: #555;">
-     Thank you for choosing Homiqly - where comfort, beauty, and care come together.<br>
-     <br>Warm regards,<br><strong>Team Homiqly</strong>
-   </p>
+        <p style="font-size: 15px; margin-top: 20px;">
+        Warm regards,<br><strong>Team Homiqly</strong>
+        </p>
  </div>
 `;
         await sendMail({
-            from: `<${process.env.EMAIL_USER}>`,
             to: userEmail,
             subject: "How Was Your Homiqly Experience?",
             bodyHtml,
