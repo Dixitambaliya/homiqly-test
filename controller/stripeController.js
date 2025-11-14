@@ -410,6 +410,46 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 }
             }
 
+            // 🔹 UPDATE PROMO USAGE COUNT IF APPLIED
+            if (user_promo_code_id) {
+
+                // 1️⃣ Try to find promo in user_promo_codes (admin promo)
+                const [[userPromo]] = await connection.query(`
+                    SELECT promo_id, source_type, usedCount, maxUse
+                    FROM user_promo_codes
+                    WHERE user_promo_code_id = ?
+                    LIMIT 1
+                `, [user_promo_code_id]);
+
+                if (userPromo) {
+                    // ⭐ Admin Promo → update user_promo_codes
+                    await connection.query(`
+                    UPDATE user_promo_codes
+                    SET usedCount = usedCount + 1
+                    WHERE user_promo_code_id = ?
+                `, [user_promo_code_id]);
+
+                } else {
+                    // 2️⃣ Promo not in user_promo_codes → check system_promo_codes
+                    const [[systemPromo]] = await connection.query(`
+                    SELECT system_promo_code_id
+                    FROM system_promo_codes
+                    WHERE system_promo_code_id = ?
+                    LIMIT 1
+                `, [user_promo_code_id]);
+
+                    if (systemPromo) {
+                        // ⭐ System Promo → update system_promo_codes
+                        await connection.query(`
+                        UPDATE system_promo_codes
+                        SET usage_count = usage_count + 1
+                        WHERE system_promo_code_id = ?
+                    `, [user_promo_code_id]);
+                    }
+                }
+            }
+
+
             await connection.query(
                 `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
                 [Math.round(totalBookingTime), booking_id]
@@ -454,8 +494,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 ]
             );
 
-
-
             // ✅ Clear cart
             await connection.query(`DELETE FROM cart_addons WHERE cart_id = ?`, [cart_id]);
             await connection.query(`DELETE FROM cart_preferences WHERE cart_id = ?`, [cart_id]);
@@ -466,16 +504,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             await connection.commit();
 
-            console.log(`✅ Booking transaction completed for booking #${booking_id}`);
-            console.log(`🧾 Receipt URL: ${receiptUrl}`);
-
-            // ✅ Send Emails (immediately after commit)
-            console.log("📧 Sending booking email to user and vendor...");
 
             await sendBookingEmail(user_id, { booking_id, receiptUrl });
-            console.log(booking_id);
-            
-            console.log("✅ User booking email sent successfully!");
             // Fetch vendor_id from service_booking for safety
             const [[bookingVendor]] = await connection.query(
                 `SELECT vendor_id FROM service_booking WHERE booking_id = ? LIMIT 1`,

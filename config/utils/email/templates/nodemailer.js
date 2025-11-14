@@ -236,8 +236,8 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
 
     // ----- FINAL WRAPPER -----
     const htmlBody = `
-    <div style = "font-family: Arial, sans-serif; background-color: #f6f6f6; padding: 30px 0;">
-        <div style="max-width: 550px; margin: auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        <div style = "font-family: Arial, sans-serif; background-color: #f6f6f6; padding: 30px 0;">
+            <div style="max-width: 550px; margin: auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
             ${headerHtml}
             ${bodyHtml}
             ${footerHtml}

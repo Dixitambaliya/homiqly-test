@@ -92,30 +92,76 @@ const recalculateCartTotals = asyncHandler(async (cart_id, user_id) => {
         let promoDiscount = 0;
         let promoDetails = null;
 
+        // 1) Get promo assigned to this cart
         const [[cart]] = await db.query(`
-            SELECT user_promo_code_id FROM service_cart WHERE cart_id = ? AND user_id = ?
-        `, [cart_id, user_id]);
+                SELECT user_promo_code_id 
+                FROM service_cart 
+                WHERE cart_id = ? AND user_id = ?
+            `, [cart_id, user_id]);
+
+        let promoData = null;
+        let promoType = null; // 'user' or 'system'
 
         if (cart?.user_promo_code_id) {
-            const [systemPromo] = await db.query(`
-                SELECT sc.system_promo_code_id, sc.template_id, sc.user_id, sc.usage_count,
-                       st.discount_type, st.discountValue, 'system' AS source_type
-                FROM system_promo_codes sc
-                JOIN system_promo_code_templates st
-                  ON sc.template_id = st.system_promo_code_template_id
-                WHERE sc.system_promo_code_id = ? LIMIT 1
-            `, [cart.user_promo_code_id]);
 
-            if (systemPromo.length) {
-                const { discountValue, discount_type } = systemPromo[0];
-                const val = parseFloat(discountValue);
-                discountedTotal =
-                    discount_type === 'fixed'
-                        ? Math.max(0, totalAmount - val)
-                        : totalAmount - (totalAmount * val) / 100;
-                promoDiscount = totalAmount - discountedTotal;
-                promoDetails = systemPromo[0];
+            const promoId = cart.user_promo_code_id;
+
+            // 2️⃣ TRY USER PROMO (ADMIN PROMO)
+            const [[userPromo]] = await db.query(`
+                SELECT upc.user_promo_code_id, upc.promo_id, upc.usedCount, upc.maxUse,
+                    pc.discount_type, pc.discountValue, pc.minSpend
+                FROM user_promo_codes upc
+                LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                WHERE upc.user_promo_code_id = ?
+                LIMIT 1
+            `, [promoId]);
+
+            if (userPromo) {
+                promoData = userPromo;
+                promoType = "user";
             }
+
+            // 3️⃣ IF NOT FOUND → TRY SYSTEM PROMO (ASSIGNED TO USER)
+            if (!promoData) {
+                const [[systemPromo]] = await db.query(`
+                    SELECT spc.system_promo_code_id AS user_promo_code_id,
+                        st.discount_type, st.discountValue
+                    FROM system_promo_codes spc
+                    JOIN system_promo_code_templates st 
+                        ON spc.template_id = st.system_promo_code_template_id
+                    WHERE spc.system_promo_code_id = ?
+                    LIMIT 1
+                `, [promoId]);
+
+                if (systemPromo) {
+                    promoData = systemPromo;
+                    promoType = "system";
+                }
+
+            }
+
+            // 4️⃣ If still no promo found → bad ID
+            if (!promoData) {
+                console.warn("⚠️ Promo not found in ANY table");
+            }
+        }
+
+        // 5️⃣ APPLY PROMO DISCOUNT IF FOUND
+        if (promoData) {
+            const { discount_type, discountValue} = promoData;
+
+            // Calculate discount
+            if (discount_type === "fixed") {
+                promoDiscount = Number(discountValue);
+            } else {
+                promoDiscount = (totalAmount * Number(discountValue)) / 100;
+            }
+
+            // Apply discount
+            discountedTotal = totalAmount - promoDiscount;
+
+            // Save promo details for the response
+            promoDetails = promoData;
         }
 
         const taxAmount = (discountedTotal * serviceTaxRate) / 100;

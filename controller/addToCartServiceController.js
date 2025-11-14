@@ -1,9 +1,11 @@
 const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const { recalculateCartTotals } = require("./cartCalculation")
+const moment = require("moment-timezone");
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+
     const { service_id, service_type_id, packages, preferences, consents } = req.body;
 
     if (!service_id)
@@ -213,54 +215,93 @@ const updateCartDetails = asyncHandler(async (req, res) => {
 
         // 2️⃣ Validate promo code if provided
         if (promoCode && typeof promoCode === "string" && promoCode.trim() !== "") {
-            // Check user promo
+
+            // Mountain Time NOW
+            const nowMT = moment().tz("America/Edmonton");
+
+            // 1️⃣ Try User Promo Code (admin promo)
             const [[userPromo]] = await db.query(
-                `SELECT upc.user_promo_code_id, upc.promo_id, upc.usedCount, pc.minSpend, pc.discountValue, pc.discount_type, pc.maxUse
-                 FROM user_promo_codes upc
-                 LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
-                 WHERE upc.user_id = ? AND upc.code = ? LIMIT 1`,
+                `SELECT upc.user_promo_code_id, upc.promo_id, upc.usedCount, 
+                pc.minSpend, pc.start_date, pc.end_date, 
+                pc.discountValue, pc.discount_type, pc.maxUse
+                FROM user_promo_codes upc
+                LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                WHERE upc.user_id = ? AND upc.code = ?
+                LIMIT 1`,
                 [user_id, promoCode]
             );
 
             if (userPromo) {
+                // DATE CHECK
+                const start = moment.tz(userPromo.start_date, "America/Edmonton");
+                const end = moment.tz(userPromo.end_date, "America/Edmonton");
+
+                if (!nowMT.isBetween(start, end, undefined, "[]")) {
+                    return res.status(400).json({ message: "Promo code is expired" });
+                }
+
+                // USAGE CHECK
                 if (userPromo.usedCount >= userPromo.maxUse) {
                     return res.status(400).json({ message: "Promo code has reached its max usage" });
                 }
+
+                // MIN SPEND CHECK
                 if (totalAmount < parseFloat(userPromo.minSpend || 0)) {
-                    return res.status(400).json({ message: `You need to spend at least ${userPromo.minSpend} to use this promo code` });
+                    return res.status(400).json({ message: `Minimum spend must be ${userPromo.minSpend}` });
                 }
+
+                // APPLY DISCOUNT
                 userPromoCodeId = userPromo.user_promo_code_id;
-                promoDetails = { ...userPromo, source_type: 'admin' };
-                promoDiscount = userPromo.discount_type === 'fixed'
-                    ? parseFloat(userPromo.discountValue || 0)
-                    : totalAmount * parseFloat(userPromo.discountValue || 0) / 100;
+                promoDetails = { ...userPromo, source_type: "admin" };
+
+                promoDiscount = userPromo.discount_type === "fixed"
+                    ? parseFloat(userPromo.discountValue)
+                    : (totalAmount * parseFloat(userPromo.discountValue)) / 100;
+
             } else {
-                // Check system promo
+
+                // 2️⃣ Try System Promo Code (system promo)
                 const [[systemPromo]] = await db.query(
-                    `SELECT spc.system_promo_code_id, st.minSpend, st.discountValue, st.discount_type, spc.usage_count AS usedCount, st.maxUse
-                     FROM system_promo_codes spc
-                     JOIN system_promo_code_templates st ON spc.template_id = st.system_promo_code_template_id
-                     WHERE st.code = ? LIMIT 1`,
-                    [promoCode]
+                    `SELECT spc.system_promo_code_id, st.minSpend,
+                    st.discountValue, st.discount_type, st.maxUse,
+                    spc.usage_count AS usedCount, st.is_active
+                    FROM system_promo_codes spc
+                    JOIN system_promo_code_templates st 
+                        ON spc.template_id = st.system_promo_code_template_id
+                    WHERE st.code = ? AND spc.user_id = ?
+                    LIMIT 1`,
+                    [promoCode, user_id]
                 );
 
                 if (!systemPromo) {
                     return res.status(400).json({ message: "Promo code not valid" });
                 }
+
+                // ACTIVE CHECK
+                if (systemPromo.is_active !== 1) {
+                    return res.status(400).json({ message: "Promo code is no longer active" });
+                }
+
+                // USAGE CHECK
                 if (systemPromo.usedCount >= systemPromo.maxUse) {
                     return res.status(400).json({ message: "Promo code has reached its max usage" });
                 }
+
+                // MIN SPEND CHECK
                 if (totalAmount < parseFloat(systemPromo.minSpend || 0)) {
-                    return res.status(400).json({ message: `You need to spend at least ${systemPromo.minSpend} to use this promo code` });
+                    return res.status(400).json({ message: `Minimum spend must be ${systemPromo.minSpend}` });
                 }
 
+                // APPLY DISCOUNT
                 userPromoCodeId = systemPromo.system_promo_code_id;
-                promoDetails = { ...systemPromo, source_type: 'system' };
-                promoDiscount = systemPromo.discount_type === 'fixed'
-                    ? parseFloat(systemPromo.discountValue || 0)
-                    : totalAmount * parseFloat(systemPromo.discountValue || 0) / 100;
+                promoDetails = { ...systemPromo, source_type: "system" };
+
+                promoDiscount = systemPromo.discount_type === "fixed"
+                    ? parseFloat(systemPromo.discountValue)
+                    : (totalAmount * parseFloat(systemPromo.discountValue)) / 100;
             }
         }
+
 
         // 3️⃣ Update cart fields
         const fields = [];
@@ -585,6 +626,7 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -706,6 +748,7 @@ const getUserCart = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const deleteCartSubPackage = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
