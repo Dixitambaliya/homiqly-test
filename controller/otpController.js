@@ -11,7 +11,6 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 // ---- Send OTP via SMS ----
 const sendOtp = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-
     const { phone } = req.body;
 
     if (!phone) {
@@ -19,43 +18,65 @@ const sendOtp = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 🔎 Find any user who has this phone (regardless of email)
+        // 🔍 1️⃣ Get current user data
+        const [[currentUser]] = await db.query(
+            "SELECT phone FROM users WHERE user_id = ?",
+            [user_id]
+        );
+
+        if (!currentUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // 🔎 2️⃣ Check if any other user has this phone
         const [rows] = await db.query(
-            "SELECT user_id, email FROM users WHERE phone = ?",
-            [phone]
+            "SELECT user_id FROM users WHERE phone = ? AND user_id != ?",
+            [phone, user_id]
         );
 
         if (rows.length > 0) {
-            const existingUser = rows[0];
-
-            // Check if the phone belongs to a different user
-            if (existingUser.user_id !== user_id) {
-                return res.status(400).json({
-                    message:
-                        "This phone number is already registered with another account.",
-                });
-            }
+            return res.status(400).json({
+                message: "This phone number is already registered with another account.",
+            });
         }
 
-        // 🔢 Generate OTP
+        // 🔄 3️⃣ If phone changed, reset is_approved = 0 and update phone
+        if (phone !== currentUser.phone) {
+            await db.query(
+                "UPDATE users SET phone = ?, is_approved = 0 WHERE user_id = ?",
+                [phone, user_id]
+            );
+        }
+
+        // 🔢 4️⃣ Generate OTP
         const otp = generateOTP();
 
-        // 🔐 Create JWT containing phone + OTP (expires in 5 minutes)
-        const token = jwt.sign({ phone, otp }, process.env.JWT_SECRET, { expiresIn: "5m" });
+        // 🔐 5️⃣ Create JWT containing phone + OTP
+        const token = jwt.sign(
+            { phone, otp },
+            process.env.JWT_SECRET,
+            { expiresIn: "5m" }
+        );
 
-        // 📩 Send OTP via SMS
+        // 📩 6️⃣ Send OTP to the new number
         await client.messages.create({
             body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
             from: process.env.TWILIO_PHONE_NUMBER,
             to: phone,
         });
 
-        res.json({ message: "OTP sent via SMS", token });
+        res.json({
+            message: "OTP sent via SMS",
+            token,
+            phoneUpdated: phone !== currentUser.phone,
+        });
+
     } catch (err) {
         console.error("SMS sending error:", err);
         res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
 });
+
 
 // ---- Verify OTP ----
 const verifyOtp = asyncHandler(async (req, res) => {
