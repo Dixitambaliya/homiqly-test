@@ -2,18 +2,16 @@ const cron = require("node-cron");
 const { db } = require("../config/db"); // Update with your actual DB path
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
 
-const CRON_EVERY_5_MIN = "*/1 * * * *"; // run every 10 minutes (change as needed)
+const CRON_EVERY_5_MIN = "*/10 * * * * "; // run every 10 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
 cron.schedule(CRON_EVERY_5_MIN, async () => {
     console.log("⏰ Combined reminder cron running...");
 
-    // =============================
-    // 2️⃣ SERVICE START REMINDER
-    // =============================
     try {
         console.log("🔍 Checking for service start reminders...");
+
         const [serviceRows] = await db.query(
             `
             SELECT
@@ -25,14 +23,8 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                 sb.bookingTime,
                 CONCAT(u.firstName, ' ', u.lastName) AS user_name,
                 u.email AS user_email,
-                CASE
-                    WHEN v.vendorType = 'company' THEN comp.companyName
-                    ELSE ind.name
-                END AS vendor_name,
-                CASE
-                    WHEN v.vendorType = 'company' THEN comp.companyEmail
-                    ELSE ind.email
-                END AS vendor_email,
+                CASE WHEN v.vendorType = 'company' THEN comp.companyName ELSE ind.name END AS vendor_name,
+                CASE WHEN v.vendorType = 'company' THEN comp.companyEmail ELSE ind.email END AS vendor_email,
                 e.employee_id,
                 CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
                 e.email AS employee_email
@@ -44,12 +36,12 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             LEFT JOIN company_employees e ON e.employee_id = sb.assigned_employee_id
             WHERE sb.bookingStatus = 1
               AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime))
-                  BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTE
+                    BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTS
               AND NOT EXISTS (
                   SELECT 1
                   FROM notifications n
                   WHERE n.title = 'Service starting soon'
-                    AND COALESCE(JSON_EXTRACT(n.data, '$.booking_id'), 0) = sb.booking_id
+                    AND JSON_EXTRACT(n.data, '$.booking_id') = sb.booking_id
                     AND n.sent_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
               )
             `,
@@ -60,82 +52,111 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             const startTime = `${b.bookingDate} at ${b.bookingTime}`;
             const notifData = { booking_id: b.booking_id, user_id: b.user_id, vendor_id: b.vendor_id };
 
-            // ---- User ----
-            try {
-                await transporter.sendMail({
-                    from: `"Homiqly" <${process.env.EMAIL_USER}>`,
-                    to: b.user_email,
+            // ======================================
+            // 📌 BUILD EMAIL BODY OBJECTS HERE
+            // ======================================
+            const emailBodies = {
+                user: {
                     subject: "Your service starts soon!",
                     html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+                        <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
                             <div style="text-align: center;">
-                                <img src="https://www.homiqly.codegrin.com/public/assets/headerlogoblack.png" alt="Homiqly Logo" style="width: 150px; margin-bottom: 20px;" />
+                                <img src="https://www.homiqly.codegrin.com/public/assets/headerlogoblack.png" style="width: 150px; margin-bottom: 20px;">
                             </div>
-                            <h2 style="color: #333;">Hello ${b.user_name || `User #${b.user_id}`},</h2>
-                            <p style="font-size: 16px; color: #555;">
-                                Your booking <strong>#${b.booking_id}</strong> is starting soon —
-                                <strong>${startTime}</strong>.
-                            </p>
-                            <p style="font-size: 16px; color: #555;">
-                                Please make sure to be at the service location on time.
-                            </p>
+                            <h2>Hello ${b.user_name || `User #${b.user_id}`},</h2>
+                            <p>Your booking <strong>#${b.booking_id}</strong> is starting soon — <strong>${startTime}</strong>.</p>
+                            <p>Please be ready on time.</p>
                             <p style="margin-top: 30px; color: #777;">Thanks,<br/>Homiqly Team</p>
                         </div>
                     `
+                },
+
+                vendor: {
+                    subject: "Upcoming booking to serve",
+                    html: `
+                    <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+                        Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>
+                        You have a booking (#${b.booking_id}) starting soon — <strong>${startTime}</strong>.<br/>
+                        Please prepare to serve the customer.<br/><br/>
+                        Thanks,<br/>Homiqly Team
+                  </div>
+                    `
+                },
+
+                employee: {
+                    subject: "Assigned booking starts soon",
+                    html: `
+                     <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+                        Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>
+                        You are assigned to a booking (#${b.booking_id}) starting soon — <strong>${startTime}</strong>.<br/>
+                        Please prepare accordingly.<br/><br/>
+                        Thanks,<br/>Homiqly Team
+                        </div>
+                    `
+                }
+            };
+
+            // ---------------- USER MAIL ----------------
+            try {
+                await sendMail({
+                    to: b.user_email,
+                    subject: emailBodies.user.subject,
+                    bodyHtml: emailBodies.user.html
                 });
 
                 await db.query(
                     `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
-                     VALUES ('users', ?, 'Service starting soon', ?, ?, 0, CURRENT_TIMESTAMP)`,
+                     VALUES ('users', ?, 'Service starting soon', ?, ?, 0, NOW())`,
                     [b.user_id, `Your booking starts soon — ${startTime}`, JSON.stringify(notifData)]
                 );
-                console.log(`✅ Start reminder sent to user ${b.user_email} for booking ${b.booking_id}`);
+
+                console.log(`✅ User reminder sent for booking ${b.booking_id}`);
             } catch (e) {
-                console.error(`❌ User email failed for booking ${b.booking_id}:`, e.message);
+                console.log("❌ User email error:", e.message);
             }
 
-            // ---- Vendor ----
+            // ---------------- VENDOR MAIL ----------------
             try {
                 await sendMail({
                     to: b.vendor_email,
-                    subject: "Upcoming booking to serve",
-                    layout: "vendorBookingMail",
-                    text: `Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},\n\nYou have a booking (#${b.booking_id}) starting soon — ${startTime}.\nPlease prepare to serve the customer.\n\nThanks,\nHomiqly Team`,
-                    html: `Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>You have a booking (#${b.booking_id}) starting soon — ${startTime}.<br/>Please prepare to serve the customer.<br/><br/>Thanks,<br/>Homiqly Team`,
+                    subject: emailBodies.vendor.subject,
+                    bodyHtml: emailBodies.vendor.html
                 });
+
                 await db.query(
                     `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
-                     VALUES ('vendors', ?, 'Service starting soon', ?, ?, 0, CURRENT_TIMESTAMP)`,
-                    [b.vendor_id, `You have a booking starting soon — ${startTime}`, JSON.stringify(notifData)]
+                     VALUES ('vendors', ?, 'Service starting soon', ?, ?, 0, NOW())`,
+                    [b.vendor_id, `Booking starting soon — ${startTime}`, JSON.stringify(notifData)]
                 );
-                console.log(`✅ Start reminder sent to vendor ${b.vendor_email} for booking ${b.booking_id}`);
+
+                console.log(`✅ Vendor reminder sent for booking ${b.booking_id}`);
             } catch (e) {
-                console.error(`❌ Vendor email failed for booking ${b.booking_id}:`, e.message);
+                console.log("❌ Vendor email error:", e.message);
             }
 
-            // ---- Employee ----
-            if (b.vendorType === 'company' && b.employee_id) {
+            // ---------------- EMPLOYEE MAIL ----------------
+            if (b.vendorType === "company" && b.employee_id) {
                 try {
-                    await transporter.sendMail({
+                    await sendMail({
                         to: b.employee_email,
-                        subject: "Assigned booking starts soon",
-                        layout: "vendorBookingMail",
-                        text: `Hi ${b.employee_name || `Employee #${b.employee_id}`},\n\nYou are assigned to a booking (#${b.booking_id}) starting soon — ${startTime}.\nPlease prepare to serve the customer.\n\nThanks,\nHomiqly Team`,
-                        html: `Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>You are assigned to a booking (#${b.booking_id}) starting soon — ${startTime}.<br/>Please prepare to serve the customer.<br/><br/>Thanks,<br/>Homiqly Team`,
+                        subject: emailBodies.employee.subject,
+                        bodyHtml: emailBodies.employee.html
                     });
+
                     await db.query(
                         `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
-                         VALUES ('employees', ?, 'Service starting soon', ?, ?, 0, CURRENT_TIMESTAMP)`,
-                        [b.employee_id, `Your assigned booking starts soon — ${startTime}`, JSON.stringify(notifData)]
+                         VALUES ('employees', ?, 'Service starting soon', ?, ?, 0, NOW())`,
+                        [b.employee_id, `Assigned booking starts soon — ${startTime}`, JSON.stringify(notifData)]
                     );
-                    console.log(`✅ Start reminder sent to employee ${b.employee_email} for booking ${b.booking_id}`);
+
+                    console.log(`✅ Employee reminder sent for booking ${b.booking_id}`);
                 } catch (e) {
-                    console.error(`❌ Employee email failed for booking ${b.booking_id}:`, e.message);
+                    console.log("❌ Employee email error:", e.message);
                 }
             }
         }
     } catch (err) {
-        console.error("❌ Service start reminder cron error:", err.message);
+        console.error("❌ Cron failed:", err.message);
     }
 });
 
