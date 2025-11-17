@@ -1,8 +1,8 @@
 const cron = require("node-cron");
 const { db } = require("../config/db"); // Update with your actual DB path
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
-
-const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 10 minutes (change as needed)
+const moment = require("moment");
+const CRON_EVERY_5_MIN = "*/10 * * * * *"; // run every 10 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
@@ -36,7 +36,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             LEFT JOIN company_employees e ON e.employee_id = sb.assigned_employee_id
             WHERE sb.bookingStatus = 1
               AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime))
-                    BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTE
+                    BETWEEN NOW() AND NOW() + INTERVAL 10 SECOND
               AND NOT EXISTS (
                   SELECT 1
                   FROM notifications n
@@ -49,26 +49,26 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
         );
 
         for (const b of serviceRows) {
-            const startTime = `${b.bookingDate} at ${b.bookingTime}`;
+            const startMoment = moment(`${b.bookingDate} ${b.bookingTime}`, "YYYY-MM-DD HH:mm:ss");
             const notifData = { booking_id: b.booking_id, user_id: b.user_id, vendor_id: b.vendor_id };
 
             // ---------------- EMAIL TEMPLATES ----------------
             const emailBodies = {
-                user: {
-                    subject: "Your service starts soon!",
-                    html: `
-                        <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                            <h2>Hello ${b.user_name || `User #${b.user_id}`},</h2>
-                            <p>Your booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startTime}</strong>.</p>
-                        </div>
-                    `
-                },
+                // user: {
+                //     subject: "Your service starts soon!",
+                //     html: `
+                //         <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+                //             <h2>Hello ${b.user_name || `User #${b.user_id}`},</h2>
+                //             <p>Your booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startMoment}</strong>.</p>
+                //         </div>
+                //     `
+                // },
                 vendor: {
                     subject: "Upcoming booking to serve",
                     html: `
                         <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
                             Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>
-                            Booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startTime}</strong>.
+                            Booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startMoment}</strong>.
                         </div>
                     `
                 },
@@ -77,31 +77,31 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                     html: `
                         <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
                             Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>
-                            You are assigned to booking <strong>#${b.booking_id}</strong> starting — <strong>${startTime}</strong>.
+                            You are assigned to booking <strong>#${b.booking_id}</strong> starting — <strong>${startMoment}</strong>.
                         </div>
                     `
                 }
             };
 
             // ---------------- USER EMAIL ----------------
-            try {
-                await sendMail({
-                    to: b.user_email,
-                    subject: emailBodies.user.subject,
-                    bodyHtml: emailBodies.user.html,
-                    layout: "vendorNotificationMail"
-                });
+            // try {
+            //     await sendMail({
+            //         to: b.user_email,
+            //         subject: emailBodies.user.subject,
+            //         bodyHtml: emailBodies.user.html,
+            //         layout: "vendorNotificationMail"
+            //     });
 
-                await db.query(
-                    `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
-                     VALUES ('users', ?, 'Service starting soon', ?, ?, 0, NOW())`,
-                    [b.user_id, `Your booking starts soon — ${startTime}`, JSON.stringify(notifData)]
-                );
+            //     await db.query(
+            //         `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
+            //          VALUES ('users', ?, 'Service starting soon', ?, ?, 0, NOW())`,
+            //         [b.user_id, `Your booking starts soon — ${startTime}`, JSON.stringify(notifData)]
+            //     );
 
-                console.log(`✅ User reminder sent for booking ${b.booking_id}`);
-            } catch (e) {
-                console.log(`❌ User email error for booking ${b.booking_id}:`, e.message);
-            }
+            //     console.log(`✅ User reminder sent for booking ${b.booking_id}`);
+            // } catch (e) {
+            //     console.log(`❌ User email error for booking ${b.booking_id}:`, e.message);
+            // }
 
             // ---------------- VENDOR EMAIL ----------------
             try {
