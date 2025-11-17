@@ -380,6 +380,7 @@ const addUserData = asyncHandler(async (req, res) => {
         firstName,
         lastName,
         phone,
+        email,
         parkingInstruction,
         address,
         state,
@@ -387,10 +388,9 @@ const addUserData = asyncHandler(async (req, res) => {
         flatNumber,
     } = req.body;
 
-    const connection = await db.getConnection(); // 🔹 Get dedicated connection for transaction
+    const connection = await db.getConnection();
 
     try {
-        // Start transaction
         await connection.beginTransaction();
 
         // 1️⃣ Validate required fields
@@ -404,8 +404,8 @@ const addUserData = asyncHandler(async (req, res) => {
 
         // 2️⃣ Check if user exists
         const [userCheck] = await connection.query(
-            `SELECT user_id, is_approved FROM users WHERE user_id = ? FOR UPDATE`,
-            [user_id] // 🔒 Locks this row to prevent concurrent updates
+            `SELECT user_id, is_approved, email FROM users WHERE user_id = ? FOR UPDATE`,
+            [user_id]
         );
 
         if (userCheck.length === 0) {
@@ -415,9 +415,10 @@ const addUserData = asyncHandler(async (req, res) => {
         }
 
         const user = userCheck[0];
+        const isApproved = Number(user.is_approved);
 
-        // 3️⃣ Prevent update if not approved
-        if (user.is_approved === 0) {
+        // 3️⃣ Prevent update if phone not verified
+        if (isApproved === 0) {
             await connection.rollback();
             connection.release();
             return res.status(403).json({
@@ -425,7 +426,7 @@ const addUserData = asyncHandler(async (req, res) => {
             });
         }
 
-        // 4️⃣ Check if phone number already exists
+        // 4️⃣ Check if phone number exists (other users)
         const [phoneCheck] = await connection.query(
             `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
             [phone, user_id]
@@ -439,16 +440,34 @@ const addUserData = asyncHandler(async (req, res) => {
             });
         }
 
-        // 5️⃣ Update user data
+        // 5️⃣ Check if email exists (NEW)
+        if (email && email !== user.email) {
+            const [emailCheck] = await connection.query(
+                `SELECT user_id FROM users WHERE email = ? AND user_id != ?`,
+                [email, user_id]
+            );
+
+            if (emailCheck.length > 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(409).json({
+                    message: "Email already exists",
+                });
+            }
+        }
+
+        // 6️⃣ Update user data
         await connection.query(
             `UPDATE users
-             SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, address = ?, state = ?, postalcode = ?, flatNumber = ?
+             SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, 
+                 email = ?, address = ?, state = ?, postalcode = ?, flatNumber = ?
              WHERE user_id = ?`,
             [
                 firstName,
                 lastName,
                 parkingInstruction,
                 phone,
+                email || user.email,
                 address,
                 state,
                 postalcode,
@@ -457,7 +476,6 @@ const addUserData = asyncHandler(async (req, res) => {
             ]
         );
 
-        // ✅ Commit transaction
         await connection.commit();
         connection.release();
 
@@ -466,7 +484,6 @@ const addUserData = asyncHandler(async (req, res) => {
         });
 
     } catch (err) {
-        // ❌ Rollback on any error
         if (connection) {
             try {
                 await connection.rollback();
@@ -491,6 +508,7 @@ const addUserData = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
