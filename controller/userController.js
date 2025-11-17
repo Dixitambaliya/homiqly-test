@@ -254,7 +254,6 @@ const getUserData = asyncHandler(async (req, res) => {
 
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    
     const { firstName, lastName, email, phone } = req.body;
 
     try {
@@ -272,15 +271,24 @@ const updateUserData = asyncHandler(async (req, res) => {
 
         const existing = existingRows[0];
 
+        // Normalize DB boolean values
+        const isApproved = Number(existing.is_approved);
+
         // ==== PHONE VALIDATION ====
         let updatedPhone = existing.phone;
 
-        if (phone && phone !== existing.phone) {
+        if (phone && phone === existing.phone) {
+
+            // ❗ FIXED: Convert is_approved to number before checking
+            if (isApproved === 0) {
+                return res.status(400).json({
+                    message: "Please verify the phone number before updating your profile.",
+                });
+            }
 
             // Normalize phone
             const normalizedInputPhone = normalizePhone(phone);
 
-            // Check digits-match conflict with different country code
             const [allUsers] = await db.query("SELECT user_id, phone FROM users");
 
             const matchedByDigits = allUsers.find(u => {
@@ -294,15 +302,22 @@ const updateUserData = asyncHandler(async (req, res) => {
                 );
             });
 
+            if (matchedByDigits) {
+                return res.status(400).json({
+                    message: "This phone number is already registered with another account.",
+                });
+            }
+
             updatedPhone = phone;
         }
+
 
         // ==== EMAIL VALIDATION ====
         let updatedEmail = existing.email;
 
         if (email && email !== existing.email) {
 
-            // Check if email already used by another user
+            // Check if email used by another account
             const [emailRows] = await db.query(
                 `SELECT user_id FROM users WHERE email = ? AND user_id != ?`,
                 [email, user_id]
@@ -354,6 +369,7 @@ const updateUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 

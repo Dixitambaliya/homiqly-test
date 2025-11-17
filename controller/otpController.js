@@ -11,6 +11,7 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 // ---- Send OTP via SMS ----
 const sendOtp = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+
     const { phone } = req.body;
 
     if (!phone) {
@@ -32,14 +33,6 @@ const sendOtp = asyncHandler(async (req, res) => {
                 return res.status(400).json({
                     message:
                         "This phone number is already registered with another account.",
-                });
-            }
-
-            // Check if phone is used with a *different email* for the same user
-            if (existingUser.email !== req.user.email) {
-                return res.status(400).json({
-                    message:
-                        "This phone number is already registered with a different email.",
                 });
             }
         }
