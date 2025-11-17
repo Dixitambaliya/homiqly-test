@@ -251,15 +251,17 @@ const getUserData = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+    
     const { firstName, lastName, email, phone } = req.body;
 
     try {
-        // Step 1: Fetch existing user data
+        // Step 1: Fetch existing user
         const [existingRows] = await db.query(
-            `SELECT firstName, lastName, email, phone, profileImage, is_approved
-             FROM users
+            `SELECT firstName, lastName, email, phone, profileImage, is_approved 
+             FROM users 
              WHERE user_id = ?`,
             [user_id]
         );
@@ -270,14 +272,15 @@ const updateUserData = asyncHandler(async (req, res) => {
 
         const existing = existingRows[0];
 
-        // Step 2: Determine if phone can be updated
+        // ==== PHONE VALIDATION ====
         let updatedPhone = existing.phone;
 
-        if (existing.is_approved !== 1 && phone) {
-            // ✅ Normalize both new and DB phones
+        if (phone && phone !== existing.phone) {
+
+            // Normalize phone
             const normalizedInputPhone = normalizePhone(phone);
 
-            // ✅ Fetch all users (for cross-country check)
+            // Check digits-match conflict with different country code
             const [allUsers] = await db.query("SELECT user_id, phone FROM users");
 
             const matchedByDigits = allUsers.find(u => {
@@ -291,40 +294,39 @@ const updateUserData = asyncHandler(async (req, res) => {
                 );
             });
 
-            if (matchedByDigits) {
+            updatedPhone = phone;
+        }
+
+        // ==== EMAIL VALIDATION ====
+        let updatedEmail = existing.email;
+
+        if (email && email !== existing.email) {
+
+            // Check if email already used by another user
+            const [emailRows] = await db.query(
+                `SELECT user_id FROM users WHERE email = ? AND user_id != ?`,
+                [email, user_id]
+            );
+
+            if (emailRows.length > 0) {
                 return res.status(400).json({
-                    message:
-                        "This phone number (same digits) is already registered with another country code.",
-                    conflict: true,
+                    message: "Email is already used by another account",
                 });
             }
 
-            // ✅ Check if exact phone already exists
-            const [phoneRows] = await db.query(
-                `SELECT user_id FROM users WHERE phone = ? AND user_id != ?`,
-                [phone, user_id]
-            );
-
-            if (phoneRows.length > 0) {
-                return res.status(400).json({ message: "Phone number already in use" });
-            }
-
-            updatedPhone = phone;
-        } else if (existing.is_approved === 1 && phone && phone !== existing.phone) {
-            return res.status(403).json({
-                message: "Approved users cannot update their phone number",
-            });
+            updatedEmail = email;
         }
 
+        // ==== OTHER FIELDS ====
         const updatedFirstName = firstName || existing.firstName;
         const updatedLastName = lastName || existing.lastName;
-        const updatedEmail = email || existing.email;
+
         const updatedProfileImage =
             req.uploadedFiles?.profileImage?.[0]?.url || existing.profileImage;
 
-        // Step 3: Update user record
+        // ==== UPDATE USER ====
         await db.query(
-            `UPDATE users
+            `UPDATE users 
              SET profileImage = ?, firstName = ?, lastName = ?, email = ?, phone = ?
              WHERE user_id = ?`,
             [
@@ -352,6 +354,8 @@ const updateUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
