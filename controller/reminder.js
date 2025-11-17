@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const { db } = require("../config/db"); // Update with your actual DB path
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
 
-const CRON_EVERY_5_MIN = "*/10 * * * * "; // run every 10 minutes (change as needed)
+const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 10 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
@@ -36,7 +36,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             LEFT JOIN company_employees e ON e.employee_id = sb.assigned_employee_id
             WHERE sb.bookingStatus = 1
               AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime))
-                    BETWEEN NOW() AND NOW() +  INTERVAL 10 SECOND
+                    BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTE
               AND NOT EXISTS (
                   SELECT 1
                   FROM notifications n
@@ -52,51 +52,38 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             const startTime = `${b.bookingDate} at ${b.bookingTime}`;
             const notifData = { booking_id: b.booking_id, user_id: b.user_id, vendor_id: b.vendor_id };
 
-            // ======================================
-            // 📌 BUILD EMAIL BODY OBJECTS HERE
-            // ======================================
+            // ---------------- EMAIL TEMPLATES ----------------
             const emailBodies = {
                 user: {
                     subject: "Your service starts soon!",
                     html: `
                         <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                            <div style="text-align: center;">
-                                <img src="https://www.homiqly.codegrin.com/public/assets/headerlogoblack.png" style="width: 150px; margin-bottom: 20px;">
-                            </div>
                             <h2>Hello ${b.user_name || `User #${b.user_id}`},</h2>
-                            <p>Your booking <strong>#${b.booking_id}</strong> is starting soon — <strong>${startTime}</strong>.</p>
-                            <p>Please be ready on time.</p>
-                            <p style="margin-top: 30px; color: #777;">Thanks,<br/>Homiqly Team</p>
+                            <p>Your booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startTime}</strong>.</p>
                         </div>
                     `
                 },
-
                 vendor: {
                     subject: "Upcoming booking to serve",
                     html: `
-                    <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                        Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>
-                        You have a booking (#${b.booking_id}) starting soon — <strong>${startTime}</strong>.<br/>
-                        Please prepare to serve the customer.<br/><br/>
-                        Thanks,<br/>Homiqly Team
-                  </div>
+                        <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+                            Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>
+                            Booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startTime}</strong>.
+                        </div>
                     `
                 },
-
                 employee: {
                     subject: "Assigned booking starts soon",
                     html: `
-                     <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                        Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>
-                        You are assigned to a booking (#${b.booking_id}) starting soon — <strong>${startTime}</strong>.<br/>
-                        Please prepare accordingly.<br/><br/>
-                        Thanks,<br/>Homiqly Team
+                        <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+                            Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>
+                            You are assigned to booking <strong>#${b.booking_id}</strong> starting — <strong>${startTime}</strong>.
                         </div>
                     `
                 }
             };
 
-            // ---------------- USER MAIL ----------------
+            // ---------------- USER EMAIL ----------------
             try {
                 await sendMail({
                     to: b.user_email,
@@ -113,10 +100,10 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 
                 console.log(`✅ User reminder sent for booking ${b.booking_id}`);
             } catch (e) {
-                console.log("❌ User email error:", e.message);
+                console.log(`❌ User email error for booking ${b.booking_id}:`, e.message);
             }
 
-            // ---------------- VENDOR MAIL ----------------
+            // ---------------- VENDOR EMAIL ----------------
             try {
                 await sendMail({
                     to: b.vendor_email,
@@ -128,15 +115,15 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                 await db.query(
                     `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
                      VALUES ('vendors', ?, 'Service starting soon', ?, ?, 0, NOW())`,
-                    [b.vendor_id, `Booking starting soon — ${startTime}`, JSON.stringify(notifData)]
+                    [b.vendor_id, `Booking starts soon — ${startTime}`, JSON.stringify(notifData)]
                 );
 
                 console.log(`✅ Vendor reminder sent for booking ${b.booking_id}`);
             } catch (e) {
-                console.log("❌ Vendor email error:", e.message);
+                console.log(`❌ Vendor email error for booking ${b.booking_id}:`, e.message);
             }
 
-            // ---------------- EMPLOYEE MAIL ----------------
+            // ---------------- EMPLOYEE EMAIL ----------------
             if (b.vendorType === "company" && b.employee_id) {
                 try {
                     await sendMail({
@@ -154,12 +141,13 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 
                     console.log(`✅ Employee reminder sent for booking ${b.booking_id}`);
                 } catch (e) {
-                    console.log("❌ Employee email error:", e.message);
+                    console.log(`❌ Employee email error for booking ${b.booking_id}:`, e.message);
                 }
             }
         }
+
     } catch (err) {
-        console.error("❌ Cron failed:", err.message);
+        console.error("❌ Error in combined reminder cron:", err.message);
     }
 });
 
