@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const { db } = require("../config/db"); // Update with your actual DB path
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
 const moment = require("moment");
-const CRON_EVERY_5_MIN = "*/10 * * * * *"; // run every 10 minutes (change as needed)
+const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 10 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
@@ -36,7 +36,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             LEFT JOIN company_employees e ON e.employee_id = sb.assigned_employee_id
             WHERE sb.bookingStatus = 1
               AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime))
-                    BETWEEN NOW() AND NOW() + INTERVAL 10 SECOND
+                    BETWEEN NOW() AND NOW() + INTERVAL 10 MINUTE
               AND NOT EXISTS (
                   SELECT 1
                   FROM notifications n
