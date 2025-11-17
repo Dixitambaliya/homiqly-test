@@ -49,7 +49,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         }
         // 🔢 4️⃣ Generate OTP
         const otp = generateOTP();
-        
+
         // 🔐 5️⃣ Create JWT containing phone + OTP
         const token = jwt.sign(
             { phone, otp },
@@ -63,8 +63,8 @@ const sendOtp = asyncHandler(async (req, res) => {
             from: process.env.TWILIO_PHONE_NUMBER,
             to: phone,
         });
-        console.log("OTP send sucessfully.",phone);
-        
+        console.log("OTP send sucessfully.", phone);
+
         res.json({
             message: "OTP sent via SMS",
             token,
@@ -74,6 +74,68 @@ const sendOtp = asyncHandler(async (req, res) => {
     } catch (err) {
         console.error("SMS sending error:", err);
         res.status(500).json({ message: "Failed to send OTP via SMS" });
+    }
+});
+
+const checkPhoneAvailability = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const phone = req.body.phone || req.query.phone;
+
+    if (!phone) {
+        return res.status(400).json({
+            available: 0,
+            message: "Phone is required"
+        });
+    }
+
+    try {
+        // Get current user's phone
+        const [[currentUser]] = await db.query(
+            "SELECT phone FROM users WHERE user_id = ?",
+            [user_id]
+        );
+
+        if (!currentUser) {
+            return res.status(404).json({
+                available: 0,
+                message: "User not found"
+            });
+        }
+
+        // Check if phone exists with another account
+        const [rows] = await db.query(
+            "SELECT user_id FROM users WHERE phone = ? AND user_id != ?",
+            [phone, user_id]
+        );
+
+        if (rows.length > 0) {
+            return res.status(409).json({
+                available: 0,
+                message: "Phone number is already used by another account"
+            });
+        }
+
+        // Phone is same as current user's phone
+        if (phone === currentUser.phone) {
+            return res.status(200).json({
+                available: 1,
+                message: "Phone is already your registered number"
+            });
+        }
+
+        // Phone is new + free
+        return res.status(200).json({
+            available: 1,
+            message: "Phone number is available"
+        });
+
+    } catch (err) {
+        console.error("Phone check error:", err);
+        return res.status(500).json({
+            available: 0,
+            message: "Failed to check phone availability",
+            error: err.message
+        });
     }
 });
 
@@ -131,4 +193,4 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
 
 
-module.exports = { sendOtp, verifyOtp };
+module.exports = { sendOtp, verifyOtp, checkPhoneAvailability };

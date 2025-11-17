@@ -36,7 +36,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             LEFT JOIN company_employees e ON e.employee_id = sb.assigned_employee_id
             WHERE sb.bookingStatus = 1
               AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime))
-                    BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTS
+                    BETWEEN NOW() AND NOW() +  INTERVAL 10 SECOND
               AND NOT EXISTS (
                   SELECT 1
                   FROM notifications n
@@ -101,7 +101,8 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                 await sendMail({
                     to: b.user_email,
                     subject: emailBodies.user.subject,
-                    bodyHtml: emailBodies.user.html
+                    bodyHtml: emailBodies.user.html,
+                    layout: "vendorNotificationMail"
                 });
 
                 await db.query(
@@ -120,7 +121,8 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                 await sendMail({
                     to: b.vendor_email,
                     subject: emailBodies.vendor.subject,
-                    bodyHtml: emailBodies.vendor.html
+                    bodyHtml: emailBodies.vendor.html,
+                    layout: "vendorNotificationMail"
                 });
 
                 await db.query(
@@ -140,7 +142,8 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                     await sendMail({
                         to: b.employee_email,
                         subject: emailBodies.employee.subject,
-                        bodyHtml: emailBodies.employee.html
+                        bodyHtml: emailBodies.employee.html,
+                        layout: "vendorNotificationMail"
                     });
 
                     await db.query(
