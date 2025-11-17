@@ -3,7 +3,7 @@ const nodemailer = require("nodemailer");
 const { db } = require("../config/db"); // Update with your actual DB path
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
 
-const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 10 minutes (change as needed)
+const CRON_EVERY_5_MIN = "*/1 * * * *"; // run every 10 minutes (change as needed)
 const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before service start
 
 
@@ -106,9 +106,9 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             // ---- Vendor ----
             try {
                 await transporter.sendMail({
-                    from: `"Homiqly" <${process.env.EMAIL_USER}>`,
                     to: b.vendor_email,
                     subject: "Upcoming booking to serve",
+                    layout: "vendorBookingMail",
                     text: `Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},\n\nYou have a booking (#${b.booking_id}) starting soon — ${startTime}.\nPlease prepare to serve the customer.\n\nThanks,\nHomiqly Team`,
                     html: `Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>You have a booking (#${b.booking_id}) starting soon — ${startTime}.<br/>Please prepare to serve the customer.<br/><br/>Thanks,<br/>Homiqly Team`,
                 });
@@ -126,9 +126,9 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             if (b.vendorType === 'company' && b.employee_id) {
                 try {
                     await transporter.sendMail({
-                        from: `"Homiqly" <${process.env.EMAIL_USER}>`,
                         to: b.employee_email,
                         subject: "Assigned booking starts soon",
+                        layout: "vendorBookingMail",
                         text: `Hi ${b.employee_name || `Employee #${b.employee_id}`},\n\nYou are assigned to a booking (#${b.booking_id}) starting soon — ${startTime}.\nPlease prepare to serve the customer.\n\nThanks,\nHomiqly Team`,
                         html: `Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>You are assigned to a booking (#${b.booking_id}) starting soon — ${startTime}.<br/>Please prepare to serve the customer.<br/><br/>Thanks,<br/>Homiqly Team`,
                     });

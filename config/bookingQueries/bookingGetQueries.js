@@ -21,8 +21,6 @@ const bookingGetQueries = {
     u.user_id,
     CONCAT(u.firstName, ' ', u.lastName) AS userName,
     u.profileImage AS userProfileImage,
-    u.email AS userEmail,
-    u.phone AS userPhone,
     u.address AS userAddress,
     u.flatNumber AS userFlatNumber,
     u.state AS userState,
