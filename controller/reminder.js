@@ -1,5 +1,4 @@
 const cron = require("node-cron");
-const nodemailer = require("nodemailer");
 const { db } = require("../config/db"); // Update with your actual DB path
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
 
@@ -9,14 +8,6 @@ const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before se
 
 cron.schedule(CRON_EVERY_5_MIN, async () => {
     console.log("⏰ Combined reminder cron running...");
-
-    const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-        },
-    });
 
     // =============================
     // 2️⃣ SERVICE START REMINDER
@@ -105,7 +96,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 
             // ---- Vendor ----
             try {
-                await transporter.sendMail({
+                await sendMail({
                     to: b.vendor_email,
                     subject: "Upcoming booking to serve",
                     layout: "vendorBookingMail",

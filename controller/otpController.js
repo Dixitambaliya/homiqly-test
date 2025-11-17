@@ -47,10 +47,9 @@ const sendOtp = asyncHandler(async (req, res) => {
                 [phone, user_id]
             );
         }
-
         // 🔢 4️⃣ Generate OTP
         const otp = generateOTP();
-
+        
         // 🔐 5️⃣ Create JWT containing phone + OTP
         const token = jwt.sign(
             { phone, otp },
@@ -64,7 +63,8 @@ const sendOtp = asyncHandler(async (req, res) => {
             from: process.env.TWILIO_PHONE_NUMBER,
             to: phone,
         });
-
+        console.log("OTP send sucessfully.",phone);
+        
         res.json({
             message: "OTP sent via SMS",
             token,
