@@ -7,22 +7,31 @@ const SERVICE_START_REMINDER_MINUTES = 60; // send reminder 60 minutes before se
 
 
 cron.schedule(CRON_EVERY_5_MIN, async () => {
-    console.log("⏰ Combined reminder cron running...");
+    const mountainNow = moment.tz("America/Edmonton");
+    const hour = mountainNow.hour();
+
+    // Skip cron if time is between 00:00 and 08:00 Mountain Time
+    if (hour >= 23 || hour < 8) {
+        console.log("Cron skipped — Mountain Time outside booking window (00:00–08:00).");
+        return;
+    }
+    console.log(`🕒 Mountain Time Now: ${mountainNow.format("YYYY-MM-DD HH:mm:ss")}`);
+    console.log("Combined reminder cron running...");
 
     try {
-        console.log("🔍 Checking for service start reminders...");
 
-        const [serviceRows] = await db.query(
-            `
+        // REMOVE all timezone logic from SQL (too risky)
+        const [serviceRows] = await db.query(`
             SELECT
                 sb.booking_id,
                 sb.user_id,
                 sb.vendor_id,
+                CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                u.email AS user_email,
+                u.address AS bookingAddress,
                 v.vendorType,
                 sb.bookingDate,
                 sb.bookingTime,
-                CONCAT(u.firstName, ' ', u.lastName) AS user_name,
-                u.email AS user_email,
                 CASE WHEN v.vendorType = 'company' THEN comp.companyName ELSE ind.name END AS vendor_name,
                 CASE WHEN v.vendorType = 'company' THEN comp.companyEmail ELSE ind.email END AS vendor_email,
                 e.employee_id,
@@ -35,75 +44,105 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
             LEFT JOIN individual_details ind ON ind.vendor_id = v.vendor_id
             LEFT JOIN company_employees e ON e.employee_id = sb.assigned_employee_id
             WHERE sb.bookingStatus = 1
-              AND TIMESTAMP(CONCAT(sb.bookingDate, ' ', sb.bookingTime))
-                    BETWEEN NOW() AND NOW() + INTERVAL 10 MINUTE
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM notifications n
-                  WHERE n.title = 'Service starting soon'
-                    AND JSON_EXTRACT(n.data, '$.booking_id') = sb.booking_id
-                    AND n.sent_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
-              )
-            `,
-            [SERVICE_START_REMINDER_MINUTES]
-        );
+        `);
 
         for (const b of serviceRows) {
-            const startMoment = moment(`${b.bookingDate} ${b.bookingTime}`, "YYYY-MM-DD HH:mm:ss");
-            const notifData = { booking_id: b.booking_id, user_id: b.user_id, vendor_id: b.vendor_id };
+            // Defensive: ensure values exist
+            if (!b.bookingDate || !b.bookingTime) {
+                console.log(`⚠️ Skipping booking ${b.booking_id} — missing date/time`, b.bookingDate, b.bookingTime);
+                continue;
+            }
 
-            // ---------------- EMAIL TEMPLATES ----------------
+            // Normalize date (strip any time or timezone that may be in bookingDate)
+            const dateStr = moment(b.bookingDate).isValid()
+                ? moment(b.bookingDate).format("YYYY-MM-DD")
+                : null;
+
+            // Normalize time (ensure HH:mm:ss)
+            // If bookingTime might include timezone or extra chars, parse then format.
+            const timeStr = moment(b.bookingTime, ["HH:mm:ss", "HH:mm", moment.ISO_8601], true).isValid()
+                ? moment(b.bookingTime, ["HH:mm:ss", "HH:mm", moment.ISO_8601]).format("HH:mm:ss")
+                : null;
+
+            if (!dateStr || !timeStr) {
+                console.log(`Invalid date/time for booking ${b.booking_id}, skipping.`);
+                continue;
+            }
+
+            // Build a strict datetime string and parse in Mountain Time
+            const combined = `${dateStr} ${timeStr}`; // e.g. "2025-08-01 11:30:00"
+            const bookingStartMT = moment.tz(combined, "YYYY-MM-DD HH:mm:ss", "America/Edmonton");
+
+            if (!bookingStartMT.isValid()) {
+                console.log(`bookingStartMT invalid for booking ${b.booking_id}:`, combined);
+                continue;
+            }
+
+            const diffMinutes = bookingStartMT.diff(mountainNow, "minutes");
+
+            // Trigger window: 60–55 minutes before start
+            if (diffMinutes > 60 || diffMinutes <= 50) {
+                continue; // skip, not in trigger window
+            }
+            console.log(`Booking #${b.booking_id} starts in ${diffMinutes} minutes → REMINDER WILL BE SENT`);
+
+            // Format start time for email
+            const startTime = bookingStartMT.format("DD MMM YYYY [at] hh:mm A");
+
+            const notifData = {
+                booking_id: b.booking_id,
+                user_id: b.user_id,
+                vendor_id: b.vendor_id
+            };
+
+            // Check for duplicate notifications (within 2 hours)
+            const [existing] = await db.query(
+                `
+                SELECT notification_id FROM notifications 
+                WHERE title='Service starting soon'
+                AND JSON_EXTRACT(data, '$.booking_id')=?
+                AND sent_at >= DATE_SUB(NOW(), INTERVAL 2 HOUR)
+                `,
+                [b.booking_id]
+            );
+
+            if (existing.length > 0) {
+                console.log(`Already sent reminder for booking ${b.booking_id}, skipping.`);
+                continue;
+            }
+
+            // --- EMAIL BODY ---
             const emailBodies = {
-                // user: {
-                //     subject: "Your service starts soon!",
-                //     html: `
-                //         <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                //             <h2>Hello ${b.user_name || `User #${b.user_id}`},</h2>
-                //             <p>Your booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startMoment}</strong>.</p>
-                //         </div>
-                //     `
-                // },
                 vendor: {
-                    subject: "Upcoming booking to serve",
+                    subject: "Upcoming Booking Reminder",
                     html: `
-                        <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                            Hi ${b.vendor_name || `Vendor #${b.vendor_id}`},<br/><br/>
-                            Booking <strong>#${b.booking_id}</strong> starts soon — <strong>${startMoment}</strong>.
+                        <div style="font-family: Arial; max-width: 650px; margin:auto; padding:20px; border:1px solid #e6e6e6; border-radius:8px;">
+                            <p>Hi <strong>${b.vendor_name}</strong>,</p>
+                            <p>This is a reminder that a booking will start soon.</p>
+                            <p>
+                                <strong>Booking Details:</strong><br/>
+                                • Booking ID: #${b.booking_id}<br/>
+                                • Customer: ${b.userName}<br/>
+                                • Start Time: ${startTime}<br/>
+                                • Location: ${b.bookingAddress}
+                            </p>
+                            <p>Please be prepared and reach on time.</p>
+                            <p>- Homiqly Team</p>
                         </div>
                     `
                 },
                 employee: {
                     subject: "Assigned booking starts soon",
                     html: `
-                        <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-                            Hi ${b.employee_name || `Employee #${b.employee_id}`},<br/><br/>
-                            You are assigned to booking <strong>#${b.booking_id}</strong> starting — <strong>${startMoment}</strong>.
+                        <div style="font-family: Arial; max-width: 650px; margin:auto; padding:20px; border:1px solid #e6e6e6; border-radius:8px;">
+                            <p>Hi ${b.employee_name},</p>
+                            <p>You are assigned to booking <strong>#${b.booking_id}</strong> starting at <strong>${startTime}</strong>.</p>
                         </div>
                     `
                 }
             };
 
-            // ---------------- USER EMAIL ----------------
-            // try {
-            //     await sendMail({
-            //         to: b.user_email,
-            //         subject: emailBodies.user.subject,
-            //         bodyHtml: emailBodies.user.html,
-            //         layout: "vendorNotificationMail"
-            //     });
-
-            //     await db.query(
-            //         `INSERT INTO notifications (user_type, user_id, title, body, data, is_read, sent_at)
-            //          VALUES ('users', ?, 'Service starting soon', ?, ?, 0, NOW())`,
-            //         [b.user_id, `Your booking starts soon — ${startTime}`, JSON.stringify(notifData)]
-            //     );
-
-            //     console.log(`✅ User reminder sent for booking ${b.booking_id}`);
-            // } catch (e) {
-            //     console.log(`❌ User email error for booking ${b.booking_id}:`, e.message);
-            // }
-
-            // ---------------- VENDOR EMAIL ----------------
+            // Send VENDOR EMAIL
             try {
                 await sendMail({
                     to: b.vendor_email,
@@ -120,10 +159,10 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 
                 console.log(`✅ Vendor reminder sent for booking ${b.booking_id}`);
             } catch (e) {
-                console.log(`❌ Vendor email error for booking ${b.booking_id}:`, e.message);
+                console.log(`❌ Vendor email error:`, e.message);
             }
 
-            // ---------------- EMPLOYEE EMAIL ----------------
+            // COMPANY EMPLOYEE EMAIL
             if (b.vendorType === "company" && b.employee_id) {
                 try {
                     await sendMail({
@@ -141,7 +180,7 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
 
                     console.log(`✅ Employee reminder sent for booking ${b.booking_id}`);
                 } catch (e) {
-                    console.log(`❌ Employee email error for booking ${b.booking_id}:`, e.message);
+                    console.log(`❌ Employee email error:`, e.message);
                 }
             }
         }
@@ -151,8 +190,10 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
     }
 });
 
+
+
 // Email function (non-blocking)
-const sendPromoEmail = async (userEmail, promoCode) => {
+const sendPromoEmail = async (userEmail, user_name, promoCode) => {
     try {
         const subject = `You've received a new promo code!`
 
@@ -214,6 +255,7 @@ cron.schedule("0 0 * * *", async () => {
                 `SELECT
                  service_booking.user_id,
                  email,
+                 CONCAT(firstName, ' ', lastName) AS user_name,
                  COUNT(*) as completed_count
                  FROM service_booking
                  JOIN users ON users.user_id = service_booking.user_id
@@ -240,7 +282,7 @@ cron.schedule("0 0 * * *", async () => {
                 console.log(`✅ Assigned promo ${promo.code} to user ${user.user_id}`);
 
                 // Send email asynchronously without waiting
-                sendPromoEmail(user.email, promo.code, promo.discountValue);
+                sendPromoEmail(user.email, user.user_name, promo.code, promo.discountValue);
             }
         }
     } catch (err) {

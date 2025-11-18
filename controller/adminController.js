@@ -581,7 +581,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -721,7 +720,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
-
 
 const getPackageList = asyncHandler(async (req, res) => {
     try {
