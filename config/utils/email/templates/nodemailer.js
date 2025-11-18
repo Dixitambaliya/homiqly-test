@@ -200,9 +200,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
     `;
     } else if (layout === "adminCode") {
         headerHtml = `
-    < div style = "background-color: #000000; text-align: center; padding: 40px 0 50px;" >
-
-    < !--Top White Homiqly Logo-- >
+    <div style = "background-color: #000000; text-align: center; padding: 40px 0 50px;">
     <div style="width: 140px; margin: 0 auto 25px;">
       <img src="https://www.homiqly.codegrin.com/public/Homiqly_Transparent_White.png" alt="Homiqly Logo"
            style="width: 140px; height: auto; display: block; margin: 0 auto;" />
@@ -226,7 +224,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
         alt="Homiqly Offer Image"
         style="width: 80%; max-width: 500px; height: auto; display: block; margin: 30px auto 0; border-radius: 10px;" />
 
-  </div >
+  </div>
     `;
 
     }

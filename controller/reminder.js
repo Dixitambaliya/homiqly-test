@@ -190,8 +190,6 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
     }
 });
 
-
-
 // Email function (non-blocking)
 const sendPromoEmail = async (userEmail, user_name, promoCode) => {
     try {
@@ -202,13 +200,13 @@ const sendPromoEmail = async (userEmail, user_name, promoCode) => {
             font-family: Arial, sans-serif; background-color: #000;">
 
 
-            <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+            <p style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
                 <strong>Hi ${user_name || "there"},</strong><br><br>
                 Great news! You’ve just completed the minimum number of bookings required to unlock your special reward on Homiqly.
                 We appreciate your trust in our at-home beauty services.
             </p>
 
-            <p style="margin-bottom: 10px; font-size: 15px;">
+            <p style="margin-bottom: 10px; font-size: 14px;">
                 As a thank-you for reaching this milestone, your reward is now active on your account.
                 You can apply it automatically on your next eligible booking—no extra steps needed.
             </p>
@@ -243,6 +241,7 @@ const sendPromoEmail = async (userEmail, user_name, promoCode) => {
 
 // Cron job at midnight daily
 cron.schedule("0 0 * * *", async () => {
+    // cron.schedule("*/10 * * * * *", async () => {
     console.log("🔄 Running promo assignment cron job at midnight...");
 
     try {
@@ -288,4 +287,5 @@ cron.schedule("0 0 * * *", async () => {
     } catch (err) {
         console.error("❌ Error in promo cron job:", err.message);
     }
-});
+}
+);
