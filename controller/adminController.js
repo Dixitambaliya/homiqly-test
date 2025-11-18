@@ -6,7 +6,7 @@ const adminPutQueries = require("../config/adminQueries/adminPutQueries");
 const bookingGetQueries = require('../config/bookingQueries/bookingGetQueries');
 const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-const { sendVendorAssignedPackagesEmail , sendManualAssignmentMail} = require("../config/utils/email/mailer");
+const { sendVendorAssignedPackagesEmail, sendManualAssignmentMail } = require("../config/utils/email/mailer");
 
 
 const getAdminProfile = asyncHandler(async (req, res) => {
@@ -1682,61 +1682,60 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 });
 
 const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
-  const admin_id = req.user.admin_id;
-  const { vendor_id } = req.params;
-  const { status, note } = req.body;
+    const admin_id = req.user.admin_id;
+    const { vendor_id } = req.params;
+    const { status, note } = req.body;
 
-  if (!admin_id) {
-    return res.status(403).json({ message: "Only admins can perform this action" });
-  }
+    if (!admin_id) {
+        return res.status(403).json({ message: "Only admins can perform this action" });
+    }
 
-  if (!vendor_id) {
-    return res.status(400).json({ message: "vendor_id is required" });
-  }
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
 
-  if (![0, 1].includes(status)) {
-    return res.status(400).json({ message: "status must be 0 (off) or 1 (on)" });
-  }
+    if (![0, 1].includes(status)) {
+        return res.status(400).json({ message: "status must be 0 (off) or 1 (on)" });
+    }
 
-  try {
-    // 1️⃣ Update vendor setting
-    await db.query(`
+    try {
+        // 1️⃣ Update vendor setting
+        await db.query(`
       INSERT INTO vendor_settings (vendor_id, manual_assignment_enabled)
       VALUES (?, ?)
       ON DUPLICATE KEY UPDATE
           manual_assignment_enabled = VALUES(manual_assignment_enabled)
     `, [vendor_id, status]);
 
-    // 2️⃣ Create admin notification (optional)
-    try {
-      const messageText = `Admin has turned manual assignment ${status === 1 ? 'ON (enabled)' : 'OFF (disabled)'} for Vendor ID ${vendor_id}. ${note ? "Note: " + note : ""}`;
-      await db.query(`
+        // 2️⃣ Create admin notification (optional)
+        try {
+            const messageText = `Admin has turned manual assignment ${status === 1 ? 'ON (enabled)' : 'OFF (disabled)'} for Vendor ID ${vendor_id}. ${note ? "Note: " + note : ""}`;
+            await db.query(`
         INSERT INTO notifications (title, body, is_read, sent_at, user_type)
         VALUES (?, ?, 0, NOW(), 'admin')
       `, [
-        'Vendor Manual Assignment Update',
-        messageText
-      ]);
+                'Vendor Manual Assignment Update',
+                messageText
+            ]);
+        } catch (err) {
+            console.error("⚠️ Failed to create admin notification:", err);
+        }
+
+        // 3️⃣ Send external mail
+        await sendManualAssignmentMail(vendor_id, status, note);
+
+        res.status(200).json({
+            message: `Manual assignment for vendor ${vendor_id} is now ${status === 1 ? 'ON (enabled)' : 'OFF (disabled)'}`,
+            vendor_id,
+            manual_assignment_enabled: status,
+            note: note || null
+        });
+
     } catch (err) {
-      console.error("⚠️ Failed to create admin notification:", err);
+        console.error("❌ Error toggling manual vendor assignment:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
     }
-
-    // 3️⃣ Send external mail
-    await sendManualAssignmentMail(vendor_id, status, note);
-
-    res.status(200).json({
-      message: `Manual assignment for vendor ${vendor_id} is now ${status === 1 ? 'ON (enabled)' : 'OFF (disabled)'}`,
-      vendor_id,
-      manual_assignment_enabled: status,
-      note: note || null
-    });
-
-  } catch (err) {
-    console.error("❌ Error toggling manual vendor assignment:", err);
-    res.status(500).json({ message: "Internal server error", error: err.message });
-  }
 });
-
 
 const removeVendorPackageByAdmin = asyncHandler(async (req, res) => {
     // ✅ Assumes admin authentication and authorization middleware already applied

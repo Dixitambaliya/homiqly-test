@@ -54,12 +54,28 @@ const registerVendor = async (req, res) => {
         }
 
         let hashedPassword = null;
+        // Password validation (required only for individual vendors)
         if (vendorType.toLowerCase() === "individual") {
+
+            // Require password
             if (!password) {
                 return res.status(400).json({ error: "Password is required for individual vendors." });
             }
+
+            // Strong password regex:
+            const passwordRegex =
+                /^(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&*!])[A-Za-z\d@#$%^&*!]{8,}$/;
+
+            if (!passwordRegex.test(password)) {
+                return res.status(400).json({
+                    error:
+                        "Password must be at least 8 characters long, include special character (@#$%^&*!)."
+                });
+            }
+
             hashedPassword = await bcrypt.hash(password, 10);
         }
+
 
         // Insert vendor
         const [vendorRes] = await conn.query(vendorAuthQueries.insertVendor, [vendorType, hashedPassword]);
