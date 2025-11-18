@@ -270,34 +270,31 @@ const updateUserData = asyncHandler(async (req, res) => {
 
         const existing = existingRows[0];
 
-        // Normalize DB boolean values
-        const isApproved = Number(existing.is_approved);
-
         // ==== PHONE VALIDATION ====
         let updatedPhone = existing.phone;
 
-        if (phone && phone === existing.phone) {
+        if (phone && phone !== existing.phone) {
 
-            // ❗ FIXED: Convert is_approved to number before checking
-            if (isApproved === 0) {
+            // Normalize input
+            const normalizedInputPhone = normalizePhone(phone);
+
+            if (!normalizedInputPhone) {
                 return res.status(400).json({
-                    message: "Please verify the phone number before updating your profile.",
+                    message: "Invalid phone number format.",
                 });
             }
 
-            // Normalize phone
-            const normalizedInputPhone = normalizePhone(phone);
-
-            const [allUsers] = await db.query("SELECT user_id, phone FROM users");
+            // Get all other users' phones or use a direct query (see below)
+            const [allUsers] = await db.query(
+                "SELECT user_id, phone FROM users WHERE user_id != ?",
+                [user_id]
+            );
 
             const matchedByDigits = allUsers.find(u => {
                 const normalizedDbPhone = normalizePhone(u.phone);
                 return (
                     normalizedDbPhone &&
-                    normalizedInputPhone &&
-                    normalizedDbPhone === normalizedInputPhone &&
-                    u.user_id !== user_id &&
-                    u.phone !== phone
+                    normalizedDbPhone === normalizedInputPhone
                 );
             });
 
