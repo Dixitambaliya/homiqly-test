@@ -93,6 +93,7 @@ const editAdminProfile = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         // 📄 Pagination setup
@@ -120,6 +121,7 @@ const getVendor = asyncHandler(async (req, res) => {
                     v.individual_name LIKE ? OR
                     v.individual_email LIKE ? OR
                     v.individual_phone LIKE ? OR
+                    v.is_authenticated LIKE ? OR
                     v.company_companyName LIKE ? OR
                     v.company_companyEmail LIKE ? OR
                     v.company_companyPhone LIKE ?;
@@ -134,6 +136,7 @@ const getVendor = asyncHandler(async (req, res) => {
                     v.individual_name LIKE ? OR
                     v.individual_email LIKE ? OR
                     v.individual_phone LIKE ? OR
+                    v.is_authenticated LIKE ? OR
                     v.company_companyName LIKE ? OR
                     v.company_companyEmail LIKE ? OR
                     v.company_companyPhone LIKE ?;
@@ -220,6 +223,7 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
