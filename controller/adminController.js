@@ -145,13 +145,13 @@ const getVendor = asyncHandler(async (req, res) => {
 
         // 🧾 Query execution
         const queryParams = search
-            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
+            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
             : [limit, offset];
 
         const [vendors] = await db.query(vendorQuery, queryParams);
 
         const countParams = search
-            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
+            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
             : [];
         const [[{ totalCount }]] = await db.query(countQuery, countParams);
 
