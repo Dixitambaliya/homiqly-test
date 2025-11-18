@@ -105,54 +105,106 @@ const getVendor = asyncHandler(async (req, res) => {
         const search = req.query.search?.trim() || null;
         const searchLike = `%${search}%`;
 
+        // 🆔 Optional is_authenticated filter
+        const status = req.query.status;
+
         // 🧠 Base query templates
         let baseVendorQuery = adminGetQueries.vendorDetails;
-        let vendorQuery = baseVendorQuery + ` LIMIT ? OFFSET ?`;
+        let vendorQuery = baseVendorQuery;
         let countQuery = `SELECT COUNT(*) AS totalCount FROM vendors`;
 
-        // ✅ UNIVERSAL SEARCH (ignores pagination)
-        if (search) {
-            vendorQuery = `
-                SELECT v.*
-                FROM (
-                    ${adminGetQueries.vendorDetails}
-                    ) AS v
-                    WHERE
-                    v.individual_name LIKE ? OR
-                    v.individual_email LIKE ? OR
-                    v.individual_phone LIKE ? OR
-                    v.is_authenticated LIKE ? OR
-                    v.company_companyName LIKE ? OR
-                    v.company_companyEmail LIKE ? OR
-                    v.company_companyPhone LIKE ?;
-                    `;
-
-            countQuery = `
-                SELECT COUNT(*) AS totalCount
-                FROM (
-                    ${adminGetQueries.vendorDetails}
-                ) AS v
-                WHERE
-                    v.individual_name LIKE ? OR
-                    v.individual_email LIKE ? OR
-                    v.individual_phone LIKE ? OR
-                    v.is_authenticated LIKE ? OR
-                    v.company_companyName LIKE ? OR
-                    v.company_companyEmail LIKE ? OR
-                    v.company_companyPhone LIKE ?;
-            `;
+        // 👀 Add status filter to base query if specified
+        if (status !== undefined) {
+            baseVendorQuery += ` WHERE is_authenticated = ?`;
+            countQuery += ` WHERE is_authenticated = ?`;
         }
 
-        // 🧾 Query execution
-        const queryParams = search
-            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
-            : [limit, offset];
+        vendorQuery = baseVendorQuery + ` LIMIT ? OFFSET ?`;
+
+        // ✅ UNIVERSAL SEARCH (ignores pagination, includes status filter)
+        if (status !== undefined) {
+            vendorQuery = `
+            SELECT *
+            FROM (
+            ${adminGetQueries.vendorDetails}
+            ) AS vendorBase
+            WHERE vendorBase.is_authenticated = ?
+            LIMIT ? OFFSET ?
+        `;
+            countQuery = `
+            SELECT COUNT(*) AS totalCount
+            FROM (
+            ${adminGetQueries.vendorDetails}
+            ) AS vendorBase
+            WHERE vendorBase.is_authenticated = ?
+        `;
+        } else {
+            vendorQuery = `
+            SELECT *
+            FROM (
+            ${adminGetQueries.vendorDetails}
+            ) AS vendorBase
+            LIMIT ? OFFSET ?
+        `;
+            countQuery = `
+            SELECT COUNT(*) AS totalCount
+            FROM (
+            ${adminGetQueries.vendorDetails}
+            ) AS vendorBase
+        `;
+        }
+        if (search) {
+            vendorQuery = `
+            SELECT *
+            FROM (
+            ${adminGetQueries.vendorDetails}
+            ) AS vendorBase
+            WHERE (
+            vendorBase.individual_name LIKE ? OR
+            vendorBase.individual_email LIKE ? OR
+            vendorBase.individual_phone LIKE ? OR
+            vendorBase.is_authenticated LIKE ? OR
+            vendorBase.company_companyName LIKE ? OR
+            vendorBase.company_companyEmail LIKE ? OR
+            vendorBase.company_companyPhone LIKE ?
+            )
+            ${status !== undefined ? ' AND vendorBase.is_authenticated = ?' : ''}
+        `;
+            countQuery = `
+            SELECT COUNT(*) AS totalCount
+            FROM (
+            ${adminGetQueries.vendorDetails}
+            ) AS vendorBase
+            WHERE (
+            vendorBase.individual_name LIKE ? OR
+            vendorBase.individual_email LIKE ? OR
+            vendorBase.individual_phone LIKE ? OR
+            vendorBase.is_authenticated LIKE ? OR
+            vendorBase.company_companyName LIKE ? OR
+            vendorBase.company_companyEmail LIKE ? OR
+            vendorBase.company_companyPhone LIKE ?
+            )
+            ${status !== undefined ? ' AND vendorBase.is_authenticated = ?' : ''}
+        `;
+        }
+
+
+        // 🧾 Query execution: set params based on filter mode
+        let queryParams, countParams;
+        if (search) {
+            queryParams = [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike];
+            if (status !== undefined) queryParams.push(status);
+
+            countParams = [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike];
+            if (status !== undefined) countParams.push(status);
+        } else {
+            queryParams = status !== undefined
+                ? [status, limit, offset]
+                : [limit, offset];
+            countParams = status !== undefined ? [status] : [];
+        }
 
         const [vendors] = await db.query(vendorQuery, queryParams);
-
-        const countParams = search
-            ? [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike]
-            : [];
         const [[{ totalCount }]] = await db.query(countQuery, countParams);
 
         // 🧠 Process each vendor
