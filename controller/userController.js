@@ -768,7 +768,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         );
 
         if (!packageInfo) {
-            return res.status(404).json({ message: "Package not found" });
+            return res.status(200).json({ message: "Package not found" });
         }
 
         // 3️⃣ Apply city filter ONLY when user_id exists
