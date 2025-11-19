@@ -47,7 +47,7 @@ const employeeGetQueries = {
                 u.email AS userEmail,
                 u.phone AS userPhone,
                 u.address AS userAddress,
-                u.state AS userState,
+                u.city AS userState,
                 u.postalcode AS userPostalCode,
                 u.flatNumber AS userFlatNumber,
                 u.parkingInstruction AS userParkingInstructions
