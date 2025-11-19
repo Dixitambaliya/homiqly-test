@@ -785,7 +785,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             // User has selected a city
             if (userSelectedCity) {
                 if (packageCity !== userSelectedCity) {
-                    return res.status(404).json({
+                    return res.status(200).json({
                         message: `This package is not available in your city (${userCity})`
                     });
                 }
@@ -794,7 +794,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             else {
                 // Block packages that have a city
                 if (packageCity) {
-                    return res.status(404).json({
+                    return res.status(200).json({
                         message: "Please select your city to view available packages"
                     });
                 }
