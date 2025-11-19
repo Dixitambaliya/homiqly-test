@@ -1067,6 +1067,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -1096,6 +1097,55 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 `UPDATE packages SET packageName = ?, packageMedia = ?, serviceLocation = ? WHERE package_id = ?`,
                 [pkg.packageName ?? oldPackage.packageName, packageMedia, pkg.serviceLocation ?? oldPackage.serviceLocation, package_id]
             );
+
+            // --- HANDLE MULTIPLE SERVICE LOCATIONS --- //
+            let locations = pkg.serviceLocation;
+
+            // Convert to array if Postman sends JSON string
+            if (typeof locations === "string") {
+                try {
+                    locations = JSON.parse(locations);
+                } catch {
+                    locations = [];
+                }
+            }
+
+            if (!Array.isArray(locations)) {
+                locations = [];
+            }
+
+            // 1) Fetch existing cities in DB
+            const [existingLocations] = await connection.query(
+                `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
+                [package_id]
+            );
+
+            const oldCities = existingLocations.map(row => row.serviceLocation);
+
+            // 2) Find cities to ADD and REMOVE
+            const newCities = locations.map(c => c.trim());
+
+            const citiesToAdd = newCities.filter(c => !oldCities.includes(c));
+            const citiesToDelete = oldCities.filter(c => !newCities.includes(c));
+
+            // 3) Add new cities
+            for (let city of citiesToAdd) {
+                await connection.query(
+                    `INSERT INTO package_locations (package_id, serviceLocation) VALUES (?, ?)`,
+                    [package_id, city]
+                );
+            }
+
+            // 4) Delete removed cities
+            if (citiesToDelete.length > 0) {
+                await connection.query(
+                    `DELETE FROM package_locations 
+                    WHERE package_id = ? 
+                    AND serviceLocation IN (?)`,
+                    [package_id, citiesToDelete]
+                );
+            }
+
 
             // Handle sub-packages
             if (!Array.isArray(pkg.sub_packages)) continue;
@@ -1288,6 +1338,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;

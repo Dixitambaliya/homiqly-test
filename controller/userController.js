@@ -728,8 +728,9 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                 p.package_id,
                 p.packageName,
                 p.packageMedia,
-                p.serviceLocation
+                pl.serviceLocation
              FROM packages p
+             LEFT JOIN package_locations pl ON pl.package_id = p.package_id
              WHERE p.service_type_id = ?`,
             [service_type_id]
         );
@@ -806,7 +807,11 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         }
         // 2️⃣ Always fetch package location
         const [[packageInfo]] = await db.query(
-            `SELECT serviceLocation FROM packages WHERE package_id = ?`,
+            `SELECT 
+                pl.serviceLocation 
+                FROM packages 
+                LEFT JOIN package_locations pl ON pl.package_id = packages.package_id
+                WHERE package_id = ?`,
             [package_id]
         );
 
