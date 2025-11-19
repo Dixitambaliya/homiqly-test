@@ -4,7 +4,8 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs")
 const asyncHandler = require("express-async-handler");
 const bookingGetQueries = require("../config/bookingQueries/bookingGetQueries");
-const { sendReviewRequestMail } = require ("../config/utils/email/mailer")
+const moment = require("moment-timezone");
+const { sendReviewRequestMail } = require("../config/utils/email/mailer")
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
@@ -283,6 +284,14 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
+        // Step A: Update last access timestamp (Mountain Time)
+        const mountainTime = moment().tz("America/Denver").format("YYYY-MM-DD HH:mm:ss");
+
+        await db.query(
+            `UPDATE vendors SET last_access = ? WHERE vendor_id = ?`,
+            [mountainTime, vendor_id]
+        );
+
         // Step 1: Fetch profile
         const [rows] = await db.query(vendorGetQueries.getProfileVendor, [vendor_id]);
 
@@ -310,7 +319,10 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         // Step 5: Attach cleaned certificates
         profile.certificates = certificates;
 
-        // Step 6: Send response
+        // Step 6: Also attach the last_access time we just updated
+        profile.last_access = mountainTime;
+
+        // Step 7: Send response
         res.status(200).json({
             message: "Vendor profile fetched successfully",
             profile

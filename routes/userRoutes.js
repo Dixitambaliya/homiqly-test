@@ -4,6 +4,8 @@ const router = express.Router()
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { getServiceCategories,
     getServiceByCategory,
+    addCity,
+    getCity,
     getServiceNames,
     getServicestypes,
     getServiceTypesByServiceId,
@@ -23,6 +25,8 @@ const { upload, handleUploads } = require("../middleware/upload");
 const multiUpload = upload.any();
 
 router.get("/service", getServiceCategories)
+router.post("/addcity", authenticationToken, addCity)
+router.get("/getcity", authenticationToken, getCity)
 router.get("/servicesbycategories", getServiceByCategory)
 router.get("/services/:service_id/servicetype", getServiceNames)
 router.get("/services/:service_id/allservicetypes", getServiceTypesByServiceId)
@@ -33,7 +37,7 @@ router.get("/getpackagedetails/:service_type_id", getPackagesDetails)
 router.get("/services/:service_type_id/packages", getPackagesByServiceTypeId)
 router.get("/getdatawithcart/:cart_id", authenticationToken, getUserProfileWithCart)
 router.get("/services/:service_type_id/getpackageimages", getPackagesByServiceType)
-router.get("/services/:package_id/getpackagedetails", getPackageDetailsById)
+router.get("/services/:package_id/getpackagedetails",authenticationToken, getPackageDetailsById)
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
 router.put("/insertdata", authenticationToken, addUserData)
 router.put("/changepassword", authenticationToken, changeUserPassword)

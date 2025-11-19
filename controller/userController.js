@@ -251,6 +251,56 @@ const getUserData = asyncHandler(async (req, res) => {
     }
 });
 
+const addCity = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+    const { cityName } = req.body;
+
+    try {
+        // Update user's city only
+        await db.query(
+            `UPDATE users SET city = ? WHERE user_id = ?`,
+            [cityName, user_id]
+        );
+
+        res.status(200).json({
+            message: "City updated successfully"
+        });
+
+    } catch (err) {
+        console.error("Error updating city:", err);
+        res.status(500).json({
+            error: "Database error",
+            details: err.message
+        });
+    }
+});
+
+const getCity = asyncHandler(async (req, res) => {
+    const user_id = req.user.user_id;
+
+    try {
+        const [[row]] = await db.query(
+            `SELECT city FROM users WHERE user_id = ?`,
+            [user_id]
+        );
+
+        if (!row || !row.city) {
+            return res.status(200).json({ message: "Please add city" });
+        }
+
+        return res.status(200).json({
+            city: row.city
+        });
+
+    } catch (err) {
+        console.error("Error getting city:", err);
+        return res.status(500).json({
+            error: "Database error",
+            details: err.message
+        });
+    }
+});
+
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { firstName, lastName, email, phone } = req.body;
@@ -693,11 +743,38 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
+    const user_id = req.user.user_id;
 
     try {
-        // 1️⃣ Fetch package + subpackages + related data
+        // 1️⃣ Get user's city
+        const [[user]] = await db.query(
+            `SELECT city FROM users WHERE user_id = ?`,
+            [user_id]
+        );
+
+        // 2️⃣ Get package location
+        const [[packageInfo]] = await db.query(
+            `SELECT serviceLocation FROM packages WHERE package_id = ?`,
+            [package_id]
+        );
+
+        if (!packageInfo) {
+            return res.status(404).json({ message: "Package not found" });
+        }
+
+        // 3️⃣ Apply city filter only if user has selected a city
+        if (user && user.city) {
+            if (packageInfo.serviceLocation !== user.city) {
+                return res.status(404).json({
+                    message: `This package is not available in your city (${user.city})`
+                });
+            }
+        }
+
+        // 4️⃣ Fetch package + subpackages + related data
         const [rows] = await db.query(
             `SELECT
                 p.package_id,
@@ -739,7 +816,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
-        // 2️⃣ Fetch average rating per sub_package that has booking data in service_booking_sub_packages
+        // 5️⃣ Fetch average rating per sub_package
         const [ratingRows] = await db.query(
             `SELECT
                 sbsp.sub_package_id,
@@ -753,7 +830,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             [package_id]
         );
 
-        // Map ratings by sub_package_id
         const ratingMap = {};
         ratingRows.forEach(r => {
             ratingMap[r.sub_package_id] = {
@@ -762,7 +838,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             };
         });
 
-        // 3️⃣ Build structured response
+        // 6️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
@@ -849,6 +925,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -1169,5 +1246,7 @@ module.exports = {
     getPackagesByServiceType,
     getPackageDetailsById,
     changeUserPassword,
-    getUserProfileWithCart
+    getUserProfileWithCart,
+    addCity,
+    getCity
 }

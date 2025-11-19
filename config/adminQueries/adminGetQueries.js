@@ -5,6 +5,7 @@ const adminGetQueries = {
         v.vendor_id,
         v.vendorType,
         v.is_authenticated,
+        v.last_access,
 
         -- Individual Vendor Details
         i.vendor_id AS individual_id,

@@ -93,7 +93,6 @@ const editAdminProfile = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendor = asyncHandler(async (req, res) => {
     try {
         // 📄 Pagination setup
@@ -275,7 +274,6 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
@@ -686,17 +684,17 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             if (pkg.packageName && packageImage) {
                 // Create package normally if both name and image exist
                 const [pkgInsert] = await connection.query(
-                    `INSERT INTO packages (service_type_id, packageName, packageMedia)
-                     VALUES (?, ?, ?)`,
-                    [serviceTypeId, pkg.packageName, packageImage]
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia,serviceLocation)
+                     VALUES (?, ?, ?, ?)`,
+                    [serviceTypeId, pkg.packageName, packageImage, pkg.serviceLocation]
                 );
                 packageId = pkgInsert.insertId;
             } else {
                 // Missing name or image → create a default package
                 const [pkgInsert] = await connection.query(
-                    `INSERT INTO packages (service_type_id, packageName, packageMedia)
-                     VALUES (?, ?, ?)`,
-                    [serviceTypeId, null, null]
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia, serviceLocation)
+                     VALUES (?, ?, ?, ?)`,
+                    [serviceTypeId, null, null, pkg.serviceLocation]
                 );
                 packageId = pkgInsert.insertId;
             }
