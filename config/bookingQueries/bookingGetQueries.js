@@ -23,7 +23,7 @@ const bookingGetQueries = {
     u.profileImage AS userProfileImage,
     u.address AS userAddress,
     u.flatNumber AS userFlatNumber,
-    u.state AS userState,
+    u.city AS userState,
     u.parkingInstruction AS userParkingInstructions,
     u.postalcode AS userPostalcode,
     e.employee_id AS assignedEmployeeId,
