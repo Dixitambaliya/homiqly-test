@@ -838,45 +838,45 @@ const getPackageDetails = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
     try {
+        // 1️⃣ Fetch main package + all linked data
         const [rows] = await db.query(`
-      SELECT
-        p.package_id,
-        p.packageName,
-        p.packageMedia,
-        p.serviceLocation,
-        pi.item_id AS sub_package_id,
-        pi.itemName AS item_name,
-        pi.description AS sub_description,
-        pi.price AS sub_price,
-        pi.timeRequired AS sub_time_required,
-        pi.itemMedia AS item_media,
-        pa.addon_id,
-        pa.addonName AS addon_name,
-        pa.addonDescription AS addon_description,
-        pa.addonPrice AS addon_price,
-        pa.addonTime AS addon_time_required,
-        pcf.consent_id,
-        pcf.question AS consent_question,
-        pcf.is_required AS consent_is_required,
-        bp.preference_id,
-        bp.preferenceValue,
-        bp.timeRequired,
-        bp.preferencePrice,
-        bp.is_required AS preference_is_required,
-        bp.preferenceGroup
-      FROM packages p
-      LEFT JOIN package_items pi ON pi.package_id = p.package_id
-      LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
-      LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
-      LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
-      WHERE p.package_id = ?
-    `, [package_id]);
+            SELECT
+                p.package_id,
+                p.packageName,
+                p.packageMedia,
+                pi.item_id AS sub_package_id,
+                pi.itemName AS item_name,
+                pi.description AS sub_description,
+                pi.price AS sub_price,
+                pi.timeRequired AS sub_time_required,
+                pi.itemMedia AS item_media,
+                pa.addon_id,
+                pa.addonName AS addon_name,
+                pa.addonDescription AS addon_description,
+                pa.addonPrice AS addon_price,
+                pa.addonTime AS addon_time_required,
+                pcf.consent_id,
+                pcf.question AS consent_question,
+                pcf.is_required AS consent_is_required,
+                bp.preference_id,
+                bp.preferenceValue,
+                bp.timeRequired,
+                bp.preferencePrice,
+                bp.is_required AS preference_is_required,
+                bp.preferenceGroup
+            FROM packages p
+            LEFT JOIN package_items pi ON pi.package_id = p.package_id
+            LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
+            LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
+            LEFT JOIN booking_preferences bp ON bp.package_item_id = pi.item_id
+            WHERE p.package_id = ?
+        `, [package_id]);
 
         if (!rows.length) {
             return res.status(404).json({ message: "Package not found" });
         }
 
-        // ⭐ Fetch multiple cities
+        // 2️⃣ Fetch multiple cities for the package
         const [locationRows] = await db.query(
             `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
             [package_id]
@@ -884,15 +884,16 @@ const getPackageDetails = asyncHandler(async (req, res) => {
 
         const serviceLocations = locationRows.map(row => row.serviceLocation);
 
-        // Map package → subpackages → addons, preferences, consent forms
+        // 3️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName,
             packageMedia: rows[0].packageMedia,
-            serviceLocations,
+            serviceLocations,   // ⭐ Added: multi-city array
             sub_packages: new Map()
         };
 
+        // 4️⃣ Loop through rows → build subpackages, addons, prefs, consent forms
         for (const row of rows) {
             if (row.sub_package_id) {
                 if (!pkg.sub_packages.has(row.sub_package_id)) {
@@ -908,17 +909,19 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                         consentForm: []
                     });
                 }
+
                 const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                // Preferences grouped by preferenceGroup
+                // Preferences (grouped)
                 if (row.preference_id != null) {
-                    const groupKey = row.preferenceGroup;
+                    const groupKey = row.preferenceGroup || "Default";
                     if (!sp.preferences[groupKey]) {
                         sp.preferences[groupKey] = {
                             is_required: row.preference_is_required,
                             items: []
                         };
                     }
+
                     if (!sp.preferences[groupKey].items.some(p => p.preference_id === row.preference_id)) {
                         sp.preferences[groupKey].items.push({
                             preference_id: row.preference_id,
@@ -951,12 +954,13 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             }
         }
 
-        // Convert Map to array
+        // Convert Map → Array
         const result = {
             ...pkg,
             sub_packages: Array.from(pkg.sub_packages.values())
         };
 
+        // 5️⃣ Send response
         res.status(200).json({
             message: "Package details fetched successfully",
             package: result
@@ -967,6 +971,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {

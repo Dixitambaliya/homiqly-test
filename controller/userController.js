@@ -711,78 +711,81 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     try {
         let userCity = null;
 
-        // 1️⃣ If user provided → fetch city
+        // 1️⃣ Fetch user city if logged in
         if (user_id) {
             const [[user]] = await db.query(
                 `SELECT city FROM users WHERE user_id = ?`,
                 [user_id]
             );
-            if (user) {
-                userCity = user.city; // may be null
-            }
+            if (user) userCity = user.city;
         }
 
-        // 2️⃣ Fetch all packages for serviceType
-        const [packages] = await db.query(
-            `SELECT
+        // 2️⃣ Fetch all packages + their locations
+        const [rows] = await db.query(
+            `SELECT 
                 p.package_id,
                 p.packageName,
                 p.packageMedia,
                 pl.serviceLocation
-             FROM packages p
-             LEFT JOIN package_locations pl ON pl.package_id = p.package_id
-             WHERE p.service_type_id = ?`,
+            FROM packages p
+            LEFT JOIN package_locations pl ON p.package_id = pl.package_id
+            WHERE p.service_type_id = ?`,
             [service_type_id]
         );
 
-        if (!packages.length) {
-            return res.status(404).json({ message: "No packages found for this service type" });
+        if (!rows.length) {
+            return res.status(404).json({ message: "No packages found" });
         }
 
-        let filteredPackages = packages;
+        // 3️⃣ Build package → locations[]
+        const pkgMap = new Map();
 
-        // 3️⃣ Apply location filtering ONLY if user_id exists
+        for (const row of rows) {
+            if (!pkgMap.has(row.package_id)) {
+                pkgMap.set(row.package_id, {
+                    package_id: row.package_id,
+                    packageName: row.packageName,
+                    packageMedia: row.packageMedia,
+                    locations: []
+                });
+            }
+
+            // Add locations (convert to lowercase)
+            if (row.serviceLocation) {
+                pkgMap.get(row.package_id).locations.push(row.serviceLocation.toLowerCase());
+            }
+        }
+
+        let packages = Array.from(pkgMap.values());
+
+        // 4️⃣ Apply city filter if user is logged in
         if (user_id) {
             const userCityLower = userCity ? userCity.toLowerCase() : null;
+            packages = packages.filter(pkg => {
+                const locations = pkg.locations;
 
-            filteredPackages = packages.filter(pkg => {
-                const pkgCity = pkg.serviceLocation ? pkg.serviceLocation.toLowerCase() : null;
-
-                // ➤ User has selected a city → allow only matching packages
+                // A) User selected a city → show only packages that contain that city
                 if (userCityLower) {
-                    return pkgCity === userCityLower;
+                    return locations.includes(userCityLower);
                 }
 
-                // ➤ User logged in BUT no city selected → show ONLY packages with no serviceLocation
-                return pkgCity === null;
+                // B) User logged in but NO city selected → show nothing
+                return false;
             });
         }
 
-        // 4️⃣ If no packages left after filtering
-        if (filteredPackages.length === 0) {
+        if (packages.length === 0) {
             return res.status(404).json({ message: "No packages available for your city" });
         }
 
-        // 5️⃣ Format output
-        const formatted = filteredPackages.map(pkg => {
-            if (!pkg.packageName && !pkg.packageMedia) {
-                return { package_id: pkg.package_id };
-            }
-            return {
-                package_id: pkg.package_id,
-                packageName: pkg.packageName,
-                packageMedia: pkg.packageMedia
-            };
-        });
-
         res.status(200).json({
             message: "Packages fetched successfully",
-            packages: formatted
+            packages
         });
 
-    } catch (err) {
-        console.error("Error fetching packages with details:", err);
-        res.status(500).json({ message: "Internal server error", error: err.message });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -791,58 +794,47 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
     const user_id = req.query.user_id || null;
 
-
     try {
         let userCity = null;
 
-        // 1️⃣ If user is logged in → get city
+        // 1️⃣ Get User City
         if (user_id) {
             const [[user]] = await db.query(
                 `SELECT city FROM users WHERE user_id = ?`,
                 [user_id]
             );
-            if (user) {
-                userCity = user.city; // may be null
-            }
+            if (user) userCity = user.city;
         }
-        // 2️⃣ Always fetch package location
-        const [[packageInfo]] = await db.query(
-            `SELECT 
-                pl.serviceLocation 
-                FROM packages 
-                LEFT JOIN package_locations pl ON pl.package_id = packages.package_id
-                WHERE package_id = ?`,
+
+        // 2️⃣ Get ALL cities for this package
+        const [locRows] = await db.query(
+            `SELECT pl.serviceLocation 
+             FROM package_locations pl
+             WHERE pl.package_id = ?`,
             [package_id]
         );
 
-        if (!packageInfo) {
-            return res.status(200).json({ message: "Package not found" });
-        }
+        // normalize package cities
+        const packageCities = locRows
+            .filter(r => r.serviceLocation)
+            .map(r => r.serviceLocation.toLowerCase());
 
-        // 3️⃣ Apply city filter ONLY when user_id exists
+        // 3️⃣ Apply filtering rules
         if (user_id) {
-            // Convert both values to lowercase for case-insensitive matching
-            const packageCity = packageInfo.serviceLocation
-                ? packageInfo.serviceLocation.toLowerCase()
-                : null;
+            const userCityLower = userCity ? userCity.toLowerCase() : null;
 
-            const userSelectedCity = userCity
-                ? userCity.toLowerCase()
-                : null;
-
-            // User has selected a city
-            if (userSelectedCity) {
-                if (packageCity !== userSelectedCity) {
-                    return res.status(200).json({
+            // A) User has selected a city → package must match that city
+            if (userCityLower) {
+                if (!packageCities.includes(userCityLower)) {
+                    return res.status(400).json({
                         message: `This package is not available in your city (${userCity})`
                     });
                 }
             }
-            // User logged in but has NO city selected
+            // B) User logged in but has NO city → block packages that have ANY location
             else {
-                // Block packages that have a city
-                if (packageCity) {
-                    return res.status(200).json({
+                if (packageCities.length > 0) {
+                    return res.status(400).json({
                         message: "Please select your city to view available packages"
                     });
                 }
@@ -897,11 +889,11 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
                 sbsp.sub_package_id,
                 ROUND(AVG(r.rating), 1) AS avgRating,
                 COUNT(r.rating_id) AS reviewCount
-            FROM ratings r
-            LEFT JOIN service_booking_sub_packages sbsp ON r.booking_id = sbsp.booking_id
-            LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-            WHERE pi.package_id = ?
-            GROUP BY sbsp.sub_package_id`,
+             FROM ratings r
+             LEFT JOIN service_booking_sub_packages sbsp ON r.booking_id = sbsp.booking_id
+             LEFT JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+             WHERE pi.package_id = ?
+             GROUP BY sbsp.sub_package_id`,
             [package_id]
         );
 
@@ -913,79 +905,79 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             };
         });
 
-        // Build response
+        // 6️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
             packageMedia: rows[0].packageMedia || null,
             service_type_id: rows[0].service_type_id || null,
+            locations: packageCities,   // ⭐ ADD THIS TOO
             sub_packages: []
         };
 
         const subPackageMap = new Map();
 
         for (const row of rows) {
-            if (row.sub_package_id) {
-                if (!subPackageMap.has(row.sub_package_id)) {
-                    const ratingInfo = ratingMap[row.sub_package_id] || { avgRating: 0, reviewCount: 0 };
+            if (!row.sub_package_id) continue;
 
-                    subPackageMap.set(row.sub_package_id, {
-                        sub_package_id: row.sub_package_id,
-                        item_name: row.item_name,
-                        description: row.sub_description,
-                        item_media: row.item_media,
-                        price: row.sub_price,
-                        time_required: row.sub_time_required,
-                        avgRating: Number(ratingInfo.avgRating),
-                        reviewCount: ratingInfo.reviewCount,
-                        addons: [],
-                        preferences: {},
-                        consentForm: []
+            if (!subPackageMap.has(row.sub_package_id)) {
+                const ratingInfo = ratingMap[row.sub_package_id] || { avgRating: 0, reviewCount: 0 };
+
+                subPackageMap.set(row.sub_package_id, {
+                    sub_package_id: row.sub_package_id,
+                    item_name: row.item_name,
+                    description: row.sub_description,
+                    item_media: row.item_media,
+                    price: row.sub_price,
+                    time_required: row.sub_time_required,
+                    avgRating: Number(ratingInfo.avgRating),
+                    reviewCount: ratingInfo.reviewCount,
+                    addons: [],
+                    preferences: {},
+                    consentForm: []
+                });
+            }
+
+            const sp = subPackageMap.get(row.sub_package_id);
+
+            // Addons
+            if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
+                sp.addons.push({
+                    addon_id: row.addon_id,
+                    addon_name: row.addon_name,
+                    description: row.addon_description,
+                    price: row.addon_price,
+                    time_required: row.time_required
+                });
+            }
+
+            // Preferences
+            if (row.preference_id != null) {
+                const groupName = row.preferenceGroup || "Default";
+                if (!sp.preferences[groupName]) {
+                    sp.preferences[groupName] = {
+                        is_required: row.preference_is_required,
+                        selections: []
+                    };
+                }
+
+                if (!sp.preferences[groupName].selections.some(p => p.preference_id === row.preference_id)) {
+                    sp.preferences[groupName].selections.push({
+                        preference_id: row.preference_id,
+                        preference_value: row.preferenceValue,
+                        time_required: row.time_required,
+                        preference_price: row.preferencePrice,
                     });
                 }
+            }
 
-                const sp = subPackageMap.get(row.sub_package_id);
-
-                // Addons
-                if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
-                    sp.addons.push({
-                        addon_id: row.addon_id,
-                        addon_name: row.addon_name,
-                        description: row.addon_description,
-                        price: row.addon_price,
-                        time_required: row.time_required
-                    });
-                }
-
-                // Preferences
-                if (row.preference_id != null) {
-                    const groupName = row.preferenceGroup || "Default";
-
-                    if (!sp.preferences[groupName]) {
-                        sp.preferences[groupName] = {
-                            is_required: row.preference_is_required,
-                            selections: []
-                        };
-                    }
-
-                    if (!sp.preferences[groupName].selections.some(p => p.preference_id === row.preference_id)) {
-                        sp.preferences[groupName].selections.push({
-                            preference_id: row.preference_id,
-                            preference_value: row.preferenceValue,
-                            time_required: row.time_required,
-                            preference_price: row.preferencePrice,
-                        });
-                    }
-                }
-
-                // Consent forms
-                if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
-                    sp.consentForm.push({
-                        consent_id: row.consent_id,
-                        question: row.consent_question,
-                        is_required: row.consent_is_required
-                    });
-                }
+            // Consent forms
+            if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
+                sp.consentForm.push({
+                    consent_id: row.consent_id,
+                    question: row.consent_question,
+                    is_required: row.consent_is_required
+                });
             }
         }
 
@@ -1001,6 +993,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
