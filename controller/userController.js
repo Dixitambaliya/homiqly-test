@@ -743,7 +743,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
     const { user_id } = req.body || null; // user may NOT exist
@@ -953,9 +952,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
-
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
