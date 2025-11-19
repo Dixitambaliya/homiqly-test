@@ -775,7 +775,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         }
 
         if (packages.length === 0) {
-            return res.status(404).json({ message: "No packages available for your city" });
+            return res.status(200).json({ message: "No packages available for your city" });
         }
 
         res.status(200).json({
@@ -826,7 +826,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             // A) User has selected a city → package must match that city
             if (userCityLower) {
                 if (!packageCities.includes(userCityLower)) {
-                    return res.status(400).json({
+                    return res.status(200).json({
                         message: `This package is not available in your city (${userCity})`
                     });
                 }
@@ -834,7 +834,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             // B) User logged in but has NO city → block packages that have ANY location
             else {
                 if (packageCities.length > 0) {
-                    return res.status(400).json({
+                    return res.status(200).json({
                         message: "Please select your city to view available packages"
                     });
                 }
