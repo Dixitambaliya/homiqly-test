@@ -174,7 +174,7 @@ SELECT
         email,
         phone,
         address,
-        state,
+        city,
         postalcode,
         created_at
             FROM users
