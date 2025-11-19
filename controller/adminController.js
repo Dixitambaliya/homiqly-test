@@ -1104,7 +1104,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             );
 
             // --- HANDLE MULTIPLE SERVICE LOCATIONS --- //
-            let locations = pkg.serviceLocation;
+            let locations = pkg.serviceLocations;
 
             // Convert to array if Postman sends JSON string
             if (typeof locations === "string") {
