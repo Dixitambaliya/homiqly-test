@@ -861,6 +861,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName,
             packageMedia: rows[0].packageMedia,
+            serviceLocation: rows[0].serviceLocation,
             sub_packages: new Map()
         };
 

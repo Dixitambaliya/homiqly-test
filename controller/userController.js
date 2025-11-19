@@ -703,15 +703,32 @@ const deleteBooking = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
+    const user_id = req.query.user_id || null;
 
     try {
+        let userCity = null;
+
+        // 1️⃣ If user provided → fetch city
+        if (user_id) {
+            const [[user]] = await db.query(
+                `SELECT city FROM users WHERE user_id = ?`,
+                [user_id]
+            );
+            if (user) {
+                userCity = user.city; // may be null
+            }
+        }
+
+        // 2️⃣ Fetch all packages for serviceType
         const [packages] = await db.query(
             `SELECT
                 p.package_id,
                 p.packageName,
-                p.packageMedia
+                p.packageMedia,
+                p.serviceLocation
              FROM packages p
              WHERE p.service_type_id = ?`,
             [service_type_id]
@@ -721,27 +738,53 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found for this service type" });
         }
 
-        const formatted = packages.map(pkg => {
+        let filteredPackages = packages;
+
+        // 3️⃣ Apply location filtering ONLY if user_id exists
+        if (user_id) {
+            const userCityLower = userCity ? userCity.toLowerCase() : null;
+
+            filteredPackages = packages.filter(pkg => {
+                const pkgCity = pkg.serviceLocation ? pkg.serviceLocation.toLowerCase() : null;
+
+                // ➤ User has selected a city → allow only matching packages
+                if (userCityLower) {
+                    return pkgCity === userCityLower;
+                }
+
+                // ➤ User logged in BUT no city selected → show ONLY packages with no serviceLocation
+                return pkgCity === null;
+            });
+        }
+
+        // 4️⃣ If no packages left after filtering
+        if (filteredPackages.length === 0) {
+            return res.status(404).json({ message: "No packages available for your city" });
+        }
+
+        // 5️⃣ Format output
+        const formatted = filteredPackages.map(pkg => {
             if (!pkg.packageName && !pkg.packageMedia) {
-                // 🚨 Only return package_id if both are null
                 return { package_id: pkg.package_id };
             }
             return {
                 package_id: pkg.package_id,
                 packageName: pkg.packageName,
-                packageMedia: pkg.packageMedia,
+                packageMedia: pkg.packageMedia
             };
         });
 
         res.status(200).json({
             message: "Packages fetched successfully",
-            packages: formatted,
+            packages: formatted
         });
+
     } catch (err) {
         console.error("Error fetching packages with details:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
