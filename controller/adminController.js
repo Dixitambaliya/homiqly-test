@@ -635,7 +635,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -794,7 +793,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackageList = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -832,7 +830,6 @@ const getPackageList = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Error fetching packages", error: error.message });
     }
 });
-
 
 const getPackageDetails = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
@@ -882,14 +879,14 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             [package_id]
         );
 
-        const serviceLocations = locationRows.map(row => row.serviceLocation);
+        const serviceLocation = locationRows.map(row => row.serviceLocation);
 
         // 3️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName,
             packageMedia: rows[0].packageMedia,
-            serviceLocations,   // ⭐ Added: multi-city array
+            serviceLocation,   // ⭐ Added: multi-city array
             sub_packages: new Map()
         };
 
@@ -971,8 +968,6 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
-
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1071,7 +1066,6 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
 
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1343,7 +1337,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
