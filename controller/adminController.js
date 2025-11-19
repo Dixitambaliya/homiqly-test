@@ -640,8 +640,8 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     await connection.beginTransaction();
 
     try {
-        const { serviceId, packages } = req.body;
-        if (!serviceId || !packages) {
+        const { serviceId, packages, serviceLocation } = req.body;
+        if (!serviceId || !packages || !serviceLocation) {
             return res.status(400).json({ message: "serviceId and packages are required" });
         }
 
@@ -686,7 +686,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 const [pkgInsert] = await connection.query(
                     `INSERT INTO packages (service_type_id, packageName, packageMedia,serviceLocation)
                      VALUES (?, ?, ?, ?)`,
-                    [serviceTypeId, pkg.packageName, packageImage, pkg.serviceLocation]
+                    [serviceTypeId, pkg.packageName, packageImage, serviceLocation]
                 );
                 packageId = pkgInsert.insertId;
             } else {
@@ -694,7 +694,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                 const [pkgInsert] = await connection.query(
                     `INSERT INTO packages (service_type_id, packageName, packageMedia, serviceLocation)
                      VALUES (?, ?, ?, ?)`,
-                    [serviceTypeId, null, null, pkg.serviceLocation]
+                    [serviceTypeId, null, null, serviceLocation]
                 );
                 packageId = pkgInsert.insertId;
             }
