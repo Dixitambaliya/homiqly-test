@@ -635,6 +635,7 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -673,7 +674,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         } else {
             serviceTypeId = serviceTypeCheck[0].service_type_id;
         }
-
         // 3️⃣ Insert packages
         for (let i = 0; i < parsedPackages.length; i++) {
             const pkg = parsedPackages[i];
@@ -681,22 +681,41 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
 
             let packageId;
 
+            // Insert package
             if (pkg.packageName && packageImage) {
-                // Create package normally if both name and image exist
                 const [pkgInsert] = await connection.query(
-                    `INSERT INTO packages (service_type_id, packageName, packageMedia,serviceLocation)
-                     VALUES (?, ?, ?, ?)`,
-                    [serviceTypeId, pkg.packageName, packageImage, serviceLocation]
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia)
+         VALUES (?, ?, ?)`,
+                    [serviceTypeId, pkg.packageName, packageImage]
                 );
                 packageId = pkgInsert.insertId;
             } else {
-                // Missing name or image → create a default package
                 const [pkgInsert] = await connection.query(
-                    `INSERT INTO packages (service_type_id, packageName, packageMedia, serviceLocation)
-                     VALUES (?, ?, ?, ?)`,
-                    [serviceTypeId, null, null, serviceLocation]
+                    `INSERT INTO packages (service_type_id, packageName, packageMedia)
+         VALUES (?, ?, ?)`,
+                    [serviceTypeId, null, null]
                 );
                 packageId = pkgInsert.insertId;
+            }
+
+            let locations = serviceLocation;
+
+            // If it’s a string → parse JSON array
+            if (typeof locations === "string") {
+                locations = JSON.parse(locations);
+            }
+
+            if (!Array.isArray(locations)) {
+                return res.status(400).json({ message: "serviceLocation must be an array" });
+            }
+
+
+            // Insert multiple locations
+            for (let city of locations) {
+                await connection.query(
+                    `INSERT INTO package_locations (package_id, serviceLocation) VALUES (?, ?)`,
+                    [packageId, city]
+                );
             }
 
             // 4️⃣ Insert sub-packages
@@ -774,6 +793,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
     }
 });
+
 
 const getPackageList = asyncHandler(async (req, res) => {
     try {
@@ -856,12 +876,20 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
+        // ⭐ Fetch multiple cities
+        const [locationRows] = await db.query(
+            `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
+            [package_id]
+        );
+
+        const serviceLocations = locationRows.map(row => row.serviceLocation);
+
         // Map package → subpackages → addons, preferences, consent forms
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName,
             packageMedia: rows[0].packageMedia,
-            serviceLocation: rows[0].serviceLocation,
+            serviceLocations,
             sub_packages: new Map()
         };
 
