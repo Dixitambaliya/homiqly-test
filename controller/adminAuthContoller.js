@@ -146,7 +146,7 @@ const loginUpdateAdmin = asyncHandler(async (req, res) => {
                     phoneNumber: admin.phone || "+1 416-555-0198",
                     country: admin.country || "Canada",
                     address: admin.address || "90210 Broadway Blvd",
-                    state: admin.state || "California",
+                    city: admin.city || "California",
                     city: admin.city || "San Francisco",
                     zipCode: admin.zip_code || "94116",
                     about:
@@ -188,7 +188,7 @@ const loginUpdateAdmin = asyncHandler(async (req, res) => {
                 phoneNumber: admin.phone || "+1 416-555-0198",
                 country: admin.country || "Canada",
                 address: admin.address || "90210 Broadway Blvd",
-                state: admin.state || "California",
+                city: admin.city || "California",
                 city: admin.city || "San Francisco",
                 zipCode: admin.zip_code || "94116",
                 about:

@@ -426,7 +426,7 @@ const addUserData = asyncHandler(async (req, res) => {
         email,
         parkingInstruction,
         address,
-        state,
+        city,
         postalcode,
         flatNumber,
     } = req.body;
@@ -503,7 +503,7 @@ const addUserData = asyncHandler(async (req, res) => {
         await connection.query(
             `UPDATE users
              SET firstName = ?, lastName = ?, parkingInstruction = ?, phone = ?, 
-                 email = ?, address = ?, state = ?, postalcode = ?, flatNumber = ?
+                 email = ?, address = ?, city = ?, postalcode = ?, flatNumber = ?
              WHERE user_id = ?`,
             [
                 firstName,
@@ -512,7 +512,7 @@ const addUserData = asyncHandler(async (req, res) => {
                 phone,
                 email || user.email,
                 address,
-                state,
+                city,
                 postalcode,
                 flatNumber,
                 user_id,
