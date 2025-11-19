@@ -9,7 +9,7 @@ const { sendReviewRequestMail } = require("../config/utils/email/mailer")
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
-        const { serviceLocation } = req.body; // ⭐ New filter input
+        const { serviceLocation } = req.query; // ⭐ New filter input
         const locationFilter = serviceLocation ? serviceLocation.toLowerCase() : null;
 
         // 1️⃣ Fetch services with their packages + serviceLocation

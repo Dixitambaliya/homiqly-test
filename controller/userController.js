@@ -745,7 +745,8 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
-    const { user_id } = req.body || null; // user may NOT exist
+    const user_id = req.query.user_id || null;
+
 
     try {
         let userCity = null;
