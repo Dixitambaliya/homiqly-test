@@ -561,7 +561,7 @@ const getEmployeeStatus = asyncHandler(async (req, res) => {
         employee_id: rows[0].employee_id,
         is_active: rows[0].is_active
     });
-});
+}); 
 
 const getEmployeeBookings = asyncHandler(async (req, res) => {
     const employee_id = req.user.employee_id;

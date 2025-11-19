@@ -813,6 +813,7 @@ const getPackageList = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getPackageDetails = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -822,6 +823,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         p.package_id,
         p.packageName,
         p.packageMedia,
+        p.serviceLocation,
         pi.item_id AS sub_package_id,
         pi.itemName AS item_name,
         pi.description AS sub_description,
@@ -936,6 +938,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1052,7 +1055,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             // Verify package exists
             const [existingPackage] = await connection.query(
-                `SELECT package_id, packageMedia, packageName FROM packages WHERE package_id = ?`,
+                `SELECT package_id, packageMedia, packageName, serviceLocation FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (!existingPackage.length) continue;
@@ -1061,8 +1064,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             // Update package
             await connection.query(
-                `UPDATE packages SET packageName = ?, packageMedia = ? WHERE package_id = ?`,
-                [pkg.packageName ?? oldPackage.packageName, packageMedia, package_id]
+                `UPDATE packages SET packageName = ?, packageMedia = ?, serviceLocation = ? WHERE package_id = ?`,
+                [pkg.packageName ?? oldPackage.packageName, packageMedia, pkg.serviceLocation ?? oldPackage.serviceLocation, package_id]
             );
 
             // Handle sub-packages

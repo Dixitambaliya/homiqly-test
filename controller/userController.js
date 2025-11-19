@@ -746,16 +746,22 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
-    const user_id = req.user.user_id;
+    const { user_id } = req.body || null; // user may NOT exist
 
     try {
-        // 1️⃣ Get user's city
-        const [[user]] = await db.query(
-            `SELECT city FROM users WHERE user_id = ?`,
-            [user_id]
-        );
+        let userCity = null;
 
-        // 2️⃣ Get package location
+        // 1️⃣ If user is logged in → get city
+        if (user_id) {
+            const [[user]] = await db.query(
+                `SELECT city FROM users WHERE user_id = ?`,
+                [user_id]
+            );
+            if (user) {
+                userCity = user.city; // may be null
+            }
+        }
+        // 2️⃣ Always fetch package location
         const [[packageInfo]] = await db.query(
             `SELECT serviceLocation FROM packages WHERE package_id = ?`,
             [package_id]
@@ -765,16 +771,37 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
-        // 3️⃣ Apply city filter only if user has selected a city
-        if (user && user.city) {
-            if (packageInfo.serviceLocation !== user.city) {
-                return res.status(404).json({
-                    message: `This package is not available in your city (${user.city})`
-                });
+        // 3️⃣ Apply city filter ONLY when user_id exists
+        if (user_id) {
+            // Convert both values to lowercase for case-insensitive matching
+            const packageCity = packageInfo.serviceLocation
+                ? packageInfo.serviceLocation.toLowerCase()
+                : null;
+
+            const userSelectedCity = userCity
+                ? userCity.toLowerCase()
+                : null;
+
+            // User has selected a city
+            if (userSelectedCity) {
+                if (packageCity !== userSelectedCity) {
+                    return res.status(404).json({
+                        message: `This package is not available in your city (${userCity})`
+                    });
+                }
+            }
+            // User logged in but has NO city selected
+            else {
+                // Block packages that have a city
+                if (packageCity) {
+                    return res.status(404).json({
+                        message: "Please select your city to view available packages"
+                    });
+                }
             }
         }
 
-        // 4️⃣ Fetch package + subpackages + related data
+        // 4️⃣ Fetch full package details
         const [rows] = await db.query(
             `SELECT
                 p.package_id,
@@ -816,7 +843,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
-        // 5️⃣ Fetch average rating per sub_package
+        // 5️⃣ Get ratings
         const [ratingRows] = await db.query(
             `SELECT
                 sbsp.sub_package_id,
@@ -838,7 +865,7 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             };
         });
 
-        // 6️⃣ Build structured response
+        // Build response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName || null,
@@ -920,11 +947,14 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
             message: "Package details fetched successfully",
             package: pkg
         });
+
     } catch (err) {
         console.error("Error fetching package details:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 
 const changeUserPassword = asyncHandler(async (req, res) => {
