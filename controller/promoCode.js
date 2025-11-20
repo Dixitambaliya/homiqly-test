@@ -279,7 +279,6 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             `SELECT 
                 upc.user_promo_code_id,
                 upc.code AS userCode,
-                upc.source_type,
                 upc.usedCount,
                 pc.promo_id,
                 pc.code AS promoCode,
@@ -303,7 +302,6 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             `SELECT 
                 spc.system_promo_code_id,
                 spc.user_id,
-                spc.source_type,
                 spct.minSpend,
                 spct.title,
                 spct.code AS userCode,

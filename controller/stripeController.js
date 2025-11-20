@@ -254,10 +254,11 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const type = event.type;
 
         // 🛑 Accept ONLY OTP-success events
-        if (type !== "payment_intent.succeeded") {
+        if (!["payment_intent.requires_capture", "payment_intent.succeeded"].includes(type)) {
             console.log("Ignored webhook event:", type);
             return;
         }
+
 
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
