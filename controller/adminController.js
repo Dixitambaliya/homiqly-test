@@ -93,6 +93,7 @@ const editAdminProfile = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         // 📄 Pagination setup
@@ -274,6 +275,7 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
