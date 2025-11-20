@@ -1,18 +1,11 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
-const nodemailer = require("nodemailer");
 
-const transport = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
 
 const createPromoCode = asyncHandler(async (req, res) => {
     const {
         code,
+        title,
         discount_value,
         discount_type, // 'percentage' or 'fixed'
         minSpend,
@@ -24,7 +17,7 @@ const createPromoCode = asyncHandler(async (req, res) => {
         source_type // 'admin' or 'system'
     } = req.body;
 
-    if (!code || !discount_value || !source_type || !discount_type) {
+    if (!code || !discount_value || !source_type || !discount_type || !title) {
         return res.status(400).json({ message: "code, discount_value, discount_type, and source_type are required" });
     }
 
@@ -41,8 +34,8 @@ const createPromoCode = asyncHandler(async (req, res) => {
 
         if (source_type === 'system') {
             query = `INSERT INTO system_promo_code_templates 
-               (code, discountValue, discount_type, minSpend, maxUse, description, source_type)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`;
+               (code, discountValue, discount_type, minSpend, maxUse, description, source_type , title)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
                 code,
                 discount_value,
@@ -50,12 +43,13 @@ const createPromoCode = asyncHandler(async (req, res) => {
                 minSpend || null,
                 maxUse || 1,
                 description || null,
-                source_type
+                source_type,
+                title
             ];
         } else if (source_type === 'admin') {
             query = `INSERT INTO promo_codes 
-               (code, discountValue, discount_type, minSpend, maxUse, description, requiredBookings, source_type, start_date, end_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+               (code, discountValue, discount_type, minSpend, maxUse, description, requiredBookings, source_type, start_date, end_date, title)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
                 code,
                 discount_value,
@@ -66,7 +60,8 @@ const createPromoCode = asyncHandler(async (req, res) => {
                 requiredBookings || 0,
                 source_type,
                 start_date || null,
-                end_date || null
+                end_date || null,
+                title
             ];
         } else {
             throw new Error("Invalid source_type. Must be 'admin' or 'system'");
@@ -107,13 +102,13 @@ const getAllPromoCodes = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch admin promo codes
         const [adminPromos] = await db.query(
-            `SELECT promo_id AS id, code, discountValue, discount_type, minSpend, maxUse, start_date, end_date, description, requiredBookings, source_type
+            `SELECT promo_id AS id, code, discountValue, discount_type, minSpend, maxUse, start_date, end_date, description, title, requiredBookings, source_type
              FROM promo_codes`
         );
 
         // 2️⃣ Fetch system promo templates
         const [systemPromos] = await db.query(
-            `SELECT system_promo_code_template_id AS id, code, discountValue, discount_type, minSpend, maxUse, description, source_type
+            `SELECT system_promo_code_template_id AS id, code, discountValue, discount_type, minSpend, maxUse, title, description, source_type
              FROM system_promo_code_templates`
         );
 
@@ -144,6 +139,7 @@ const updatePromoCode = asyncHandler(async (req, res) => {
         discount_type, // 'percentage' or 'fixed'
         minSpend,
         maxUse,
+        title,
         start_date,
         end_date,
         description,
@@ -186,6 +182,7 @@ const updatePromoCode = asyncHandler(async (req, res) => {
             requiredBookings: requiredBookings ?? existing.requiredBookings,
             start_date: start_date ?? existing.start_date,
             end_date: end_date ?? existing.end_date,
+            title: title ?? existing.title,
         };
 
         // 4️⃣ Build dynamic query
@@ -194,7 +191,7 @@ const updatePromoCode = asyncHandler(async (req, res) => {
 
         if (source_type === 'system') {
             query = `UPDATE ${table}
-                     SET code = ?, discountValue = ?, discount_type = ?, minSpend = ?, maxUse = ?, description = ?
+                     SET code = ?, discountValue = ?, discount_type = ?, minSpend = ?, maxUse = ?, description = ? , title = ?
                      WHERE ${idColumn} = ?`;
             params = [
                 updatedData.code,
@@ -203,11 +200,13 @@ const updatePromoCode = asyncHandler(async (req, res) => {
                 updatedData.minSpend,
                 updatedData.maxUse,
                 updatedData.description,
+                updatedData.title,
                 id
             ];
         } else {
             query = `UPDATE ${table}
-                     SET code = ?, discountValue = ?, discount_type = ?, minSpend = ?, maxUse = ?, description = ?, requiredBookings = ?, start_date = ?, end_date = ?
+                     SET code = ?, discountValue = ?, discount_type = ?, 
+                     minSpend = ?, maxUse = ?, description = ?, requiredBookings = ?, start_date = ?, end_date = ? , title = ?
                      WHERE ${idColumn} = ?`;
             params = [
                 updatedData.code,
@@ -219,6 +218,7 @@ const updatePromoCode = asyncHandler(async (req, res) => {
                 updatedData.requiredBookings,
                 updatedData.start_date,
                 updatedData.end_date,
+                updatedData.title,
                 id
             ];
         }
@@ -285,6 +285,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 pc.code AS promoCode,
                 pc.discount_type,
                 pc.discountValue,
+                pc.title,
                 pc.minSpend,
                 pc.description,
                 pc.maxUse AS promoMaxUse,
@@ -304,6 +305,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 spc.user_id,
                 spc.source_type,
                 spct.minSpend,
+                spct.title,
                 spct.code AS userCode,
                 spct.discount_type,
                 spct.maxUse AS promoMaxUse,
@@ -322,6 +324,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             source_type: p.source_type,
             usedCount: p.usedCount,
             promoCode: p.promoCode,
+            title: p.title,
             promoMaxUse: p.promoMaxUse,
             discountType: p.discount_type,
             discountValue: p.discountValue,
@@ -337,6 +340,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             source_type: p.source_type,
             system_promo_code_id: p.system_promo_code_id,
             promoCode: p.userCode,
+            title: p.title,
             promoMaxUse: p.promoMaxUse,
             usedCount: p.usedCount,
             minSpend: p.minSpend,
