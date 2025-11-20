@@ -251,23 +251,35 @@ const googleLogin = asyncHandler(async (req, res) => {
     }
 
     try {
-        // ✂️ Split full name into first & last name
+        // Split full name from Google
         let firstName = "";
         let lastName = "";
 
         if (name) {
             const parts = name.trim().split(" ");
-            firstName = parts[0];
+            firstName = parts[0] || "";
             lastName = parts.slice(1).join(" ") || "";
         }
 
-        // 1️⃣ Check if user exists
+        // 1️⃣ Check existing user
         const [existingUsers] = await db.query(userAuthQueries.userMailCheckGoogle, [email]);
         let user, user_id;
-        let is_google_register = false; // false = already registered
+        let is_google_register = false;
 
+        /* -------------------------------------------------------
+           CASE 1: New User (from Google)
+        ------------------------------------------------------- */
         if (!existingUsers || existingUsers.length === 0) {
-            // 2️⃣ Not found → auto-register a new Google user
+            // ❗ Stop login if name is missing (Google didn't send name)
+            if (!firstName || firstName.trim() === "") {
+                return res.status(200).json({
+                    message: "Please complete your profile",
+                    need_details: true,
+                    is_google_register: true,
+                    email
+                });
+            }
+
             const [result] = await db.query(
                 `INSERT INTO users (email, firstName, lastName, created_at)
                  VALUES (?, ?, ?, NOW())`,
@@ -276,23 +288,36 @@ const googleLogin = asyncHandler(async (req, res) => {
 
             user_id = result.insertId;
             user = { user_id, email, firstName, lastName };
-            is_google_register = true; // true for new user
+            is_google_register = true;
         } else {
+            /* -------------------------------------------------------
+               CASE 2: Existing User
+            ------------------------------------------------------- */
             user = existingUsers[0];
             user_id = user.user_id;
+
+            // ❗ Stop login if user profile has no firstname
+            if (!user.firstName || user.firstName.trim() === "") {
+                return res.status(200).json({
+                    message: "Please complete your profile",
+                    need_details: true,
+                    is_google_register: false,
+                    user_id,
+                    email
+                });
+            }
         }
 
-        // 3️⃣ Generate JWT token
+        /* -------------------------------------------------------
+           CASE 3: Full details available → Proceed to Login
+        ------------------------------------------------------- */
+
         const token = jwt.sign(
-            {
-                user_id,
-                email,
-                status: user.status || "active",
-            },
+            { user_id, email, status: user.status || "active" },
             process.env.JWT_SECRET
         );
 
-        // 4️⃣ Respond immediately
+        // SUCCESSFUL LOGIN
         res.status(200).json({
             message: existingUsers.length > 0
                 ? "Login successful via Google"
@@ -302,32 +327,28 @@ const googleLogin = asyncHandler(async (req, res) => {
             firstName: user.firstName || firstName,
             lastName: user.lastName || lastName,
             token,
-            is_google_register,
+            is_google_register
         });
 
-        // 🧩 5️⃣ Fire & forget: update FCM token
+        // Fire and forget: Update FCM token
         if (fcmToken && fcmToken !== user.fcmToken) {
             (async () => {
                 try {
-                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [fcmToken, user_id]);
-                    console.log(`📱 FCM token updated for user ${user_id}`);
-                } catch (err) {
-                    console.error("❌ FCM token update error:", err.message);
-                }
+                    await db.query("UPDATE users SET fcmToken = ? WHERE user_id = ?", [
+                        fcmToken, user_id
+                    ]);
+                } catch { }
             })();
         }
 
-        // 🎁 6️⃣ Fire & forget: assign welcome promo code
+        // Fire and forget: assign welcome promo code
         (async () => {
             try {
                 await assignWelcomeCode({ user_id, user_email: email });
-                console.log(`🎁 Welcome code assigned for ${email}`);
-            } catch (err) {
-                console.error("❌ Auto-assign welcome code error:", err.message);
-            }
+            } catch { }
         })();
 
-        // ✉️ 7️⃣ Fire & forget: send welcome email (only for new Google users)
+        // Fire and forget: send welcome mail only for first time Google registration
         if (is_google_register && email) {
             (async () => {
                 try {
@@ -335,10 +356,7 @@ const googleLogin = asyncHandler(async (req, res) => {
                         userEmail: email,
                         fullName: `${firstName}${lastName ? " " + lastName : ""}`,
                     });
-                    console.log(`📧 Welcome email sent to ${email}`);
-                } catch (error) {
-                    console.error("❌ Failed to send welcome email:", error.message);
-                }
+                } catch { }
             })();
         }
 
@@ -347,6 +365,7 @@ const googleLogin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
+
 
 
 // ✅ Step 1: Request OTP
