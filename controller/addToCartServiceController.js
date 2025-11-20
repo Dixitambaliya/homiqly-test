@@ -22,6 +22,47 @@ const addToCartService = asyncHandler(async (req, res) => {
     } catch (e) {
         return res.status(400).json({ message: "'packages' must be valid JSON", error: e.message });
     }
+    // 1️⃣ Fetch the user's city
+    const [[userRow]] = await db.query(
+        `SELECT city FROM users WHERE user_id = ?`,
+        [user_id]
+    );
+
+    if (!userRow) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    const userCity = (userRow.city || "").trim().toLowerCase();
+
+    // 2️⃣ Validate each package
+    for (const pkg of parsedPackages) {
+        const packageId = pkg.package_id;
+
+        // Fetch ALL service locations for this package
+        const [locationRows] = await db.query(
+            `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
+            [packageId]
+        );
+
+        if (!locationRows.length) {
+            return res.status(404).json({ message: "Package location not found" });
+        }
+
+        // Normalize for comparison
+        const availableLocations = locationRows.map(
+            row => (row.serviceLocation || "").trim().toLowerCase()
+        );
+
+        // Check if userCity matches any location
+        const cityMatches = availableLocations.includes(userCity);
+
+        if (!cityMatches) {
+            return res.status(400).json({
+                message: "Please set your location first. This package is not available in your selected city."
+            });
+        }
+    }
+
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
