@@ -1084,7 +1084,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             // Verify package exists
             const [existingPackage] = await connection.query(
-                `SELECT package_id, packageMedia, packageName, serviceLocation FROM packages WHERE package_id = ?`,
+                `SELECT package_id, packageMedia, packageName FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (!existingPackage.length) continue;
@@ -1093,8 +1093,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             // Update package
             await connection.query(
-                `UPDATE packages SET packageName = ?, packageMedia = ?, serviceLocation = ? WHERE package_id = ?`,
-                [pkg.packageName ?? oldPackage.packageName, packageMedia, pkg.serviceLocation ?? oldPackage.serviceLocation, package_id]
+                `UPDATE packages SET packageName = ?, packageMedia = ? WHERE package_id = ?`,
+                [pkg.packageName ?? oldPackage.packageName, packageMedia, package_id]
             );
 
             // --- HANDLE MULTIPLE SERVICE LOCATIONS --- //

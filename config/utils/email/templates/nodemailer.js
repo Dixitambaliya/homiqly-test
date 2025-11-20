@@ -33,30 +33,47 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
 
     let footerHtml = `
    <div style="background: #000000; color: #bbb; padding: 15px 30px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 540px; margin: auto;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; margin: auto;">
         <tr>
-          <td align="left" valign="top" style="width: 50%;">
-            <div style="line-height: 1.8;">
-              <a href="https://www.homiqly.com/help" style="font-size:15px; color:#4da3ff; text-decoration:none; display:block;">Help</a>
-              <a href="https://www.homiqly.com/termscondition" style="font-size:15px; color:#4da3ff; text-decoration:none; display:block;">Terms of Service</a>
-              <a href="https://www.homiqly.com/privacypolicy" style="font-size:15px; color:#4da3ff; text-decoration:none; display:block;">Privacy Policy</a>
-              <a href="https://www.homiqly.com/privacypolicy" style="font-size:15px; color:#4da3ff; text-decoration:none; display:block;">Unsubscribe</a>
-            </div>
-          </td>
+         <td align="left" valign="top" style="width:50%; padding:0; font-family:Arial, sans-serif;">
+            <div style="line-height:1.8;">
+                <a href="https://www.homiqly.com/help"
+                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
+                Help
+                </a>
+                <br>
 
-          <td align="right" valign="middle" style="width: 50%;">
-            <div>
-              <a href="https://www.instagram.com/homiqly" style="margin-left: 10px;">
-                <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" alt="Instagram" style="width:24px;height:24px;">
-              </a>
-              <a href="https://www.facebook.com/homiqly" style="margin-left: 10px;">
-                <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" alt="Facebook" style="width:24px;height:24px;">
-              </a>
-              <a href="https://www.linkedin.com/company/homiqly" style="margin-left: 10px;">
-                <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png" alt="LinkedIn" style="width:24px;height:24px;">
-              </a>
+                <a href="https://www.homiqly.com/termscondition"
+                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
+                Terms of Service
+                </a>
+                <br>
+
+                <a href="https://www.homiqly.com/privacypolicy"
+                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
+                Privacy Policy
+                </a>
+                <br>
+
+                <a href="https://www.homiqly.com/privacypolicy"
+                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
+                Unsubscribe
+                </a>
             </div>
-          </td>
+            </td>
+            <td align="right" valign="middle" style="width: 50%;">
+                <div>
+                <a href="https://www.instagram.com/homiqly" style="margin-left: 10px;">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" alt="Instagram" style="width:24px;height:24px;">
+                </a>
+                <a href="https://www.facebook.com/homiqly" style="margin-left: 10px;">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" alt="Facebook" style="width:24px;height:24px;">
+                </a>
+                <a href="https://www.linkedin.com/company/homiqly" style="margin-left: 10px;">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png" alt="LinkedIn" style="width:24px;height:24px;">
+                </a>
+                </div>
+            </td>
         </tr>
       </table>
     </div>
@@ -94,7 +111,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
 
     <img src="https://elements-resized.envatousercontent.com/envato-dam-assets-production/EVA/TRX/a4/5d/0f/e2/e7/v1_E10/E1086N8O.jpg?w=1600&cf_fit=scale-down&mark-alpha=18&mark=https%3A%2F%2Felements-assets.envato.com%2Fstatic%2Fwatermark4.png&q=85&format=auto&s=f86ec4f1523e22577b0ec9c977c511a48471adb817c6e16736b1eade19c746c0"
          alt="Homiqly Offer Image"
-         style="width: 80%; max-width: 500px; height: auto; display: block; margin: 0 auto 0; border-radius: 10px;" />
+         style="max-width: 88%; height: auto; display: block; margin: 0 auto 0; border-radius: 10px;" />
   </div>
         `;
     } else if (layout === "noUnsubscribe") {
