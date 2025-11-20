@@ -109,7 +109,7 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
       ${code}
     </h2>
 
-    <img src="https://elements-resized.envatousercontent.com/envato-dam-assets-production/EVA/TRX/a4/5d/0f/e2/e7/v1_E10/E1086N8O.jpg?w=1600&cf_fit=scale-down&mark-alpha=18&mark=https%3A%2F%2Felements-assets.envato.com%2Fstatic%2Fwatermark4.png&q=85&format=auto&s=f86ec4f1523e22577b0ec9c977c511a48471adb817c6e16736b1eade19c746c0"
+    <img src="https://www.homiqly.codegrin.com/public/promoCode.webp"
          alt="Homiqly Offer Image"
          style="max-width: 88%; height: auto; display: block; margin: 0 auto 0; border-radius: 10px;" />
   </div>
