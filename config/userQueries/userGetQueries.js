@@ -12,6 +12,7 @@ const userGetQueries = {
                     phone,
                     flatNumber,
                     is_approved,
+                    city,
                     parkingInstruction,
                     postalCode AS postalcode,
                     address,

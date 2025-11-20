@@ -703,7 +703,6 @@ const deleteBooking = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
     const user_id = req.query.user_id || null;
@@ -732,10 +731,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             WHERE p.service_type_id = ?`,
             [service_type_id]
         );
-
-        if (!rows.length) {
-            return res.status(404).json({ message: "No packages found" });
-        }
 
         // 3️⃣ Build package → locations[]
         const pkgMap = new Map();
@@ -788,7 +783,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
@@ -993,7 +987,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
