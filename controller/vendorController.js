@@ -9,10 +9,17 @@ const { sendReviewRequestMail } = require("../config/utils/email/mailer")
 
 const getServicesWithPackages = asyncHandler(async (req, res) => {
     try {
-        const { serviceLocation } = req.query; // ⭐ New filter input
-        const locationFilter = serviceLocation ? serviceLocation.toLowerCase() : null;
+        const { serviceLocation } = req.query;
 
-        // 1️⃣ Fetch services with their packages + serviceLocation
+        // Convert location filter to array (case-insensitive)
+        let locationFilter = [];
+        if (serviceLocation) {
+            locationFilter = Array.isArray(serviceLocation)
+                ? serviceLocation.map(c => c.toLowerCase())
+                : [serviceLocation.toLowerCase()];
+        }
+
+        // 1️⃣ Fetch services + packages (no location here)
         const [rows] = await db.query(`
             SELECT
                 sc.service_categories_id AS serviceCategoryId,
@@ -23,50 +30,25 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
                 s.serviceFilter AS serviceFilter,
                 st.service_type_id AS serviceTypeId,
                 p.package_id,
-                p.packageName AS packageName,
-                pl.serviceLocation AS serviceLocation
+                p.packageName AS packageName
             FROM service_categories sc
             JOIN services s ON s.service_categories_id = sc.service_categories_id
             JOIN service_type st ON st.service_id = s.service_id
             JOIN packages p ON p.service_type_id = st.service_type_id
-            JOIN package_locations pl ON pl.package_id = p.package_id
-            WHERE p.package_id IS NOT NULL
-            ORDER BY sc.service_categories_id, s.service_id, st.service_type_id, p.package_id;
+            ORDER BY sc.service_categories_id, s.service_id, st.service_type_id, p.package_id
         `);
 
-        // ⭐ 1.5️⃣ Apply serviceLocation filter ONLY if query contains serviceLocation
-        let filteredRows = rows;
-
-        if (locationFilter) {
-            // Convert to array if user sends single OR multiple locations
-            const locationsArray = Array.isArray(serviceLocation)
-                ? serviceLocation.map(l => l.toLowerCase())
-                : [serviceLocation.toLowerCase()];
-
-            filteredRows = rows.filter(row => {
-                if (!row.serviceLocation) return false;
-
-                // Compare row.serviceLocation with ANY of the user's requested locations
-                return locationsArray.includes(row.serviceLocation.toLowerCase());
-            });
-
-            if (filteredRows.length === 0) {
-                return res.status(200).json({
-                    message: "No package available in this city"
-                });
-            }
-        }
-
-        // 2️⃣ Fetch all sub-packages (package_items)
+        // 2️⃣ Fetch all sub-packages (items)
         const [subPackageRows] = await db.query(`
             SELECT
-                item_id,
-                package_id,
-                itemName AS itemName,
-                timeRequired
-            FROM package_items
+                pi.item_id,
+                pi.package_id,
+                pi.itemName,
+                pi.timeRequired
+            FROM package_items pi
         `);
 
+        // Build map: package_id -> [subPackages]
         const subPackagesMap = {};
         subPackageRows.forEach(sub => {
             if (!subPackagesMap[sub.package_id]) subPackagesMap[sub.package_id] = [];
@@ -77,11 +59,28 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
             });
         });
 
-        // 3️⃣ Group by category → services → packages → sub-packages
+        // 3️⃣ Fetch all sub-package locations
+        const [locationRows] = await db.query(`
+            SELECT 
+                package_item_id,
+                serviceLocation
+            FROM package_item_locations
+        `);
+
+        // Map: item_id -> [locations]
+        const itemLocationsMap = {};
+        locationRows.forEach(loc => {
+            const id = loc.package_item_id; // column that points to package_items.item_id
+            if (!itemLocationsMap[id]) itemLocationsMap[id] = [];
+            itemLocationsMap[id].push(loc.serviceLocation);
+        });
+
+        // 4️⃣ BUILD GROUPING: Category → Service → Packages → Sub-packages
         const grouped = {};
 
-        filteredRows.forEach(row => {
+        rows.forEach(row => {
             const categoryId = row.serviceCategoryId;
+
             if (!grouped[categoryId]) {
                 grouped[categoryId] = {
                     serviceCategoryId: categoryId,
@@ -91,7 +90,10 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
             }
 
             // Find or create service
-            let service = grouped[categoryId].services.find(s => s.serviceId === row.serviceId);
+            let service = grouped[categoryId].services.find(
+                s => s.serviceId === row.serviceId
+            );
+
             if (!service) {
                 service = {
                     serviceId: row.serviceId,
@@ -103,32 +105,63 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
                 grouped[categoryId].services.push(service);
             }
 
-            // Add package
-            if (row.package_id) {
-                const exists = service.packages.find(p => p.package_id === row.package_id);
-                if (!exists) {
-                    service.packages.push({
-                        package_id: row.package_id,
-                        packageName: row.packageName,
-                        serviceLocation: row.serviceLocation,
-                        sub_packages: subPackagesMap[row.package_id] || []
-                    });
-                }
+            // Add package only if it has at least one matching sub-package (or if no filter provided, add with all sub-packages)
+            const alreadyAdded = service.packages.find(p => p.package_id === row.package_id);
+            if (alreadyAdded) {
+                // package already processed for this service
+                return;
+            }
+
+            // Get all sub-packages for this package
+            let subPackages = subPackagesMap[row.package_id] || [];
+
+            // Attach locations to each sub-package
+            subPackages = subPackages.map(sp => ({
+                ...sp,
+                serviceLocation: itemLocationsMap[sp.item_id] || []
+            }));
+
+            // If location filter present, filter sub-packages to only those that match
+            if (locationFilter.length > 0) {
+                subPackages = subPackages.filter(sp =>
+                    sp.serviceLocation.some(loc => locationFilter.includes(String(loc).toLowerCase()))
+                );
+            }
+
+            // Only add package if there is at least one sub-package after filtering
+            if (subPackages.length > 0) {
+                service.packages.push({
+                    package_id: row.package_id,
+                    packageName: row.packageName,
+                    sub_packages: subPackages
+                });
             }
         });
 
-        // Only return categories with services that have packages
-        const result = Object.values(grouped).filter(category =>
-            category.services.some(s => s.packages.length > 0)
-        );
+        // 5️⃣ Final result: only categories which have services with packages
+        const result = Object.values(grouped)
+            .map(category => {
+                // Filter services to only those with packages
+                const servicesWithPackages = category.services.filter(s => s.packages && s.packages.length > 0);
+                return {
+                    ...category,
+                    services: servicesWithPackages
+                };
+            })
+            .filter(category => category.services.length > 0); // remove empty categories
+
+        // If the filter was supplied but no packages matched, return a friendly message
+        if (locationFilter.length > 0 && result.length === 0) {
+            return res.status(200).json({ message: "No package available in this city" });
+        }
 
         res.status(200).json({ services: result });
+
     } catch (err) {
         console.error("Error fetching services with packages:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const { service_id } = req.params;

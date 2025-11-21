@@ -635,13 +635,14 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
+//----------
 const createPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        const { serviceId, packages, serviceLocation } = req.body;
-        if (!serviceId || !packages || !serviceLocation) {
+        const { serviceId, packages } = req.body;
+        if (!serviceId || !packages) {
             return res.status(400).json({ message: "serviceId and packages are required" });
         }
 
@@ -684,37 +685,17 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
             if (pkg.packageName && packageImage) {
                 const [pkgInsert] = await connection.query(
                     `INSERT INTO packages (service_type_id, packageName, packageMedia)
-         VALUES (?, ?, ?)`,
+                    VALUES (?, ?, ?)`,
                     [serviceTypeId, pkg.packageName, packageImage]
                 );
                 packageId = pkgInsert.insertId;
             } else {
                 const [pkgInsert] = await connection.query(
                     `INSERT INTO packages (service_type_id, packageName, packageMedia)
-         VALUES (?, ?, ?)`,
+                    VALUES (?, ?, ?)`,
                     [serviceTypeId, null, null]
                 );
                 packageId = pkgInsert.insertId;
-            }
-
-            let locations = serviceLocation;
-
-            // If it’s a string → parse JSON array
-            if (typeof locations === "string") {
-                locations = JSON.parse(locations);
-            }
-
-            if (!Array.isArray(locations)) {
-                return res.status(400).json({ message: "serviceLocation must be an array" });
-            }
-
-
-            // Insert multiple locations
-            for (let city of locations) {
-                await connection.query(
-                    `INSERT INTO package_locations (package_id, serviceLocation) VALUES (?, ?)`,
-                    [packageId, city]
-                );
             }
 
             // 4️⃣ Insert sub-packages
@@ -728,7 +709,30 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
                          VALUES (?, ?, ?, ?, ?, ?)`,
                         [packageId, subPkg.item_name, subPkg.description || "", subPkg.price || 0, subPkg.time_required || 0, subPackageItemMedia]
                     );
+
                     const itemId = subPkgInsert.insertId;
+
+                    // ⭐ Assign location to each SUBPACKAGE instead of package
+
+                    let locations = subPkg.serviceLocation || [];
+
+                    // Parse JSON if string
+                    if (typeof locations === "string") {
+                        locations = JSON.parse(locations);
+                    }
+
+                    if (!Array.isArray(locations)) {
+                        return res.status(400).json({ message: "serviceLocation must be an array" });
+                    }
+
+                    // Insert locations for sub-package
+                    for (let city of locations) {
+                        await connection.query(
+                            `INSERT INTO package_item_locations (package_item_id, serviceLocation) VALUES (?, ?)`,
+                            [itemId, city]
+                        );
+                    }
+
 
                     // ✅ Insert preferences (with group-level is_required)
                     if (subPkg.preferences && typeof subPkg.preferences === "object") {
@@ -793,6 +797,7 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getPackageList = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -831,6 +836,7 @@ const getPackageList = asyncHandler(async (req, res) => {
     }
 });
 
+//----------
 const getPackageDetails = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -873,26 +879,27 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
-        // 2️⃣ Fetch multiple cities for the package
-        const [locationRows] = await db.query(
-            `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
-            [package_id]
-        );
-
-        const serviceLocation = locationRows.map(row => row.serviceLocation);
 
         // 3️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName,
             packageMedia: rows[0].packageMedia,
-            serviceLocation,   // ⭐ Added: multi-city array
             sub_packages: new Map()
         };
 
         // 4️⃣ Loop through rows → build subpackages, addons, prefs, consent forms
         for (const row of rows) {
             if (row.sub_package_id) {
+
+                // 2️⃣ Fetch multiple cities for the package
+                const [locationRows] = await db.query(
+                    `SELECT serviceLocation FROM package_item_locations WHERE package_item_id = ?`,
+                    [row.sub_package_id]
+                );
+
+                const serviceLocation = locationRows.map(loc => loc.serviceLocation);
+
                 if (!pkg.sub_packages.has(row.sub_package_id)) {
                     pkg.sub_packages.set(row.sub_package_id, {
                         sub_package_id: row.sub_package_id,
@@ -901,6 +908,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                         price: row.sub_price,
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
+                        serviceLocation,   // ⭐ Added: multi-city array
                         addons: [],
                         preferences: {},
                         consentForm: []
@@ -968,6 +976,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
@@ -1067,6 +1076,7 @@ const assignPackageToVendor = asyncHandler(async (req, res) => {
     }
 });
 
+//----------
 const editPackageByAdmin = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -1075,95 +1085,61 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         const { packages } = req.body;
         if (!packages) throw new Error("Missing required field: packages");
 
-        const parsedPackages = typeof packages === "string" ? JSON.parse(packages) : packages;
+        const parsedPackages =
+            typeof packages === "string" ? JSON.parse(packages) : packages;
 
         for (let i = 0; i < parsedPackages.length; i++) {
             const pkg = parsedPackages[i];
             const package_id = pkg.package_id;
             if (!package_id) continue;
 
-            // Verify package exists
+            // ------------------ VERIFY PACKAGE ------------------ //
             const [existingPackage] = await connection.query(
-                `SELECT package_id, packageMedia, packageName FROM packages WHERE package_id = ?`,
+                `SELECT package_id, packageMedia, packageName 
+                 FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (!existingPackage.length) continue;
+
             const oldPackage = existingPackage[0];
-            const packageMedia = req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url || oldPackage.packageMedia;
+            const packageMedia =
+                req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url ||
+                oldPackage.packageMedia;
 
-            // Update package
+            // ------------------ UPDATE PACKAGE ------------------ //
             await connection.query(
-                `UPDATE packages SET packageName = ?, packageMedia = ? WHERE package_id = ?`,
-                [pkg.packageName ?? oldPackage.packageName, packageMedia, package_id]
+                `UPDATE packages 
+                 SET packageName = ?, packageMedia = ? 
+                 WHERE package_id = ?`,
+                [
+                    pkg.packageName ?? oldPackage.packageName,
+                    packageMedia,
+                    package_id
+                ]
             );
 
-            // --- HANDLE MULTIPLE SERVICE LOCATIONS --- //
-            let locations = pkg.serviceLocation;
-
-            // Convert to array if Postman sends JSON string
-            if (typeof locations === "string") {
-                try {
-                    locations = JSON.parse(locations);
-                } catch {
-                    locations = [];
-                }
-            }
-
-            if (!Array.isArray(locations)) {
-                locations = [];
-            }
-
-            // 1) Fetch existing cities in DB
-            const [existingLocations] = await connection.query(
-                `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
-                [package_id]
-            );
-
-            const oldCities = existingLocations.map(row => row.serviceLocation);
-
-            // 2) Find cities to ADD and REMOVE
-            const newCities = locations.map(c => c.trim());
-
-            const citiesToAdd = newCities.filter(c => !oldCities.includes(c));
-            const citiesToDelete = oldCities.filter(c => !newCities.includes(c));
-
-            // 3) Add new cities
-            for (let city of citiesToAdd) {
-                await connection.query(
-                    `INSERT INTO package_locations (package_id, serviceLocation) VALUES (?, ?)`,
-                    [package_id, city]
-                );
-            }
-
-            // 4) Delete removed cities
-            if (citiesToDelete.length > 0) {
-                await connection.query(
-                    `DELETE FROM package_locations 
-                    WHERE package_id = ? 
-                    AND serviceLocation IN (?)`,
-                    [package_id, citiesToDelete]
-                );
-            }
-
-
-            // Handle sub-packages
+            // ------------------ SUB-PACKAGES ------------------ //
             if (!Array.isArray(pkg.sub_packages)) continue;
             const submittedItemIds = [];
 
             for (let j = 0; j < pkg.sub_packages.length; j++) {
                 const sub = pkg.sub_packages[j];
-                const sub_id = sub.sub_package_id;
+
                 let sub_package_id;
 
-                // --- Insert / Update sub-package ---
-                if (sub_id) {
+                // 1️⃣ UPDATE OR INSERT SUB-PACKAGE
+                if (sub.sub_package_id) {
+                    // Existing sub-package
                     const [oldItem] = await connection.query(
                         `SELECT * FROM package_items WHERE item_id = ?`,
-                        [sub_id]
+                        [sub.sub_package_id]
                     );
                     if (!oldItem.length) continue;
+
                     const old = oldItem[0];
-                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || old.itemMedia;
+                    const itemMedia =
+                        req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url ||
+                        old.itemMedia;
 
                     await connection.query(
                         `UPDATE package_items
@@ -1175,31 +1151,102 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                             sub.price ?? old.price,
                             sub.time_required ?? old.timeRequired,
                             itemMedia,
-                            sub_id,
+                            sub.sub_package_id,
                             package_id
                         ]
                     );
-                    sub_package_id = sub_id;
+
+                    sub_package_id = sub.sub_package_id;
                 } else {
-                    const itemMedia = req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+                    // New sub-package
+                    const itemMedia =
+                        req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+
                     const [newItem] = await connection.query(
-                        `INSERT INTO package_items (package_id, itemName, description, price, timeRequired, itemMedia)
+                        `INSERT INTO package_items 
+                         (package_id, itemName, description, price, timeRequired, itemMedia)
                          VALUES (?, ?, ?, ?, ?, ?)`,
-                        [package_id, sub.item_name, sub.description, sub.price, sub.time_required, itemMedia]
+                        [
+                            package_id,
+                            sub.item_name,
+                            sub.description,
+                            sub.price,
+                            sub.time_required,
+                            itemMedia
+                        ]
                     );
+
                     sub_package_id = newItem.insertId;
                 }
 
                 submittedItemIds.push(sub_package_id);
 
-                // --- Preferences: Delete old ones, insert submitted grouped preferences ---
+                // ====================================================
+                // ⭐⭐ SERVICE LOCATIONS (per sub-package) ⭐⭐
+                // ====================================================
+                let locations = sub.serviceLocation || [];
+
+                // Parse JSON string
+                if (typeof locations === "string") {
+                    try {
+                        locations = JSON.parse(locations);
+                    } catch {
+                        locations = [];
+                    }
+                }
+
+                if (!Array.isArray(locations)) locations = [];
+
+                const newCities = locations.map((c) => c.trim());
+
+                // Fetch existing locations for this sub-package
+                const [existingLocs] = await connection.query(
+                    `SELECT serviceLocation 
+                     FROM package_item_locations 
+                     WHERE package_item_id = ?`,
+                    [sub_package_id]
+                );
+
+                const oldCities = existingLocs.map((l) => l.serviceLocation);
+
+                const citiesToAdd = newCities.filter(
+                    (city) => !oldCities.includes(city)
+                );
+                const citiesToDelete = oldCities.filter(
+                    (city) => !newCities.includes(city)
+                );
+
+                // Add new locations
+                for (let city of citiesToAdd) {
+                    await connection.query(
+                        `INSERT INTO package_item_locations 
+                         (package_item_id, serviceLocation)
+                         VALUES (?, ?)`,
+                        [sub_package_id, city]
+                    );
+                }
+
+                // Remove deleted locations
+                if (citiesToDelete.length > 0) {
+                    await connection.query(
+                        `DELETE FROM package_item_locations 
+                         WHERE package_item_id = ? AND serviceLocation IN (?)`,
+                        [sub_package_id, citiesToDelete]
+                    );
+                }
+
+                // ====================================================
+                // ⭐⭐ PREFERENCES ⭐⭐
+                // ====================================================
                 await connection.query(
                     `DELETE FROM booking_preferences WHERE package_item_id = ?`,
                     [sub_package_id]
                 );
 
                 if (sub.preferences && typeof sub.preferences === "object") {
-                    for (const [groupName, groupData] of Object.entries(sub.preferences)) {
+                    for (const [groupName, groupData] of Object.entries(
+                        sub.preferences
+                    )) {
                         if (!groupData || !Array.isArray(groupData.items)) continue;
 
                         const groupRequired = groupData.is_required ?? 0;
@@ -1207,31 +1254,34 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         for (const pref of groupData.items) {
                             await connection.query(
                                 `INSERT INTO booking_preferences
-                                (package_item_id, preferenceGroup, preferenceValue, timeRequired ,preferencePrice, is_required)
-                                VALUES (?, ?, ?, ?, ?, ?)`,
+                                 (package_item_id, preferenceGroup, preferenceValue, 
+                                  timeRequired, preferencePrice, is_required)
+                                 VALUES (?, ?, ?, ?, ?, ?)`,
                                 [
                                     sub_package_id,
                                     groupName,
                                     pref.preference_value,
                                     pref.time_required ?? 0,
                                     pref.preference_price ?? 0,
-                                    groupRequired   // ✅ apply group-level is_required
+                                    groupRequired
                                 ]
                             );
                         }
                     }
                 }
 
-                // --- Addons ---
+                // ====================================================
+                // ⭐⭐ ADDONS ⭐⭐
+                // ====================================================
                 if (Array.isArray(sub.addons)) {
                     const submittedAddonIds = [];
+
                     for (let k = 0; k < sub.addons.length; k++) {
                         const addon = sub.addons[k];
-
-                        // Ensure addonTime is either a valid integer or null
-                        const addonTime = addon.time_required && !isNaN(addon.time_required)
-                            ? parseInt(addon.time_required)
-                            : null;
+                        const addonTime =
+                            addon.time_required && !isNaN(addon.time_required)
+                                ? parseInt(addon.time_required)
+                                : null;
 
                         if (addon.addon_id) {
                             // Update existing addon
@@ -1243,8 +1293,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                             await connection.query(
                                 `UPDATE package_addons
-                                SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
-                                WHERE addon_id = ? AND package_item_id = ?`,
+                                 SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
+                                 WHERE addon_id = ? AND package_item_id = ?`,
                                 [
                                     addon.addon_name ?? oldAddon[0].addonName,
                                     addon.description ?? oldAddon[0].addonDescription,
@@ -1254,36 +1304,43 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                     sub_package_id
                                 ]
                             );
-                            submittedAddonIds.push(addon.addon_id);
 
+                            submittedAddonIds.push(addon.addon_id);
                         } else {
                             // Insert new addon
                             const [newAddon] = await connection.query(
-                                `INSERT INTO package_addons
-                                (package_item_id, addonName, addonDescription, addonPrice, addonTime)
-                                VALUES (?, ?, ?, ?, ?)`,
+                                `INSERT INTO package_addons 
+                                 (package_item_id, addonName, addonDescription, addonPrice, addonTime)
+                                 VALUES (?, ?, ?, ?, ?)`,
                                 [
                                     sub_package_id,
                                     addon.addon_name,
                                     addon.description,
                                     addon.price,
-                                    addonTime,
+                                    addonTime
                                 ]
                             );
+
                             submittedAddonIds.push(newAddon.insertId);
                         }
                     }
 
-
                     await connection.query(
-                        `DELETE FROM package_addons WHERE package_item_id = ? AND addon_id NOT IN (?)`,
-                        [sub_package_id, submittedAddonIds.length ? submittedAddonIds : [0]]
+                        `DELETE FROM package_addons 
+                         WHERE package_item_id = ? AND addon_id NOT IN (?)`,
+                        [
+                            sub_package_id,
+                            submittedAddonIds.length ? submittedAddonIds : [0]
+                        ]
                     );
                 }
 
-                // --- Consent Forms ---
+                // ====================================================
+                // ⭐⭐ CONSENT FORMS ⭐⭐
+                // ====================================================
                 if (Array.isArray(sub.consentForm)) {
                     const submittedConsentIds = [];
+
                     for (const form of sub.consentForm) {
                         if (form.consent_id) {
                             await connection.query(
@@ -1297,13 +1354,20 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                     sub_package_id
                                 ]
                             );
+
                             submittedConsentIds.push(form.consent_id);
                         } else {
                             const [newForm] = await connection.query(
-                                `INSERT INTO package_consent_forms (package_item_id, question, is_required)
+                                `INSERT INTO package_consent_forms
+                                 (package_item_id, question, is_required)
                                  VALUES (?, ?, ?)`,
-                                [sub_package_id, form.question, form.is_required ?? 0]
+                                [
+                                    sub_package_id,
+                                    form.question,
+                                    form.is_required ?? 0
+                                ]
                             );
+
                             submittedConsentIds.push(newForm.insertId);
                         }
                     }
@@ -1311,15 +1375,25 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     await connection.query(
                         `DELETE FROM package_consent_forms
                          WHERE package_item_id = ? AND consent_id NOT IN (?)`,
-                        [sub_package_id, submittedConsentIds.length ? submittedConsentIds : [0]]
+                        [
+                            sub_package_id,
+                            submittedConsentIds.length
+                                ? submittedConsentIds
+                                : [0]
+                        ]
                     );
                 }
             }
 
-            // Delete removed sub-packages
+            // REMOVE DELETED SUB-PACKAGES
             await connection.query(
-                `DELETE FROM package_items WHERE package_id = ? AND item_id NOT IN (?)`,
-                [package_id, submittedItemIds.length ? submittedItemIds : [0]]
+                `DELETE FROM package_items 
+                 WHERE package_id = ? 
+                 AND item_id NOT IN (?)`,
+                [
+                    package_id,
+                    submittedItemIds.length ? submittedItemIds : [0]
+                ]
             );
         }
 
@@ -1327,9 +1401,9 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: "✅ Packages updated successfully with sub-packages, preferences, addons, and consent forms"
+            message:
+                "✅ Packages updated successfully (sub-packages, locations, preferences, addons, and consent forms)"
         });
-
     } catch (err) {
         await connection.rollback();
         connection.release();
@@ -1337,6 +1411,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
