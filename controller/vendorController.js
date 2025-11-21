@@ -24,26 +24,32 @@ const getServicesWithPackages = asyncHandler(async (req, res) => {
                 st.service_type_id AS serviceTypeId,
                 p.package_id,
                 p.packageName AS packageName,
-                p.serviceLocation AS serviceLocation
+                pl.serviceLocation AS serviceLocation
             FROM service_categories sc
             JOIN services s ON s.service_categories_id = sc.service_categories_id
             JOIN service_type st ON st.service_id = s.service_id
             JOIN packages p ON p.service_type_id = st.service_type_id
+            JOIN package_locations pl ON pl.package_id = p.package_id
             WHERE p.package_id IS NOT NULL
             ORDER BY sc.service_categories_id, s.service_id, st.service_type_id, p.package_id;
         `);
 
-        // ⭐ 1.5️⃣ Apply serviceLocation filter ONLY if body contains serviceLocation
+        // ⭐ 1.5️⃣ Apply serviceLocation filter ONLY if query contains serviceLocation
         let filteredRows = rows;
 
         if (locationFilter) {
-            // Filter the rows
+            // Convert to array if user sends single OR multiple locations
+            const locationsArray = Array.isArray(serviceLocation)
+                ? serviceLocation.map(l => l.toLowerCase())
+                : [serviceLocation.toLowerCase()];
+
             filteredRows = rows.filter(row => {
-                if (!row.serviceLocation) return false; // skip packages without location
-                return row.serviceLocation.toLowerCase() === locationFilter;
+                if (!row.serviceLocation) return false;
+
+                // Compare row.serviceLocation with ANY of the user's requested locations
+                return locationsArray.includes(row.serviceLocation.toLowerCase());
             });
 
-            // If no matching packages found
             if (filteredRows.length === 0) {
                 return res.status(200).json({
                     message: "No package available in this city"
