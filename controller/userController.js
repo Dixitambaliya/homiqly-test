@@ -757,7 +757,7 @@ const deleteBooking = asyncHandler(async (req, res) => {
 
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
-    const { serviceLocation } = req.query.serviceLocation;
+    const { serviceLocation } = req.query;
 
     // 1️⃣ serviceLocation is mandatory
     if (!serviceLocation || serviceLocation.trim() === "") {
@@ -788,7 +788,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found" });
         }
 
-        // 3️⃣ Build package list with sub-package locations
+        // 3️⃣ Build package list + detect city match
         const pkgMap = new Map();
 
         for (const row of rows) {
@@ -797,6 +797,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                     package_id: row.package_id,
                     packageName: row.packageName,
                     packageMedia: row.packageMedia,
+                    matchesCity: false
                 });
             }
 
@@ -805,7 +806,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             }
         }
 
-        // 4️⃣ Filter packages → MUST have at least ONE sub-package with matching city
+        // 4️⃣ Filter packages → MUST have at least ONE matching location
         const packages = Array.from(pkgMap.values()).filter(pkg => pkg.matchesCity);
 
         if (packages.length === 0) {
@@ -824,6 +825,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 
 
