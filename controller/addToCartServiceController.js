@@ -34,31 +34,43 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     const userCity = (userRow.city || "").trim().toLowerCase();
 
-    // 2️⃣ Validate each package
+    // 2️⃣ Validate each package (subpackage-level)
     for (const pkg of parsedPackages) {
         const packageId = pkg.package_id;
 
-        // Fetch ALL service locations for this package
-        const [locationRows] = await db.query(
-            `SELECT serviceLocation FROM package_locations WHERE package_id = ?`,
+        // Get subpackage IDs for this package
+        const [subItems] = await db.query(
+            `SELECT item_id FROM package_items WHERE package_id = ?`,
             [packageId]
+        );
+
+        if (!subItems.length) {
+            return res.status(404).json({ message: "No sub-packages found for this package" });
+        }
+
+        const subItemIds = subItems.map(s => s.item_id);
+
+        // Fetch ALL sub-package locations
+        const [locationRows] = await db.query(
+            `SELECT serviceLocation 
+                FROM package_item_locations 
+                WHERE package_item_id IN (?)`,
+            [subItemIds]
         );
 
         if (!locationRows.length) {
             return res.status(404).json({ message: "Package location not found" });
         }
 
-        // Normalize for comparison
         const availableLocations = locationRows.map(
             row => (row.serviceLocation || "").trim().toLowerCase()
         );
 
-        // Check if userCity matches any location
         const cityMatches = availableLocations.includes(userCity);
 
         if (!cityMatches) {
             return res.status(400).json({
-                message: "Please set your location first. This package is not available in your selected city."
+                message: "This package is not available in your city. Please choose another city."
             });
         }
     }

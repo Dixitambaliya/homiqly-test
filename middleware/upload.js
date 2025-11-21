@@ -13,15 +13,29 @@ const fileFilter = (req, file, cb) => {
         "image/jpg",
         "application/pdf",
         "image/svg+xml",
-        "image/webp",
-        "video/mp4"
+        "image/webp"
     ];
-    if (allowedTypes.includes(file.mimetype)) {
+
+    const allowedExtensions = [
+        ".jpeg",
+        ".jpg",
+        ".png",
+        ".pdf",
+        ".svg",
+        ".webp"
+    ];
+
+    const mimetypeOk = allowedTypes.includes(file.mimetype);
+    const ext = path.extname(file.originalname).toLowerCase();
+    const extensionOk = allowedExtensions.includes(ext);
+
+    if (mimetypeOk || extensionOk) {
         cb(null, true);
     } else {
         cb(new Error("Invalid file type"), false);
     }
 };
+
 const upload = multer({ storage, fileFilter });
 
 // Upload file to Firebase

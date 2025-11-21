@@ -518,7 +518,7 @@ const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
 
         // 🧩 Simplified Vendor Email (No price, totals, tax)
         const bodyHtml = `
-        <div style="background:#fff; font-family:Arial, sans-serif; padding:20px;">
+        <div style="background:#fff; font-family:Arial, sans-serif; padding:30px;  max-width:88%">
          <!-- Main Heading -->
             <h1 style="font-size: 20px; font-weight: bold; color: #00000; margin: 25px 0 10px; line-height: 1.3;">
                 Hello <strong>${vendor.name || "Vendor"}</strong> you have been assigned a new Homiqly booking!.

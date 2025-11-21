@@ -32,51 +32,66 @@ const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData =
     let headerHtml = "";
 
     let footerHtml = `
-   <div style="background: #000000; color: #bbb; padding: 15px 30px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; margin: auto;">
+<div style="background: #000000; color: #bbb; padding: 20px 30px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; margin: 0 auto;">
         <tr>
-         <td align="left" valign="top" style="width:50%; padding:0; font-family:Arial, sans-serif;">
-            <div style="line-height:1.8;">
-                <a href="https://www.homiqly.com/help"
-                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
-                Help
-                </a>
-                <br>
+            <!-- Left: Vertical Links -->
+          <td align="left" valign="top" style="width: 50%;">
+          <div style="text-align: left; line-height: 1.8;">
+              <a href="https://www.homiqly.com/help"
+                 style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline-block; width:auto; margin-bottom:8px;">
+                 Help
+              </a>
+              <br>
+      
+              <a href="https://www.homiqly.com/termscondition"
+                 style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline-block; width:auto; margin-bottom:8px;">
+                 Terms of Service
+              </a>
+              <br>
+      
+              <a href="https://www.homiqly.com/privacypolicy"
+                 style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline-block; width:auto; margin-bottom:8px;">
+                 Privacy Policy
+              </a>
+              <br>
+      
+              <a href="https://www.homiqly.com/privacypolicy"
+                 style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline-block; width:auto;">
+                 Unsubscribe
+              </a>
+          </div>
+      </td>
 
-                <a href="https://www.homiqly.com/termscondition"
-                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
-                Terms of Service
-                </a>
-                <br>
 
-                <a href="https://www.homiqly.com/privacypolicy"
-                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
-                Privacy Policy
-                </a>
-                <br>
+            <!-- Right: Social Icons -->
+            <td align="right" valign="center" style="width: 50%;">
+                <div style="text-align:right;">
+                    <a href="https://www.instagram.com/homiqly"
+                       style="text-decoration:none; display:inline-block; margin-left:10px;">
+                        <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png"
+                             alt="Instagram"
+                             style="width: 24px; height: 24px;">
+                    </a>
 
-                <a href="https://www.homiqly.com/privacypolicy"
-                style="font-size:15px; color:#4da3ff; text-decoration:none; display:inline;">
-                Unsubscribe
-                </a>
-            </div>
-            </td>
-            <td align="right" valign="middle" style="width: 50%;">
-                <div>
-                <a href="https://www.instagram.com/homiqly" style="margin-left: 10px;">
-                    <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" alt="Instagram" style="width:24px;height:24px;">
-                </a>
-                <a href="https://www.facebook.com/homiqly" style="margin-left: 10px;">
-                    <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" alt="Facebook" style="width:24px;height:24px;">
-                </a>
-                <a href="https://www.linkedin.com/company/homiqly" style="margin-left: 10px;">
-                    <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png" alt="LinkedIn" style="width:24px;height:24px;">
-                </a>
+                    <a href="https://www.facebook.com/homiqly"
+                       style="text-decoration:none; display:inline-block; margin-left:10px;">
+                        <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png"
+                             alt="Facebook"
+                             style="width: 24px; height: 24px;">
+                    </a>
+
+                    <a href="https://www.linkedin.com/company/homiqly"
+                       style="text-decoration:none; display:inline-block; margin-left:10px;">
+                        <img src="https://img.icons8.com/ios-filled/50/ffffff/linkedin.png"
+                             alt="LinkedIn"
+                             style="width: 24px; height: 24px;">
+                    </a>
                 </div>
             </td>
         </tr>
-      </table>
-    </div>
+    </table>
+</div>
   `;
 
     // ----- CUSTOM LAYOUT VARIANTS -----
