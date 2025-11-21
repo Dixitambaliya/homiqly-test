@@ -96,6 +96,7 @@ const getServiceNames = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getServiceByCategory = asyncHandler(async (req, res) => {
     try {
         const { serviceLocation } = req.query;
@@ -214,6 +215,7 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -755,7 +757,7 @@ const deleteBooking = asyncHandler(async (req, res) => {
 
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
-    const serviceLocation = req.query.serviceLocation;
+    const { serviceLocation } = req.query.serviceLocation;
 
     // 1️⃣ serviceLocation is mandatory
     if (!serviceLocation || serviceLocation.trim() === "") {
