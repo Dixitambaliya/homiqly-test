@@ -757,19 +757,9 @@ const deleteBooking = asyncHandler(async (req, res) => {
 
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
-    const { serviceLocation } = req.query;
-
-    // 1️⃣ serviceLocation is mandatory
-    if (!serviceLocation || serviceLocation.trim() === "") {
-        return res.status(400).json({
-            message: "serviceLocation is required"
-        });
-    }
-
-    const cityLower = serviceLocation.toLowerCase();
 
     try {
-        // 2️⃣ Fetch packages + sub-packages + their locations
+        // Fetch packages + sub-packages + their locations
         const [rows] = await db.query(
             `SELECT 
                 p.package_id,
@@ -788,7 +778,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found" });
         }
 
-        // 3️⃣ Build package list + detect city match
+        // Build package list
         const pkgMap = new Map();
 
         for (const row of rows) {
@@ -796,24 +786,12 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                 pkgMap.set(row.package_id, {
                     package_id: row.package_id,
                     packageName: row.packageName,
-                    packageMedia: row.packageMedia,
-                    matchesCity: false
+                    packageMedia: row.packageMedia
                 });
             }
-
-            if (row.serviceLocation && row.serviceLocation.toLowerCase() === cityLower) {
-                pkgMap.get(row.package_id).matchesCity = true;
-            }
         }
 
-        // 4️⃣ Filter packages → MUST have at least ONE matching location
-        const packages = Array.from(pkgMap.values()).filter(pkg => pkg.matchesCity);
-
-        if (packages.length === 0) {
-            return res.status(406).json({
-                message: `No packages available for city: ${serviceLocation}`
-            });
-        }
+        const packages = Array.from(pkgMap.values());
 
         res.status(200).json({
             message: "Packages fetched successfully",
@@ -825,6 +803,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 
 
