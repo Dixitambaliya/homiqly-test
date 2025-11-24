@@ -66,7 +66,6 @@ const getVendorUnreadNotificationCount = asyncHandler(async (req, res) => {
     return res.status(200).json({ count });
 });
 
-
 const getUserNotifications = asyncHandler(async (req, res) => {
     const { user_id } = req.user;
 
@@ -123,7 +122,6 @@ const getVendorNotifications = asyncHandler(async (req, res) => {
 }
 )
 
-
 const getEmployeeNotifications = asyncHandler(async (req, res) => {
     const { employee_id } = req.user;
 
@@ -151,7 +149,7 @@ const getEmployeeNotifications = asyncHandler(async (req, res) => {
         notifications,
     });
 });
-
+8
 const readNotification = asyncHandler(async (req, res) => {
     const { notification_id } = req.params;
 
