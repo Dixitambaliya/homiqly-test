@@ -137,47 +137,24 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         // 2️⃣ Fetch services with categories ONLY for allowed service IDs
         const [rows] = await db.query(
             `
-            SELECT 
-                sc.service_categories_id AS serviceCategoryId,
-                sc.serviceCategory AS categoryName,
-                s.service_id AS serviceId,
-                s.serviceName,
-                s.serviceDescription,
-                s.serviceImage,
-                s.serviceFilter,
-                s.slug
-            FROM services s
-            JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-            WHERE s.service_id IN (?)
-            ORDER BY sc.service_categories_id, s.service_id
-            `,
+           SELECT 
+            sc.service_categories_id AS serviceCategoryId,
+            sc.serviceCategory AS categoryName,
+            s.service_id AS serviceId,
+            st.service_type_id,   -- ⭐ added here
+            s.serviceName,
+            s.serviceDescription,
+            s.serviceImage,
+            s.serviceFilter,
+            s.slug
+        FROM services s
+        JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        JOIN service_type st ON st.service_id = s.service_id   -- ⭐ join added
+        WHERE s.service_id IN (?)
+        ORDER BY sc.service_categories_id, s.service_id
+         `,
             [allowedServiceIds]
         );
-
-        // // 3️⃣ Fetch rating data ONLY for these services
-        // const [ratings] = await db.query(
-        //     `
-        //     SELECT 
-        //         s.service_id,
-        //         ROUND(AVG(r.rating), 1) AS avgRating,
-        //         COUNT(r.rating_id) AS reviewCount
-        //     FROM ratings r
-        //     JOIN packages p ON r.package_id = p.package_id
-        //     JOIN service_type st ON p.service_type_id = st.service_type_id
-        //     JOIN services s ON st.service_id = s.service_id
-        //     WHERE s.service_id IN (?)
-        //     GROUP BY s.service_id
-        //     `,
-        //     [allowedServiceIds]
-        // );
-
-        // const ratingMap = {};
-        // ratings.forEach(r => {
-        //     ratingMap[r.service_id] = {
-        //         avgRating: r.avgRating,
-        //         reviewCount: r.reviewCount
-        //     };
-        // });
 
         // 4️⃣ GROUP BY CATEGORY
         const grouped = {};
@@ -195,13 +172,12 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             grouped[catName].services.push({
                 serviceId: row.serviceId,
                 serviceCategoryId: row.serviceCategoryId,
+                service_type_id:row.service_type_id,
                 title: row.serviceName,
                 description: row.serviceDescription,
                 serviceImage: row.serviceImage,
                 serviceFilter: row.serviceFilter,
                 slug: row.slug,
-                // avgRating: ratingMap[row.serviceId]?.avgRating || 0,
-                // reviewCount: ratingMap[row.serviceId]?.reviewCount || 0
             });
         });
 
@@ -759,17 +735,8 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
     const { serviceLocation } = req.query;
 
-    // 1️⃣ serviceLocation is mandatory
-    if (!serviceLocation || serviceLocation.trim() === "") {
-        return res.status(400).json({
-            message: "serviceLocation is required"
-        });
-    }
-
-    const cityLower = serviceLocation.toLowerCase();
-
     try {
-        // 2️⃣ Fetch packages + sub-packages + their locations
+        // Fetch all packages + sub-packages + locations
         const [rows] = await db.query(
             `SELECT 
                 p.package_id,
@@ -777,10 +744,10 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                 p.packageMedia,
                 pi.item_id AS sub_package_id,
                 pil.serviceLocation
-            FROM packages p
-            LEFT JOIN package_items pi ON p.package_id = pi.package_id
-            LEFT JOIN package_item_locations pil ON pi.item_id = pil.package_item_id
-            WHERE p.service_type_id = ?`,
+             FROM packages p
+             LEFT JOIN package_items pi ON p.package_id = pi.package_id
+             LEFT JOIN package_item_locations pil ON pi.item_id = pil.package_item_id
+             WHERE p.service_type_id = ?`,
             [service_type_id]
         );
 
@@ -788,7 +755,9 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found" });
         }
 
-        // 3️⃣ Build package list + detect city match
+        // Normalize location
+        const selectedCity = serviceLocation?.trim()?.toLowerCase();
+
         const pkgMap = new Map();
 
         for (const row of rows) {
@@ -797,23 +766,32 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                     package_id: row.package_id,
                     packageName: row.packageName,
                     packageMedia: row.packageMedia,
-                    matchesCity: false
+                    locations: new Set() // store locations of sub-packages
                 });
             }
 
-            if (row.serviceLocation && row.serviceLocation.toLowerCase() === cityLower) {
-                pkgMap.get(row.package_id).matchesCity = true;
+            if (row.serviceLocation) {
+                pkgMap.get(row.package_id).locations.add(
+                    row.serviceLocation.toLowerCase()
+                );
             }
         }
 
-        // 4️⃣ Filter packages → MUST have at least ONE matching location
-        const packages = Array.from(pkgMap.values()).filter(pkg => pkg.matchesCity);
+        let packages = Array.from(pkgMap.values());
 
-        if (packages.length === 0) {
-            return res.status(406).json({
-                message: `No packages available for city: ${serviceLocation}`
-            });
+        // FILTER: show package only if any of its sub-packages contains this location
+        if (selectedCity) {
+            packages = packages.filter((pkg) =>
+                pkg.locations.has(selectedCity)
+            );
         }
+
+        // remove locations before sending (optional)
+        packages = packages.map((p) => ({
+            package_id: p.package_id,
+            packageName: p.packageName,
+            packageMedia: p.packageMedia,
+        }));
 
         res.status(200).json({
             message: "Packages fetched successfully",
@@ -825,6 +803,7 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 
 
