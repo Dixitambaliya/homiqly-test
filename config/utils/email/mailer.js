@@ -907,7 +907,7 @@ const sendReviewRequestMail = async ({ userName, userEmail, serviceName, vendorN
     try {
         const reviewLink = `https://homiqly-development.vercel.app/Profile/history`;
 
-        
+
         const bodyHtml = `
 <div style="max-width:550px; padding: 25px 30px 20px; background-color: #ffffff; font-family: Arial, Helvetica, sans-serif;">
    <h2 style="font-size: 20px; font-weight: 600; color: #000;">We’d Love Your Feedback!</h2>
@@ -993,12 +993,13 @@ const assignWelcomeCode = async ({ user_id, user_email, user_name }) => {
         const { system_promo_code_template_id, code, discountValue, maxUse, description } = template;
 
         // ✅ 4. Assign promo to user
-        await db.query(
-            `INSERT INTO system_promo_codes (user_id, template_id, usage_count)
-       VALUES (?, ?, 0)`,
-            [user_id, system_promo_code_template_id]
-        );
+        const assignedAtMT = moment().tz("America/Denver").format("YYYY-MM-DD HH:mm:ss");
 
+        await db.query(
+            `INSERT INTO system_promo_codes (user_id, template_id, usage_count, assigned_at)
+            VALUES (?, ?, 0, ?)`,
+            [user_id, system_promo_code_template_id, assignedAtMT]
+        );
         // ✅ 5. Send email (using sendMail helper)
         if (user_email) {
             const subject = "Welcome to Homiqly community! Your Promo Code Inside";

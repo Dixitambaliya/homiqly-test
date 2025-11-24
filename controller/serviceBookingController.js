@@ -1268,19 +1268,34 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             if (isBooked.overlap > 0) continue;
 
             // Rating
-            const [[rating]] = await db.query(`
-                SELECT IFNULL(AVG(r.rating), 0) AS avgRating,
-                       COUNT(r.rating_id) AS totalReviews
+            const [ratingRows] = await db.query(`
+                SELECT 
+                    r.rating AS stars,
+                    r.review,
+                    CONCAT(u.firstName, ' ', u.lastName) AS userName
                 FROM ratings r
                 INNER JOIN service_booking sb ON sb.booking_id = r.booking_id
+                INNER JOIN users u ON u.user_id = r.user_id
                 WHERE sb.vendor_id = ?
+                ORDER BY r.created_at DESC
             `, [vendorId]);
+
+            const [[ratingSummary]] = await db.query(`
+                    SELECT 
+                        IFNULL(AVG(r.rating), 0) AS avgRating,
+                        COUNT(r.rating_id) AS totalReviews
+                    FROM ratings r
+                    INNER JOIN service_booking sb ON sb.booking_id = r.booking_id
+                    WHERE sb.vendor_id = ?
+                `, [vendorId]);
 
             availableVendors.push({
                 ...v.vendor,
-                avgRating: Number(rating.avgRating),
-                totalReviews: rating.totalReviews
+                avgRating: Number(ratingSummary.avgRating),
+                totalReviews: ratingSummary.totalReviews,
+                reviews: ratingRows       // ⭐ includes user name + rating + review
             });
+
         }
 
         res.status(200).json({

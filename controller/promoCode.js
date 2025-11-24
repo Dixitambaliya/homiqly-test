@@ -418,6 +418,62 @@ const getAutoAssignWelcomeCodeStatus = asyncHandler(async (req, res) => {
     }
 });
 
+const getLatestUserPromo = asyncHandler(async (req, res) => {
+    const user_id = req.user?.user_id;
+
+    // 1️⃣ Fetch admin promos
+    const [adminPromos] = await db.query(`
+        SELECT 
+            upc.user_promo_code_id AS id,
+            upc.assigned_at,
+            pc.code AS promoCode,
+            pc.discountValue,
+            pc.discount_type,
+            pc.description,
+            pc.title,
+            pc.minSpend,
+            pc.maxUse AS promoMaxUse,
+            upc.usedCount
+        FROM user_promo_codes upc
+        LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+        WHERE upc.user_id = ?
+        ORDER BY upc.assigned_at DESC
+        LIMIT 1
+    `, [user_id]);
+
+    // 2️⃣ Fetch system promos
+    const [systemPromos] = await db.query(`
+        SELECT 
+            spc.system_promo_code_id AS id,
+            spc.assigned_at,
+            spct.code AS promoCode,
+            spct.description,
+            spct.discountValue,
+            spct.discount_type,
+            spct.title,
+            spct.minSpend,
+            spct.maxUse AS promoMaxUse,
+            spc.usage_count AS usedCount
+        FROM system_promo_codes spc
+        LEFT JOIN system_promo_code_templates spct
+        ON spc.template_id = spct.system_promo_code_template_id
+        WHERE spc.user_id = ?
+        ORDER BY spc.assigned_at DESC
+        LIMIT 1
+    `, [user_id]);
+
+    // 3️⃣ Determine latest between the two
+    const latestPromo = [adminPromos[0], systemPromos[0]]
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.assigned_at) - new Date(a.assigned_at))[0];
+
+    res.json({
+        promo: latestPromo || null
+    });
+});
+
+
+
 
 module.exports = {
     createPromoCode,
@@ -426,5 +482,6 @@ module.exports = {
     deletePromoCode,
     getUserPromoCodes,
     toggleAutoAssignWelcomeCode,
-    getAutoAssignWelcomeCodeStatus
+    getAutoAssignWelcomeCodeStatus,
+    getLatestUserPromo
 }

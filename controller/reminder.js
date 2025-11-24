@@ -270,12 +270,15 @@ cron.schedule("0 0 * * *", async () => {
                     [user.user_id, promo.code]
                 );
 
+                // 📌 Generate Mountain Time timestamp
+                const assignedAtMT = moment().tz("America/Denver").format("YYYY-MM-DD HH:mm:ss");
+
                 if (exists.length > 0) continue;
 
                 await db.query(
                     `INSERT INTO user_promo_codes (user_id, code, assigned_at, maxUse, promo_id, source_type)
-                     VALUES (?, ?, NOW(), ?, ?, 'admin')`,
-                    [user.user_id, promo.code, promo.maxUse, promo.promo_id]
+                     VALUES (?, ?, ?, ?, ?, 'admin')`,
+                    [user.user_id, promo.code, assignedAtMT, promo.maxUse, promo.promo_id]
                 );
 
                 console.log(`✅ Assigned promo ${promo.code} to user ${user.user_id}`);

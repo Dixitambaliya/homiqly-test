@@ -9,7 +9,8 @@ const {
     deletePromoCode,
     getUserPromoCodes,
     toggleAutoAssignWelcomeCode,
-    getAutoAssignWelcomeCodeStatus
+    getAutoAssignWelcomeCodeStatus,
+    getLatestUserPromo
 } = require("../controller/promoCode")
 
 router.post("/createpromo", authenticationToken, createPromoCode)
@@ -18,6 +19,7 @@ router.patch("/updatecode/:id", authenticationToken, updatePromoCode)
 router.delete("/deletecode/:id", authenticationToken, deletePromoCode)
 router.get("/getpromocodes", authenticationToken, getUserPromoCodes)
 router.get("/getstatuscode", authenticationToken, getAutoAssignWelcomeCodeStatus)
+router.get("/get-latest-code", authenticationToken, getLatestUserPromo)
 router.patch("/changautogeneratecode", authenticationToken, toggleAutoAssignWelcomeCode)
 
 module.exports = router;
