@@ -757,9 +757,10 @@ const deleteBooking = asyncHandler(async (req, res) => {
 
 const getPackagesByServiceType = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
+    const { serviceLocation } = req.query;
 
     try {
-        // Fetch packages + sub-packages + their locations
+        // Fetch all packages + sub-packages + locations
         const [rows] = await db.query(
             `SELECT 
                 p.package_id,
@@ -767,10 +768,10 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                 p.packageMedia,
                 pi.item_id AS sub_package_id,
                 pil.serviceLocation
-            FROM packages p
-            LEFT JOIN package_items pi ON p.package_id = pi.package_id
-            LEFT JOIN package_item_locations pil ON pi.item_id = pil.package_item_id
-            WHERE p.service_type_id = ?`,
+             FROM packages p
+             LEFT JOIN package_items pi ON p.package_id = pi.package_id
+             LEFT JOIN package_item_locations pil ON pi.item_id = pil.package_item_id
+             WHERE p.service_type_id = ?`,
             [service_type_id]
         );
 
@@ -778,7 +779,9 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "No packages found" });
         }
 
-        // Build package list
+        // Normalize location
+        const selectedCity = serviceLocation?.trim()?.toLowerCase();
+
         const pkgMap = new Map();
 
         for (const row of rows) {
@@ -786,12 +789,33 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
                 pkgMap.set(row.package_id, {
                     package_id: row.package_id,
                     packageName: row.packageName,
-                    packageMedia: row.packageMedia
+                    packageMedia: row.packageMedia,
+                    locations: new Set() // store locations of sub-packages
                 });
+            }
+
+            if (row.serviceLocation) {
+                pkgMap.get(row.package_id).locations.add(
+                    row.serviceLocation.toLowerCase()
+                );
             }
         }
 
-        const packages = Array.from(pkgMap.values());
+        let packages = Array.from(pkgMap.values());
+
+        // FILTER: show package only if any of its sub-packages contains this location
+        if (selectedCity) {
+            packages = packages.filter((pkg) =>
+                pkg.locations.has(selectedCity)
+            );
+        }
+
+        // remove locations before sending (optional)
+        packages = packages.map((p) => ({
+            package_id: p.package_id,
+            packageName: p.packageName,
+            packageMedia: p.packageMedia,
+        }));
 
         res.status(200).json({
             message: "Packages fetched successfully",
