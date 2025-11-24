@@ -31,7 +31,7 @@ const adminGetQueries = {
 
         vs.manual_assignment_enabled AS status,
 
-        -- 🟩 Packages (via vendor_p    ackage_items_flat)
+        -- 🟩 Packages (via vendor_package_items_flat)
         COALESCE(
             (
                 SELECT CONCAT(
@@ -82,7 +82,34 @@ const adminGetQueries = {
                 WHERE vpf.vendor_id = v.vendor_id
             ),
             '[]'
-        ) AS package_items
+        ) AS package_items,
+
+        -- 🟧 BANK DETAILS (NEW)
+        COALESCE(
+           (
+               SELECT JSON_OBJECT(
+                   'vendor_bank_account_id', b.vendor_bank_account_id,
+                   'account_holder_name', b.account_holder_name,
+                   'bank_name', b.bank_name,
+                   'institution_number', b.institution_number,
+                   'transit_number', b.transit_number,
+                   'account_number', b.account_number,
+                   'bank_address', b.bank_address,
+                   'email', b.email,
+                   'legal_name', b.legal_name,
+                   'dob', b.dob,
+                   'business_name', b.business_name,
+                   'interac_email', b.interac_email,
+                   'interac_phone', b.interac_phone,
+                   'government_id', b.government_id,
+                   'preferred_transfer_type', b.preferred_transfer_type
+               )
+               FROM vendor_bank_accounts b
+               WHERE b.vendor_id = v.vendor_id
+               LIMIT 1
+           ),
+           JSON_OBJECT() -- return empty {}
+        ) AS bank_details
 
     FROM vendors v
     LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
@@ -90,7 +117,7 @@ const adminGetQueries = {
     LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
     GROUP BY v.vendor_id
     ORDER BY v.vendor_id DESC
-    `,
+`,
 
 
     getAllServiceTypes: `
