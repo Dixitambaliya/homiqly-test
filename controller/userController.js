@@ -137,47 +137,24 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
         // 2️⃣ Fetch services with categories ONLY for allowed service IDs
         const [rows] = await db.query(
             `
-            SELECT 
-                sc.service_categories_id AS serviceCategoryId,
-                sc.serviceCategory AS categoryName,
-                s.service_id AS serviceId,
-                s.serviceName,
-                s.serviceDescription,
-                s.serviceImage,
-                s.serviceFilter,
-                s.slug
-            FROM services s
-            JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
-            WHERE s.service_id IN (?)
-            ORDER BY sc.service_categories_id, s.service_id
-            `,
+           SELECT 
+            sc.service_categories_id AS serviceCategoryId,
+            sc.serviceCategory AS categoryName,
+            s.service_id AS serviceId,
+            st.service_type_id,   -- ⭐ added here
+            s.serviceName,
+            s.serviceDescription,
+            s.serviceImage,
+            s.serviceFilter,
+            s.slug
+        FROM services s
+        JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        JOIN service_type st ON st.service_id = s.service_id   -- ⭐ join added
+        WHERE s.service_id IN (?)
+        ORDER BY sc.service_categories_id, s.service_id
+         `,
             [allowedServiceIds]
         );
-
-        // // 3️⃣ Fetch rating data ONLY for these services
-        // const [ratings] = await db.query(
-        //     `
-        //     SELECT 
-        //         s.service_id,
-        //         ROUND(AVG(r.rating), 1) AS avgRating,
-        //         COUNT(r.rating_id) AS reviewCount
-        //     FROM ratings r
-        //     JOIN packages p ON r.package_id = p.package_id
-        //     JOIN service_type st ON p.service_type_id = st.service_type_id
-        //     JOIN services s ON st.service_id = s.service_id
-        //     WHERE s.service_id IN (?)
-        //     GROUP BY s.service_id
-        //     `,
-        //     [allowedServiceIds]
-        // );
-
-        // const ratingMap = {};
-        // ratings.forEach(r => {
-        //     ratingMap[r.service_id] = {
-        //         avgRating: r.avgRating,
-        //         reviewCount: r.reviewCount
-        //     };
-        // });
 
         // 4️⃣ GROUP BY CATEGORY
         const grouped = {};
@@ -195,13 +172,12 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
             grouped[catName].services.push({
                 serviceId: row.serviceId,
                 serviceCategoryId: row.serviceCategoryId,
+                service_type_id:row.service_type_id,
                 title: row.serviceName,
                 description: row.serviceDescription,
                 serviceImage: row.serviceImage,
                 serviceFilter: row.serviceFilter,
                 slug: row.slug,
-                // avgRating: ratingMap[row.serviceId]?.avgRating || 0,
-                // reviewCount: ratingMap[row.serviceId]?.reviewCount || 0
             });
         });
 
