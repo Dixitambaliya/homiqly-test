@@ -1416,7 +1416,7 @@ const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
             error: error.message
         });
     }
-});
+});   
 
 
 module.exports = {
