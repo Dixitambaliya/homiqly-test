@@ -331,7 +331,7 @@ const getCity = asyncHandler(async (req, res) => {
 
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { firstName, lastName, email, phone } = req.body;
+    const { firstName, lastName, email, phone ,city } = req.body;
 
     try {
         // Step 1: Fetch existing user

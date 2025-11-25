@@ -31,10 +31,10 @@ const ticketRoutes = require("./routes/ticketRoutes")
 const paymentRoutes = require("./routes/paymentRoutes")
 const notificationGetRoutes = require("./routes/notificationGetRoutes");
 const promoRoutes = require("./routes/promoRoutes")
-const otpRoutes = require("./routes/otpRoutes")
-const serviceTaxRoutes = require("./routes/serviceTaxRoutes")
-const vendorTemporaryRoutes = require("./routes/vendorTemporaryRoutes")
-const vendorAvailabilityRoutes = require("./routes/vendorAvailabilityRoutes")
+const otpRoutes = require ("./routes/otpRoutes")
+const serviceTaxRoutes = require ("./routes/serviceTaxRoutes")
+const vendorTemporaryRoutes = require ("./routes/vendorTemporaryRoutes")
+const vendorAvailabilityRoutes = require ("./routes/vendorAvailabilityRoutes")
 
 const PORT = process.env.PORT || 8000
 
@@ -42,21 +42,16 @@ app.use(cors({
     origin: "*",
 }));
 
-// ✅ Move this BEFORE ANY app.use()
-app.use(
-    "/api/payment/stripe/webhook",
-    express.raw({ type: "*/*" })
-);
-
+// 🟢 Stripe webhook (must come FIRST and use raw parser)
 app.post(
     "/api/payment/stripe/webhook",
+    express.raw({ type: "application/json" }),
     stripeController.stripeWebhook
 );
 
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-// app.use(bodyParser.json());
+app.use("/public", express.static("public"));
+app.use(express.json())
+app.use(bodyParser.json());
 
 // API Routes
 app.use("/api/user", userAuthRoutes)
