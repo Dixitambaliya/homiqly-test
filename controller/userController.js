@@ -331,12 +331,12 @@ const getCity = asyncHandler(async (req, res) => {
 
 const updateUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    const { firstName, lastName, email, phone ,city } = req.body;
+    const { firstName, lastName, email, phone, city } = req.body;
 
     try {
         // Step 1: Fetch existing user
         const [existingRows] = await db.query(
-            `SELECT firstName, lastName, email, phone, profileImage, is_approved 
+            `SELECT firstName, lastName, email, phone, profileImage, city, is_approved 
              FROM users 
              WHERE user_id = ?`,
             [user_id]
@@ -416,7 +416,7 @@ const updateUserData = asyncHandler(async (req, res) => {
         // ==== UPDATE USER ====
         await db.query(
             `UPDATE users 
-             SET profileImage = ?, firstName = ?, lastName = ?, email = ?, phone = ?
+             SET profileImage = ?, firstName = ?, lastName = ?, email = ?, phone = ? , city = ?
              WHERE user_id = ?`,
             [
                 updatedProfileImage,
@@ -424,6 +424,7 @@ const updateUserData = asyncHandler(async (req, res) => {
                 updatedLastName,
                 updatedEmail,
                 updatedPhone,
+                city,
                 user_id,
             ]
         );
@@ -443,6 +444,7 @@ const updateUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -475,7 +477,7 @@ const addUserData = asyncHandler(async (req, res) => {
 
         // 2️⃣ Check if user exists
         const [userCheck] = await connection.query(
-            `SELECT user_id, is_approved, email FROM users WHERE user_id = ? FOR UPDATE`,
+            `SELECT user_id, is_approved, email , city FROM users WHERE user_id = ? FOR UPDATE`,
             [user_id]
         );
 
@@ -540,7 +542,7 @@ const addUserData = asyncHandler(async (req, res) => {
                 phone,
                 email || user.email,
                 address,
-                city,
+                city || user.city,
                 postalcode,
                 flatNumber,
                 user_id,
@@ -579,6 +581,7 @@ const addUserData = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
