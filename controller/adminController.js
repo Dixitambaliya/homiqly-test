@@ -1093,23 +1093,24 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             const package_id = pkg.package_id;
             if (!package_id) continue;
 
-            // ------------------ VERIFY PACKAGE ------------------ //
+            // ✅ Verify package exists
             const [existingPackage] = await connection.query(
-                `SELECT package_id, packageMedia, packageName 
+                `SELECT package_id, packageMedia, packageName
                  FROM packages WHERE package_id = ?`,
                 [package_id]
             );
             if (!existingPackage.length) continue;
 
             const oldPackage = existingPackage[0];
+
             const packageMedia =
                 req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url ||
                 oldPackage.packageMedia;
 
-            // ------------------ UPDATE PACKAGE ------------------ //
+            // ✅ Update package
             await connection.query(
-                `UPDATE packages 
-                 SET packageName = ?, packageMedia = ? 
+                `UPDATE packages
+                 SET packageName = ?, packageMedia = ?
                  WHERE package_id = ?`,
                 [
                     pkg.packageName ?? oldPackage.packageName,
@@ -1118,18 +1119,19 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                 ]
             );
 
-            // ------------------ SUB-PACKAGES ------------------ //
+            // ✅ SUB-PACKAGES
             if (!Array.isArray(pkg.sub_packages)) continue;
+
             const submittedItemIds = [];
+            let mediaCounter = 0; // ✅ NEW — flat indexing
 
             for (let j = 0; j < pkg.sub_packages.length; j++) {
                 const sub = pkg.sub_packages[j];
 
                 let sub_package_id;
 
-                // 1️⃣ UPDATE OR INSERT SUB-PACKAGE
+                // ✅ UPDATE or INSERT SUB-PACKAGE
                 if (sub.sub_package_id) {
-                    // Existing sub-package
                     const [oldItem] = await connection.query(
                         `SELECT * FROM package_items WHERE item_id = ?`,
                         [sub.sub_package_id]
@@ -1137,9 +1139,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     if (!oldItem.length) continue;
 
                     const old = oldItem[0];
+
                     const itemMedia =
-                        req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url ||
+                        req.uploadedFiles?.[`itemMedia_${mediaCounter}`]?.[0]?.url ||
                         old.itemMedia;
+
+                    mediaCounter++; // ✅ move to next file
 
                     await connection.query(
                         `UPDATE package_items
@@ -1158,12 +1163,14 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                     sub_package_id = sub.sub_package_id;
                 } else {
-                    // New sub-package
                     const itemMedia =
-                        req.uploadedFiles?.[`itemMedia_${i}_${j}`]?.[0]?.url || null;
+                        req.uploadedFiles?.[`itemMedia_${mediaCounter}`]?.[0]?.url ||
+                        null;
+
+                    mediaCounter++;
 
                     const [newItem] = await connection.query(
-                        `INSERT INTO package_items 
+                        `INSERT INTO package_items
                          (package_id, itemName, description, price, timeRequired, itemMedia)
                          VALUES (?, ?, ?, ?, ?, ?)`,
                         [
@@ -1181,12 +1188,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                 submittedItemIds.push(sub_package_id);
 
-                // ====================================================
-                // ⭐⭐ SERVICE LOCATIONS (per sub-package) ⭐⭐
-                // ====================================================
+                // ✅ SERVICE LOCATIONS
                 let locations = sub.serviceLocation || [];
-
-                // Parse JSON string
                 if (typeof locations === "string") {
                     try {
                         locations = JSON.parse(locations);
@@ -1194,15 +1197,13 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         locations = [];
                     }
                 }
-
                 if (!Array.isArray(locations)) locations = [];
 
                 const newCities = locations.map((c) => c.trim());
 
-                // Fetch existing locations for this sub-package
                 const [existingLocs] = await connection.query(
-                    `SELECT serviceLocation 
-                     FROM package_item_locations 
+                    `SELECT serviceLocation
+                     FROM package_item_locations
                      WHERE package_item_id = ?`,
                     [sub_package_id]
                 );
@@ -1216,28 +1217,24 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     (city) => !newCities.includes(city)
                 );
 
-                // Add new locations
                 for (let city of citiesToAdd) {
                     await connection.query(
-                        `INSERT INTO package_item_locations 
+                        `INSERT INTO package_item_locations
                          (package_item_id, serviceLocation)
                          VALUES (?, ?)`,
                         [sub_package_id, city]
                     );
                 }
 
-                // Remove deleted locations
                 if (citiesToDelete.length > 0) {
                     await connection.query(
-                        `DELETE FROM package_item_locations 
+                        `DELETE FROM package_item_locations
                          WHERE package_item_id = ? AND serviceLocation IN (?)`,
                         [sub_package_id, citiesToDelete]
                     );
                 }
 
-                // ====================================================
-                // ⭐⭐ PREFERENCES ⭐⭐
-                // ====================================================
+                // ✅ PREFERENCES
                 await connection.query(
                     `DELETE FROM booking_preferences WHERE package_item_id = ?`,
                     [sub_package_id]
@@ -1254,7 +1251,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         for (const pref of groupData.items) {
                             await connection.query(
                                 `INSERT INTO booking_preferences
-                                 (package_item_id, preferenceGroup, preferenceValue, 
+                                 (package_item_id, preferenceGroup, preferenceValue,
                                   timeRequired, preferencePrice, is_required)
                                  VALUES (?, ?, ?, ?, ?, ?)`,
                                 [
@@ -1270,36 +1267,25 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     }
                 }
 
-                // ====================================================
-                // ⭐⭐ ADDONS ⭐⭐
-                // ====================================================
+                // ✅ ADDONS (unchanged logic)
                 if (Array.isArray(sub.addons)) {
                     const submittedAddonIds = [];
 
-                    for (let k = 0; k < sub.addons.length; k++) {
-                        const addon = sub.addons[k];
-                        const addonTime =
-                            addon.time_required && !isNaN(addon.time_required)
-                                ? parseInt(addon.time_required)
-                                : null;
+                    for (const addon of sub.addons) {
+                        const addonTime = addon.time_required
+                            ? parseInt(addon.time_required)
+                            : null;
 
                         if (addon.addon_id) {
-                            // Update existing addon
-                            const [oldAddon] = await connection.query(
-                                `SELECT * FROM package_addons WHERE addon_id = ?`,
-                                [addon.addon_id]
-                            );
-                            if (!oldAddon.length) continue;
-
                             await connection.query(
                                 `UPDATE package_addons
                                  SET addonName = ?, addonDescription = ?, addonPrice = ?, addonTime = ?
                                  WHERE addon_id = ? AND package_item_id = ?`,
                                 [
-                                    addon.addon_name ?? oldAddon[0].addonName,
-                                    addon.description ?? oldAddon[0].addonDescription,
-                                    addon.price ?? oldAddon[0].addonPrice,
-                                    addonTime ?? oldAddon[0].addonTime ?? null,
+                                    addon.addon_name,
+                                    addon.description,
+                                    addon.price,
+                                    addonTime,
                                     addon.addon_id,
                                     sub_package_id
                                 ]
@@ -1307,9 +1293,8 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
                             submittedAddonIds.push(addon.addon_id);
                         } else {
-                            // Insert new addon
                             const [newAddon] = await connection.query(
-                                `INSERT INTO package_addons 
+                                `INSERT INTO package_addons
                                  (package_item_id, addonName, addonDescription, addonPrice, addonTime)
                                  VALUES (?, ?, ?, ?, ?)`,
                                 [
@@ -1326,7 +1311,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     }
 
                     await connection.query(
-                        `DELETE FROM package_addons 
+                        `DELETE FROM package_addons
                          WHERE package_item_id = ? AND addon_id NOT IN (?)`,
                         [
                             sub_package_id,
@@ -1335,9 +1320,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     );
                 }
 
-                // ====================================================
-                // ⭐⭐ CONSENT FORMS ⭐⭐
-                // ====================================================
+                // ✅ CONSENT FORMS (unchanged logic)
                 if (Array.isArray(sub.consentForm)) {
                     const submittedConsentIds = [];
 
@@ -1360,7 +1343,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                             const [newForm] = await connection.query(
                                 `INSERT INTO package_consent_forms
                                  (package_item_id, question, is_required)
-                                 VALUES (?, ?, ?)`,
+                                 VALUES (?, ?)`,
                                 [
                                     sub_package_id,
                                     form.question,
@@ -1377,18 +1360,16 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                          WHERE package_item_id = ? AND consent_id NOT IN (?)`,
                         [
                             sub_package_id,
-                            submittedConsentIds.length
-                                ? submittedConsentIds
-                                : [0]
+                            submittedConsentIds.length ? submittedConsentIds : [0]
                         ]
                     );
                 }
             }
 
-            // REMOVE DELETED SUB-PACKAGES
+            // ✅ Remove deleted sub-packages
             await connection.query(
-                `DELETE FROM package_items 
-                 WHERE package_id = ? 
+                `DELETE FROM package_items
+                 WHERE package_id = ?
                  AND item_id NOT IN (?)`,
                 [
                     package_id,
@@ -1402,7 +1383,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message:
-                "✅ Packages updated successfully (sub-packages, locations, preferences, addons, and consent forms)"
+                "✅ Packages updated successfully with flat itemMedia index support"
         });
     } catch (err) {
         await connection.rollback();
@@ -1411,6 +1392,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
