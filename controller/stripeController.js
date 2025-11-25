@@ -200,6 +200,14 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
             capture_method: "manual",
             metadata
         });
+        console.log(
+            "Webhook secret loaded:",
+            process.env.STRIPE_WEBHOOK_SECRET
+                ? process.env.STRIPE_WEBHOOK_SECRET.slice(0, 4) +
+                "..." +
+                process.env.STRIPE_WEBHOOK_SECRET.slice(-4)
+                : "❌ NOT LOADED"
+        );
 
         // ✅ Log payment
         await conn.query(
@@ -241,6 +249,15 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             sig,
             process.env.STRIPE_WEBHOOK_SECRET
         );
+        console.log(
+            "Webhook secret loaded:",
+            process.env.STRIPE_WEBHOOK_SECRET
+                ? process.env.STRIPE_WEBHOOK_SECRET.slice(0, 4) +
+                "..." +
+                process.env.STRIPE_WEBHOOK_SECRET.slice(-4)
+                : "❌ NOT LOADED"
+        );
+
     } catch (err) {
         console.error("⚠️ Signature verification failed:", err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
