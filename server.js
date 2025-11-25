@@ -46,7 +46,7 @@ app.use(cors({
 app.post(
     "/api/payment/stripe/webhook",
     // ✅ use raw parser (later change to "*/*" as advised)
-    express.raw({ type: "application/json" }),
+    express.raw({ type: "*/*" }),
 
     // ✅ add this middleware BEFORE your controller
     (req, res, next) => {
@@ -59,9 +59,9 @@ app.post(
     stripeController.stripeWebhook
 );
 
-app.use("/public", express.static("public"));
-app.use(express.json())
-app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+// app.use(bodyParser.json());
 
 // API Routes
 app.use("/api/user", userAuthRoutes)
