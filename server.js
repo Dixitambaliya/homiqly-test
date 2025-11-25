@@ -11,9 +11,10 @@ require("./controller/reminder")
 // 🟢 Stripe webhook (must come FIRST and use raw parser)
 app.post(
     "/api/payment/stripe/webhook",
-    express.raw({ type: "application/json" }),
+    express.raw({ type: "*/*" }),
     stripeController.stripeWebhook
 );
+
 app.use(express.json())
 
 
