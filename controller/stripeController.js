@@ -194,12 +194,23 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
         // ✅ Create Stripe Payment Intent
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(finalTotal * 100), // Stripe expects amount in cents
-            currency: "cad",
-            payment_method_types: ["card"],
-            capture_method: "manual",
+            amount: Math.round(finalTotal * 100),
+            currency: "cad",   // ✅ keep CAD (Stripe handles 3DS rules automatically)
+
+            automatic_payment_methods: {
+                enabled: true,
+                allow_redirects: "never"   // ✅ KEY FIX!
+            },
+
+            payment_method_options: {
+                card: {
+                    request_three_d_secure: "automatic" // ✅ key line!
+                }
+            },
             metadata
         });
+
+
         console.log(
             "Webhook secret loaded:",
             process.env.STRIPE_WEBHOOK_SECRET
@@ -264,18 +275,24 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     }
 
     // 🔥 MUST return immediately (Stripe requires fast response)
-    res.status(200).json({ received: true });
+    res.status(200).send('ok'); // not JSON
 
     // ⚙️ Run actual processing async
     (async () => {
         const type = event.type;
 
         // 🛑 Accept ONLY OTP-success events
-        if (!["payment_intent.requires_capture", "payment_intent.succeeded"].includes(type)) {
-            console.log("Ignored webhook event:", type);
+        const validEvents = [
+            "payment_intent.succeeded",            // Canada direct success
+            "charge.succeeded",                    // Some processors finalize here
+            "payment_intent.processing",           // India — waiting but confirmed
+            "payment_intent.requires_action"       // India — 3DS challenge completed
+        ];
+
+        if (!validEvents.includes(event.type)) {
+            console.log("Ignored webhook event:", event.type);
             return;
         }
-
 
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
@@ -477,13 +494,14 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             }
 
             // 🏦 CAPTURE NOW (SAFE — OTP SUCCESS)
-            const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
+            const latestCharge = paymentIntent.latest_charge;
 
-            const receiptUrl =
-                capturedPayment.latest_charge &&
-                    typeof capturedPayment.latest_charge === "string"
-                    ? (await stripe.charges.retrieve(capturedPayment.latest_charge)).receipt_url
-                    : null;
+            let receiptUrl = null;
+
+            if (latestCharge) {
+                const charge = await stripe.charges.retrieve(latestCharge);
+                receiptUrl = charge.receipt_url;
+            }
 
             // 💾 Update payment + booking
             await connection.query(
