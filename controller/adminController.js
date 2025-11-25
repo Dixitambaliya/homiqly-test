@@ -1103,8 +1103,9 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
 
             const oldPackage = existingPackage[0];
 
+            // ✅ UPDATED — no more packageMedia_0, only packageMedia
             const packageMedia =
-                req.uploadedFiles?.[`packageMedia_${i}`]?.[0]?.url ||
+                req.uploadedFiles?.packageMedia?.[0]?.url ||
                 oldPackage.packageMedia;
 
             // ✅ Update package
@@ -1123,7 +1124,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
             if (!Array.isArray(pkg.sub_packages)) continue;
 
             const submittedItemIds = [];
-            let mediaCounter = 0; // ✅ NEW — flat indexing
+            let mediaCounter = 0; // ✅ flat index remains for itemMedia
 
             for (let j = 0; j < pkg.sub_packages.length; j++) {
                 const sub = pkg.sub_packages[j];
@@ -1144,7 +1145,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                         req.uploadedFiles?.[`itemMedia_${mediaCounter}`]?.[0]?.url ||
                         old.itemMedia;
 
-                    mediaCounter++; // ✅ move to next file
+                    mediaCounter++;
 
                     await connection.query(
                         `UPDATE package_items
@@ -1267,7 +1268,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     }
                 }
 
-                // ✅ ADDONS (unchanged logic)
+                // ✅ ADDONS (unchanged)
                 if (Array.isArray(sub.addons)) {
                     const submittedAddonIds = [];
 
@@ -1320,7 +1321,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                     );
                 }
 
-                // ✅ CONSENT FORMS (unchanged logic)
+                // ✅ CONSENT FORMS (unchanged)
                 if (Array.isArray(sub.consentForm)) {
                     const submittedConsentIds = [];
 
@@ -1382,8 +1383,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message:
-                "✅ Packages updated successfully with flat itemMedia index support"
+            message: "✅ Packages updated successfully (packageMedia without index)"
         });
     } catch (err) {
         await connection.rollback();
@@ -1392,6 +1392,7 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 
