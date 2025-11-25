@@ -42,22 +42,17 @@ app.use(cors({
     origin: "*",
 }));
 
-// 🟢 Stripe webhook (must come FIRST and use raw parser)
+// ✅ Move this BEFORE ANY app.use()
+app.use(
+    "/api/payment/stripe/webhook",
+    express.raw({ type: "*/*" })
+);
+
 app.post(
     "/api/payment/stripe/webhook",
-    // ✅ use raw parser (later change to "*/*" as advised)
-    express.raw({ type: "*/*" }),
-
-    // ✅ add this middleware BEFORE your controller
-    (req, res, next) => {
-        console.log("🟡 Incoming webhook from:", req.headers["user-agent"]);
-        console.log("🟡 Stripe signature:", req.headers["stripe-signature"]);
-        next(); // ✅ allow request to continue
-    },
-
-    // ✅ your existing controller
     stripeController.stripeWebhook
 );
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
