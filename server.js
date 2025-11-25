@@ -6,6 +6,17 @@ const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
 require("./controller/reminder")
+
+
+// 🟢 Stripe webhook (must come FIRST and use raw parser)
+app.post(
+    "/api/payment/stripe/webhook",
+    express.raw({ type: "application/json" }),
+    stripeController.stripeWebhook
+);
+app.use(express.json())
+
+
 // Import routes
 const userAuthRoutes = require("./routes/userAuthRoutes")
 const adminAuthRoutes = require("./routes/adminAuthRoutes")
@@ -38,14 +49,6 @@ const vendorAvailabilityRoutes = require("./routes/vendorAvailabilityRoutes")
 
 const PORT = process.env.PORT || 8000
 
-
-// 🟢 Stripe webhook (must come FIRST and use raw parser)
-app.post(
-    "/api/payment/stripe/webhook",
-    express.raw({ type: "application/json" }),
-    stripeController.stripeWebhook
-);
-app.use(express.json())
 
 app.use(cors({
     origin: "*",
