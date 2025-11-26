@@ -195,26 +195,21 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         // ✅ Create Stripe Payment Intent
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(finalTotal * 100),
-            currency: "cad",   // ✅ keep CAD — works in India + Canada
+            currency: "cad",
 
             automatic_payment_methods: {
                 enabled: true,
-                allow_redirects: "never"  // ✅ prevents redirect-based flows
+                allow_redirects: "never"
             },
-
-            confirmation_method: "automatic",  // ✅ REQUIRED for 3DS flows
 
             payment_method_options: {
                 card: {
-                    request_three_d_secure: "automatic" // ✅ only challenge when required
+                    request_three_d_secure: "automatic"
                 }
             },
 
-            capture_method: "automatic", // ✅ ensures payment fully settles after success
-
             metadata
         });
-
 
 
         console.log(
