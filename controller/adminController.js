@@ -803,19 +803,23 @@ const getPackageList = asyncHandler(async (req, res) => {
         const [rows] = await db.query(`
             SELECT
                 p.package_id,
-                -- Show packageName if exists, otherwise show serviceName
+
+                -- ✅ Package name fallback
                 CASE
                     WHEN (p.packageName IS NULL OR p.packageName = '')
                     THEN s.serviceName
                     ELSE p.packageName
                 END AS packageName,
 
-                -- Show packageMedia if exists, otherwise show serviceImage
+                -- ✅ Package media fallback
                 CASE
                     WHEN (p.packageMedia IS NULL OR p.packageMedia = '')
                     THEN s.serviceImage
                     ELSE p.packageMedia
                 END AS packageMedia,
+
+                -- ✅ NEW: service name
+                s.serviceName AS serviceName,
 
                 st.service_type_id,
                 s.service_id,
@@ -835,6 +839,7 @@ const getPackageList = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Error fetching packages", error: error.message });
     }
 });
+
 
 //----------
 const getPackageDetails = asyncHandler(async (req, res) => {
