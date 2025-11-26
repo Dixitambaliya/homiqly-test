@@ -195,20 +195,26 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
         // ✅ Create Stripe Payment Intent
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(finalTotal * 100),
-            currency: "cad",   // ✅ keep CAD (Stripe handles 3DS rules automatically)
+            currency: "cad",   // ✅ keep CAD — works in India + Canada
 
             automatic_payment_methods: {
                 enabled: true,
-                allow_redirects: "never"   // ✅ KEY FIX!
+                allow_redirects: "never"  // ✅ prevents redirect-based flows
             },
+
+            confirmation_method: "automatic",  // ✅ REQUIRED for 3DS flows
 
             payment_method_options: {
                 card: {
-                    request_three_d_secure: "automatic" // ✅ key line!
+                    request_three_d_secure: "automatic" // ✅ only challenge when required
                 }
             },
+
+            capture_method: "automatic", // ✅ ensures payment fully settles after success
+
             metadata
         });
+
 
 
         console.log(
@@ -280,14 +286,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const type = event.type;
         console.log(`📌 Processing event: ${type}`);
 
-        const validEvents = [
-            "payment_intent.succeeded",
-            "charge.succeeded",
-            "payment_intent.processing",
-            "payment_intent.requires_action"
-        ];
-
-        if (!validEvents.includes(type)) {
+        // ✅ Only handle final success
+        if (type !== "payment_intent.succeeded") {
             console.log("⏭ Ignored event:", type);
             return;
         }
@@ -296,6 +296,13 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         const paymentIntentId = paymentIntent.id;
 
         console.log("💳 paymentIntentId:", paymentIntentId);
+        console.log("💳 paymentIntent status:", paymentIntent.status);
+
+        // Extra safety (should always be 'succeeded' here, but just in case)
+        if (paymentIntent.status !== "succeeded") {
+            console.log("⏭ Not final succeeded status, skipping:", paymentIntent.status);
+            return;
+        }
 
         const connection = await db.getConnection();
 
@@ -386,7 +393,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             let totalBookingTime = 0;
 
-            // ✅ Insert packages
             const uniquePackageIds = [...new Set(cartPackages.map(p => p.package_id))];
             console.log("📦 Adding packages:", uniquePackageIds);
 
@@ -399,7 +405,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 console.log("   ✅ package added:", packageId);
             }
 
-            // ✅ Insert sub-packages
             for (const pkg of cartPackages) {
                 console.log("🧩 Processing sub-package:", pkg.sub_package_id);
 
@@ -427,14 +432,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 console.log("   ✅ sub-package inserted:", pkg.sub_package_id);
             }
 
-            // ✅ Update totals
             console.log("⏳ Updating total time:", totalBookingTime);
             await connection.query(
                 `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
                 [Math.round(totalBookingTime), booking_id]
             );
 
-            // ✅ Update payment + booking
             console.log("💾 Updating payment + booking status...");
 
             await connection.query(
@@ -448,11 +451,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 [booking_id]
             );
 
-            // ✅ Commit
             await connection.commit();
             console.log("✅ Transaction committed successfully");
 
-            // ✅ Email
             console.log("📧 Sending user email...");
             await sendBookingEmail(cart.user_id, { booking_id });
 
@@ -465,12 +466,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             console.error("❌ ERROR:", err.message);
             await connection.rollback();
             console.error("↩️ Transaction rolled back");
-
         } finally {
             connection.release();
         }
     })();
 });
+
 
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
