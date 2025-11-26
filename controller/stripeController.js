@@ -258,7 +258,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
     try {
         const sig = req.headers["stripe-signature"];
-        console.log("🔐 Received stripe-signature:", sig ? "YES" : "NO");
+        console.log("🔐 Signature received:", sig ? "YES" : "NO");
 
         event = stripe.webhooks.constructEvent(
             req.body,
@@ -273,17 +273,17 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // ✅ Must reply immediately
+    // ✅ Respond immediately (required by Stripe)
     res.status(200).send("ok");
 
-    // ✅ Process async
+    // ✅ Process asynchronously
     (async () => {
         const type = event.type;
         console.log(`📌 Processing event: ${type}`);
 
-        // ✅ Only handle final success
+        // ✅ Only create booking when payment is FINAL
         if (type !== "payment_intent.succeeded") {
-            console.log("⏭ Ignored event:", type);
+            console.log("⏭ Ignored:", type);
             return;
         }
 
@@ -293,9 +293,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         console.log("💳 paymentIntentId:", paymentIntentId);
         console.log("💳 paymentIntent status:", paymentIntent.status);
 
-        // Extra safety (should always be 'succeeded' here, but just in case)
         if (paymentIntent.status !== "succeeded") {
-            console.log("⏭ Not final succeeded status, skipping:", paymentIntent.status);
+            console.log("⏭ Not succeeded — skipping");
             return;
         }
 
@@ -303,12 +302,12 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
         try {
             await connection.beginTransaction();
-            console.log("✅ Transaction opened");
+            console.log("✅ Transaction started");
 
-            // 🔍 Fetch payment + cart
-            console.log("🔍 Fetching cart for intent...");
+            // ✅ Get cart + user
             const [paymentRows] = await connection.query(
-                `SELECT p.cart_id, p.user_id, p.status, sc.service_id, sc.bookingDate, sc.bookingTime,
+                `SELECT p.cart_id, p.user_id, p.status,
+                        sc.service_id, sc.bookingDate, sc.bookingTime,
                         sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
                  FROM payments p
                  LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
@@ -317,30 +316,29 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             );
 
             if (!paymentRows.length) {
-                console.warn("⚠️ No cart found for:", paymentIntentId);
+                console.warn("⚠️ No cart found");
                 await connection.query(
-                    `UPDATE payments SET status = 'failed', notes = 'Cart not found' 
-                     WHERE payment_intent_id = ?`,
+                    `UPDATE payments SET status='failed', notes='Cart not found'
+                     WHERE payment_intent_id=?`,
                     [paymentIntentId]
                 );
                 await connection.commit();
-                console.log("✅ Updated payment → failed");
                 return;
             }
 
             const cart = paymentRows[0];
             console.log("✅ Cart found:", cart.cart_id);
 
+            // ✅ Idempotency check
             if (cart.status === "completed") {
-                console.log("ℹ️ Already processed — skipping");
+                console.log("ℹ Already processed — skipping");
                 await connection.commit();
                 return;
             }
 
-            // ✅ Load items
-            console.log("📦 Loading cart packages...");
+            // ✅ Load cart items
             const [cartPackages] = await connection.query(
-                `SELECT cpi.sub_package_id, cpi.price, cpi.quantity, 
+                `SELECT cpi.sub_package_id, cpi.price, cpi.quantity,
                         cpi.package_id, p.service_type_id
                  FROM cart_package_items cpi
                  JOIN packages p ON cpi.package_id = p.package_id
@@ -348,13 +346,11 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 [cart.cart_id]
             );
 
-            console.log(`📦 Found ${cartPackages.length} items`);
-
             if (!cartPackages.length) {
                 console.warn("⚠️ Cart empty");
                 await connection.query(
-                    `UPDATE payments SET status = 'failed', notes = 'Cart empty' 
-                     WHERE payment_intent_id = ?`,
+                    `UPDATE payments SET status='failed', notes='Cart empty'
+                     WHERE payment_intent_id=?`,
                     [paymentIntentId]
                 );
                 await connection.commit();
@@ -362,11 +358,11 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             }
 
             // ✅ Create booking
-            console.log("🧾 Creating booking...");
             const [insertBooking] = await connection.query(
                 `INSERT INTO service_booking
-                 (user_id, service_id, bookingDate, bookingTime, vendor_id, notes,
-                  bookingMedia, bookingStatus, payment_status, payment_intent_id, user_promo_code_id)
+                 (user_id, service_id, bookingDate, bookingTime, vendor_id,
+                  notes, bookingMedia, bookingStatus, payment_status,
+                  payment_intent_id, user_promo_code_id)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     cart.user_id,
@@ -386,25 +382,22 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             const booking_id = insertBooking.insertId;
             console.log("✅ Booking created:", booking_id);
 
-            let totalBookingTime = 0;
-
+            // ✅ Insert packages
             const uniquePackageIds = [...new Set(cartPackages.map(p => p.package_id))];
-            console.log("📦 Adding packages:", uniquePackageIds);
-
             for (const packageId of uniquePackageIds) {
                 await connection.query(
                     `INSERT INTO service_booking_packages (booking_id, package_id, created_at)
                      VALUES (?, ?, NOW())`,
                     [booking_id, packageId]
                 );
-                console.log("   ✅ package added:", packageId);
             }
 
-            for (const pkg of cartPackages) {
-                console.log("🧩 Processing sub-package:", pkg.sub_package_id);
+            // ✅ Insert sub-packages
+            let totalBookingTime = 0;
 
+            for (const pkg of cartPackages) {
                 const [[itemTimeRow]] = await connection.query(
-                    `SELECT timeRequired FROM package_items WHERE item_id = ?`,
+                    `SELECT timeRequired FROM package_items WHERE item_id=?`,
                     [pkg.sub_package_id]
                 );
 
@@ -423,44 +416,70 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                         pkg.quantity
                     ]
                 );
-
-                console.log("   ✅ sub-package inserted:", pkg.sub_package_id);
             }
 
-            console.log("⏳ Updating total time:", totalBookingTime);
             await connection.query(
-                `UPDATE service_booking SET totalTime = ? WHERE booking_id = ?`,
+                `UPDATE service_booking SET totalTime=? WHERE booking_id=?`,
                 [Math.round(totalBookingTime), booking_id]
             );
 
-            console.log("💾 Updating payment + booking status...");
+            // ✅ Insert booking_totals
+            const [[totals]] = await connection.query(
+                `SELECT subtotal, discounted_total, promo_discount, tax_amount, final_total
+                 FROM cart_totals WHERE cart_id=? LIMIT 1`,
+                [cart.cart_id]
+            );
 
+            if (totals) {
+                await connection.query(
+                    `INSERT INTO booking_totals
+                     (booking_id, subtotal, discounted_total, promo_discount, tax_amount, final_total)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        booking_id,
+                        totals.subtotal,
+                        totals.discounted_total,
+                        totals.promo_discount,
+                        totals.tax_amount,
+                        totals.final_total
+                    ]
+                );
+            }
+
+            // ✅ Mark payment completed
             await connection.query(
-                `UPDATE payments SET status = 'completed' WHERE payment_intent_id = ?`,
+                `UPDATE payments SET status='completed' WHERE payment_intent_id=?`,
                 [paymentIntentId]
             );
 
             await connection.query(
-                `UPDATE service_booking SET payment_status = 'completed', bookingStatus = 1
-                 WHERE booking_id = ?`,
+                `UPDATE service_booking
+                 SET payment_status='completed', bookingStatus=1
+                 WHERE booking_id=?`,
                 [booking_id]
             );
 
+            // ✅ Clear cart data
+            await connection.query(`DELETE FROM cart_addons WHERE cart_id=?`, [cart.cart_id]);
+            await connection.query(`DELETE FROM cart_preferences WHERE cart_id=?`, [cart.cart_id]);
+            await connection.query(`DELETE FROM cart_consents WHERE cart_id=?`, [cart.cart_id]);
+            await connection.query(`DELETE FROM cart_package_items WHERE cart_id=?`, [cart.cart_id]);
+            await connection.query(`DELETE FROM service_cart WHERE cart_id=?`, [cart.cart_id]);
+            await connection.query(`DELETE FROM cart_totals WHERE cart_id=?`, [cart.cart_id]);
+
             await connection.commit();
-            console.log("✅ Transaction committed successfully");
+            console.log("✅ Booking finalized & cart cleared");
 
-            console.log("📧 Sending user email...");
+            // ✅ Send emails
             await sendBookingEmail(cart.user_id, { booking_id });
-
-            console.log("📧 Sending vendor email...");
             await sendVendorBookingEmail(cart.vendor_id, { booking_id });
 
-            console.log("✅ Webhook fully processed ✅");
+            console.log("✅ Webhook completed successfully ✅");
 
         } catch (err) {
             console.error("❌ ERROR:", err.message);
             await connection.rollback();
-            console.error("↩️ Transaction rolled back");
+            console.error("↩️ Rolled back");
         } finally {
             connection.release();
         }
