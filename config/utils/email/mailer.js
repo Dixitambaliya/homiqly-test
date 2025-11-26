@@ -685,6 +685,8 @@ const sendVendorApprovalMail = async ({ vendorName, vendorEmail, plainPassword }
     }
 };
 
+
+//REMINING
 const sendVendorRejectionMail = async ({ vendorName, vendorEmail }) => {
     try {
         const logoPath = path.resolve("config/media/homiqly.webp");
