@@ -841,26 +841,33 @@ const getPackageDetails = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
     try {
-        // 1️⃣ Fetch main package + all linked data
+        // 1️⃣ Fetch main package + service + all linked data
         const [rows] = await db.query(`
             SELECT
                 p.package_id,
                 p.packageName,
                 p.packageMedia,
+
+                -- ✅ service + serviceType joins
+                s.serviceName,
+
                 pi.item_id AS sub_package_id,
                 pi.itemName AS item_name,
                 pi.description AS sub_description,
                 pi.price AS sub_price,
                 pi.timeRequired AS sub_time_required,
                 pi.itemMedia AS item_media,
+
                 pa.addon_id,
                 pa.addonName AS addon_name,
                 pa.addonDescription AS addon_description,
                 pa.addonPrice AS addon_price,
                 pa.addonTime AS addon_time_required,
+
                 pcf.consent_id,
                 pcf.question AS consent_question,
                 pcf.is_required AS consent_is_required,
+
                 bp.preference_id,
                 bp.preferenceValue,
                 bp.timeRequired,
@@ -868,6 +875,8 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                 bp.is_required AS preference_is_required,
                 bp.preferenceGroup
             FROM packages p
+            LEFT JOIN service_type st ON st.service_type_id = p.service_type_id
+            LEFT JOIN services s ON s.service_id = st.service_id
             LEFT JOIN package_items pi ON pi.package_id = p.package_id
             LEFT JOIN package_addons pa ON pa.package_item_id = pi.item_id
             LEFT JOIN package_consent_forms pcf ON pcf.package_item_id = pi.item_id
@@ -879,20 +888,21 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Package not found" });
         }
 
-
-        // 3️⃣ Build structured response
+        // 2️⃣ Build structured response
         const pkg = {
             package_id: rows[0].package_id,
             packageName: rows[0].packageName,
             packageMedia: rows[0].packageMedia,
+            // ✅ NEW — service + serviceType name
+            serviceName: rows[0].serviceName || null,
             sub_packages: new Map()
         };
 
-        // 4️⃣ Loop through rows → build subpackages, addons, prefs, consent forms
+        // 3️⃣ Loop through rows
         for (const row of rows) {
             if (row.sub_package_id) {
 
-                // 2️⃣ Fetch multiple cities for the package
+                // ✅ Fetch multi-city for sub-package
                 const [locationRows] = await db.query(
                     `SELECT serviceLocation FROM package_item_locations WHERE package_item_id = ?`,
                     [row.sub_package_id]
@@ -908,7 +918,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                         price: row.sub_price,
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
-                        serviceLocation,   // ⭐ Added: multi-city array
+                        serviceLocation, 
                         addons: [],
                         preferences: {},
                         consentForm: []
@@ -917,7 +927,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
 
                 const sp = pkg.sub_packages.get(row.sub_package_id);
 
-                // Preferences (grouped)
+                // ✅ Preferences
                 if (row.preference_id != null) {
                     const groupKey = row.preferenceGroup || "Default";
                     if (!sp.preferences[groupKey]) {
@@ -937,7 +947,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                     }
                 }
 
-                // Addons
+                // ✅ Addons
                 if (row.addon_id && !sp.addons.some(a => a.addon_id === row.addon_id)) {
                     sp.addons.push({
                         addon_id: row.addon_id,
@@ -948,7 +958,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                     });
                 }
 
-                // Consent forms
+                // ✅ Consent Forms
                 if (row.consent_id && !sp.consentForm.some(c => c.consent_id === row.consent_id)) {
                     sp.consentForm.push({
                         consent_id: row.consent_id,
@@ -959,13 +969,12 @@ const getPackageDetails = asyncHandler(async (req, res) => {
             }
         }
 
-        // Convert Map → Array
+        // 4️⃣ Map → Array
         const result = {
             ...pkg,
             sub_packages: Array.from(pkg.sub_packages.values())
         };
 
-        // 5️⃣ Send response
         res.status(200).json({
             message: "Package details fetched successfully",
             package: result
@@ -976,6 +985,8 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
+
+
 
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
