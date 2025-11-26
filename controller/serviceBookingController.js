@@ -1126,6 +1126,25 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "All required parameters are needed" });
         }
 
+        // ✅ Get user_id from middleware
+        const userId = req.user?.user_id;
+        if (!userId) {
+            return res.status(400).json({ message: "User not authenticated" });
+        }
+
+        // ✅ Get user's city
+        const [[userRow]] = await db.query(`
+            SELECT LOWER(TRIM(city)) AS city
+            FROM users
+            WHERE user_id = ?
+        `, [userId]);
+
+        if (!userRow || !userRow.city) {
+            return res.status(400).json({ message: "User city not found" });
+        }
+
+        const userCity = userRow.city;
+
         // 🔥 Convert AM/PM → 24-hour format
         const formattedTime = moment(
             time,
@@ -1231,7 +1250,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         for (const v of matchingVendors) {
             const vendorId = v.vendor.vendor_id;
 
-            // Vendor timing
+            // Vendor availability
             const [[isAvailable]] = await db.query(`
                 SELECT COUNT(*) AS available
                 FROM vendor_availability
@@ -1267,7 +1286,23 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             if (isBooked.overlap > 0) continue;
 
-            // ⭐ Get all reviews with user name
+            // ✅ NEW — get vendor city based on vendor type
+            const [[vendorLoc]] = await db.query(`
+                SELECT LOWER(TRIM(
+                    IF(v.vendorType = 'company', cdet.serviceLocation, idet.serviceLocation)
+                )) AS city
+                FROM vendors v
+                LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
+                LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
+                WHERE v.vendor_id = ?
+            `, [vendorId]);
+
+            // ✅ NEW — skip if vendor city does not match user city
+            if (!vendorLoc || !vendorLoc.city || vendorLoc.city !== userCity) {
+                continue;
+            }
+
+            // ⭐ Get all reviews
             const [ratingRows] = await db.query(`
                 SELECT 
                     r.rating AS stars,
@@ -1281,19 +1316,18 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             // ⭐ Get rating summary
             const [[ratingSummary]] = await db.query(`
-                    SELECT 
-                        IFNULL(AVG(r.rating), 0) AS avgRating,
-                        COUNT(r.rating_id) AS totalReviews
-                    FROM ratings r
-                    WHERE r.vendor_id = ?
-                `, [vendorId]);
-
+                SELECT 
+                    IFNULL(AVG(r.rating), 0) AS avgRating,
+                    COUNT(r.rating_id) AS totalReviews
+                FROM ratings r
+                WHERE r.vendor_id = ?
+            `, [vendorId]);
 
             availableVendors.push({
                 ...v.vendor,
                 avgRating: Number(ratingSummary.avgRating),
                 totalReviews: ratingSummary.totalReviews,
-                reviews: ratingRows       // ⭐ includes user name + rating + review
+                reviews: ratingRows
             });
 
         }
@@ -1308,6 +1342,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
 
 
 const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
@@ -1416,7 +1451,7 @@ const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
             error: error.message
         });
     }
-});   
+});
 
 
 module.exports = {
