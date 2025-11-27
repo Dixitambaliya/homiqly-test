@@ -295,6 +295,72 @@ const getVendor = asyncHandler(async (req, res) => {
 });
 
 
+const getNewVendors = asyncHandler(async (req, res) => {
+    try {
+        const [vendors] = await db.query(`
+            SELECT 
+                v.vendor_id,
+                v.vendorType,
+                v.is_authenticated,
+                v.created_at,
+
+                -- INDIVIDUAL
+                idet.name AS individual_name,
+                idet.email AS individual_email,
+                idet.phone AS individual_phone,
+                idet.profileImage AS individual_profileImage,
+
+                -- COMPANY
+                cdet.companyName AS company_name,
+                cdet.companyEmail AS company_email,
+                cdet.companyPhone AS company_phone,
+                cdet.profileImage AS company_profileImage,
+
+                -- SERVICE LOCATIONS (comma-separated)
+                (
+                    SELECT GROUP_CONCAT(city SEPARATOR ',')
+                    FROM vendor_service_locations vsl
+                    WHERE vsl.vendor_id = v.vendor_id
+                ) AS serviceLocations
+
+            FROM vendors v
+            LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
+            LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
+            WHERE v.is_authenticated = 0
+            ORDER BY v.created_at DESC
+        `);
+
+        const processed = vendors.map(v => {
+            const locations = v.serviceLocations
+                ? v.serviceLocations.split(",").map(l => l.trim())
+                : [];
+
+            return {
+                vendor_id: v.vendor_id,
+                vendorType: v.vendorType,
+                name: v.vendorType === "individual" ? v.individual_name : v.company_name,
+                email: v.vendorType === "individual" ? v.individual_email : v.company_email,
+                phone: v.vendorType === "individual" ? v.individual_phone : v.company_phone,
+                profileImage: v.vendorType === "individual" ? v.individual_profileImage : v.company_profileImage,
+                serviceLocations: locations,
+                is_authenticated: v.is_authenticated,
+                created_at: v.created_at
+            };
+        });
+
+        res.status(200).json({
+            message: "New vendor applications fetched successfully",
+            total: processed.length,
+            data: processed
+        });
+
+    } catch (err) {
+        console.error("Error fetching new vendors:", err);
+        res.status(500).json({ error: "Internal server error", details: err.message });
+    }
+});
+
+
 const adminUpdateVendorCities = asyncHandler(async (req, res) => {
     const { serviceLocation } = req.body;
     const { vendor_id } = req.params
@@ -367,8 +433,6 @@ const adminUpdateVendorCities = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
@@ -892,7 +956,6 @@ const createPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPackageList = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -934,7 +997,6 @@ const getPackageList = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Error fetching packages", error: error.message });
     }
 });
-
 
 //----------
 const getPackageDetails = asyncHandler(async (req, res) => {
@@ -1085,8 +1147,6 @@ const getPackageDetails = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
-
 
 
 const assignPackageToVendor = asyncHandler(async (req, res) => {
@@ -1503,8 +1563,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-
 
 
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
@@ -2386,6 +2444,117 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     }
 });
 
+const getUserBookings = asyncHandler(async (req, res) => {
+    const { user_id } = req.params
+
+    // 📌 Pagination params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // 📌 Search
+    const search = req.query.search || "";
+    const searchQuery = `%${search}%`;
+
+    try {
+        // 1️⃣ Count total records (with search)
+        const [[{ total }]] = await db.query(`
+            SELECT COUNT(*) AS total
+            FROM service_booking sb
+            WHERE sb.user_id = ?
+            AND (
+                sb.booking_id LIKE ?
+                OR EXISTS (
+                    SELECT 1
+                    FROM service_booking_sub_packages sbsp
+                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                    JOIN packages p ON pi.package_id = p.package_id
+                    JOIN service_type st ON p.service_type_id = st.service_type_id
+                    JOIN services s ON st.service_id = s.service_id
+                    WHERE sbsp.booking_id = sb.booking_id
+                    AND s.serviceName LIKE ?
+                )
+            )
+        `, [user_id, searchQuery, searchQuery]);
+
+
+        // 2️⃣ Fetch paginated results
+        const [bookings] = await db.query(`
+            SELECT
+                sb.booking_id,
+
+                -- Booking Date & Time from created_at
+                DATE(sb.created_at) AS bookingDate,
+                TIME(sb.created_at) AS bookingTime,
+
+                -- Service Name
+                (
+                    SELECT s.serviceName
+                    FROM service_booking_sub_packages sbsp
+                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                    JOIN packages p ON pi.package_id = p.package_id
+                    JOIN service_type st ON p.service_type_id = st.service_type_id
+                    JOIN services s ON st.service_id = s.service_id
+                    WHERE sbsp.booking_id = sb.booking_id
+                    LIMIT 1
+                ) AS serviceName,
+
+                -- Package Name
+                (
+                    SELECT p.packageName
+                    FROM service_booking_sub_packages sbsp
+                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                    JOIN packages p ON pi.package_id = p.package_id
+                    WHERE sbsp.booking_id = sb.booking_id
+                    LIMIT 1
+                ) AS packageName,
+
+                sb.payment_intent_id,
+                pay.amount AS paymentAmount
+
+            FROM service_booking sb
+            LEFT JOIN payments pay ON sb.payment_intent_id = pay.payment_intent_id
+
+            WHERE sb.user_id = ?
+            AND (
+                sb.booking_id LIKE ?
+                OR (
+                    SELECT s.serviceName
+                    FROM service_booking_sub_packages sbsp
+                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
+                    JOIN packages p ON pi.package_id = p.package_id
+                    JOIN service_type st ON p.service_type_id = st.service_type_id
+                    JOIN services s ON st.service_id = s.service_id
+                    WHERE sbsp.booking_id = sb.booking_id
+                    LIMIT 1
+                ) LIKE ?
+            )
+
+            ORDER BY sb.created_at DESC
+            LIMIT ? OFFSET ?
+        `, [user_id, searchQuery, searchQuery, limit, offset]);
+
+
+        // 3️⃣ Send response
+        res.status(200).json({
+            message: "User bookings fetched successfully",
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+            bookings
+        });
+
+    } catch (error) {
+        console.error("Error fetching user bookings:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+});
 
 module.exports = {
     getAdminProfile,
@@ -2413,5 +2582,7 @@ module.exports = {
     getPackageList,
     getPackageDetails,
     getAdminCreatedPackages,
-    adminUpdateVendorCities
+    adminUpdateVendorCities,
+    getNewVendors,
+    getUserBookings
 };

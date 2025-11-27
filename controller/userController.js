@@ -192,119 +192,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
 });
 
 
-const getUserBookings = asyncHandler(async (req, res) => {
-    const user_id = req.user.user_id;
-
-    // 📌 Pagination params
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-
-    // 📌 Search
-    const search = req.query.search || "";
-    const searchQuery = `%${search}%`;
-
-    try {
-        // 1️⃣ Count total records (with search)
-        const [[{ total }]] = await db.query(`
-            SELECT COUNT(*) AS total
-            FROM service_booking sb
-            WHERE sb.user_id = ?
-            AND (
-                sb.booking_id LIKE ?
-                OR EXISTS (
-                    SELECT 1
-                    FROM service_booking_sub_packages sbsp
-                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                    JOIN packages p ON pi.package_id = p.package_id
-                    JOIN service_type st ON p.service_type_id = st.service_type_id
-                    JOIN services s ON st.service_id = s.service_id
-                    WHERE sbsp.booking_id = sb.booking_id
-                    AND s.serviceName LIKE ?
-                )
-            )
-        `, [user_id, searchQuery, searchQuery]);
-
-
-        // 2️⃣ Fetch paginated results
-        const [bookings] = await db.query(`
-            SELECT
-                sb.booking_id,
-
-                -- Booking Date & Time from created_at
-                DATE(sb.created_at) AS bookingDate,
-                TIME(sb.created_at) AS bookingTime,
-
-                -- Service Name
-                (
-                    SELECT s.serviceName
-                    FROM service_booking_sub_packages sbsp
-                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                    JOIN packages p ON pi.package_id = p.package_id
-                    JOIN service_type st ON p.service_type_id = st.service_type_id
-                    JOIN services s ON st.service_id = s.service_id
-                    WHERE sbsp.booking_id = sb.booking_id
-                    LIMIT 1
-                ) AS serviceName,
-
-                -- Package Name
-                (
-                    SELECT p.packageName
-                    FROM service_booking_sub_packages sbsp
-                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                    JOIN packages p ON pi.package_id = p.package_id
-                    WHERE sbsp.booking_id = sb.booking_id
-                    LIMIT 1
-                ) AS packageName,
-
-                sb.payment_intent_id,
-                pay.amount AS paymentAmount
-
-            FROM service_booking sb
-            LEFT JOIN payments pay ON sb.payment_intent_id = pay.payment_intent_id
-
-            WHERE sb.user_id = ?
-            AND (
-                sb.booking_id LIKE ?
-                OR (
-                    SELECT s.serviceName
-                    FROM service_booking_sub_packages sbsp
-                    JOIN package_items pi ON sbsp.sub_package_id = pi.item_id
-                    JOIN packages p ON pi.package_id = p.package_id
-                    JOIN service_type st ON p.service_type_id = st.service_type_id
-                    JOIN services s ON st.service_id = s.service_id
-                    WHERE sbsp.booking_id = sb.booking_id
-                    LIMIT 1
-                ) LIKE ?
-            )
-
-            ORDER BY sb.created_at DESC
-            LIMIT ? OFFSET ?
-        `, [user_id, searchQuery, searchQuery, limit, offset]);
-
-
-        // 3️⃣ Send response
-        res.status(200).json({
-            message: "User bookings fetched successfully",
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-            },
-            bookings
-        });
-
-    } catch (error) {
-        console.error("Error fetching user bookings:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
-    }
-});
-
-
 
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
@@ -558,7 +445,6 @@ const updateUserData = asyncHandler(async (req, res) => {
     }
 });
 
-
 const addUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -694,7 +580,6 @@ const addUserData = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
     const { service_type_id } = req.params;
@@ -918,7 +803,6 @@ const getPackagesByServiceType = asyncHandler(async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 
 const getPackageDetailsById = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
@@ -1148,8 +1032,6 @@ const getPackageDetailsById = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
-
-
 
 const changeUserPassword = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
@@ -1473,5 +1355,4 @@ module.exports = {
     getUserProfileWithCart,
     addCity,
     getCity,
-    getUserBookings
 }

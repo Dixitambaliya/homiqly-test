@@ -4,6 +4,7 @@ const {
     getAdminProfile,
     editAdminProfile,
     getVendor,
+    getNewVendors,
     getAllServiceType,
     getUsers,
     updateUserByAdmin,
@@ -24,7 +25,8 @@ const {
     deleteEmployeeProfileByAdmin,
     getPackageList,
     getPackageDetails,
-    getAdminCreatedPackages
+    getAdminCreatedPackages,
+    getUserBookings
 
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
@@ -35,6 +37,7 @@ const multiUpload = upload.any();
 router.get("/getprofile", authenticationToken, getAdminProfile)
 router.patch("/editprofile", authenticationToken, editAdminProfile)
 router.get("/getvendors", authenticationToken, getVendor)
+router.get("/getnewvendors", authenticationToken, getNewVendors)
 router.get("/getallservicetype", authenticationToken, getAllServiceType)
 router.get("/getusers", authenticationToken, getUsers)
 router.get("/getbookings", authenticationToken, getBookings)
@@ -51,6 +54,8 @@ router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequ
 router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
 router.get("/getpayments", authenticationToken, getAllPayments)
 router.get("/getallpackages", authenticationToken, getAllPackages)
+
+router.get("/getallpackages/:user_id", authenticationToken, getUserBookings)
 router.put("/editvendorstatus/:vendor_id", authenticationToken, toggleManualVendorAssignmentByAdmin)
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
 router.delete("/deleteusers/:user_id", authenticationToken, deleteUserByAdmin)

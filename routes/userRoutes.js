@@ -18,8 +18,7 @@ const { getServiceCategories,
     changeUserPassword,
     getPackagesByServiceType,
     getPackageDetailsById,
-    getUserProfileWithCart,
-    getUserBookings
+    getUserProfileWithCart
 } = require("../controller/userController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -41,8 +40,6 @@ router.get("/services/:service_type_id/getpackageimages", getPackagesByServiceTy
 router.get("/services/:package_id/getpackagedetails", getPackageDetailsById)
 router.put("/updatedata", multiUpload, handleUploads, authenticationToken, updateUserData)
 router.put("/insertdata", authenticationToken, addUserData)
-
-router.get("/get-booking-data", authenticationToken, getUserBookings)
 
 router.put("/changepassword", authenticationToken, changeUserPassword)
 
