@@ -129,7 +129,6 @@ export default function AdminPromoManager() {
       start_date: p.start_date ? p.start_date.slice(0, 16) : "",
       end_date: p.end_date ? p.end_date.slice(0, 16) : "",
       requiredBookings: p.requiredBookings ?? 0,
-      description: p.description || "",
       source_type: sourceVal,
     });
 

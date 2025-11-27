@@ -710,8 +710,7 @@ const getPackagesByServiceTypeId = asyncHandler(async (req, res) => {
 
                 CONCAT('[', GROUP_CONCAT(
                     JSON_OBJECT(
-                        'package_id', p.package_id,
-                        'description', p.description
+                        'package_id', p.package_id
                     )
                 ), ']') AS packages
 

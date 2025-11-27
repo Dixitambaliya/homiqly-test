@@ -154,7 +154,6 @@ const adminGetQueries = {
                 JSON_OBJECT(
                     'package_id', p.package_id,
                     'title', p.packageName,
-                    'description', p.description,
                     'price', p.totalPrice,
                     'time_required', p.totalTime,
                     'sub_packages', IFNULL((
@@ -313,7 +312,6 @@ SELECT
                 JSON_OBJECT(
                     'package_id', p.package_id,
                     'title', p.packageName,
-                    'description', p.description,
                     'price', p.totalPrice,
                     'time_required', p.totalTime,
                     'package_media', p.packageMedia,

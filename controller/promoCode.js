@@ -327,7 +327,6 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
             discountType: p.discount_type,
             discountValue: p.discountValue,
             minSpend: p.minSpend,
-            description: p.description,
             start_date: p.start_date,
             end_date: p.end_date,
             promoUsed: p.usedCount >= p.promoMaxUse ? 1 : 0  // ✅ new column
