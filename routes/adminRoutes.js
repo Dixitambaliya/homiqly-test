@@ -1,13 +1,5 @@
 const express = require("express")
 const router = express.Router()
-
-const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
-const { authenticationToken } = require("../middleware/authMiddleware");
-const { upload, handleUploads } = require("../middleware/upload");
-
-router.use(authenticationToken);  
-router.use(adminAuthMiddleware);
-
 const {
     getAdminProfile,
     editAdminProfile,
@@ -32,39 +24,37 @@ const {
     deleteEmployeeProfileByAdmin,
     getPackageList,
     getPackageDetails,
-    getAdminCreatedPackages,
-    adminUpdateVendorCities
+    getAdminCreatedPackages
 
 } = require("../controller/adminController")
+const { upload, handleUploads } = require("../middleware/upload");
+const { authenticationToken } = require("../middleware/authMiddleware")
 
 const multiUpload = upload.any();
 
-router.get("/getprofile", getAdminProfile)
-router.patch("/editprofile", editAdminProfile)
-router.get("/getvendors", getVendor)
-router.get("/getallservicetype", getAllServiceType)
-router.get("/getusers", getUsers)
-router.get("/getbookings", getBookings)
-router.put("/editusers/:user_id", updateUserByAdmin)
-router.put("/editpackage", multiUpload, handleUploads, editPackageByAdmin)
-router.post("/addpackages", multiUpload, handleUploads, createPackageByAdmin)
-router.post("/assignpackage", assignPackageToVendor)
-router.delete("/deletepackage/:package_id", deletePackageByAdmin)
-router.get("/getallemployees", getAllEmployeesForAdmin)
-router.get("/getpackagelist", getPackageList)
-router.get("/getpackagedetails/:package_id", getPackageDetails)
-router.get("/getpackages", getAdminCreatedPackages)
-router.get("/getvendorapplication", getAllVendorPackageRequests)
-router.put("/approverejectapplication/:application_id", updateVendorPackageRequestStatus)
-router.get("/getpayments", getAllPayments)
-router.get("/getallpackages", getAllPackages)
-router.put("/editvendorstatus/:vendor_id", toggleManualVendorAssignmentByAdmin)
-router.delete("/removepackage/:vendor_packages_id", removeVendorPackageByAdmin)
-router.delete("/deleteusers/:user_id", deleteUserByAdmin)
-router.put("/editemployees/:employee_id", multiUpload, handleUploads, editEmployeeProfileByAdmin)
-
-router.patch("/update-service-location/:vendor_id", adminUpdateVendorCities)
-
-router.delete("/delete-employee/:employee_id", deleteEmployeeProfileByAdmin)
+router.get("/getprofile", authenticationToken, getAdminProfile)
+router.patch("/editprofile", authenticationToken, editAdminProfile)
+router.get("/getvendors", authenticationToken, getVendor)
+router.get("/getallservicetype", authenticationToken, getAllServiceType)
+router.get("/getusers", authenticationToken, getUsers)
+router.get("/getbookings", authenticationToken, getBookings)
+router.put("/editusers/:user_id", authenticationToken, updateUserByAdmin)
+router.put("/editpackage", authenticationToken, multiUpload, handleUploads, editPackageByAdmin)
+router.post("/addpackages", authenticationToken, multiUpload, handleUploads, createPackageByAdmin)
+router.post("/assignpackage", authenticationToken, assignPackageToVendor)
+router.delete("/deletepackage/:package_id", authenticationToken, deletePackageByAdmin)
+router.get("/getallemployees", authenticationToken, getAllEmployeesForAdmin)
+router.get("/getpackagelist", authenticationToken, getPackageList)
+router.get("/getpackagedetails/:package_id", authenticationToken, getPackageDetails)
+router.get("/getpackages", authenticationToken, getAdminCreatedPackages)
+router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequests)
+router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
+router.get("/getpayments", authenticationToken, getAllPayments)
+router.get("/getallpackages", authenticationToken, getAllPackages)
+router.put("/editvendorstatus/:vendor_id", authenticationToken, toggleManualVendorAssignmentByAdmin)
+router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
+router.delete("/deleteusers/:user_id", authenticationToken, deleteUserByAdmin)
+router.put("/editemployees/:employee_id", authenticationToken, multiUpload, handleUploads, editEmployeeProfileByAdmin)
+router.delete("/delete-employee/:employee_id", authenticationToken, deleteEmployeeProfileByAdmin)
 
 module.exports = router

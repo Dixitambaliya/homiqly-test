@@ -1,16 +1,7 @@
-const express = require("express");
-const router = express.Router();
-
-const { authenticationToken } = require("../middleware/authMiddleware");
-const vendorAuthMiddleware = require("../middleware/vendorAuthMiddleware");
-
+const express = require("express")
+const router = express.Router()
+const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");
-const multiUpload = upload.any();
-
-// Apply both middlewares to ALL vendor routes
-router.use(authenticationToken);      // decode JWT
-router.use(vendorAuthMiddleware);     // verify vendor_id
-
 const {
     getVendorAssignedPackages,
     applyPackagesToVendor,
@@ -33,30 +24,31 @@ const {
     editEmployeeProfileByCompany,
     getServicesWithPackages,
     getAdminCreatedPackages
-} = require("../controller/vendorController");
+} = require("../controller/vendorController")
 
+const multiUpload = upload.any();
 
-// 📌 Vendor Routes (NO need for authenticationToken on each)
-router.get("/serviceswithpackages", getServicesWithPackages);
-router.get("/getvendorservice", getVendorAssignedPackages);
-router.get("/getvendorservicetype", getServiceTypesByVendor);
-router.get("/vendorservice", getVendorService);
-router.get("/getprofile", getProfileVendor);
-router.get("/getservicetypes/:service_id", getServiceTypesByServiceId);
-router.get("/getpackages", getAvailablePackagesForVendor);
-router.get("/getallpackages", getAllPackagesForVendor);
-router.delete("/deletepackages/:package_id", deletePackage);
-router.post("/applyservice", applyPackagesToVendor);
-router.get("/getstats", getVendorDashboardStats);
-router.post("/packagerating", addRatingToPackages);
-router.put("/editservicetype", editServiceType);
-router.put("/updateprofile",multiUpload,handleUploads,updateProfileVendor);
-router.get("/getstatus", getManualAssignmentStatus);
-router.get("/admingetpackages", getAdminCreatedPackages);
-router.get("/getpaymenthistory", getVendorPayoutHistory);
-router.put("/updatebookingstatus", updateBookingStatusByVendor);
-router.put("/togglechange", toggleManualVendorAssignment);
-router.put("/employee/:employee_id",multiUpload,handleUploads,editEmployeeProfileByCompany);
-router.delete("/removepackage/:vendor_packages_id", removeVendorPackage);
+router.get("/serviceswithpackages", getServicesWithPackages)
+router.get("/getvendorservice", authenticationToken, getVendorAssignedPackages)
+router.get("/getvendorservicetype", authenticationToken, getServiceTypesByVendor);
+router.get("/vendorservice", authenticationToken, getVendorService);
+router.get("/getprofile", authenticationToken, getProfileVendor);
+router.get("/getservicetypes/:service_id", authenticationToken, getServiceTypesByServiceId);
+router.get("/getpackages", authenticationToken, getAvailablePackagesForVendor)
+router.get("/getallpackages", authenticationToken, getAllPackagesForVendor)
+router.delete("/deletepackages/:package_id", authenticationToken, deletePackage);
+router.post("/applyservice", authenticationToken, applyPackagesToVendor)
+router.get("/getstats", authenticationToken, getVendorDashboardStats)
+router.post("/packagerating", authenticationToken, addRatingToPackages)
+router.put("/editservicetype", authenticationToken, editServiceType)
+router.put("/updateprofile", authenticationToken, multiUpload, handleUploads, updateProfileVendor);
+router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
+router.get("/admingetpackages ", authenticationToken, getAdminCreatedPackages)
+router.get("/getpaymenthistory", authenticationToken, getVendorPayoutHistory)
+router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
+router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
+router.put("/employee/:employee_id", multiUpload, handleUploads, authenticationToken, editEmployeeProfileByCompany)
+router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackage)
+
 
 module.exports = router;
