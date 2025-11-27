@@ -43,7 +43,7 @@ router.post("/packagerating", authenticationToken, addRatingToPackages)
 router.put("/editservicetype", authenticationToken, editServiceType)
 router.put("/updateprofile", authenticationToken, multiUpload, handleUploads, updateProfileVendor);
 router.get("/getstatus", authenticationToken, getManualAssignmentStatus)
-router.get("/admingetpackages ", authenticationToken, getAdminCreatedPackages)
+router.get("/admingetpackages", authenticationToken, getAdminCreatedPackages)
 router.get("/getpaymenthistory", authenticationToken, getVendorPayoutHistory)
 router.put("/updatebookingstatus", authenticationToken, updateBookingStatusByVendor)
 router.put("/togglechange", authenticationToken, toggleManualVendorAssignment)
