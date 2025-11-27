@@ -111,10 +111,17 @@ const getVendor = asyncHandler(async (req, res) => {
         let vendorQuery = baseVendorQuery;
         let countQuery = `SELECT COUNT(*) AS totalCount FROM vendors`;
 
-        // 👀 Add status filter to base query if specified
+        // 🚫 NEW RULE: Do not include vendors with is_authenticated = 0
+        const baseStatusCondition = ` WHERE is_authenticated != 0`;
+
+        // Add exclusion of status=0
+        baseVendorQuery += baseStatusCondition;
+        countQuery += baseStatusCondition;
+
+        // 👀 Add additional status filter (only 1 or 2)
         if (status !== undefined) {
-            baseVendorQuery += ` WHERE is_authenticated = ?`;
-            countQuery += ` WHERE is_authenticated = ?`;
+            baseVendorQuery += ` AND is_authenticated = ?`;
+            countQuery += ` AND is_authenticated = ?`;
         }
 
         vendorQuery = baseVendorQuery + ` LIMIT ? OFFSET ?`;
@@ -126,7 +133,8 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS vendorBase
-                WHERE vendorBase.is_authenticated = ?
+                WHERE vendorBase.is_authenticated != 0
+                AND vendorBase.is_authenticated = ?
                 LIMIT ? OFFSET ?
             `;
             countQuery = `
@@ -134,7 +142,8 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS vendorBase
-                WHERE vendorBase.is_authenticated = ?
+                WHERE vendorBase.is_authenticated != 0
+                AND vendorBase.is_authenticated = ?
             `;
         } else {
             vendorQuery = `
@@ -142,6 +151,7 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS vendorBase
+                WHERE vendorBase.is_authenticated != 0
                 LIMIT ? OFFSET ?
             `;
             countQuery = `
@@ -149,6 +159,7 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS vendorBase
+                WHERE vendorBase.is_authenticated != 0
             `;
         }
 
@@ -159,7 +170,8 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS vendorBase
-                WHERE (
+                WHERE vendorBase.is_authenticated != 0
+                AND (
                     vendorBase.individual_name LIKE ? OR
                     vendorBase.individual_email LIKE ? OR
                     vendorBase.individual_phone LIKE ? OR
@@ -176,7 +188,8 @@ const getVendor = asyncHandler(async (req, res) => {
                 FROM (
                     ${adminGetQueries.vendorDetails}
                 ) AS vendorBase
-                WHERE (
+                WHERE vendorBase.is_authenticated != 0
+                AND (
                     vendorBase.individual_name LIKE ? OR
                     vendorBase.individual_email LIKE ? OR
                     vendorBase.individual_phone LIKE ? OR
@@ -193,15 +206,23 @@ const getVendor = asyncHandler(async (req, res) => {
         let queryParams, countParams;
 
         if (search) {
-            queryParams = [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike];
+            queryParams = [
+                searchLike, searchLike, searchLike, searchLike,
+                searchLike, searchLike, searchLike
+            ];
             if (status !== undefined) queryParams.push(status);
 
-            countParams = [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike];
+            countParams = [
+                searchLike, searchLike, searchLike, searchLike,
+                searchLike, searchLike, searchLike
+            ];
             if (status !== undefined) countParams.push(status);
+
         } else {
             queryParams = status !== undefined
                 ? [status, limit, offset]
                 : [limit, offset];
+
             countParams = status !== undefined ? [status] : [];
         }
 
@@ -218,9 +239,13 @@ const getVendor = asyncHandler(async (req, res) => {
 
             // ✅ Remove irrelevant fields based on vendor type
             if (vendor.vendorType === "individual") {
-                for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
+                for (let key in vendor) {
+                    if (key.startsWith("company_")) delete vendor[key];
+                }
             } else {
-                for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
+                for (let key in vendor) {
+                    if (key.startsWith("individual_")) delete vendor[key];
+                }
             }
 
             // ✅ Parse multiple service locations
@@ -292,6 +317,7 @@ const getVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 const getNewVendors = asyncHandler(async (req, res) => {
     try {
