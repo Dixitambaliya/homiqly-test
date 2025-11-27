@@ -29,6 +29,10 @@ const adminGetQueries = {
         c.expertise AS company_expertise,
         c.aboutMe AS company_aboutMe,
 
+            -- ✅ NEW: multiple service locations
+        GROUP_CONCAT(DISTINCT vsl.city) AS serviceLocations,
+
+
         vs.manual_assignment_enabled AS status,
 
         -- 🟩 Packages (via vendor_package_items_flat)
@@ -114,6 +118,7 @@ const adminGetQueries = {
     FROM vendors v
     LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
     LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+    LEFT JOIN vendor_service_locations vsl ON v.vendor_id = vsl.vendor_id
     LEFT JOIN vendor_settings vs ON v.vendor_id = vs.vendor_id
     GROUP BY v.vendor_id
     ORDER BY v.vendor_id DESC

@@ -93,6 +93,7 @@ const editAdminProfile = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getVendor = asyncHandler(async (req, res) => {
     try {
         // 📄 Pagination setup
@@ -123,73 +124,76 @@ const getVendor = asyncHandler(async (req, res) => {
         // ✅ UNIVERSAL SEARCH (ignores pagination, includes status filter)
         if (status !== undefined) {
             vendorQuery = `
-            SELECT *
-            FROM (
-            ${adminGetQueries.vendorDetails}
-            ) AS vendorBase
-            WHERE vendorBase.is_authenticated = ?
-            LIMIT ? OFFSET ?
-        `;
+                SELECT *
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS vendorBase
+                WHERE vendorBase.is_authenticated = ?
+                LIMIT ? OFFSET ?
+            `;
             countQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM (
-            ${adminGetQueries.vendorDetails}
-            ) AS vendorBase
-            WHERE vendorBase.is_authenticated = ?
-        `;
+                SELECT COUNT(*) AS totalCount
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS vendorBase
+                WHERE vendorBase.is_authenticated = ?
+            `;
         } else {
             vendorQuery = `
-            SELECT *
-            FROM (
-            ${adminGetQueries.vendorDetails}
-            ) AS vendorBase
-            LIMIT ? OFFSET ?
-        `;
+                SELECT *
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS vendorBase
+                LIMIT ? OFFSET ?
+            `;
             countQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM (
-            ${adminGetQueries.vendorDetails}
-            ) AS vendorBase
-        `;
+                SELECT COUNT(*) AS totalCount
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS vendorBase
+            `;
         }
+
+        // ✅ SEARCH MODE QUERY
         if (search) {
             vendorQuery = `
-            SELECT *
-            FROM (
-            ${adminGetQueries.vendorDetails}
-            ) AS vendorBase
-            WHERE (
-            vendorBase.individual_name LIKE ? OR
-            vendorBase.individual_email LIKE ? OR
-            vendorBase.individual_phone LIKE ? OR
-            vendorBase.is_authenticated LIKE ? OR
-            vendorBase.company_companyName LIKE ? OR
-            vendorBase.company_companyEmail LIKE ? OR
-            vendorBase.company_companyPhone LIKE ?
-            )
-            ${status !== undefined ? ' AND vendorBase.is_authenticated = ?' : ''}
-        `;
+                SELECT *
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS vendorBase
+                WHERE (
+                    vendorBase.individual_name LIKE ? OR
+                    vendorBase.individual_email LIKE ? OR
+                    vendorBase.individual_phone LIKE ? OR
+                    vendorBase.is_authenticated LIKE ? OR
+                    vendorBase.company_companyName LIKE ? OR
+                    vendorBase.company_companyEmail LIKE ? OR
+                    vendorBase.company_companyPhone LIKE ?
+                )
+                ${status !== undefined ? ' AND vendorBase.is_authenticated = ?' : ''}
+            `;
+
             countQuery = `
-            SELECT COUNT(*) AS totalCount
-            FROM (
-            ${adminGetQueries.vendorDetails}
-            ) AS vendorBase
-            WHERE (
-            vendorBase.individual_name LIKE ? OR
-            vendorBase.individual_email LIKE ? OR
-            vendorBase.individual_phone LIKE ? OR
-            vendorBase.is_authenticated LIKE ? OR
-            vendorBase.company_companyName LIKE ? OR
-            vendorBase.company_companyEmail LIKE ? OR
-            vendorBase.company_companyPhone LIKE ?
-            )
-            ${status !== undefined ? ' AND vendorBase.is_authenticated = ?' : ''}
-        `;
+                SELECT COUNT(*) AS totalCount
+                FROM (
+                    ${adminGetQueries.vendorDetails}
+                ) AS vendorBase
+                WHERE (
+                    vendorBase.individual_name LIKE ? OR
+                    vendorBase.individual_email LIKE ? OR
+                    vendorBase.individual_phone LIKE ? OR
+                    vendorBase.is_authenticated LIKE ? OR
+                    vendorBase.company_companyName LIKE ? OR
+                    vendorBase.company_companyEmail LIKE ? OR
+                    vendorBase.company_companyPhone LIKE ?
+                )
+                ${status !== undefined ? ' AND vendorBase.is_authenticated = ?' : ''}
+            `;
         }
 
-
-        // 🧾 Query execution: set params based on filter mode
+        // 🧾 Query execution params
         let queryParams, countParams;
+
         if (search) {
             queryParams = [searchLike, searchLike, searchLike, searchLike, searchLike, searchLike, searchLike];
             if (status !== undefined) queryParams.push(status);
@@ -210,15 +214,26 @@ const getVendor = asyncHandler(async (req, res) => {
         const processedVendors = vendors.map(vendor => {
             let packages = [];
             let packageItems = [];
+
             try { packages = vendor.packages ? JSON.parse(vendor.packages) : []; } catch { }
             try { packageItems = vendor.package_items ? JSON.parse(vendor.package_items) : []; } catch { }
 
+            // ✅ Remove irrelevant fields based on vendor type
             if (vendor.vendorType === "individual") {
                 for (let key in vendor) if (key.startsWith("company_")) delete vendor[key];
             } else {
                 for (let key in vendor) if (key.startsWith("individual_")) delete vendor[key];
             }
 
+            // ✅ Parse multiple service locations
+            let locations = [];
+            if (vendor.serviceLocations) {
+                locations = vendor.serviceLocations
+                    .split(',')
+                    .map(loc => loc.trim());
+            }
+
+            // ✅ Build service → package mapping
             const serviceMap = {};
             packages.forEach(pkg => {
                 const serviceId = pkg.service_id;
@@ -247,7 +262,6 @@ const getVendor = asyncHandler(async (req, res) => {
 
                 serviceMap[serviceId].packages.push({
                     package_id: pkg.package_id,
-                    serviceLocation: pkg.serviceLocation,
                     items
                 });
             });
@@ -255,7 +269,12 @@ const getVendor = asyncHandler(async (req, res) => {
             const servicesWithPackages = Object.values(serviceMap);
 
             const { packages: _p, package_items: _pi, ...vendorWithoutStrings } = vendor;
-            return { ...vendorWithoutStrings, services: servicesWithPackages };
+
+            return {
+                ...vendorWithoutStrings,
+                serviceLocations: locations,
+                services: servicesWithPackages
+            };
         });
 
         // ✅ Response
@@ -264,16 +283,19 @@ const getVendor = asyncHandler(async (req, res) => {
                 ? "Universal search results fetched successfully"
                 : "Vendor details fetched successfully",
             total: totalCount,
-            page: search ? 1 : page, // universal search shows everything on one page
+            page: search ? 1 : page,
             limit: search ? totalCount : limit,
             totalPages: search ? 1 : Math.ceil(totalCount / limit),
             data: processedVendors
         });
+
     } catch (err) {
         console.error("Error fetching vendor details:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const getAllServiceType = asyncHandler(async (req, res) => {
 
@@ -923,7 +945,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                         price: row.sub_price,
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
-                        serviceLocation, 
+                        serviceLocation,
                         addons: [],
                         preferences: {},
                         consentForm: []

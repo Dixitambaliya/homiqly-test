@@ -13,9 +13,8 @@ const vendorAuthQueries = {
                                  googleBusinessProfileLink,
                                  companyPhone,
                                  companyAddress,
-                                 expertise,
-                                 serviceLocation
-                                 ) VALUES (?, ?,?, ?, ?, ?,?,?,?)`,
+                                 expertise
+                                 ) VALUES (?, ?,?, ?, ?, ?,?,?)`,
 
     insertIndividualDetails: `INSERT INTO individual_details (
                                     vendor_id,
@@ -24,8 +23,7 @@ const vendorAuthQueries = {
                                     email,
                                     resume,
                                     aboutme,
-                                    expertise,
-                                    serviceLocation ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                                    expertise ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 
 
     insertIndividualServiceCategory: `INSERT INTO individual_service_categories

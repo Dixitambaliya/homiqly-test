@@ -252,13 +252,10 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
 // ✅ stripeWebhook.js
 exports.stripeWebhook = asyncHandler(async (req, res) => {
-    console.log("✅ Incoming Stripe webhook");
 
     let event;
-
     try {
         const sig = req.headers["stripe-signature"];
-        console.log("🔐 Signature received:", sig ? "YES" : "NO");
 
         event = stripe.webhooks.constructEvent(
             req.body,
@@ -267,103 +264,157 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         );
 
         console.log("✅ Webhook verified:", event.type);
-
     } catch (err) {
         console.error("❌ Signature verification failed:", err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // ✅ Respond immediately (required by Stripe)
+    // Respond immediately to Stripe (keep latency low)
     res.status(200).send("ok");
 
-    // ✅ Process asynchronously
+    // Process asynchronously
     (async () => {
         const type = event.type;
         console.log(`📌 Processing event: ${type}`);
 
-        // ✅ Only create booking when payment is FINAL
         if (type !== "payment_intent.succeeded") {
-            console.log("⏭ Ignored:", type);
+            console.log("⏭ Ignored event type:", type);
             return;
         }
 
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent.id;
 
-        console.log("💳 paymentIntentId:", paymentIntentId);
-        console.log("💳 paymentIntent status:", paymentIntent.status);
-
         if (paymentIntent.status !== "succeeded") {
-            console.log("⏭ Not succeeded — skipping");
             return;
         }
 
-        const connection = await db.getConnection();
-
+        // We'll re-fetch the PaymentIntent with expanded charges to get receipt_url reliably
+        let fullPaymentIntent;
         try {
+            fullPaymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+                expand: ["latest_charge"]
+            });
+
+        } catch (err) {
+            // If Stripe retrieval fails, attempt a refund (Option A) and mark payment accordingly.
+            console.error("❌ Failed to retrieve full PaymentIntent:", err.message);
+            try {
+                const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+                console.log("↩️ Refund created after PI retrieve failure:", refund.id);
+                await db.query(
+                    `UPDATE payments SET status='refund_failed_before_processing', refund_id=?, notes=? WHERE payment_intent_id=?`,
+                    [refund.id, `Failed to retrieve PI: ${err.message}`, paymentIntentId]
+                );
+            } catch (refundErr) {
+                console.error("❌ Refund attempt failed after PI retrieve error:", refundErr.message);
+                await db.query(
+                    `UPDATE payments SET status='refund_failed', notes=? WHERE payment_intent_id=?`,
+                    [`Retrieve PI err: ${err.message}; Refund err: ${refundErr.message}`, paymentIntentId]
+                );
+            }
+            return;
+        }
+        const charge = fullPaymentIntent.latest_charge;
+        const receiptUrl = charge?.receipt_url || null;
+
+        const connection = await db.getConnection();
+        try {
+            // Start DB transaction for booking creation etc.
             await connection.beginTransaction();
             console.log("✅ Transaction started");
 
-            // ✅ Get cart + user
+            // Get payment + cart row
             const [paymentRows] = await connection.query(
                 `SELECT p.cart_id, p.user_id, p.status,
-                        sc.service_id, sc.bookingDate, sc.bookingTime,
-                        sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
-                 FROM payments p
-                 LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
-                 WHERE p.payment_intent_id = ? LIMIT 1`,
+                sc.service_id, sc.bookingDate, sc.bookingTime,
+                sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
+         FROM payments p
+         LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
+         WHERE p.payment_intent_id = ? LIMIT 1`,
                 [paymentIntentId]
             );
 
             if (!paymentRows.length) {
-                console.warn("⚠️ No cart found");
-                await connection.query(
-                    `UPDATE payments SET status='failed', notes='Cart not found'
-                     WHERE payment_intent_id=?`,
-                    [paymentIntentId]
-                );
-                await connection.commit();
+                console.warn("⚠️ No payment/cart row found for payment_intent_id:", paymentIntentId);
+
+                // Update payments row and rollback, then refund (Option A)
+                await connection.rollback();
+                console.log("↩️ Rolled back (no cart)");
+
+                try {
+                    const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+                    console.log("↩️ Refund created (no cart):", refund.id);
+                    await db.query(
+                        `UPDATE payments SET status='refunded_due_to_error', receipt_url=?, refund_id=?, notes='Cart not found' WHERE payment_intent_id=?`,
+                        [receiptUrl, refund.id, paymentIntentId]
+                    );
+                } catch (refundErr) {
+                    console.error("❌ Refund failed (no cart):", refundErr.message);
+                    await db.query(
+                        `UPDATE payments SET status='refund_failed', receipt_url=?, notes=? WHERE payment_intent_id=?`,
+                        [receiptUrl, `Cart not found; refund failed: ${refundErr.message}`, paymentIntentId]
+                    );
+                }
                 return;
             }
 
             const cart = paymentRows[0];
-            console.log("✅ Cart found:", cart.cart_id);
+            console.log("✅ Payment row found — cart_id:", cart.cart_id, "payments.status:", cart.status);
+            // 🔥 TEST ERROR POINT A
 
-            // ✅ Idempotency check
+            // Idempotency: skip if already completed or refunded
             if (cart.status === "completed") {
-                console.log("ℹ Already processed — skipping");
+                console.log("ℹ Payment already processed (completed) — skipping");
+                await connection.commit();
+                return;
+            }
+            if (cart.status && cart.status.startsWith("refunded")) {
+                console.log("ℹ Payment already refunded (status:", cart.status, ") — skipping");
                 await connection.commit();
                 return;
             }
 
-            // ✅ Load cart items
+            // Load cart package items
             const [cartPackages] = await connection.query(
                 `SELECT cpi.sub_package_id, cpi.price, cpi.quantity,
-                        cpi.package_id, p.service_type_id
-                 FROM cart_package_items cpi
-                 JOIN packages p ON cpi.package_id = p.package_id
-                 WHERE cpi.cart_id = ?`,
+                cpi.package_id, p.service_type_id
+         FROM cart_package_items cpi
+         JOIN packages p ON cpi.package_id = p.package_id
+         WHERE cpi.cart_id = ?`,
                 [cart.cart_id]
             );
 
             if (!cartPackages.length) {
-                console.warn("⚠️ Cart empty");
-                await connection.query(
-                    `UPDATE payments SET status='failed', notes='Cart empty'
-                     WHERE payment_intent_id=?`,
-                    [paymentIntentId]
-                );
-                await connection.commit();
+                console.warn("⚠️ Cart empty for cart_id:", cart.cart_id);
+
+                await connection.rollback();
+                console.log("↩️ Rolled back (cart empty)");
+
+                try {
+                    const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+                    console.log("↩️ Refund created (cart empty):", refund.id);
+                    await db.query(
+                        `UPDATE payments SET status='refunded_due_to_error', receipt_url=?, refund_id=?, notes='Cart empty' WHERE payment_intent_id=?`,
+                        [receiptUrl, refund.id, paymentIntentId]
+                    );
+                } catch (refundErr) {
+                    console.error("❌ Refund failed (cart empty):", refundErr.message);
+                    await db.query(
+                        `UPDATE payments SET status='refund_failed', receipt_url=?, notes=? WHERE payment_intent_id=?`,
+                        [receiptUrl, `Cart empty; refund failed: ${refundErr.message}`, paymentIntentId]
+                    );
+                }
                 return;
             }
 
-            // ✅ Create booking
+            // Create booking
             const [insertBooking] = await connection.query(
                 `INSERT INTO service_booking
-                 (user_id, service_id, bookingDate, bookingTime, vendor_id,
-                  notes, bookingMedia, bookingStatus, payment_status,
-                  payment_intent_id, user_promo_code_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (user_id, service_id, bookingDate, bookingTime, vendor_id,
+          notes, bookingMedia, bookingStatus, payment_status,
+          payment_intent_id, user_promo_code_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     cart.user_id,
                     cart.service_id,
@@ -372,8 +423,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     cart.vendor_id,
                     cart.notes,
                     cart.bookingMedia,
-                    0,
-                    "pending",
+                    0, // bookingStatus initial
+                    "pending", // payment_status initially pending until we update after success
                     paymentIntentId,
                     cart.user_promo_code_id || null
                 ]
@@ -382,19 +433,18 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             const booking_id = insertBooking.insertId;
             console.log("✅ Booking created:", booking_id);
 
-            // ✅ Insert packages
+            // Insert packages
             const uniquePackageIds = [...new Set(cartPackages.map(p => p.package_id))];
             for (const packageId of uniquePackageIds) {
                 await connection.query(
                     `INSERT INTO service_booking_packages (booking_id, package_id, created_at)
-                     VALUES (?, ?, NOW())`,
+           VALUES (?, ?, NOW())`,
                     [booking_id, packageId]
                 );
             }
 
-            // ✅ Insert sub-packages
+            // Insert sub-packages and calculate total time
             let totalBookingTime = 0;
-
             for (const pkg of cartPackages) {
                 const [[itemTimeRow]] = await connection.query(
                     `SELECT timeRequired FROM package_items WHERE item_id=?`,
@@ -406,8 +456,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
                 await connection.query(
                     `INSERT INTO service_booking_sub_packages
-                     (booking_id, sub_package_id, service_type_id, price, quantity)
-                     VALUES (?, ?, ?, ?, ?)`,
+           (booking_id, sub_package_id, service_type_id, price, quantity)
+           VALUES (?, ?, ?, ?, ?)`,
                     [
                         booking_id,
                         pkg.sub_package_id,
@@ -418,23 +468,24 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 );
             }
 
+            // Update booking total time
             await connection.query(
                 `UPDATE service_booking SET totalTime=? WHERE booking_id=?`,
                 [Math.round(totalBookingTime), booking_id]
             );
 
-            // ✅ Insert booking_totals
+            // Insert booking_totals from cart_totals if present
             const [[totals]] = await connection.query(
                 `SELECT subtotal, discounted_total, promo_discount, tax_amount, final_total
-                 FROM cart_totals WHERE cart_id=? LIMIT 1`,
+         FROM cart_totals WHERE cart_id=? LIMIT 1`,
                 [cart.cart_id]
             );
 
             if (totals) {
                 await connection.query(
                     `INSERT INTO booking_totals
-                     (booking_id, subtotal, discounted_total, promo_discount, tax_amount, final_total)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+           (booking_id, subtotal, discounted_total, promo_discount, tax_amount, final_total)
+           VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         booking_id,
                         totals.subtotal,
@@ -446,20 +497,20 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Mark payment completed
+            // ✅ All DB operations succeeded — update payments and booking statuses
             await connection.query(
-                `UPDATE payments SET status='completed' WHERE payment_intent_id=?`,
-                [paymentIntentId]
+                `UPDATE payments SET status='completed', receipt_url = ? WHERE payment_intent_id = ?`,
+                [receiptUrl, paymentIntentId]
             );
 
             await connection.query(
                 `UPDATE service_booking
-                 SET payment_status='completed', bookingStatus=1
-                 WHERE booking_id=?`,
+         SET payment_status='completed', bookingStatus=1
+         WHERE booking_id=?`,
                 [booking_id]
             );
 
-            // ✅ Clear cart data
+            // Clear cart data
             await connection.query(`DELETE FROM cart_addons WHERE cart_id=?`, [cart.cart_id]);
             await connection.query(`DELETE FROM cart_preferences WHERE cart_id=?`, [cart.cart_id]);
             await connection.query(`DELETE FROM cart_consents WHERE cart_id=?`, [cart.cart_id]);
@@ -468,23 +519,65 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             await connection.query(`DELETE FROM cart_totals WHERE cart_id=?`, [cart.cart_id]);
 
             await connection.commit();
-            console.log("✅ Booking finalized & cart cleared");
+            console.log("✅ Booking finalized & cart cleared — transaction committed");
 
-            // ✅ Send emails
-            await sendBookingEmail(cart.user_id, { booking_id });
-            await sendVendorBookingEmail(cart.vendor_id, { booking_id });
+            // Send emails (outside transaction)
+            try {
+                await sendBookingEmail(cart.user_id, { booking_id });
+                await sendVendorBookingEmail(cart.vendor_id, { booking_id });
+                console.log("✅ Emails sent");
+            } catch (emailErr) {
+                console.error("⚠️ Email sending failed (but booking is committed):", emailErr.message);
+                // Note: per Option A we do NOT refund for email failures.
+            }
 
-            console.log("✅ Webhook completed successfully ✅");
-
+            console.log("✅ Webhook processing completed successfully");
         } catch (err) {
-            console.error("❌ ERROR:", err.message);
-            await connection.rollback();
-            console.error("↩️ Rolled back");
+            console.error("❌ ERROR during webhook processing:", err.message);
+
+            // Rollback DB transaction if active
+            try {
+                await connection.rollback();
+                console.log("↩️ Rolled back DB transaction due to error");
+            } catch (rbErr) {
+                console.error("❌ Rollback failed:", rbErr.message);
+            }
+
+            // Option A: always refund on any backend error
+            try {
+                const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+                console.log("↩️ Refund created due to processing error:", refund.id);
+
+                // Update payments row to reflect refund
+                try {
+                    await db.query(
+                        `UPDATE payments SET status='refunded_due_to_error', receipt_url=?, refund_id=?, notes=? WHERE payment_intent_id=?`,
+                        [receiptUrl, refund.id, `Processing error: ${err.message}`, paymentIntentId]
+                    );
+                } catch (updErr) {
+                    console.error("❌ Failed to update payments row after refund:", updErr.message);
+                }
+            } catch (refundErr) {
+                console.error("❌ Refund attempt failed:", refundErr.message);
+                try {
+                    await db.query(
+                        `UPDATE payments SET status='refund_failed', receipt_url=?, notes=? WHERE payment_intent_id=?`,
+                        [receiptUrl, `Processing error: ${err.message}; refund error: ${refundErr.message}`, paymentIntentId]
+                    );
+                } catch (updErr2) {
+                    console.error("❌ Failed to update payments after refund failure:", updErr2.message);
+                }
+            }
         } finally {
-            connection.release();
+            try {
+                connection.release();
+            } catch (releaseErr) {
+                console.error("❌ Error releasing DB connection:", releaseErr.message);
+            }
         }
     })();
 });
+
 
 
 

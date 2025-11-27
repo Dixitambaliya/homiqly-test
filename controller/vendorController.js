@@ -184,6 +184,7 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
+
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -312,6 +313,7 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
 
@@ -347,29 +349,43 @@ const getVendorService = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        // Step A: Update last access timestamp (Mountain Time)
-        const mountainTime = moment().tz("America/Denver").format("YYYY-MM-DD HH:mm:ss");
+        // ✅ Update last access timestamp in Mountain Time
+        const mountainTime = moment()
+            .tz("America/Denver")
+            .format("YYYY-MM-DD HH:mm:ss");
 
         await db.query(
             `UPDATE vendors SET last_access = ? WHERE vendor_id = ?`,
             [mountainTime, vendor_id]
         );
 
-        // Step 1: Fetch profile
+        // ✅ Step 1: Fetch vendor profile
         const [rows] = await db.query(vendorGetQueries.getProfileVendor, [vendor_id]);
 
         if (!rows || rows.length === 0) {
             return res.status(404).json({ message: "Vendor profile not found" });
         }
 
-        // Step 2: Fetch certificates
-        const [certificatesRaw] = await db.query(vendorGetQueries.getCertificate, [vendor_id]);
+        // ✅ Step 2: Fetch certificates
+        const [certificatesRaw] = await db.query(
+            vendorGetQueries.getCertificate,
+            [vendor_id]
+        );
 
-        // Step 3: Clean profile data (remove nulls)
+        // ✅ Step 3: Fetch multiple service locations
+        const [locationRows] = await db.query(
+            `SELECT city FROM vendor_service_locations WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        const serviceLocations = locationRows.map(loc => loc.city);
+
+        // ✅ Step 4: Clean profile (remove nulls)
         const profile = {};
         for (const key in rows[0]) {
             if (rows[0][key] !== null) {
@@ -377,19 +393,18 @@ const getProfileVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        // Step 4: Filter certificate fields
+        // ✅ Step 5: Format certificates
         const certificates = (certificatesRaw || []).map(cert => ({
             certificateName: cert.certificateName,
             certificateFile: cert.certificateFile
         }));
 
-        // Step 5: Attach cleaned certificates
+        // ✅ Step 6: Attach data to profile
         profile.certificates = certificates;
-
-        // Step 6: Also attach the last_access time we just updated
+        profile.serviceLocations = serviceLocations; // ✅ NEW
         profile.last_access = mountainTime;
 
-        // Step 7: Send response
+        // ✅ Step 7: Send response
         res.status(200).json({
             message: "Vendor profile fetched successfully",
             profile
@@ -404,8 +419,10 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
+
     const {
         name,
         email,
@@ -417,7 +434,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         birthDate,
         address,
         expertise,
-        certificateNames // assume array
+        certificateNames, // assume array
+        serviceLocation // ✅ NEW incoming locations
     } = req.body;
 
     const newFiles = req.uploadedFiles || {};
@@ -428,18 +446,18 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
             vendor_type === "individual"
                 ? await db.query(
                     `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
-                      businessLicenseExpireDate, certificateOfExpertiseExpireDate,
-                      name, address, dob, email, phone, aboutMe, expertise
-               FROM individual_details WHERE vendor_id = ?`,
+                        businessLicenseExpireDate, certificateOfExpertiseExpireDate,
+                        name, address, dob, email, phone, aboutMe, expertise
+                    FROM individual_details WHERE vendor_id = ?`,
                     [vendor_id]
                 )
                 : vendor_type === "company"
                     ? await db.query(
                         `SELECT profileImage, policeClearance, certificateOfExpertise, businessLicense,
-                      businessLicenseExpireDate, certificateOfExpertiseExpireDate,
-                      companyName, dob, companyEmail, companyPhone,
-                      googleBusinessProfileLink, companyAddress, contactPerson, expertise
-               FROM company_details WHERE vendor_id = ?`,
+                            businessLicenseExpireDate, certificateOfExpertiseExpireDate,
+                            companyName, dob, companyEmail, companyPhone,
+                            googleBusinessProfileLink, companyAddress, contactPerson, expertise
+                        FROM company_details WHERE vendor_id = ?`,
                         [vendor_id]
                     )
                     : [];
@@ -450,17 +468,16 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
 
         const current = existing[0];
 
-        // ✅ Helper to handle media fields
+        // ✅ Helpers
         const handleMediaField = (fieldName, fileKey, currentValue) => {
-            if (req.body[fieldName] === "") return null; // explicit remove
-            return newFiles?.[fileKey]?.[0]?.url || currentValue; // preserve or replace
+            if (req.body[fieldName] === "") return null;
+            return newFiles?.[fileKey]?.[0]?.url || currentValue;
         };
 
-        // ✅ Helper to handle date fields
         const handleDateField = (fieldName, currentValue) => {
-            if (req.body[fieldName] === "") return null; // explicit remove
-            if (req.body[fieldName] === undefined) return currentValue; // preserve old
-            return req.body[fieldName]; // update with new date
+            if (req.body[fieldName] === "") return null;
+            if (req.body[fieldName] === undefined) return currentValue;
+            return req.body[fieldName];
         };
 
         // ✅ Handle media
@@ -469,7 +486,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         const certificateOfExpertise = handleMediaField("certificateOfExpertise", "certificateOfExpertise", current.certificateOfExpertise);
         const businessLicense = handleMediaField("businessLicense", "businessLicense", current.businessLicense);
 
-        // ✅ Handle dates (smart delete or preserve)
+        // ✅ Handle dates
         const updatedBusinessLicenseExpireDate = handleDateField("businessLicenseExpireDate", current.businessLicenseExpireDate);
         const updatedCertificateExpireDate = handleDateField("certificateOfExpertiseExpireDate", current.certificateOfExpertiseExpireDate);
 
@@ -477,20 +494,10 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         if (vendor_type === "individual") {
             await db.query(
                 `UPDATE individual_details
-           SET profileImage = ?,
-               policeClearance = ?,
-               certificateOfExpertise = ?,
-               businessLicense = ?,
-               businessLicenseExpireDate = ?,
-               certificateOfExpertiseExpireDate = ?,
-               name = ?,
-               address = ?,
-               dob = ?,
-               email = ?,
-               phone = ?,
-               aboutMe = ?,
-               expertise = ?
-           WHERE vendor_id = ?`,
+                 SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?,
+                     businessLicenseExpireDate = ?, certificateOfExpertiseExpireDate = ?,
+                     name = ?, address = ?, dob = ?, email = ?, phone = ?, aboutMe = ?, expertise = ?
+                 WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
                     policeClearance,
@@ -511,21 +518,11 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         } else if (vendor_type === "company") {
             await db.query(
                 `UPDATE company_details
-           SET profileImage = ?,
-               policeClearance = ?,
-               certificateOfExpertise = ?,
-               businessLicense = ?,
-               businessLicenseExpireDate = ?,
-               certificateOfExpertiseExpireDate = ?,
-               companyName = ?,
-               dob = ?,
-               companyEmail = ?,
-               companyPhone = ?,
-               googleBusinessProfileLink = ?,
-               companyAddress = ?,
-               contactPerson = ?,
-               expertise = ?
-           WHERE vendor_id = ?`,
+                 SET profileImage = ?, policeClearance = ?, certificateOfExpertise = ?, businessLicense = ?,
+                     businessLicenseExpireDate = ?, certificateOfExpertiseExpireDate = ?,
+                     companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?,
+                     googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?, expertise = ?
+                 WHERE vendor_id = ?`,
                 [
                     profileImageVendor,
                     policeClearance,
@@ -546,6 +543,36 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
             );
         }
 
+        // ✅ Handle serviceLocations update
+        if (serviceLocation !== undefined) {
+            // Parse incoming value
+            let locations =
+                typeof serviceLocation === "string"
+                    ? JSON.parse(serviceLocation)
+                    : serviceLocation;
+
+            if (!Array.isArray(locations)) {
+                return res.status(400).json({
+                    error: "serviceLocation must be an array"
+                });
+            }
+
+            // ✅ Remove old locations
+            await db.query(
+                `DELETE FROM vendor_service_locations WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+
+            // ✅ Insert new locations
+            for (const city of locations) {
+                await db.query(
+                    `INSERT INTO vendor_service_locations (vendor_id, city)
+                     VALUES (?, ?)`,
+                    [vendor_id, city.trim()]
+                );
+            }
+        }
+
         // ✅ Handle new certificates
         if (certificateNames?.length) {
             const insertPromises = certificateNames.map((certName, i) => {
@@ -553,17 +580,18 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
                 if (certName && certFile) {
                     return db.query(
                         `INSERT INTO certificates (vendor_id, certificateName, certificateFile)
-               VALUES (?, ?, ?)`,
+                         VALUES (?, ?, ?)`,
                         [vendor_id, certName, certFile]
                     );
                 }
                 return null;
             });
+
             await Promise.all(insertPromises);
         }
 
         res.status(200).json({
-            message: "✅ Vendor profile updated successfully (media and expiry dates handled properly)",
+            message: "✅ Vendor profile updated successfully",
         });
 
     } catch (err) {
@@ -571,6 +599,8 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

@@ -53,35 +53,47 @@ const registerVendor = async (req, res) => {
             return res.status(400).json({ error: "Please confirm the data is correct." });
         }
 
-        let hashedPassword = null;
-        // Password validation (required only for individual vendors)
-        if (vendorType.toLowerCase() === "individual") {
+        // ✅ Parse multiple serviceLocations
+        let serviceLocations = [];
+        if (serviceLocation) {
+            serviceLocations =
+                typeof serviceLocation === "string"
+                    ? JSON.parse(serviceLocation)
+                    : serviceLocation;
+        }
 
-            // Require password
+        if (!Array.isArray(serviceLocations) || serviceLocations.length === 0) {
+            return res.status(400).json({ error: "At least one service location is required." });
+        }
+
+        // ✅ Password handling (individual only)
+        let hashedPassword = null;
+
+        if (vendorType.toLowerCase() === "individual") {
             if (!password) {
                 return res.status(400).json({ error: "Password is required for individual vendors." });
             }
 
-            // Strong password regex:
             const passwordRegex =
                 /^(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&*!])[A-Za-z\d@#$%^&*!]{8,}$/;
 
             if (!passwordRegex.test(password)) {
                 return res.status(400).json({
-                    error:
-                        "Password must be at least 8 characters long, include special character (@#$%^&*!)."
+                    error: "Password must be at least 8 characters long, include a special character.",
                 });
             }
 
             hashedPassword = await bcrypt.hash(password, 10);
         }
 
-
-        // Insert vendor
-        const [vendorRes] = await conn.query(vendorAuthQueries.insertVendor, [vendorType, hashedPassword]);
+        // ✅ Insert vendor auth
+        const [vendorRes] = await conn.query(
+            vendorAuthQueries.insertVendor,
+            [vendorType, hashedPassword]
+        );
         const vendor_id = vendorRes.insertId;
 
-        // Vendor details
+        // ✅ Vendor details insert
         if (vendorType.toLowerCase() === "company") {
             await conn.query(vendorAuthQueries.insertCompanyDetails, [
                 vendor_id,
@@ -91,11 +103,11 @@ const registerVendor = async (req, res) => {
                 googleBusinessProfileLink,
                 companyPhone,
                 companyAddress,
-                expertise,
-                serviceLocation
+                expertise
             ]);
         } else {
             const resume = req.uploadedFiles?.resume?.[0]?.url || null;
+
             await conn.query(vendorAuthQueries.insertIndividualDetails, [
                 vendor_id,
                 name,
@@ -103,96 +115,84 @@ const registerVendor = async (req, res) => {
                 email,
                 resume,
                 aboutme,
-                expertise,
-                serviceLocation
+                expertise
             ]);
         }
 
-        // Process vendor-selected packages
+        // ✅ Insert multiple service locations
+        for (const city of serviceLocations) {
+            await conn.query(
+                `INSERT INTO vendor_service_locations (vendor_id, city)
+                 VALUES (?, ?)`,
+                [vendor_id, city.trim()]
+            );
+        }
+
+        // ✅ Process packages (unchanged)
         const parsedPackages = packages ? JSON.parse(packages) : [];
 
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
-            // Check if package exists
             const [packageExists] = await db.query(
                 "SELECT package_id FROM packages WHERE package_id = ?",
                 [package_id]
             );
-            if (packageExists.length === 0) {
+
+            if (!packageExists.length) {
                 return res.status(400).json({ error: `Package ID ${package_id} does not exist.` });
             }
 
-            // Insert vendor package application
             const [vpRes] = await conn.query(
                 `INSERT INTO vendor_package_applications (vendor_id, package_id, status)
                  VALUES (?, ?, 0)`,
                 [vendor_id, package_id]
             );
+
             const application_id = vpRes.insertId;
 
-            // Handle sub-packages
-            if (Array.isArray(sub_packages) && sub_packages.length > 0) {
-                for (const sub of sub_packages) {
-                    const { item_id } = sub;
-                    const [subExists] = await db.query(
-                        `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
-                        [item_id, package_id]
-                    );
-                    if (subExists.length === 0) {
-                        return res.status(400).json({
-                            error: `Sub-package ID ${item_id} does not exist for package ${package_id}.`,
-                        });
-                    }
+            for (const sub of sub_packages) {
+                const { item_id } = sub;
 
-                    await conn.query(
-                        `INSERT INTO vendor_package_item_application (application_id, package_item_id)
-                         VALUES (?, ?)`,
-                        [application_id, item_id]
-                    );
+                const [subExists] = await db.query(
+                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
+                    [item_id, package_id]
+                );
+
+                if (!subExists.length) {
+                    return res.status(400).json({
+                        error: `Sub-package ID ${item_id} does not exist for package ${package_id}.`,
+                    });
                 }
+
+                await conn.query(
+                    `INSERT INTO vendor_package_item_application (application_id, package_item_id)
+                     VALUES (?, ?)`,
+                    [application_id, item_id]
+                );
             }
         }
 
         await conn.commit();
 
-        // -----------------------------
-        // Send Admin Mail asynchronously (independent)
-        // -----------------------------
+        // ✅ Send admin mail (updated)
         (async () => {
             try {
-                let serviceName = "N/A";
-                if (parsedPackages.length > 0) {
-                    const firstPackageId = parsedPackages[0].package_id;
-                    const [serviceRows] = await db.query(
-                        `SELECT s.serviceName
-                         FROM packages p
-                         JOIN service_type sp ON p.service_type_id = sp.service_type_id
-                         JOIN services s ON sp.service_id = s.service_id
-                         WHERE p.package_id = ?`,
-                        [firstPackageId]
-                    );
-
-                    if (serviceRows.length) serviceName = serviceRows[0].serviceName;
-                }
-
                 await sendAdminVendorRegistrationMail({
                     vendorType,
                     vendorName: vendorType === "individual" ? name : companyName,
                     vendorEmail: vendorType === "individual" ? email : companyEmail,
-                    vendorCity: serviceLocation,
-                    vendorService: serviceName,
+                    vendorCity: serviceLocations.join(", "),
                 });
-            } catch (err) {
-                console.error("❌ Admin mail failed (ignored):", err);
-            }
+            } catch { }
         })();
 
-        // Respond immediately
         return res.status(201).json({
             message: "Vendor registered successfully",
             vendor_id,
+            serviceLocations,
         });
+
     } catch (err) {
         await conn.rollback();
         console.error("❌ Registration failed:", err);
