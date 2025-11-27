@@ -184,7 +184,6 @@ const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     });
 });
 
-
 const applyPackagesToVendor = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -313,7 +312,6 @@ const applyPackagesToVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getServiceTypesByVendor = asyncHandler(async (req, res) => {
     const { vendor_id } = req.user;
 
@@ -348,7 +346,6 @@ const getVendorService = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
@@ -418,7 +415,6 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
@@ -598,9 +594,7 @@ const updateProfileVendor = asyncHandler(async (req, res) => {
         console.error("❌ Error updating vendor profile:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
-});
-
-
+})
 
 const editServiceType = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();

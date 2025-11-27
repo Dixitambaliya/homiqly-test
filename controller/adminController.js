@@ -8,7 +8,6 @@ const adminDeleteQueries = require("../config/adminQueries/adminDeleteQueries")
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { sendVendorAssignedPackagesEmail, sendManualAssignmentMail } = require("../config/utils/email/mailer");
 
-
 const getAdminProfile = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
     try {
@@ -292,6 +291,80 @@ const getVendor = asyncHandler(async (req, res) => {
     } catch (err) {
         console.error("Error fetching vendor details:", err);
         res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
+const adminUpdateVendorCities = asyncHandler(async (req, res) => {
+    const { serviceLocation } = req.body;
+    const { vendor_id } = req.params
+
+    try {
+        // Validate vendor_id
+        if (!vendor_id) {
+            return res.status(400).json({
+                message: "vendor_id is required"
+            });
+        }
+
+        // Validate serviceLocation
+        if (!serviceLocation) {
+            return res.status(400).json({
+                message: "serviceLocation is required"
+            });
+        }
+
+        // Parse serviceLocation (string or array)
+        let locations =
+            typeof serviceLocation === "string"
+                ? JSON.parse(serviceLocation)
+                : serviceLocation;
+
+        if (!Array.isArray(locations)) {
+            return res.status(400).json({
+                message: "serviceLocation must be an array"
+            });
+        }
+
+        // ----------- DB Operations ------------
+
+        // 1️⃣ Check if vendor exists
+        const [vendorExists] = await db.query(
+            `SELECT vendor_id FROM vendors WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        if (vendorExists.length === 0) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
+
+        // 2️⃣ Delete old cities
+        await db.query(
+            `DELETE FROM vendor_service_locations WHERE vendor_id = ?`,
+            [vendor_id]
+        );
+
+        // 3️⃣ Insert new cities
+        for (const city of locations) {
+            if (city && city.trim() !== "") {
+                await db.query(
+                    `INSERT INTO vendor_service_locations (vendor_id, city)
+                     VALUES (?, ?)`,
+                    [vendor_id, city.trim()]
+                );
+            }
+        }
+
+        res.status(200).json({
+            message: "Vendor service locations updated successfully",
+        });
+
+    } catch (error) {
+        console.error("Error updating vendor cities:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
     }
 });
 
@@ -2339,5 +2412,6 @@ module.exports = {
     deleteEmployeeProfileByAdmin,
     getPackageList,
     getPackageDetails,
-    getAdminCreatedPackages
+    getAdminCreatedPackages,
+    adminUpdateVendorCities
 };
