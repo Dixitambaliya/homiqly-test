@@ -383,7 +383,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
             [vendor_id]
         );
 
-        const serviceLocations = locationRows.map(loc => loc.city);
+        const serviceLocation = locationRows.map(loc => loc.city);
 
         // ✅ Step 4: Clean profile (remove nulls)
         const profile = {};
@@ -401,7 +401,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
 
         // ✅ Step 6: Attach data to profile
         profile.certificates = certificates;
-        profile.serviceLocations = serviceLocations; // ✅ NEW
+        profile.serviceLocation = serviceLocation; // ✅ NEW
         profile.last_access = mountainTime;
 
         // ✅ Step 7: Send response
