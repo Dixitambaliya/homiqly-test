@@ -55,7 +55,8 @@ router.put("/approverejectapplication/:application_id", authenticationToken, upd
 router.get("/getpayments", authenticationToken, getAllPayments)
 router.get("/getallpackages", authenticationToken, getAllPackages)
 
-router.get("/getallpackages/:user_id", authenticationToken, getUserBookings)
+router.get("/get-booking-data/:user_id", authenticationToken, getUserBookings)
+
 router.put("/editvendorstatus/:vendor_id", authenticationToken, toggleManualVendorAssignmentByAdmin)
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
 router.delete("/deleteusers/:user_id", authenticationToken, deleteUserByAdmin)
