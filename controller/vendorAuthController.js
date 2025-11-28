@@ -129,11 +129,13 @@ const registerVendor = async (req, res) => {
         }
 
         // ✅ Process packages (unchanged)
+        // ✅ Process packages (using NEW tables to avoid conflict)
         const parsedPackages = packages ? JSON.parse(packages) : [];
 
         for (const pkg of parsedPackages) {
             const { package_id, sub_packages = [] } = pkg;
 
+            // Check if package exists
             const [packageExists] = await db.query(
                 "SELECT package_id FROM packages WHERE package_id = ?",
                 [package_id]
@@ -143,14 +145,16 @@ const registerVendor = async (req, res) => {
                 return res.status(400).json({ error: `Package ID ${package_id} does not exist.` });
             }
 
+            // Insert into NEW vendor applied packages table
             const [vpRes] = await conn.query(
-                `INSERT INTO vendor_package_applications (vendor_id, package_id, status)
-                 VALUES (?, ?, 0)`,
+                `INSERT INTO vendor_applied_packages (vendor_id, package_id, status)
+         VALUES (?, ?, 0)`,
                 [vendor_id, package_id]
             );
 
-            const application_id = vpRes.insertId;
+            const applied_id = vpRes.insertId;
 
+            // Insert sub-packages into NEW table
             for (const sub of sub_packages) {
                 const { item_id } = sub;
 
@@ -166,9 +170,9 @@ const registerVendor = async (req, res) => {
                 }
 
                 await conn.query(
-                    `INSERT INTO vendor_package_item_application (application_id, package_item_id)
-                     VALUES (?, ?)`,
-                    [application_id, item_id]
+                    `INSERT INTO vendor_applied_package_items (applied_id, package_item_id)
+             VALUES (?, ?)`,
+                    [applied_id, item_id]
                 );
             }
         }
@@ -204,6 +208,7 @@ const registerVendor = async (req, res) => {
         conn.release();
     }
 };
+
 
 const loginVendor = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;

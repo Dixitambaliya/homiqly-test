@@ -632,11 +632,13 @@ const adminDeleteAvailability = asyncHandler(async (req, res) => {
 const adminGetAvailability = asyncHandler(async (req, res) => {
     try {
         const { vendor_id } = req.params;
+
         // STRICT ADMIN CHECK
         if (!req.user || !req.user.admin_id) {
             return res.status(403).json({ message: "Access denied" });
         }
 
+        // Get availability
         const [rows] = await db.query(
             `SELECT 
                 va.vendor_availability_id,
@@ -649,25 +651,112 @@ const adminGetAvailability = asyncHandler(async (req, res) => {
                 va.endTime,
                 va.created_at,
                 va.updated_at
-             FROM vendor_availability va
-             LEFT JOIN individual_details id ON va.vendor_id = id.vendor_id
-             WHERE va.vendor_id = ?`,
+            FROM vendor_availability va
+            LEFT JOIN individual_details id ON va.vendor_id = id.vendor_id
+            WHERE va.vendor_id = ?`,
             [vendor_id]
         );
 
-        const formatted = rows.map(item => ({
-            ...item,
-            startDate: moment(item.startDate).format("YYYY-MM-DD"),
-            endDate: moment(item.endDate).format("YYYY-MM-DD"),
-            startTime: moment(item.startTime, "HH:mm:ss").format("HH:mm"),
-            endTime: moment(item.endTime, "HH:mm:ss").format("HH:mm"),
-        }));
+        // For each availability → Fetch bookings for that DAY
+        const availabilities = [];
 
-        res.json({ vendor_id, availabilities: formatted });
+        for (const item of rows) {
+            const day = moment(item.startDate).format("YYYY-MM-DD");
+
+            const [bookings] = await db.query(
+                `SELECT 
+                    b.booking_id,
+                    s.serviceName
+                FROM service_booking b
+                LEFT JOIN services s ON b.service_id = s.service_id
+                WHERE b.vendor_id = ?
+                AND DATE(b.bookingDate) = ?`,
+                [vendor_id, day]
+            );
+
+            availabilities.push({
+                ...item,
+                startDate: moment(item.startDate).format("YYYY-MM-DD"),
+                endDate: moment(item.endDate).format("YYYY-MM-DD"),
+                startTime: moment(item.startTime, "HH:mm:ss").format("HH:mm"),
+                endTime: moment(item.endTime, "HH:mm:ss").format("HH:mm"),
+
+                bookings: bookings.map(b => ({
+                    booking_id: b.booking_id,
+                    serviceName: b.serviceName
+                }))
+            });
+        }
+
+        res.json({ vendor_id, availabilities });
     } catch (error) {
         res.status(500).json({ message: "Error fetching availability", error });
     }
 });
+
+const adminGetVendorBookings = asyncHandler(async (req, res) => {
+    try {
+        const { vendor_ids, date } = req.body;
+
+        // ADMIN CHECK
+        if (!req.user || !req.user.admin_id) {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        if (!vendor_ids || !Array.isArray(vendor_ids) || vendor_ids.length === 0) {
+            return res.status(400).json({ message: "vendor_ids must be a non-empty array" });
+        }
+
+        if (!date) {
+            return res.status(400).json({ message: "date is required. Format: YYYY-MM-DD" });
+        }
+
+        const response = [];
+
+        for (const vendor_id of vendor_ids) {
+            // Fetch vendor name
+            const [[vendor]] = await db.query(
+                `SELECT name FROM individual_details WHERE vendor_id = ?`,
+                [vendor_id]
+            );
+
+            // Fetch bookings for vendor on that date
+            const [bookings] = await db.query(
+                `SELECT 
+                    b.booking_id,
+                    b.bookingDate,
+                    b.bookingTime,
+                    s.serviceName
+                FROM service_booking b
+                LEFT JOIN services s ON b.service_id = s.service_id
+                WHERE b.vendor_id = ?
+                AND DATE(b.bookingDate) = ?`,
+                [vendor_id, date]
+            );
+
+            response.push({
+                vendor_id,
+                vendorName: vendor ? vendor.name : null, // If no name found
+                total: bookings.length,
+                bookings
+            });
+        }
+
+        return res.json({
+            date,
+            vendors: response
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Error fetching bookings for vendors",
+            error
+        });
+    }
+});
+
+
+
 
 const getVendors = asyncHandler(async (req, res) => {
     try {
@@ -708,5 +797,6 @@ module.exports = {
     adminEditAvailability,
     adminDeleteAvailability,
     adminGetAvailability,
-    getVendors
+    getVendors,
+    adminGetVendorBookings
 };

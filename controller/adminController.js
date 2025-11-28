@@ -342,7 +342,7 @@ const getNewVendors = asyncHandler(async (req, res) => {
                 cdet.companyName AS company_name,
                 cdet.companyEmail AS company_email,
                 cdet.companyPhone AS company_phone,
-                cdet.profileImage AS company_profileImage
+                cdet.companyAddress AS company_address
             FROM vendors v
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
@@ -360,43 +360,37 @@ const getNewVendors = asyncHandler(async (req, res) => {
 
         const vendorIds = vendors.map(v => v.vendor_id);
 
-        // 2️⃣ Fetch service locations separately
+        // 2️⃣ Fetch vendor service locations
         const [vendorLocations] = await db.query(`
             SELECT vendor_id, city
             FROM vendor_service_locations
             WHERE vendor_id IN (?)
         `, [vendorIds]);
 
-        // Group locations by vendor
         const locationsByVendor = {};
         vendorLocations.forEach(loc => {
             if (!locationsByVendor[loc.vendor_id]) locationsByVendor[loc.vendor_id] = [];
             locationsByVendor[loc.vendor_id].push(loc.city);
         });
 
-        // 3️⃣ Fetch vendor package applications
+        // 3️⃣ Fetch vendor package applications (NEW TABLE)
         const [packageApps] = await db.query(`
             SELECT
-                vpa.application_id,
+                vpa.applied_id AS application_id,
                 vpa.vendor_id,
                 vpa.package_id,
                 vpa.status,
-                vpa.serviceLocation,  -- stays single string
-                vpa.applied_at,
-                vpa.approved_at,
-
+                
                 p.packageName,
                 s.serviceName,
                 s.serviceImage
-            FROM vendor_package_applications vpa
+            FROM vendor_applied_packages vpa
             JOIN packages p ON vpa.package_id = p.package_id
             JOIN service_type st ON p.service_type_id = st.service_type_id
             JOIN services s ON st.service_id = s.service_id
             WHERE vpa.vendor_id IN (?)
-            ORDER BY vpa.applied_at DESC
         `, [vendorIds]);
 
-        // Group package applications by vendor
         const appsByVendor = {};
         packageApps.forEach(a => {
             if (!appsByVendor[a.vendor_id]) appsByVendor[a.vendor_id] = [];
@@ -409,7 +403,7 @@ const getNewVendors = asyncHandler(async (req, res) => {
         let appliedItems = [];
 
         if (packageIds.length > 0) {
-            // package items
+            // Package items
             [packageItems] = await db.query(`
                 SELECT
                     pi.item_id,
@@ -425,38 +419,34 @@ const getNewVendors = asyncHandler(async (req, res) => {
             const applicationIds = packageApps.map(a => a.application_id);
 
             if (applicationIds.length > 0) {
-                // sub-items applied
+                // Applied subitems (NEW TABLE)
                 [appliedItems] = await db.query(`
                     SELECT
-                        vpia.application_id,
-                        vpia.package_item_id
-                    FROM vendor_package_item_application vpia
-                    WHERE vpia.application_id IN (?)
+                        vapi.applied_id AS application_id,
+                        vapi.package_item_id
+                    FROM vendor_applied_package_items vapi
+                    WHERE vapi.applied_id IN (?)
                 `, [applicationIds]);
             }
         }
 
-        // Group applied sub-items by application
         const appliedByApp = {};
         appliedItems.forEach(ai => {
             if (!appliedByApp[ai.application_id]) appliedByApp[ai.application_id] = [];
             appliedByApp[ai.application_id].push(ai.package_item_id);
         });
 
-        // Group all items by package
         const itemsByPackage = {};
         packageItems.forEach(item => {
             if (!itemsByPackage[item.package_id]) itemsByPackage[item.package_id] = [];
             itemsByPackage[item.package_id].push(item);
         });
 
-        // 5️⃣ Process final vendor output
+        // 5️⃣ Final formatted output
         const processed = vendors.map(v => {
             const vendorApps = (appsByVendor[v.vendor_id] || []).map(app => {
                 const allItems = itemsByPackage[app.package_id] || [];
                 const applied = appliedByApp[app.application_id] || [];
-
-                // Only selected items
                 const filteredItems = allItems.filter(i => applied.includes(i.item_id));
 
                 return {
@@ -469,28 +459,23 @@ const getNewVendors = asyncHandler(async (req, res) => {
                 vendor_id: v.vendor_id,
                 vendorType: v.vendorType,
 
-                // Shared via conditional
                 name: v.vendorType === "individual" ? v.individual_name : v.company_name,
                 email: v.vendorType === "individual" ? v.individual_email : v.company_email,
                 phone: v.vendorType === "individual" ? v.individual_phone : v.company_phone,
 
-                // Individual vs Company fields
                 address: v.vendorType === "individual" ? v.individual_address : v.company_address,
                 expertise: v.vendorType === "individual" ? v.individual_expertise : v.company_expertise,
                 resume: v.vendorType === "individual" ? v.individual_resume : null,
                 aboutMe: v.vendorType === "individual" ? v.individual_aboutMe : v.company_about,
-                // ✔ return vendor service locations as array
-                serviceLocations: locationsByVendor[v.vendor_id] || [],
 
+                serviceLocations: locationsByVendor[v.vendor_id] || [],
                 is_authenticated: v.is_authenticated,
                 created_at: v.created_at,
-
-                // ✔ return package requests with subpackages
                 packageRequests: vendorApps
             };
         });
 
-        res.status(200).json({
+        return res.status(200).json({
             message: "New vendor applications fetched successfully",
             total: processed.length,
             data: processed
