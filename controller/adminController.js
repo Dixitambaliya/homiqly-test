@@ -2660,11 +2660,9 @@ const updateVendorProfileByAdmin = asyncHandler(async (req, res) => {
         individual_name,
         individual_email,
         individual_phone,
-        address,
-        birthDate,
+        individual_dob,
         individual_aboutMe,
         individual_expertise,
-        individual_dob,
         individual_address,
 
         // Company fields
@@ -2706,7 +2704,7 @@ const updateVendorProfileByAdmin = asyncHandler(async (req, res) => {
                  WHERE vendor_id = ?`,
                 [
                     individual_name ?? current.individual_name,
-                    address ?? current.address,
+                    individual_address ?? current.individual_address,
                     individual_dob ?? current.individual_dob,
                     individual_email ?? current.individual_email,
                     individual_phone ?? current.individual_phone,
