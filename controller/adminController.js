@@ -386,7 +386,6 @@ const getNewVendors = asyncHandler(async (req, res) => {
                 vpa.approved_at,
 
                 p.packageName,
-                p.packageMedia,
                 s.serviceName,
                 s.serviceImage
             FROM vendor_package_applications vpa
