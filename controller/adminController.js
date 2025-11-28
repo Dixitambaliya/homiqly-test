@@ -469,11 +469,17 @@ const getNewVendors = asyncHandler(async (req, res) => {
             return {
                 vendor_id: v.vendor_id,
                 vendorType: v.vendorType,
+
+                // Shared via conditional
                 name: v.vendorType === "individual" ? v.individual_name : v.company_name,
                 email: v.vendorType === "individual" ? v.individual_email : v.company_email,
                 phone: v.vendorType === "individual" ? v.individual_phone : v.company_phone,
-                profileImage: v.vendorType === "individual" ? v.individual_profileImage : v.company_profileImage,
 
+                // Individual vs Company fields
+                address: v.vendorType === "individual" ? v.individual_address : v.company_address,
+                expertise: v.vendorType === "individual" ? v.individual_expertise : v.company_expertise,
+                resume: v.vendorType === "individual" ? v.individual_resume : null,
+                aboutMe: v.vendorType === "individual" ? v.individual_aboutMe : v.company_about,
                 // ✔ return vendor service locations as array
                 serviceLocations: locationsByVendor[v.vendor_id] || [],
 
