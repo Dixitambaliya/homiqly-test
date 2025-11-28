@@ -1452,7 +1452,6 @@ const getVendorDashboardStats = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getVendorAssignedPackages = asyncHandler(async (req, res) => {
     const vendorId = req.user.vendor_id;
 

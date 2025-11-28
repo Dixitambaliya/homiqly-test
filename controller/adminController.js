@@ -318,7 +318,6 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getNewVendors = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch NEW vendors (not authenticated)
@@ -493,7 +492,6 @@ const getNewVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error", details: err.message });
     }
 });
-
 
 const adminUpdateVendorCities = asyncHandler(async (req, res) => {
     const { serviceLocation } = req.body;
@@ -1698,7 +1696,6 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
     }
 });
 
-
 const deletePackageByAdmin = asyncHandler(async (req, res) => {
     const { package_id } = req.params;
 
@@ -2646,6 +2643,152 @@ const getUserBookings = asyncHandler(async (req, res) => {
     }
 });
 
+const updateVendorProfileByAdmin = asyncHandler(async (req, res) => {
+    const { vendor_id } = req.params;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id required" });
+    }
+
+    const {
+        // Common fields
+        vendorType,
+        serviceLocation,
+
+        // Individual fields
+        name,
+        email,
+        phone,
+        address,
+        birthDate,
+        aboutMe,
+        expertise,
+
+        // Company fields
+        companyName,
+        companyEmail,
+        companyPhone,
+        googleBusinessProfileLink,
+        companyAddress,
+        contactPerson
+    } = req.body;
+
+
+    try {
+        // Fetch vendor details based on type
+        const [existing] =
+            vendorType === "individual"
+                ? await db.query(
+                    `SELECT * FROM individual_details WHERE vendor_id = ?`,
+                    [vendor_id]
+                )
+                : vendorType === "company"
+                    ? await db.query(
+                        `SELECT * FROM company_details WHERE vendor_id = ?`,
+                        [vendor_id]
+                    )
+                    : [];
+
+        if (!existing || existing.length === 0) {
+            return res.status(404).json({ message: "Vendor not found" });
+        }
+
+        const current = existing[0];
+
+        // UPDATE queries
+        if (vendorType === "individual") {
+            await db.query(
+                `UPDATE individual_details SET
+                    name = ?, address = ?, dob = ?, email = ?, phone = ?, aboutMe = ?, expertise = ?
+                 WHERE vendor_id = ?`,
+                [
+                    name ?? current.name,
+                    address ?? current.address,
+                    birthDate ?? current.dob,
+                    email ?? current.email,
+                    phone ?? current.phone,
+                    aboutMe ?? current.aboutMe,
+                    expertise ?? current.expertise,
+                    vendor_id
+                ]
+            );
+        } else {
+            await db.query(
+                `UPDATE company_details SET
+                    companyName = ?, dob = ?, companyEmail = ?, companyPhone = ?,
+                    googleBusinessProfileLink = ?, companyAddress = ?, contactPerson = ?, expertise = ?
+                 WHERE vendor_id = ?`,
+                [
+                    companyName ?? current.companyName,
+                    birthDate ?? current.dob,
+                    companyEmail ?? current.companyEmail,
+                    companyPhone ?? current.companyPhone,
+                    googleBusinessProfileLink ?? current.googleBusinessProfileLink,
+                    companyAddress ?? current.companyAddress,
+                    contactPerson ?? current.contactPerson,
+                    expertise ?? current.expertise,
+                    vendor_id
+                ]
+            );
+        }
+
+        // Handle service locations
+        if (serviceLocation !== undefined) {
+            const locations =
+                typeof serviceLocation === "string"
+                    ? JSON.parse(serviceLocation)
+                    : serviceLocation;
+
+            await db.query(`DELETE FROM vendor_service_locations WHERE vendor_id = ?`, [vendor_id]);
+
+            for (const city of locations) {
+                await db.query(
+                    `INSERT INTO vendor_service_locations (vendor_id, city)
+                     VALUES (?, ?)`,
+                    [vendor_id, city.trim()]
+                );
+            }
+        }
+
+        res.status(200).json({
+            message: "Vendor profile updated successfully by admin"
+        });
+
+    } catch (err) {
+        console.error("❌ Admin Edit Vendor Error:", err);
+        res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+});
+
+const restrictUser = asyncHandler(async (req, res) => {
+    const { user_id } = req.params;
+
+    if (!user_id) {
+        return res.status(400).json({ message: "user_id is required" });
+    }
+
+    // Check if user exists
+    const [user] = await db.query(
+        `SELECT user_id, is_approved FROM users WHERE user_id = ?`,
+        [user_id]
+    );
+
+    if (!user.length) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    // Set to 2 = Restricted by admin
+    await db.query(
+        `UPDATE users SET is_approved = 2 WHERE user_id = ?`,
+        [user_id]
+    );
+
+    return res.status(200).json({
+        message: "User has been restricted successfully",
+    });
+});
+
+
 
 module.exports = {
     getAdminProfile,
@@ -2658,7 +2801,6 @@ module.exports = {
     createPackageByAdmin,
     assignPackageToVendor,
     editPackageByAdmin,
-    deletePackageByAdmin,
     deletePackageByAdmin,
     getAllPayments,
     getAllPackages,
@@ -2675,5 +2817,7 @@ module.exports = {
     getAdminCreatedPackages,
     adminUpdateVendorCities,
     getNewVendors,
-    getUserBookings
+    getUserBookings,
+    updateVendorProfileByAdmin,
+    restrictUser
 };

@@ -359,11 +359,11 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     // ✅ 1. Lookup phone & email separately
     let [byPhone] = phone
-        ? await db.query("SELECT user_id, firstName, lastName, phone, email FROM users WHERE phone = ?", [phone])
+        ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE phone = ?", [phone])
         : [[]];
     let [byEmail] = email
-        ? await db.query("SELECT user_id, firstName, lastName, phone, email FROM users WHERE email = ?", [email])
-        : [[]];
+        ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE email = ?", [email])
+        : [[]]; 
 
     const phoneExists = byPhone.length > 0;
     const emailExists = byEmail.length > 0;
@@ -389,7 +389,14 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     const is_registered = phoneExists || emailExists;
 
-    // 🔢 3. Generate OTP
+    // 🚫 **BLOCK RESTRICTED USERS IMMEDIATELY**
+    if (user && Number(user.is_approved) === 2) {
+        return res.status(403).json({
+            message: "Your account has been restricted."
+        });
+    }
+
+    // 🔢 3. Generate OTP 
     const otp = generateOTP();
 
     // 🔐 4. Create JWT (valid 30 min)

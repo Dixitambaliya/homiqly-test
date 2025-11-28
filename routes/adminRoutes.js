@@ -26,7 +26,9 @@ const {
     getPackageList,
     getPackageDetails,
     getAdminCreatedPackages,
-    getUserBookings
+    getUserBookings,
+    updateVendorProfileByAdmin,
+    restrictUser
 
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
@@ -54,13 +56,13 @@ router.get("/getvendorapplication", authenticationToken, getAllVendorPackageRequ
 router.put("/approverejectapplication/:application_id", authenticationToken, updateVendorPackageRequestStatus)
 router.get("/getpayments", authenticationToken, getAllPayments)
 router.get("/getallpackages", authenticationToken, getAllPackages)
-
 router.get("/get-booking-data/:user_id", authenticationToken, getUserBookings)
-
 router.put("/editvendorstatus/:vendor_id", authenticationToken, toggleManualVendorAssignmentByAdmin)
+router.patch("/update-vendor-profile/:vendor_id", authenticationToken, updateVendorProfileByAdmin)
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
 router.delete("/deleteusers/:user_id", authenticationToken, deleteUserByAdmin)
 router.put("/editemployees/:employee_id", authenticationToken, multiUpload, handleUploads, editEmployeeProfileByAdmin)
 router.delete("/delete-employee/:employee_id", authenticationToken, deleteEmployeeProfileByAdmin)
+router.post("/user/restrict/:user_id", authenticationToken, restrictUser)
 
 module.exports = router
