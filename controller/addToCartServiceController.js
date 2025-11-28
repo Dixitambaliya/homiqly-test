@@ -5,7 +5,8 @@ const moment = require("moment-timezone");
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-
+    console.log(user_id);
+    
     const { service_id, service_type_id, packages, preferences, consents } = req.body;
 
     if (!service_id)

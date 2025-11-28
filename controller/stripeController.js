@@ -250,6 +250,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
     }
 });
 
+
 // ✅ stripeWebhook.js
 exports.stripeWebhook = asyncHandler(async (req, res) => {
 
@@ -329,9 +330,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 `SELECT p.cart_id, p.user_id, p.status,
                 sc.service_id, sc.bookingDate, sc.bookingTime,
                 sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
-         FROM payments p
-         LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
-         WHERE p.payment_intent_id = ? LIMIT 1`,
+                FROM payments p
+                LEFT JOIN service_cart sc ON p.cart_id = sc.cart_id
+                WHERE p.payment_intent_id = ? LIMIT 1`,
                 [paymentIntentId]
             );
 
@@ -456,8 +457,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
                 await connection.query(
                     `INSERT INTO service_booking_sub_packages
-           (booking_id, sub_package_id, service_type_id, price, quantity)
-           VALUES (?, ?, ?, ?, ?)`,
+                    (booking_id, sub_package_id, service_type_id, price, quantity)
+                    VALUES (?, ?, ?, ?, ?)`,
                     [
                         booking_id,
                         pkg.sub_package_id,
@@ -467,6 +468,93 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     ]
                 );
             }
+
+            // ----------------------------
+            // Copy cart_addons -> service_booking_addons
+            // ----------------------------
+            const [cartAddons] = await connection.query(
+                `SELECT addon_id, sub_package_id, price
+                FROM cart_addons WHERE cart_id = ?`,
+                [cart.cart_id]
+            );
+
+            if (cartAddons.length) {
+                for (const a of cartAddons) {
+                    await connection.query(
+                        `INSERT INTO service_booking_addons
+                        (booking_id, sub_package_id, addon_id, price)
+                        VALUES (?, ?, ?, ?)`,
+                        [
+                            booking_id,
+                            a.sub_package_id || null,
+                            a.addon_id || null,
+                            a.price || 0,
+                        ]
+                    );
+                }
+            } else {
+                console.log("ℹ No cart_addons to copy");
+            }
+
+
+
+            // ----------------------------
+            // Copy cart_preferences -> service_booking_preferences
+            // ----------------------------
+            const [cartPrefs] = await connection.query(
+                `SELECT preference_id, sub_package_id
+                FROM cart_preferences WHERE cart_id = ?`,
+                [cart.cart_id]
+            );
+
+            if (cartPrefs.length) {
+                for (const p of cartPrefs) {
+                    await connection.query(
+                        `INSERT INTO service_booking_preferences
+                        (booking_id, sub_package_id, preference_id)
+                        VALUES (?, ?, ?)`,
+                        [
+                            booking_id,
+                            p.sub_package_id || null,
+                            p.preference_id || null,
+                        ]
+                    );
+                }
+            } else {
+                console.log("ℹ No cart_preferences to copy");
+            }
+
+
+
+            // ----------------------------
+            // Copy cart_consents -> service_booking_consents
+            // (INCLUDING SUB_PACKAGE_ID as you requested)
+            // ----------------------------
+            const [cartConsents] = await connection.query(
+                `SELECT consent_id, sub_package_id, answer
+                FROM cart_consents WHERE cart_id = ?`,
+                [cart.cart_id]
+            );
+
+            if (cartConsents.length) {
+                for (const c of cartConsents) {
+                    await connection.query(
+                        `INSERT INTO service_booking_consents
+                        (booking_id, consent_id, sub_package_id, answer)
+                        VALUES (?, ?, ?, ?)`,
+                        [
+                            booking_id,
+                            c.consent_id || null,
+                            c.sub_package_id || null, 
+                            c.answer || null
+                        ]
+                    );
+                }
+            } else {
+                console.log("ℹ No cart_consents to copy");
+            }
+
+
 
             // Update booking total time
             await connection.query(
@@ -519,7 +607,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             await connection.query(`DELETE FROM cart_totals WHERE cart_id=?`, [cart.cart_id]);
 
             await connection.commit();
-            console.log("✅ Booking finalized & cart cleared — transaction committed");
 
             // Send emails (outside transaction)
             try {
@@ -577,6 +664,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
         }
     })();
 });
+
+
 
 exports.confirmPaymentIntentManually = asyncHandler(async (req, res) => {
     const { paymentIntentId } = req.body;
