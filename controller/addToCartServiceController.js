@@ -1176,7 +1176,6 @@ const getUserCartCount = asyncHandler(async (req, res) => {
     }
 });
 
-
 module.exports = {
     addToCartService,
     getUserCart,

@@ -1652,13 +1652,12 @@ const editPackageByAdmin = asyncHandler(async (req, res) => {
                                     sub_package_id
                                 ]
                             );
-
                             submittedConsentIds.push(form.consent_id);
                         } else {
                             const [newForm] = await connection.query(
                                 `INSERT INTO package_consent_forms
                                  (package_item_id, question, is_required)
-                                 VALUES (?, ?)`,
+                                 VALUES (?, ? ,?)`,
                                 [
                                     sub_package_id,
                                     form.question,
