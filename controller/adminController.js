@@ -399,7 +399,6 @@ const getNewVendors = asyncHandler(async (req, res) => {
 
                     -- Package info
                     p.packageName,
-                    st.serviceTypeName,
                     s.serviceName,
                     s.serviceImage,
 
