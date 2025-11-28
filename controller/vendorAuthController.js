@@ -24,6 +24,7 @@ const generateResetCode = () =>
         .padStart(6, "0");
 
 // Create User
+
 const registerVendor = async (req, res) => {
     const conn = await db.getConnection();
     await conn.beginTransaction();
@@ -52,47 +53,7 @@ const registerVendor = async (req, res) => {
             return res.status(400).json({ error: "Please confirm the data is correct." });
         }
 
-        // 🔍 --- UNIVERSAL UNIQUE CHECKS ---------------------------------------
-
-        // Normalize values depending on vendor type
-        const finalPhone = vendorType === "individual" ? phone : companyPhone;
-        const finalEmail = vendorType === "individual" ? email : companyEmail;
-
-        // Check if phone exists across both types
-        const [phoneExists] = await conn.query(
-            `
-            SELECT vendor_id FROM individual_details WHERE phone = ?
-            UNION
-            SELECT vendor_id FROM company_details WHERE companyPhone = ?
-            `,
-            [finalPhone, finalPhone]
-        );
-
-        if (phoneExists.length > 0) {
-            return res.status(409).json({
-                error: `Phone number ${finalPhone} is already registered.`,
-            });
-        }
-
-        // Check if email exists across both types
-        const [emailExists] = await conn.query(
-            `
-            SELECT vendor_id FROM individual_details WHERE email = ?
-            UNION
-            SELECT vendor_id FROM company_details WHERE companyEmail = ?
-            `,
-            [finalEmail, finalEmail]
-        );
-
-        if (emailExists.length > 0) {
-            return res.status(409).json({
-                error: `Email ${finalEmail} is already registered.`,
-            });
-        }
-
-        // 🔍 --------------------------------------------------------------
-
-        // Parse multiple serviceLocations
+        // ✅ Parse multiple serviceLocations
         let serviceLocations = [];
         if (serviceLocation) {
             serviceLocations =
@@ -105,7 +66,7 @@ const registerVendor = async (req, res) => {
             return res.status(400).json({ error: "At least one service location is required." });
         }
 
-        // Password handling (individual only)
+        // ✅ Password handling (individual only)
         let hashedPassword = null;
 
         if (vendorType.toLowerCase() === "individual") {
@@ -125,22 +86,22 @@ const registerVendor = async (req, res) => {
             hashedPassword = await bcrypt.hash(password, 10);
         }
 
-        // Insert vendor auth
+        // ✅ Insert vendor auth
         const [vendorRes] = await conn.query(
             vendorAuthQueries.insertVendor,
             [vendorType, hashedPassword]
         );
         const vendor_id = vendorRes.insertId;
 
-        // Insert vendor details
+        // ✅ Vendor details insert
         if (vendorType.toLowerCase() === "company") {
             await conn.query(vendorAuthQueries.insertCompanyDetails, [
                 vendor_id,
                 companyName,
                 contactPerson,
-                finalEmail,
+                companyEmail,
                 googleBusinessProfileLink,
-                finalPhone,
+                companyPhone,
                 companyAddress,
                 expertise
             ]);
@@ -150,15 +111,15 @@ const registerVendor = async (req, res) => {
             await conn.query(vendorAuthQueries.insertIndividualDetails, [
                 vendor_id,
                 name,
-                finalPhone,
-                finalEmail,
+                phone,
+                email,
                 resume,
                 aboutme,
                 expertise
             ]);
         }
 
-        // Insert service locations
+        // ✅ Insert multiple service locations
         for (const city of serviceLocations) {
             await conn.query(
                 `INSERT INTO vendor_service_locations (vendor_id, city)
@@ -167,79 +128,60 @@ const registerVendor = async (req, res) => {
             );
         }
 
-        // Process packages (ONE SINGLE APPLICATION)
+        // ✅ Process packages (unchanged)
         const parsedPackages = packages ? JSON.parse(packages) : [];
 
-        if (parsedPackages.length > 0) {
+        for (const pkg of parsedPackages) {
+            const { package_id, sub_packages = [] } = pkg;
 
-            // 🆕 1) Create one single application for all packages
-            const [appRes] = await conn.query(
-                `INSERT INTO vendor_applied_packages (vendor_id, package_id, status)
-         VALUES (?, NULL, 0)`,
-                [vendor_id]
+            const [packageExists] = await db.query(
+                "SELECT package_id FROM packages WHERE package_id = ?",
+                [package_id]
             );
 
-            const applied_id = appRes.insertId;
+            if (!packageExists.length) {
+                return res.status(400).json({ error: `Package ID ${package_id} does not exist.` });
+            }
 
-            // 🆕 2) Insert all packages + sub-packages into ONE application
-            for (const pkg of parsedPackages) {
-                const { package_id, sub_packages = [] } = pkg;
+            const [vpRes] = await conn.query(
+                `INSERT INTO vendor_package_applications (vendor_id, package_id, status)
+                 VALUES (?, ?, 0)`,
+                [vendor_id, package_id]
+            );
 
-                // verify package exists
-                const [packageExists] = await db.query(
-                    "SELECT package_id FROM packages WHERE package_id = ?",
-                    [package_id]
+            const application_id = vpRes.insertId;
+
+            for (const sub of sub_packages) {
+                const { item_id } = sub;
+
+                const [subExists] = await db.query(
+                    `SELECT item_id FROM package_items WHERE item_id = ? AND package_id = ?`,
+                    [item_id, package_id]
                 );
 
-                if (!packageExists.length) {
-                    return res.status(400).json({ error: `Package ID ${package_id} does not exist.` });
+                if (!subExists.length) {
+                    return res.status(400).json({
+                        error: `Sub-package ID ${item_id} does not exist for package ${package_id}.`,
+                    });
                 }
 
-                // Insert package record
                 await conn.query(
-                    `INSERT INTO vendor_applied_package_items 
-             (applied_id, package_id, package_item_id)
-             VALUES (?, ?, NULL)`,
-                    [applied_id, package_id]
+                    `INSERT INTO vendor_package_item_application (application_id, package_item_id)
+                     VALUES (?, ?)`,
+                    [application_id, item_id]
                 );
-
-                // Insert sub-package items
-                for (const sub of sub_packages) {
-                    const { item_id } = sub;
-
-                    const [subExists] = await db.query(
-                        `SELECT item_id 
-                 FROM package_items 
-                 WHERE item_id = ? AND package_id = ?`,
-                        [item_id, package_id]
-                    );
-
-                    if (!subExists.length) {
-                        return res.status(400).json({
-                            error: `Sub-package ID ${item_id} does not exist for package ${package_id}.`,
-                        });
-                    }
-
-                    await conn.query(
-                        `INSERT INTO vendor_applied_package_items 
-                 (applied_id, package_id, package_item_id)
-                 VALUES (?, ?, ?)`,
-                        [applied_id, package_id, item_id]
-                    );
-                }
             }
         }
 
-
         await conn.commit();
 
-        // Send admin mail
+        // ✅ Send admin mail (updated)
         (async () => {
             try {
                 await sendAdminVendorRegistrationMail({
                     vendorType,
                     vendorName: vendorType === "individual" ? name : companyName,
-                    vendorEmail: finalEmail,
+                    vendorEmail: vendorType === "individual" ? email : companyEmail,
                     vendorCity: serviceLocations.join(", "),
                 });
             } catch { }
@@ -262,8 +204,6 @@ const registerVendor = async (req, res) => {
         conn.release();
     }
 };
-
-
 
 const loginVendor = asyncHandler(async (req, res) => {
     const { email, password, fcmToken } = req.body;
