@@ -280,6 +280,14 @@ const googleLogin = asyncHandler(async (req, res) => {
         } else {
             user = existingUsers[0];
             user_id = user.user_id;
+
+            // 🚫 CHECK RESTRICTED USER (added)
+            if (user.is_approved === 2) {
+                return res.status(403).json({
+                    message: "Your account has been restricted.",
+                    restricted: true
+                });
+            }
         }
 
         // 3️⃣ Generate JWT token
@@ -363,7 +371,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         : [[]];
     let [byEmail] = email
         ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE email = ?", [email])
-        : [[]]; 
+        : [[]];
 
     const phoneExists = byPhone.length > 0;
     const emailExists = byEmail.length > 0;
