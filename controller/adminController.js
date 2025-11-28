@@ -318,6 +318,7 @@ const getVendor = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getNewVendors = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch NEW vendors (not authenticated)
@@ -373,88 +374,60 @@ const getNewVendors = asyncHandler(async (req, res) => {
             locationsByVendor[loc.vendor_id].push(loc.city);
         });
 
-        // 3️⃣ Fetch vendor package applications (NEW TABLE)
-        const [packageApps] = await db.query(`
-            SELECT
-                vpa.applied_id AS application_id,
-                vpa.vendor_id,
-                vpa.package_id,
-                vpa.status,
-                
-                p.packageName,
-                s.serviceName,
-                s.serviceImage
-            FROM vendor_applied_packages vpa
-            JOIN packages p ON vpa.package_id = p.package_id
-            JOIN service_type st ON p.service_type_id = st.service_type_id
-            JOIN services s ON st.service_id = s.service_id
-            WHERE vpa.vendor_id IN (?)
+        // 3️⃣ Fetch vendor package APPLICATIONS (one per vendor)
+        const [applications] = await db.query(`
+            SELECT applied_id, vendor_id 
+            FROM vendor_applied_packages
+            WHERE vendor_id IN (?)
         `, [vendorIds]);
 
-        const appsByVendor = {};
-        packageApps.forEach(a => {
-            if (!appsByVendor[a.vendor_id]) appsByVendor[a.vendor_id] = [];
-            appsByVendor[a.vendor_id].push(a);
+        const appliedByVendor = {};
+        applications.forEach(a => {
+            appliedByVendor[a.vendor_id] = a.applied_id;
         });
 
-        // 4️⃣ Fetch package item details
-        const packageIds = [...new Set(packageApps.map(a => a.package_id))];
-        let packageItems = [];
-        let appliedItems = [];
+        const appliedIds = applications.map(a => a.applied_id);
 
-        if (packageIds.length > 0) {
-            // Package items
+        // 4️⃣ Fetch ALL package & sub-package items from vendor_applied_package_items
+        let packageItems = [];
+        if (appliedIds.length > 0) {
             [packageItems] = await db.query(`
-                SELECT
-                    pi.item_id,
-                    pi.package_id,
+                SELECT 
+                    vapi.applied_id,
+                    vapi.package_id,
+                    vapi.package_item_id,
+
+                    -- Package info
+                    p.packageName,
+                    st.serviceTypeName,
+                    s.serviceName,
+                    s.serviceImage,
+
+                    -- Item info
                     pi.itemName,
                     pi.price,
                     pi.timeRequired,
                     pi.itemMedia
-                FROM package_items pi
-                WHERE pi.package_id IN (?)
-            `, [packageIds]);
-
-            const applicationIds = packageApps.map(a => a.application_id);
-
-            if (applicationIds.length > 0) {
-                // Applied subitems (NEW TABLE)
-                [appliedItems] = await db.query(`
-                    SELECT
-                        vapi.applied_id AS application_id,
-                        vapi.package_item_id
-                    FROM vendor_applied_package_items vapi
-                    WHERE vapi.applied_id IN (?)
-                `, [applicationIds]);
-            }
+                FROM vendor_applied_package_items vapi
+                LEFT JOIN packages p ON vapi.package_id = p.package_id
+                LEFT JOIN service_type st ON p.service_type_id = st.service_type_id
+                LEFT JOIN services s ON st.service_id = s.service_id
+                LEFT JOIN package_items pi ON vapi.package_item_id = pi.item_id
+                WHERE vapi.applied_id IN (?)
+            `, [appliedIds]);
         }
 
-        const appliedByApp = {};
-        appliedItems.forEach(ai => {
-            if (!appliedByApp[ai.application_id]) appliedByApp[ai.application_id] = [];
-            appliedByApp[ai.application_id].push(ai.package_item_id);
-        });
-
-        const itemsByPackage = {};
+        // Group applied rows by vendor
+        const packagesByVendor = {};
         packageItems.forEach(item => {
-            if (!itemsByPackage[item.package_id]) itemsByPackage[item.package_id] = [];
-            itemsByPackage[item.package_id].push(item);
+            const vendor_id = applications.find(a => a.applied_id === item.applied_id)?.vendor_id;
+            if (!packagesByVendor[vendor_id]) packagesByVendor[vendor_id] = [];
+
+            packagesByVendor[vendor_id].push(item);
         });
 
         // 5️⃣ Final formatted output
         const processed = vendors.map(v => {
-            const vendorApps = (appsByVendor[v.vendor_id] || []).map(app => {
-                const allItems = itemsByPackage[app.package_id] || [];
-                const applied = appliedByApp[app.application_id] || [];
-                const filteredItems = allItems.filter(i => applied.includes(i.item_id));
-
-                return {
-                    ...app,
-                    subPackages: filteredItems
-                };
-            });
-
             return {
                 vendor_id: v.vendor_id,
                 vendorType: v.vendorType,
@@ -464,14 +437,16 @@ const getNewVendors = asyncHandler(async (req, res) => {
                 phone: v.vendorType === "individual" ? v.individual_phone : v.company_phone,
 
                 address: v.vendorType === "individual" ? v.individual_address : v.company_address,
-                expertise: v.vendorType === "individual" ? v.individual_expertise : v.company_expertise,
+                expertise: v.vendorType === "individual" ? v.individual_expertise : null,
                 resume: v.vendorType === "individual" ? v.individual_resume : null,
-                aboutMe: v.vendorType === "individual" ? v.individual_aboutMe : v.company_about,
+                aboutMe: v.vendorType === "individual" ? v.individual_aboutMe : null,
 
                 serviceLocations: locationsByVendor[v.vendor_id] || [],
                 is_authenticated: v.is_authenticated,
                 created_at: v.created_at,
-                packageRequests: vendorApps
+
+                // Package application (all packages + items)
+                packageRequests: packagesByVendor[v.vendor_id] || []
             };
         });
 
@@ -486,6 +461,8 @@ const getNewVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Internal server error", details: err.message });
     }
 });
+
+
 
 const adminUpdateVendorCities = asyncHandler(async (req, res) => {
     const { serviceLocation } = req.body;
