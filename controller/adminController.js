@@ -332,7 +332,11 @@ const getNewVendors = asyncHandler(async (req, res) => {
                 idet.name AS individual_name,
                 idet.email AS individual_email,
                 idet.phone AS individual_phone,
+                idet.address AS individual_address,
+                idet.expertise AS individual_expertise,
+                idet.resume AS individual_resume,
                 idet.profileImage AS individual_profileImage,
+                idet.aboutMe AS individual_aboutMe,
 
                 -- COMPANY
                 cdet.companyName AS company_name,
