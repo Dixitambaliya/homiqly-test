@@ -208,6 +208,7 @@ SELECT
         email,
         phone,
         address,
+        is_approved,
         city,
         postalcode,
         created_at
