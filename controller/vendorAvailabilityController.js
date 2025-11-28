@@ -325,7 +325,6 @@ const deleteAvailability = asyncHandler(async (req, res) => {
 });
 
 
-// ADMIN
 const adminSetAvailability = asyncHandler(async (req, res) => {
     try {
         const { startDate, endDate, startTime, endTime } = req.body;
@@ -694,33 +693,59 @@ const adminGetAvailability = asyncHandler(async (req, res) => {
     }
 });
 
+
 const adminGetVendorBookings = asyncHandler(async (req, res) => {
     try {
-        const { vendor_ids, date } = req.body;
+        const vendor_ids = req.query.vendor_ids;
+        const date = req.query.date;
 
         // ADMIN CHECK
         if (!req.user || !req.user.admin_id) {
             return res.status(403).json({ message: "Access denied" });
         }
 
-        if (!vendor_ids || !Array.isArray(vendor_ids) || vendor_ids.length === 0) {
-            return res.status(400).json({ message: "vendor_ids must be a non-empty array" });
+        // vendor_ids in query will be: ["130", "134", "137"]
+        let vendorIdsArray = vendor_ids;
+
+        if (!vendorIdsArray) {
+            return res.status(400).json({
+                message: "vendor_ids is required (use vendor_ids=1&vendor_ids=2)"
+            });
+        }
+
+        // Convert to array if it’s a single value
+        if (!Array.isArray(vendorIdsArray)) {
+            vendorIdsArray = [vendorIdsArray];
+        }
+
+        // Convert string IDs → integers
+        vendorIdsArray = vendorIdsArray.map(id => Number(id));
+
+        if (vendorIdsArray.length === 0) {
+            return res.status(400).json({
+                message: "vendor_ids must contain at least one vendor id"
+            });
         }
 
         if (!date) {
-            return res.status(400).json({ message: "date is required. Format: YYYY-MM-DD" });
+            return res.status(400).json({
+                message: "date is required. Example: 2025-12-05"
+            });
         }
 
         const response = [];
 
-        for (const vendor_id of vendor_ids) {
+        for (const vendor_id of vendorIdsArray) {
+
             // Fetch vendor name
             const [[vendor]] = await db.query(
-                `SELECT name FROM individual_details WHERE vendor_id = ?`,
+                `SELECT name 
+                 FROM individual_details 
+                 WHERE vendor_id = ?`,
                 [vendor_id]
             );
 
-            // Fetch bookings for vendor on that date
+            // Get bookings
             const [bookings] = await db.query(
                 `SELECT 
                     b.booking_id,
@@ -736,7 +761,7 @@ const adminGetVendorBookings = asyncHandler(async (req, res) => {
 
             response.push({
                 vendor_id,
-                vendorName: vendor ? vendor.name : null, // If no name found
+                vendorName: vendor ? vendor.name : null,
                 total: bookings.length,
                 bookings
             });
@@ -754,7 +779,6 @@ const adminGetVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 
 
