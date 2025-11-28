@@ -796,6 +796,7 @@ const getBookings = asyncHandler(async (req, res) => {
         u.phone AS user_phone,
 
         s.serviceName,
+        s.serviceImage,
         sc.serviceCategory,
 
         v.vendor_id,
