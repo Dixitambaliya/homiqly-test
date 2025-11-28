@@ -2657,13 +2657,15 @@ const updateVendorProfileByAdmin = asyncHandler(async (req, res) => {
         serviceLocation,
 
         // Individual fields
-        name,
-        email,
-        phone,
+        individual_name,
+        individual_email,
+        individual_phone,
         address,
         birthDate,
-        aboutMe,
-        expertise,
+        individual_aboutMe,
+        individual_expertise,
+        individual_dob,
+        individual_address,
 
         // Company fields
         companyName,
@@ -2700,16 +2702,17 @@ const updateVendorProfileByAdmin = asyncHandler(async (req, res) => {
         if (vendorType === "individual") {
             await db.query(
                 `UPDATE individual_details SET
-                    name = ?, address = ?, dob = ?, email = ?, phone = ?, aboutMe = ?, expertise = ?
+                    name = ?, address = ?, dob = ?, email = ?, phone = ?, aboutMe = ?, expertise = ? , address = ?
                  WHERE vendor_id = ?`,
                 [
-                    name ?? current.name,
+                    individual_name ?? current.individual_name,
                     address ?? current.address,
-                    birthDate ?? current.dob,
-                    email ?? current.email,
-                    phone ?? current.phone,
-                    aboutMe ?? current.aboutMe,
-                    expertise ?? current.expertise,
+                    individual_dob ?? current.individual_dob,
+                    individual_email ?? current.individual_email,
+                    individual_phone ?? current.individual_phone,
+                    individual_aboutMe ?? current.individual_aboutMe,
+                    individual_expertise ?? current.individual_expertise,
+                    individual_address ?? current.individual_address,
                     vendor_id
                 ]
             );

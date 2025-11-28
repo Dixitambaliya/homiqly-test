@@ -15,8 +15,10 @@ const adminGetQueries = {
         i.otherInfo AS individual_otherInfo,
         i.resume AS individual_resume,
         i.expertise AS individual_expertise,
+        i.address AS individual_address,
         i.aboutMe AS individual_aboutMe,
         i.profileImage AS profile_image,
+        i.dob AS individual_dob,
 
         -- Company Vendor Details
         c.vendor_id AS company_id,
