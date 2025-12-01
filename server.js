@@ -47,6 +47,7 @@ const otpRoutes = require("./routes/otpRoutes")
 const serviceTaxRoutes = require("./routes/serviceTaxRoutes")
 const vendorTemporaryRoutes = require("./routes/vendorTemporaryRoutes")
 const vendorAvailabilityRoutes = require("./routes/vendorAvailabilityRoutes")
+const blogRoutes = require("./routes/blogRoutes")
 
 const PORT = process.env.PORT || 8000
 
@@ -85,6 +86,7 @@ app.use("/verification", otpRoutes)
 app.use("/api/tax", serviceTaxRoutes)
 app.use("/api/vendor", vendorTemporaryRoutes)
 app.use("/api/vendor", vendorAvailabilityRoutes)
+app.use("/api/blog", blogRoutes)
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));
