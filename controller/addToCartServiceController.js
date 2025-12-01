@@ -5,8 +5,22 @@ const moment = require("moment-timezone");
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    console.log(user_id);
-    
+    // 🚫 Restrict user if not approved
+    const [[approvalRow]] = await db.query(
+        `SELECT is_approved FROM users WHERE user_id = ? LIMIT 1`,
+        [user_id]
+    );
+
+    if (!approvalRow) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    if (approvalRow.is_approved === 2) {
+        return res.status(403).json({
+            message: "Your account is not restricted."
+        });
+    }
+
     const { service_id, service_type_id, packages, preferences, consents } = req.body;
 
     if (!service_id)
@@ -682,6 +696,21 @@ const getAdminInquiries = asyncHandler(async (req, res) => {
 
 const getUserCart = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+    // 🚫 Restrict user if is_approved = 2
+    const [[approvalRow]] = await db.query(
+        `SELECT is_approved FROM users WHERE user_id = ? LIMIT 1`,
+        [user_id]
+    );
+
+    if (!approvalRow) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    if (approvalRow.is_approved === 2) {
+        return res.status(403).json({
+            message: "Your account is not restricted."
+        });
+    }
 
     try {
         const [carts] = await db.query(
@@ -877,6 +906,7 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { service_type_id } = req.params;
@@ -886,6 +916,23 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     }
 
     try {
+
+        // 🚫 1️⃣ BLOCK if user is_approved = 2
+        const [userRows] = await db.query(
+            `SELECT is_approved FROM users WHERE user_id = ? LIMIT 1`,
+            [user_id]
+        );
+
+        if (!userRows.length) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (userRows[0].is_approved === 2) {
+            return res.status(403).json({
+                message: "Your account is restricted"
+            });
+        }
+
         // 1️⃣ Fetch cart row(s) for the user and service_type_id
         const [cartRows] = await db.query(
             `SELECT sc.cart_id, sc.user_id, sc.service_id, sc.service_type_id, sc.totalTime,
@@ -1066,6 +1113,7 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed to fetch cart", error: err.message });
     }
 });
+
 
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
