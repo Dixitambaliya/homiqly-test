@@ -17,7 +17,7 @@ const addToCartService = asyncHandler(async (req, res) => {
 
     if (approvalRow.is_approved === 2) {
         return res.status(403).json({
-            message: "Your account is not restricted."
+            message: "Your account is restricted."
         });
     }
 
@@ -708,7 +708,7 @@ const getUserCart = asyncHandler(async (req, res) => {
 
     if (approvalRow.is_approved === 2) {
         return res.status(403).json({
-            message: "Your account is not restricted."
+            message: "Your account is restricted."
         });
     }
 
