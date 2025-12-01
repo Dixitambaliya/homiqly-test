@@ -58,11 +58,21 @@ cron.schedule(CRON_EVERY_5_MIN, async () => {
                 ? moment(b.bookingDate).format("YYYY-MM-DD")
                 : null;
 
-            // Normalize time (ensure HH:mm:ss)
-            // If bookingTime might include timezone or extra chars, parse then format.
-            const timeStr = moment(b.bookingTime, ["HH:mm:ss", "HH:mm", moment.ISO_8601], true).isValid()
-                ? moment(b.bookingTime, ["HH:mm:ss", "HH:mm", moment.ISO_8601]).format("HH:mm:ss")
-                : null;
+
+            // Normalize time to HH:mm:ss (supports AM/PM & 24-hr formats)
+            const parsedTime = moment(
+                b.bookingTime,
+                ["HH:mm:ss", "HH:mm", "h:mm A", "hh:mm A", "h A"],
+                true
+            );
+
+            if (!parsedTime.isValid()) {
+                console.log(`❌ Invalid bookingTime for booking ${b.booking_id}:`, b.bookingTime);
+                continue;
+            }
+
+            const timeStr = parsedTime.format("HH:mm:ss");
+
 
             if (!dateStr || !timeStr) {
                 console.log(`Invalid date/time for booking ${b.booking_id}, skipping.`);
