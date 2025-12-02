@@ -87,6 +87,7 @@ const handleUploads = async (req, res, next) => {
             if (fieldName === "BusinessLicense") folder = `${folderBase}/BusinessLicense`;
             if (fieldName === "mainImage") folder = `${folderBase}/mainImage`;
             if (fieldName === "subImage") folder = `${folderBase}/subImage`;
+            if (fieldName === "galleryImages") folder = `${folderBase}/galleryImages`;
 
             const uploaded = await uploadToFirebase(file.buffer, file.originalname, folder);
             req.uploadedFiles[fieldName].push(uploaded);
