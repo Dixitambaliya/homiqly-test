@@ -2587,12 +2587,7 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
 
 
 const getUserBookings = asyncHandler(async (req, res) => {
-    const { user_id } = req.params.user_id;
-
-    // If admin passes "all", remove filter
-    if (user_id === "all") {
-        user_id = null;
-    }
+    let { user_id } = req.params;
 
     try {
 
