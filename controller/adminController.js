@@ -2585,12 +2585,13 @@ const getAdminCreatedPackages = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getUserBookings = asyncHandler(async (req, res) => {
-    const { filterUserId } = req.params.user_id;
+    const { user_id } = req.params.user_id;
 
     // If admin passes "all", remove filter
-    if (filterUserId === "all") {
-        filterUserId = null;
+    if (user_id === "all") {
+        user_id = null;
     }
 
     try {
@@ -2636,7 +2637,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
             WHERE (? IS NULL OR sb.user_id = ?)
             ORDER BY sb.created_at DESC
         `, [
-            filterUserId, filterUserId
+            user_id, user_id
         ]);
 
         res.status(200).json({
@@ -2652,6 +2653,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateVendorProfileByAdmin = asyncHandler(async (req, res) => {
     const { vendor_id } = req.params;
