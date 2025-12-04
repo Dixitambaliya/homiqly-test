@@ -35,7 +35,7 @@ router.patch('/approve-post/:post_id', authenticationToken, approvePost);
 router.get('/post-summary', authenticationToken, getPostSummary);
 
 //USER SIDE
-router.get('/get-summary', authenticationToken, getVendorPostSummary);
-router.post('/like-post/:post_id', authenticationToken, likePost);
+router.get('/get-summary', getVendorPostSummary);
+router.post('/like-post/:post_id', likePost);
 
 module.exports = router;

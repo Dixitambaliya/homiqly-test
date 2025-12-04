@@ -137,8 +137,6 @@ const editPost = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getVendorPosts = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { serviceName } = req.query; // optional filter
