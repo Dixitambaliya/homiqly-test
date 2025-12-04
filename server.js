@@ -113,7 +113,11 @@ app.get("/api/health/db", async (req, res) => {
 
             // Fire-and-forget update (non-blocking)
             db.query(
-                `UPDATE users SET last_active = NOW() WHERE user_id = ?`,
+                `
+                UPDATE users
+                SET last_active = NOW()
+                WHERE user_id = ? AND last_active < (NOW() - INTERVAL 5 MINUTE)
+            `
                 [userId]
             ).catch(err => {
                 console.error("Failed to update last_active:", err.message);
