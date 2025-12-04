@@ -240,19 +240,20 @@ const getVendorPosts = asyncHandler(async (req, res) => {
 });
 
 
+
 const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     const vendorName = req.query.vendorName;
+    const serviceNameFilter = req.query.serviceName; // OPTIONAL
 
     if (!vendorName) {
         return res.status(400).json({ error: "vendorName is required" });
     }
 
-    // 1️⃣ Find ALL vendors matching the name
+    // 1️⃣ Find vendors by name
     const [matchedVendors] = await db.query(
         `
         SELECT 
             v.vendor_id,
-            v.vendorType,
             i.name AS vendorName,
             i.profileImage AS vendorImage,
             i.expertise,
@@ -271,7 +272,7 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     let selectedVendor = null;
     let vendorPosts = [];
 
-    // 2️⃣ Check each matched vendor until we find one that has posts
+    // 2️⃣ Find the first vendor who actually has approved posts
     for (const vendor of matchedVendors) {
         const [posts] = await db.query(
             `
@@ -282,10 +283,14 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
                 p.shortDescription
             FROM posts p
             JOIN services s ON p.service_id = s.service_id
-            WHERE p.vendor_id = ? AND p.is_approved = 1
+            WHERE p.vendor_id = ?
+            AND p.is_approved = 1
+            ${serviceNameFilter ? "AND s.serviceName LIKE ?" : ""}
             ORDER BY p.post_id DESC
             `,
-            [vendor.vendor_id]
+            serviceNameFilter
+                ? [vendor.vendor_id, `%${serviceNameFilter}%`]
+                : [vendor.vendor_id]
         );
 
         if (posts.length > 0) {
@@ -294,42 +299,47 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
             break;
         }
     }
-    // 3️⃣ If no vendor has posts
+
+    // 3️⃣ If no posts found
     if (!selectedVendor) {
         return res.status(404).json({
-            error: "Vendor(s) found, but none have approved posts"
+            error: "No approved posts found for this vendor and serviceName"
         });
     }
 
-    // ⭐ Fetch vendor rating summary
+    // ⭐ Vendor Rating Summary
     const [ratingSummary] = await db.query(
         `
-    SELECT 
-        AVG(rating) AS avgRating,
-        COUNT(*) AS ratingCount
-    FROM vendor_service_ratings
-    WHERE vendor_id = ?
-    `,
+        SELECT 
+            AVG(rating) AS avgRating,
+            COUNT(*) AS ratingCount
+        FROM vendor_service_ratings
+        WHERE vendor_id = ?
+        `,
         [selectedVendor.vendor_id]
     );
 
     selectedVendor.totalRating = ratingSummary[0].avgRating || 0;
     selectedVendor.ratingCount = ratingSummary[0].ratingCount || 0;
 
-    // ⭐ Fetch all reviews
+    // ⭐ Vendor Reviews with User Name
     const [allReviews] = await db.query(
         `
     SELECT 
-        rating,
-        review
-    FROM vendor_service_ratings
-    WHERE vendor_id = ?
-    ORDER BY created_at DESC
+        CONCAT(u.firstName, ' ', u.lastName) AS userName,
+        vsr.rating,
+        vsr.review,
+        vsr.created_at
+    FROM vendor_service_ratings vsr
+    LEFT JOIN users u ON vsr.user_id = u.user_id
+    WHERE vsr.vendor_id = ?
+    ORDER BY vsr.created_at DESC
     `,
         [selectedVendor.vendor_id]
     );
 
     selectedVendor.reviews = allReviews;
+
 
     // 4️⃣ Fetch images for posts
     const postIds = vendorPosts.map(p => p.post_id);
@@ -339,7 +349,7 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         [postIds]
     );
 
-    // 5️⃣ Fetch total likes for each post
+    // 5️⃣ Likes for each post
     const [likes] = await db.query(
         `
         SELECT post_id, COUNT(*) AS totalLikes
@@ -350,19 +360,16 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         [postIds]
     );
 
-    // Convert likes array into an object for fast lookup
     const likesMap = {};
     likes.forEach(l => {
         likesMap[l.post_id] = l.totalLikes;
     });
 
-    // 6️⃣ Final merge: posts + images + likes
+    // 6️⃣ Final merged posts
     const postsWithImages = vendorPosts.map(post => ({
         ...post,
-        images: images
-            .filter(img => img.post_id === post.post_id)
-            .map(img => img.image),
-        totalLikes: likesMap[post.post_id] || 0 // default 0
+        images: images.filter(img => img.post_id === post.post_id).map(img => img.image),
+        totalLikes: likesMap[post.post_id] || 0
     }));
 
     // 7️⃣ Final response
@@ -371,6 +378,51 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         posts: postsWithImages
     });
 });
+
+const getVendorServiceNames = asyncHandler(async (req, res) => {
+    const vendorName = req.query.vendorName;
+
+    if (!vendorName) {
+        return res.status(400).json({ error: "vendorName is required" });
+    }
+
+    // 1️⃣ Get all vendors matching vendorName
+    const [vendors] = await db.query(
+        `
+        SELECT v.vendor_id
+        FROM vendors v
+        JOIN individual_details i ON v.vendor_id = i.vendor_id
+        WHERE i.name LIKE ?
+        `,
+        [`%${vendorName}%`]
+    );
+
+    if (vendors.length === 0) {
+        return res.status(404).json({ error: "No vendors found with that name" });
+    }
+
+    const vendorIds = vendors.map(v => v.vendor_id);
+
+    // 2️⃣ Get DISTINCT serviceNames from approved posts
+    const [services] = await db.query(
+        `
+        SELECT DISTINCT s.serviceName
+        FROM posts p
+        JOIN services s ON p.service_id = s.service_id
+        WHERE p.vendor_id IN (?) 
+        AND p.is_approved = 1
+        ORDER BY s.serviceName ASC
+        `,
+        [vendorIds]
+    );
+
+    return res.json({
+        vendorName,
+        serviceNames: services.map(s => s.serviceName)
+    });
+});
+
+
 
 
 const getPendingPosts = asyncHandler(async (req, res) => {
@@ -644,5 +696,6 @@ module.exports = {
     getVendorPostSummary,
     likePost,
     editPost,
-    getServiceNames
+    getServiceNames,
+    getVendorServiceNames
 };  

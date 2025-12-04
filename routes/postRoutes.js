@@ -12,7 +12,8 @@ const {
     getVendorPostSummary,
     likePost,
     editPost,
-    getServiceNames
+    getServiceNames,
+    getVendorServiceNames
 } = require('../controller/post');
 
 const { upload, handleUploads } = require("../middleware/upload");
@@ -38,6 +39,7 @@ router.get('/post-summary', authenticationToken, getPostSummary);
 
 //USER SIDE
 router.get('/get-summary', getVendorPostSummary);
+router.get('/get-service-vendor', getVendorServiceNames);
 router.post('/like-post/:post_id', likePost);
 
 module.exports = router;
