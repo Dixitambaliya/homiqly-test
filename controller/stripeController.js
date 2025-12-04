@@ -3,6 +3,9 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
 const { sendBookingEmail, sendVendorBookingEmail } = require("../config/utils/email/mailer");
 const { recalculateCartTotals } = require("./cartCalculation")
+const { buildBookingInvoiceHTML } = require("../config/utils/email/buildBookingInvoiceHTML");
+const { generateBookingPDF } = require("../config/utils/email/generateBookingPDF");
+
 
 // 1. Vendor creates Stripe account
 exports.createStripeAccount = asyncHandler(async (req, res) => {
@@ -545,7 +548,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                         [
                             booking_id,
                             c.consent_id || null,
-                            c.sub_package_id || null, 
+                            c.sub_package_id || null,
                             c.answer || null
                         ]
                     );
@@ -610,8 +613,27 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             // Send emails (outside transaction)
             try {
-                await sendBookingEmail(cart.user_id, { booking_id });
-                await sendVendorBookingEmail(cart.vendor_id, { booking_id });
+                // Send emails immediately
+                sendBookingEmail(cart.user_id, { booking_id });
+                sendVendorBookingEmail(cart.vendor_id, { booking_id });
+
+                // DELAYED PDF GENERATION (3 seconds)
+                setTimeout(async () => {
+                    try {
+                        const html = await buildBookingInvoiceHTML(booking_id); // uses your receipt UI
+                        const pdfPath = await generateBookingPDF(html, booking_id);
+
+                        await db.query(
+                            `UPDATE payments SET pdf_receipt_url=? WHERE payment_intent_id=?`,
+                            [pdfPath, paymentIntentId]
+                        );
+
+                        console.log("📄 PDF invoice generated:", pdfPath);
+                    } catch (err) {
+                        console.error("❌ Failed to generate PDF:", err.message);
+                    }
+                }, 3000); // 3 seconds
+
                 console.log("✅ Emails sent");
             } catch (emailErr) {
                 console.error("⚠️ Email sending failed (but booking is committed):", emailErr.message);

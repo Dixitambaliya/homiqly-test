@@ -1208,6 +1208,26 @@ const sendManualAssignmentMail = async (vendor_id, status, note = null) => {
     }
 };
 
+async function buildBookingReceiptHTML(booking_id, user_id) {
+    // Call the same code used in sendBookingEmail()
+    const html = await getBookingEmailHTML(booking_id, user_id);
+    return `
+        <html>
+        <head>
+            <meta charset="utf-8" />
+            <style>
+                body { font-family: Arial, sans-serif; }
+            </style>
+        </head>
+        <body>
+            ${html}
+        </body>
+        </html>
+    `;
+}
+
+
+
 module.exports = {
     sendBookingEmail,
     sendVendorBookingEmail,

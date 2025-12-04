@@ -28,7 +28,7 @@ router.get('/get-post', authenticationToken, getVendorPosts);
 router.put('/edit-post/:post_id', multiUpload, handleUploads, authenticationToken, editPost);
 
 //USER SIDE
-router.get('/get-posts', authenticationToken, getApprovedVendorPosts);
+router.get('/get-posts', getApprovedVendorPosts);
 
 router.get('/get-pending-request', authenticationToken, getPendingPosts);
 
