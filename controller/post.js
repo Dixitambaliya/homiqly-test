@@ -456,17 +456,19 @@ const getPostSummary = asyncHandler(async (req, res) => {
 });
 
 const getVendorPostSummary = asyncHandler(async (req, res) => {
-    const { serviceName } = req.query; // optional filter
+    const { serviceName } = req.query;
 
-    // 1️⃣ Fetch ALL vendors
+    // 1️⃣ Fetch ONLY vendors who have at least one approved post
     const [vendors] = await db.query(`
-        SELECT 
+        SELECT DISTINCT 
             v.vendor_id,
             i.name AS vendorName,
             i.profileImage,
             i.expertise
         FROM vendors v
+        JOIN posts p ON v.vendor_id = p.vendor_id
         LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+        WHERE p.is_approved = 1
     `);
 
     if (vendors.length === 0) {
@@ -487,7 +489,6 @@ const getVendorPostSummary = asyncHandler(async (req, res) => {
 
     const params = [];
 
-    // Apply filter if serviceName is provided
     if (serviceName) {
         postsQuery += ` AND s.serviceName LIKE ? `;
         params.push(`%${serviceName}%`);
@@ -495,7 +496,7 @@ const getVendorPostSummary = asyncHandler(async (req, res) => {
 
     const [posts] = await db.query(postsQuery, params);
 
-    // 3️⃣ Fetch total likes for each post
+    // 3️⃣ Fetch likes
     let likeQuery = `
         SELECT 
             pl.post_id,
@@ -509,7 +510,6 @@ const getVendorPostSummary = asyncHandler(async (req, res) => {
 
     const likeParams = [];
 
-    // Apply same service filter for likes
     if (serviceName) {
         likeQuery += ` AND s.serviceName LIKE ? `;
         likeParams.push(`%${serviceName}%`);
@@ -519,46 +519,42 @@ const getVendorPostSummary = asyncHandler(async (req, res) => {
 
     const [likes] = await db.query(likeQuery, likeParams);
 
-    // Create like map
+    // Build maps
     const vendorLikesMap = {};
     likes.forEach(l => {
-        if (!vendorLikesMap[l.vendor_id]) vendorLikesMap[l.vendor_id] = 0;
-        vendorLikesMap[l.vendor_id] += l.totalLikes;
+        vendorLikesMap[l.vendor_id] = (vendorLikesMap[l.vendor_id] || 0) + l.totalLikes;
     });
 
-    // Group posts by vendor
     const vendorPostsMap = {};
-    posts.forEach(post => {
-        if (!vendorPostsMap[post.vendor_id]) vendorPostsMap[post.vendor_id] = [];
-        vendorPostsMap[post.vendor_id].push(post);
+    posts.forEach(p => {
+        if (!vendorPostsMap[p.vendor_id]) vendorPostsMap[p.vendor_id] = [];
+        vendorPostsMap[p.vendor_id].push(p);
     });
 
-    // 4️⃣ Build summary
+    // 4️⃣ Build summary output
     const summary = vendors
         .map(vendor => {
             const vPosts = vendorPostsMap[vendor.vendor_id] || [];
 
-            // If filtering by serviceName → skip vendors with no posts in that service
+            // Apply service filter
             if (serviceName && vPosts.length === 0) return null;
-
-            const totalLikes = vendorLikesMap[vendor.vendor_id] || 0;
 
             return {
                 vendor_id: vendor.vendor_id,
                 name: vendor.vendorName,
                 specialty: vendor.expertise,
-                likes: totalLikes,
-                image: vendor.profileImage
+                likes: vendorLikesMap[vendor.vendor_id] || 0,
+                image: vendor.profileImage,
             };
         })
-        .filter(v => v !== null); // remove vendors without service match
+        .filter(v => v !== null);
 
-    // 5️⃣ Send response
     return res.json({
         count: summary.length,
         vendors: summary
     });
-})
+});
+
 
 const likePost = asyncHandler(async (req, res) => {
     const post_id = req.params.post_id;
