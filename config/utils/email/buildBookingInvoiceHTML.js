@@ -10,7 +10,6 @@ const buildBookingInvoiceHTML = async (booking_id) => {
         SELECT user_id, bookingDate, bookingTime, vendor_id
         FROM service_booking WHERE booking_id=? LIMIT 1
     `, [booking_id]);
-        console.log(booking);
         
     if (!booking) return "<div>Booking not found</div>";
 
@@ -30,11 +29,10 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     // 3) PROFESSIONAL (Vendor)
     // --------------------------
     const [[vendor]] = await db.query(`
-        SELECT vendorName FROM individual_details WHERE vendor_id=? LIMIT 1
+        SELECT name FROM individual_details WHERE vendor_id=? LIMIT 1
     `, [booking.vendor_id]);
 
-    const vendorName = vendor?.vendorName || "Assigned Professional";
-    console.log(vendor);
+    const vendorName = vendor?.name || "Assigned Professional";
     
     // --------------------------
     // 4) TOTALS

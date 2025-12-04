@@ -327,6 +327,7 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         `
     SELECT 
         CONCAT(u.firstName, ' ', u.lastName) AS userName,
+        u.profileImage,
         vsr.rating,
         vsr.review,
         vsr.created_at
