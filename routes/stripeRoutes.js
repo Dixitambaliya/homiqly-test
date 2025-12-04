@@ -5,9 +5,6 @@ const { createStripeAccount,
     refreshStripeOnboarding,
     getStripeAccountStatus,
     createPaymentIntent,
-    adminGetVendorStripeInfo,
-    confirmPaymentIntentManually,
-    getPaymentStatus
 } = require("../controller/stripeController")
 const { authenticationToken } = require("../middleware/authMiddleware");
 
@@ -19,10 +16,5 @@ router.get("/vendor/stripe-account-status", authenticationToken, getStripeAccoun
 // User payment
 router.post("/user/create-payment-intent", authenticationToken, createPaymentIntent);
 
-router.post("/user/confirm-payment-intent", authenticationToken, confirmPaymentIntentManually);
-// Admin routes
-router.get("/admin/get-vendor-stripe-info", authenticationToken, adminGetVendorStripeInfo);
-
-router.get("/user/get-payment-status", authenticationToken, getPaymentStatus);
 
 module.exports = router;

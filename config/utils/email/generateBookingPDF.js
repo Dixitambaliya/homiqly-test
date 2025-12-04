@@ -1,32 +1,38 @@
 const puppeteer = require("puppeteer");
-const fs = require("fs");
-const path = require("path");
+const admin = require("../../../config/firebaseConfig");
 
 const generateBookingPDF = async (html, booking_id) => {
-    const publicDir = path.join(__dirname, "../public/invoices");
-    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
-
-    const filePath = path.join(publicDir, `invoice-${booking_id}.pdf`);
+    const bucket = admin.storage().bucket();
+    const fileName = `invoices/invoice-${booking_id}.pdf`;
+    const file = bucket.file(fileName);
 
     const browser = await puppeteer.launch({
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
         headless: "new"
     });
+
     const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
 
-    await page.setContent(html, {
-        waitUntil: "networkidle0"
-    });
-
-    await page.pdf({
-        path: filePath,
+    const pdfBuffer = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: { top: "20px", bottom: "20px" }
+        margin: { top: "20px", bottom: "20px" },
     });
 
     await browser.close();
-    return filePath;
+
+    // Upload to Firebase Storage
+    await file.save(pdfBuffer, {
+        metadata: {
+            contentType: "application/pdf",
+        },
+        public: true, // make file accessible through URL
+        validation: "md5"
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    return publicUrl;
 };
 
 module.exports = { generateBookingPDF };
