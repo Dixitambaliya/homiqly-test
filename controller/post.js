@@ -254,7 +254,9 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
             v.vendor_id,
             v.vendorType,
             i.name AS vendorName,
-            i.profileImage AS vendorImage
+            i.profileImage AS vendorImage,
+            i.expertise,
+            i.aboutMe
         FROM vendors v
         LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
         WHERE i.name LIKE ?
