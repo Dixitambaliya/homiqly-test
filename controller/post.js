@@ -28,6 +28,26 @@ const getVendorServices = asyncHandler(async (req, res) => {
     });
 });
 
+const getServiceNames = asyncHandler(async (req, res) => {
+    const [rows] = await db.query(
+        `
+        SELECT DISTINCT
+            s.service_id,
+            s.serviceName
+        FROM posts p
+        JOIN services s ON p.service_id = s.service_id
+        WHERE p.is_approved = 1   
+        ORDER BY s.serviceName ASC
+        `
+    );
+
+    return res.json({
+        total: rows.length,
+        services: rows
+    });
+});
+
+
 const createPost = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { title, short_description, service_id } = req.body;
@@ -583,6 +603,7 @@ const likePost = asyncHandler(async (req, res) => {
 
 
 
+
 module.exports = {
     getVendorServices,
     createPost,
@@ -593,5 +614,6 @@ module.exports = {
     getPostSummary,
     getVendorPostSummary,
     likePost,
-    editPost
+    editPost,
+    getServiceNames
 };  

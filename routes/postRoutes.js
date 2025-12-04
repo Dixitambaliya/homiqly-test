@@ -11,7 +11,8 @@ const {
     getPostSummary,
     getVendorPostSummary,
     likePost,
-    editPost
+    editPost,
+    getServiceNames
 } = require('../controller/post');
 
 const { upload, handleUploads } = require("../middleware/upload");
@@ -20,6 +21,7 @@ const { authenticationToken } = require("../middleware/authMiddleware.js")
 const multiUpload = upload.any();
 
 router.get('/get-services', authenticationToken, getVendorServices);
+router.get('/servicesName', getServiceNames);
 router.post('/create-post', multiUpload, handleUploads, authenticationToken, createPost);
 router.get('/get-post', authenticationToken, getVendorPosts);
 
