@@ -239,6 +239,7 @@ const getVendorPosts = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     const vendorName = req.query.vendorName;
 
@@ -291,13 +292,42 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
             break;
         }
     }
-
     // 3️⃣ If no vendor has posts
     if (!selectedVendor) {
         return res.status(404).json({
             error: "Vendor(s) found, but none have approved posts"
         });
     }
+
+    // ⭐ Fetch vendor rating summary
+    const [ratingSummary] = await db.query(
+        `
+    SELECT 
+        AVG(rating) AS avgRating,
+        COUNT(*) AS ratingCount
+    FROM vendor_service_ratings
+    WHERE vendor_id = ?
+    `,
+        [selectedVendor.vendor_id]
+    );
+
+    selectedVendor.totalRating = ratingSummary[0].avgRating || 0;
+    selectedVendor.ratingCount = ratingSummary[0].ratingCount || 0;
+
+    // ⭐ Fetch all reviews
+    const [allReviews] = await db.query(
+        `
+    SELECT 
+        rating,
+        review
+    FROM vendor_service_ratings
+    WHERE vendor_id = ?
+    ORDER BY created_at DESC
+    `,
+        [selectedVendor.vendor_id]
+    );
+
+    selectedVendor.reviews = allReviews;
 
     // 4️⃣ Fetch images for posts
     const postIds = vendorPosts.map(p => p.post_id);
@@ -339,6 +369,7 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         posts: postsWithImages
     });
 });
+
 
 const getPendingPosts = asyncHandler(async (req, res) => {
     const [posts] = await db.query(
