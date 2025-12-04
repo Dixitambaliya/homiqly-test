@@ -106,21 +106,36 @@ app.get("/api/health", (req, res) => {
 app.get("/api/health/db", async (req, res) => {
     try {
         const isConnected = await testConnection();
+
+        // ✅ Update last_active ONLY if user is logged in
+        if (req.user?.user_id) {
+            const userId = req.user.user_id;
+
+            // Fire-and-forget update (non-blocking)
+            db.query(
+                `UPDATE users SET last_active = NOW() WHERE user_id = ?`,
+                [userId]
+            ).catch(err => {
+                console.error("Failed to update last_active:", err.message);
+            });
+        }
+
         if (isConnected) {
-            res.status(200).json({
+            return res.status(200).json({
                 status: "OK",
                 message: "Database connection successful",
                 timestamp: new Date().toISOString()
             });
         } else {
-            res.status(500).json({
+            return res.status(500).json({
                 status: "ERROR",
                 message: "Database connection failed",
                 timestamp: new Date().toISOString()
             });
         }
+
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             status: "ERROR",
             message: "Database connection error",
             error: error.message,
@@ -128,6 +143,7 @@ app.get("/api/health/db", async (req, res) => {
         });
     }
 });
+
 
 // Serve React app for all other routes
 // app.get('*', (req, res) => {
