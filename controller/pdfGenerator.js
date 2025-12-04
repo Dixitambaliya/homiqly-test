@@ -9,8 +9,8 @@ exports.generateBookingPDF = async (booking_id, user_id) => {
 
     // 2. Launch headless Chrome
     const browser = await puppeteer.launch({
-        headless: "new",
-        args: ["--no-sandbox", "--disable-setuid-sandbox"]
+        // headless: "new",
+        // args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
     const page = await browser.newPage();
 
