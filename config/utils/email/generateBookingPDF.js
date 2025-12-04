@@ -7,8 +7,8 @@ const generateBookingPDF = async (html, booking_id) => {
     const file = bucket.file(fileName);
 
     const browser = await puppeteer.launch({
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        headless: "new"
+        // args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        // headless: "new"
     });
 
     const page = await browser.newPage();
