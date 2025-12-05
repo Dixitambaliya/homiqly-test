@@ -592,33 +592,33 @@ const approvePost = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getPostSummary = asyncHandler(async (req, res) => {
     let page = parseInt(req.query.page) || 1;
     let limit = parseInt(req.query.limit) || 10;
-
     if (page < 1) page = 1;
     if (limit < 1) limit = 10;
 
     const offset = (page - 1) * limit;
 
-    // 1️⃣ Get total post count
+    // 1️⃣ Count unique vendors who have posts
     const [[{ total }]] = await db.query(`
-        SELECT COUNT(*) AS total FROM posts
+        SELECT COUNT(DISTINCT vendor_id) AS total
+        FROM posts
     `);
 
-    // 2️⃣ Fetch paginated records
+    // 2️⃣ Get 1 row per vendor
     const [rows] = await db.query(
         `
         SELECT 
-            p.post_id,
-            p.vendor_id,
-            p.title,
+            v.vendor_id,
             COALESCE(i.name, c.companyName) AS vendorName
         FROM posts p
         LEFT JOIN vendors v ON p.vendor_id = v.vendor_id
         LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
         LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
-        ORDER BY p.post_id DESC
+        GROUP BY v.vendor_id
+        ORDER BY MAX(p.post_id) DESC
         LIMIT ? OFFSET ?
         `,
         [limit, offset]
@@ -630,9 +630,11 @@ const getPostSummary = asyncHandler(async (req, res) => {
         total,
         totalPages: Math.ceil(total / limit),
         count: rows.length,
-        posts: rows
+        vendors: rows
     });
 });
+
+
 
 const getVendorPostSummary = asyncHandler(async (req, res) => {
     const { serviceName } = req.query;

@@ -1784,6 +1784,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
                 p.currency,
                 p.created_at,
                 p.status,
+                p.pdf_receipt_url,
 
                 -- User Info
                 u.user_id,
