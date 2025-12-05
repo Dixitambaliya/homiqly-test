@@ -472,9 +472,17 @@ const getUserBookings = asyncHandler(async (req, res) => {
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            booking.receipt_url = booking.pdf_receipt_url || booking.receipt_url || null;
+            const mergedUrl = booking.pdf_receipt_url || booking.receipt_url || null;
+
+            // Set final field
+            booking.receipt_url = mergedUrl;
+
+            // Remove unwanted old fields
             delete booking.pdf_receipt_url;
-            delete booking.receipt_url;
+            delete booking.receipt_url; // old DB one
+
+            // note: set after deletion
+            booking.receipt_url = mergedUrl;
 
             // 2️⃣ Fetch sub-packages (items with package + service type details)
             const [subPackages] = await db.query(`
