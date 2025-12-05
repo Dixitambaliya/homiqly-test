@@ -612,6 +612,8 @@ const getPostSummary = asyncHandler(async (req, res) => {
         `
         SELECT 
             v.vendor_id,
+            i.profileImage,
+            i.email ,
             COALESCE(i.name, c.companyName) AS vendorName
         FROM posts p
         LEFT JOIN vendors v ON p.vendor_id = v.vendor_id
