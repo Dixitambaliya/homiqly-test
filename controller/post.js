@@ -98,7 +98,7 @@ const createPost = asyncHandler(async (req, res) => {
 const editPost = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { post_id } = req.params;
-    const { title, shortDescription } = req.body; // removed service_id from editable fields
+    const { title, short_description } = req.body; // removed service_id from editable fields
 
     if (!vendor_id || !post_id) {
         return res.status(400).json({ error: "Missing vendor_id or post_id." });
@@ -114,7 +114,7 @@ const editPost = asyncHandler(async (req, res) => {
         return res.status(404).json({ error: "Post not found or unauthorized." });
     }
 
-    const images = req.uploadedFiles?.galleryImages?.map(img => img.url) || [];
+    const galleryImages = req.uploadedFiles?.galleryImages?.map(img => img.url) || [];
 
     const conn = await db.getConnection();
     await conn.beginTransaction();
@@ -130,11 +130,11 @@ const editPost = asyncHandler(async (req, res) => {
                 is_approved = 0   
             WHERE post_id = ? AND vendor_id = ?
             `,
-            [title, shortDescription, post_id, vendor_id]
+            [title, short_description, post_id, vendor_id]
         );
 
         // 3️⃣ Add new images (old images remain)
-        for (const imgUrl of images) {
+        for (const imgUrl of galleryImages) {
             await conn.query(
                 `INSERT INTO post_images (post_id, image) VALUES (?, ?)`,
                 [post_id, imgUrl]
@@ -173,7 +173,7 @@ const getVendorPosts = asyncHandler(async (req, res) => {
             p.service_id,
             s.serviceName,
             p.title,
-            p.shortDescription,
+            p.shortDescription AS short_description,
             p.is_approved,
             p.created_at
         FROM posts p
@@ -202,7 +202,10 @@ const getVendorPosts = asyncHandler(async (req, res) => {
 
     // 4️⃣ Fetch images
     const [images] = await db.query(
-        `SELECT post_id, image FROM post_images WHERE post_id IN (?)`,
+        `SELECT post_id,
+         image AS galleryImages
+         FROM post_images 
+         WHERE post_id IN (?)`,
         [postIds]
     );
 
@@ -227,9 +230,9 @@ const getVendorPosts = asyncHandler(async (req, res) => {
     // 6️⃣ Attach images + likes
     const postsWithExtras = posts.map(post => ({
         ...post,
-        images: images
+        galleryImages: images
             .filter(img => img.post_id === post.post_id)
-            .map(img => img.image),
+            .map(img => img.galleryImages),
         totalLikes: likesMap[post.post_id] || 0
     }));
 
