@@ -5,6 +5,7 @@ const { createStripeAccount,
     refreshStripeOnboarding,
     getStripeAccountStatus,
     createPaymentIntent,
+    getPaymentStatus
 } = require("../controller/stripeController")
 const { authenticationToken } = require("../middleware/authMiddleware");
 
@@ -15,6 +16,6 @@ router.get("/vendor/stripe-account-status", authenticationToken, getStripeAccoun
 
 // User payment
 router.post("/user/create-payment-intent", authenticationToken, createPaymentIntent);
-
+router.get("/user/get-payment-status", authenticationToken, getPaymentStatus);
 
 module.exports = router;
