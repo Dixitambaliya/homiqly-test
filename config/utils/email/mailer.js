@@ -366,12 +366,12 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         // ----------------------------------------------------------------------
         const adminBodyHtml = `
             <div style="background:#fff; font-family:Arial, sans-serif; padding:30px;">
-                <h1 style="font-size:20px; font-weight:bold; color:#d32f2f; margin-bottom:12px;">
-                    🔔 New Booking Received (#${booking_id})
+                <h1 style="font-size:20px; font-weight:bold; margin-bottom:12px;">
+                     New Booking Received (#${booking_id})
                 </h1>
 
                 <p style="font-size:15px; line-height:1.6;">
-                    A new booking has been completed by <strong>${userName}</strong>.
+                    The new booking is done by <strong>${userName}</strong>.
                 </p>
 
                 ${sharedEmailContent}

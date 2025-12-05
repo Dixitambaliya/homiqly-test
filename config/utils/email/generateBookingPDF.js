@@ -11,14 +11,15 @@ const generateBookingPDF = async (html, booking_id) => {
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
         executablePath: "/usr/bin/chromium-browser",
     });
-    
+
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" }); ``
 
     const pdfBuffer = await page.pdf({
-        format: "A4",
         printBackground: true,
+        width: "650px",
         margin: { top: "20px", bottom: "20px" },
+        preferCSSPageSize: true
     });
 
     await browser.close();

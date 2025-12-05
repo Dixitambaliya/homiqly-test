@@ -145,7 +145,8 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     // --------------------------
     return `
 <div style="background:#f7f7f7; padding:20px; font-family:Arial, sans-serif;">
-    <div style="max-width:650px; margin:0 auto; background:#fff; padding:30px; border-radius:6px;">
+    <div style="width:650px; margin:0 auto; background:#fff; padding:30px; border-radius:6px;">
+
 
         <!-- HEADER -->
         <div style="display:flex; justify-content:space-between; align-items:center;">

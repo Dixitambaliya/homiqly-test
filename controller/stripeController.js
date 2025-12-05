@@ -419,7 +419,6 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             );
 
             const booking_id = insertBooking.insertId;
-            console.log("✅ Booking created:", booking_id);
 
             // Insert booking packages, sub-packages, addons, prefs, consents
             const uniquePackageIds = [...new Set(cartPackages.map(p => p.package_id))];
@@ -487,59 +486,73 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     [booking_id, totals.subtotal, totals.discounted_total, totals.promo_discount, totals.tax_amount, totals.final_total]
                 );
             }
-            // --------------------------------------------------
-            // PROMO HANDLING (SYSTEM PROMO FIRST, THEN USER PROMO)
-            // --------------------------------------------------
             try {
-                let promoApplied = false;
+                let promoData = null;
+                let promoType = null; // 'user' or 'system'
 
-                // 1) CHECK: System Promo (source_type = 'system')
-                const [systemPromo] = await connection.query(
-                    `SELECT system_promo_code_id, usage_count 
-                    FROM system_promo_codes 
-                    WHERE user_id = ? AND template_id IS NOT NULL 
-                    ORDER BY assigned_at DESC LIMIT 1`,
-                    [cart.user_id]
-                );
+                // -----------------------------------------
+                // 1️⃣ Try USER PROMO (user_promo_codes)
+                // -----------------------------------------
+                const [[userPromo]] = await connection.query(`
+        SELECT upc.user_promo_code_id, upc.promo_id, upc.usedCount, upc.maxUse
+        FROM user_promo_codes upc
+        WHERE upc.user_promo_code_id = ?
+        LIMIT 1
+    `, [cart.user_promo_code_id]);
 
-                if (systemPromo.length > 0) {
-                    // Increase system promo usage count
-                    await connection.query(
-                        `UPDATE system_promo_codes 
-                        SET usage_count = usage_count + 1 
-                        WHERE system_promo_code_id = ?`,
-                        [systemPromo[0].system_promo_code_id]
-                    );
-
-                    console.log("🔄 System promo usage updated:", systemPromo[0].system_promo_code_id);
-                    promoApplied = true;
+                if (userPromo) {
+                    promoData = userPromo;
+                    promoType = "user";   // admin promo
                 }
 
-                // 2) If NOT a system promo → try user_promo_codes (source_type = 'admin')
-                if (!promoApplied && cart.user_promo_code_id) {
-                    const [userPromo] = await connection.query(
-                        `SELECT user_promo_code_id, usedCount, maxUse 
-                        FROM user_promo_codes 
-                        WHERE user_promo_code_id = ? LIMIT 1`,
-                        [cart.user_promo_code_id]
+                // -----------------------------------------
+                // 2️⃣ If NOT found → try SYSTEM PROMO
+                // -----------------------------------------
+                if (!promoData) {
+                    const [[systemPromo]] = await connection.query(`
+            SELECT spc.system_promo_code_id, spc.template_id 
+            FROM system_promo_codes spc
+            WHERE spc.system_promo_code_id = ?
+            LIMIT 1
+        `, [cart.user_promo_code_id]);
+
+                    if (systemPromo) {
+                        promoData = systemPromo;
+                        promoType = "system";
+                    }
+                }
+
+                // -----------------------------------------
+                // 3️⃣ Update correct table
+                // -----------------------------------------
+                if (!promoData) {
+                    console.warn("⚠️ No promo found in either table.");
+                } else if (promoType === "system") {
+
+                    await connection.query(
+                        `UPDATE system_promo_codes
+             SET usage_count = usage_count + 1
+             WHERE system_promo_code_id = ?`,
+                        [promoData.system_promo_code_id]
                     );
 
-                    if (userPromo.length > 0) {
-                        await connection.query(
-                            `UPDATE user_promo_codes 
-                        SET usedCount = usedCount + 1 
-                        WHERE user_promo_code_id = ?`,
-                            [userPromo[0].user_promo_code_id]
-                        );
+                    console.log("🔄 System promo usage updated:", promoData.system_promo_code_id);
 
-                        console.log("🔄 User promo (admin) usage updated:", userPromo[0].user_promo_code_id);
-                    }
+                } else if (promoType === "user") {
+
+                    await connection.query(
+                        `UPDATE user_promo_codes
+             SET usedCount = usedCount + 1
+             WHERE user_promo_code_id = ?`,
+                        [promoData.user_promo_code_id]
+                    );
+
+                    console.log("🔄 Admin/User promo usage updated:", promoData.user_promo_code_id);
                 }
 
             } catch (promoErr) {
                 console.error("⚠️ Failed to update promo usage:", promoErr.message);
             }
-
 
             // Finalize payments & booking
             await connection.query(
@@ -564,8 +577,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             console.log("✅ Transaction committed — booking & payment completed");
 
             // // Send emails (non-blocking)
-            // sendBookingEmail(cart.user_id, { booking_id, receiptUrl });
-            // // sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
+            sendBookingEmail(cart.user_id, { booking_id, receiptUrl });
+            sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
 
             // Generate PDF after 3 seconds (non-blocking)
             setTimeout(async () => {
