@@ -19,6 +19,7 @@ const {
 
 const { upload, handleUploads } = require("../middleware/upload");
 const { authenticationToken } = require("../middleware/authMiddleware.js")
+const { optionalAuth } = require("../middleware/optionalAuth.js")
 
 const multiUpload = upload.any();
 
@@ -39,7 +40,7 @@ router.get('/get-post-details/:vendor_id', authenticationToken, getVendorPostsBy
 router.get('/servicesName', getServiceNames);
 router.get('/get-summary', getVendorPostSummary);
 router.get('/get-service-vendor', getVendorServiceNames);
-router.get('/get-posts', getApprovedVendorPosts); 
-router.post('/like-post/:post_id',authenticationToken, likePost);
+router.get('/get-posts', optionalAuth, getApprovedVendorPosts);
+router.post('/like-post/:post_id', authenticationToken, likePost);
 
 module.exports = router;

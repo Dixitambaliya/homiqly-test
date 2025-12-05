@@ -9,11 +9,18 @@ const generateBookingPDF = async (html, booking_id) => {
     const browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        executablePath: "/usr/bin/chromium-browser",
+        // executablePath: "/usr/bin/chromium-browser",
+    });
+    const page = await browser.newPage();
+
+    // Avoid timeout caused by external images
+    await page.setContent(html, {
+        waitUntil: "domcontentloaded",
+        timeout: 0
     });
 
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" }); ``
+    // Manual safe delay for image loading (works on all Puppeteer versions)
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const pdfBuffer = await page.pdf({
         printBackground: true,
@@ -29,12 +36,11 @@ const generateBookingPDF = async (html, booking_id) => {
         metadata: {
             contentType: "application/pdf",
         },
-        public: true, // make file accessible through URL
+        public: true,
         validation: "md5"
     });
 
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-    return publicUrl;
+    return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 };
 
 module.exports = { generateBookingPDF };

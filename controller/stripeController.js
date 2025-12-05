@@ -576,9 +576,9 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             await connection.commit();
             console.log("✅ Transaction committed — booking & payment completed");
 
-            // // Send emails (non-blocking)
-            sendBookingEmail(cart.user_id, { booking_id, receiptUrl });
-            sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
+            // // // Send emails (non-blocking)
+            // sendBookingEmail(cart.user_id, { booking_id, receiptUrl });
+            // sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
 
             // Generate PDF after 3 seconds (non-blocking)
             setTimeout(async () => {

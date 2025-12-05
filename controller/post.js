@@ -332,16 +332,18 @@ const getVendorPostsByVendorId = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     const vendorName = req.query.vendorName;
-    const serviceNameFilter = req.query.serviceName; // OPTIONAL
+    const serviceNameFilter = req.query.serviceName || null;
+
+    // 🆕 detect logged in user
+    const user_id = req.user ? req.user.user_id : null;
 
     if (!vendorName) {
         return res.status(400).json({ error: "vendorName is required" });
     }
 
-    // 1️⃣ Find vendors by name
+    // 1️⃣ Find vendors
     const [matchedVendors] = await db.query(
         `
         SELECT 
@@ -364,7 +366,7 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     let selectedVendor = null;
     let vendorPosts = [];
 
-    // 2️⃣ Find the first vendor who actually has approved posts
+    // 2️⃣ Find vendor with posts
     for (const vendor of matchedVendors) {
         const [posts] = await db.query(
             `
@@ -392,7 +394,6 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         }
     }
 
-    // 3️⃣ If no posts found
     if (!selectedVendor) {
         return res.status(404).json({
             error: "No approved posts found for this vendor and serviceName"
@@ -414,27 +415,26 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     selectedVendor.totalRating = ratingSummary[0].avgRating || 0;
     selectedVendor.ratingCount = ratingSummary[0].ratingCount || 0;
 
-    // ⭐ Vendor Reviews with User Name
+    // ⭐ Vendor Reviews
     const [allReviews] = await db.query(
         `
-    SELECT 
-        CONCAT(u.firstName, ' ', u.lastName) AS userName,
-        u.profileImage,
-        vsr.rating,
-        vsr.review,
-        vsr.created_at
-    FROM vendor_service_ratings vsr
-    LEFT JOIN users u ON vsr.user_id = u.user_id
-    WHERE vsr.vendor_id = ?
-    ORDER BY vsr.created_at DESC
-    `,
+        SELECT 
+            CONCAT(u.firstName, ' ', u.lastName) AS userName,
+            u.profileImage,
+            vsr.rating,
+            vsr.review,
+            vsr.created_at
+        FROM vendor_service_ratings vsr
+        LEFT JOIN users u ON vsr.user_id = u.user_id
+        WHERE vsr.vendor_id = ?
+        ORDER BY vsr.created_at DESC
+        `,
         [selectedVendor.vendor_id]
     );
 
     selectedVendor.reviews = allReviews;
 
-
-    // 4️⃣ Fetch images for posts
+    // 4️⃣ Get post images
     const postIds = vendorPosts.map(p => p.post_id);
 
     const [images] = await db.query(
@@ -442,7 +442,7 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
         [postIds]
     );
 
-    // 5️⃣ Likes for each post
+    // 5️⃣ Likes count
     const [likes] = await db.query(
         `
         SELECT post_id, COUNT(*) AS totalLikes
@@ -454,23 +454,40 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     );
 
     const likesMap = {};
-    likes.forEach(l => {
-        likesMap[l.post_id] = l.totalLikes;
-    });
+    likes.forEach(l => (likesMap[l.post_id] = l.totalLikes));
 
-    // 6️⃣ Final merged posts
+    // ⭐⭐⭐ 6️⃣ USER-SPECIFIC LIKE STATUS (IMPORTANT)
+    let userLikedMap = {};
+    if (user_id) {
+        const [userLikes] = await db.query(
+            `
+            SELECT post_id 
+            FROM post_likes 
+            WHERE user_id = ? AND post_id IN (?)
+            `,
+            [user_id, postIds]
+        );
+
+        userLikedMap = userLikes.reduce((map, row) => {
+            map[row.post_id] = true;
+            return map;
+        }, {});
+    }
+
+    // 7️⃣ Merge all data
     const postsWithImages = vendorPosts.map(post => ({
         ...post,
         images: images.filter(img => img.post_id === post.post_id).map(img => img.image),
-        totalLikes: likesMap[post.post_id] || 0
+        totalLikes: likesMap[post.post_id] || 0,
+        likedByUser: userLikedMap[post.post_id] || false  // ⭐ FINAL FIX
     }));
 
-    // 7️⃣ Final response
     return res.json({
         vendor: selectedVendor,
         posts: postsWithImages
     });
 });
+
 
 const getVendorServiceNames = asyncHandler(async (req, res) => {
     const vendorName = req.query.vendorName;
@@ -741,42 +758,62 @@ const getVendorPostSummary = asyncHandler(async (req, res) => {
 
 const likePost = asyncHandler(async (req, res) => {
     const post_id = req.params.post_id;
-    const user_id = req.user.user_id; // user must be logged in
+    const user_id = req.user?.user_id;
 
     if (!post_id || !user_id) {
         return res.status(400).json({ error: "post_id and user_id are required" });
     }
 
-    // 1️⃣ Check post exists & approved
-    const [postRows] = await db.query(
+    // 1️⃣ Check if post exists + approved
+    const [[post]] = await db.query(
         `SELECT post_id FROM posts WHERE post_id = ? AND is_approved = 1`,
         [post_id]
     );
 
-    if (postRows.length === 0) {
+    if (!post) {
         return res.status(404).json({ error: "Post not found or not approved" });
     }
 
-    // 2️⃣ Has the user already liked this post?
-    const [liked] = await db.query(
+    // 2️⃣ Check if already liked
+    const [[existingLike]] = await db.query(
         `SELECT like_id FROM post_likes WHERE user_id = ? AND post_id = ?`,
         [user_id, post_id]
     );
 
-    if (liked.length > 0) {
-        return res.status(400).json({ message: "You already liked this post" });
+    let action = "";
+
+    if (existingLike) {
+        // 3️⃣ UNLIKE
+        await db.query(
+            `DELETE FROM post_likes WHERE like_id = ?`,
+            [existingLike.like_id]
+        );
+        action = "unliked";
+    } else {
+        // 4️⃣ LIKE
+        await db.query(
+            `INSERT INTO post_likes (user_id, post_id) VALUES (?, ?)`,
+            [user_id, post_id]
+        );
+        action = "liked";
     }
 
-    // 3️⃣ Insert into post_likes
-    await db.query(
-        `INSERT INTO post_likes (user_id, post_id) VALUES (?, ?)`,
-        [user_id, post_id]
+    // 5️⃣ Fetch updated like count
+    const [[likeCount]] = await db.query(
+        `
+        SELECT COUNT(*) AS totalLikes
+        FROM post_likes
+        WHERE post_id = ?
+        `,
+        [post_id]
     );
 
     return res.json({
-        message: "Post liked successfully"
+        message: `Post ${action} successfully`,
+        liked: action === "liked",
     });
 });
+
 
 
 

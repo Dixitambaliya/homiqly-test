@@ -99,11 +99,11 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     // 9) FETCH STRIPE PAYMENT DETAILS
     // ---------------------------------------------------------
     const [[paymentRow]] = await db.query(`
-        SELECT payment_intent_id 
-        FROM payments 
-        WHERE payment_intent_id IS NOT NULL AND booking_id = ? 
-        LIMIT 1
-    `, [booking_id]);
+            SELECT payment_intent_id
+            FROM service_booking
+            WHERE booking_id = ?
+            LIMIT 1
+        `, [booking_id]);
 
     let cardBrand = "N/A";
     let last4 = "****";
@@ -130,11 +130,13 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
     // Card brand logos
     const brandLogo = {
-        visa: "https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png",
-        mastercard: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg",
-        amex: "https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg",
-        discover: "https://upload.wikimedia.org/wikipedia/commons/5/5f/Discover_Card_logo.svg",
+        visa: "/public/cards/visa.svg",
+        mastercard: "/public/cards/mastercard.svg",
+        amex: "/public/cards/amex.svg",
+        unionpay: "/public/cards/unionpay.svg",
     };
+
+    console.log(brandLogo);
 
     const cardLogoUrl = brandLogo[cardBrand?.toLowerCase()] || null;
 
@@ -234,36 +236,39 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
         <hr />
 
-        <!-- PAYMENT DETAILS -->
-        <h3 style="margin-top:25px;">Payment Details</h3>
+       <!-- PAYMENT DETAILS -->
+            <h3 style="margin-top:25px;">Payments</h3>
 
-        <table width="100%" style="font-size:14px; margin-bottom:20px;">
-            <tr>
-                <td>Payment Method</td>
-                <td style="text-align:right;">
-                    ${cardLogoUrl
-            ? `<img src="${cardLogoUrl}" style="height:20px; vertical-align:middle; margin-right:6px;" />`
+            <div style="border-top:1px solid #ddd; padding-top:15px; margin-top:10px;">
+
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:16px; margin-bottom:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${cardLogoUrl
+            ? `<img src="${cardLogoUrl}" style="height:22px;" />`
             : ""
         }
-                    **** ${last4}
-                </td>
-            </tr>
+                        <span style="font-weight:bold; text-transform:capitalize;">${cardBrand}</span>
+                        <span>•••• ${last4}</span>
+                    </div>
+                    <div style="font-weight:bold;">
+                        ${curSym}${finalTotal.toFixed(2)}
+                    </div>
+                </div>
 
-            <tr>
-                <td>Card Brand</td>
-                <td style="text-align:right;">${cardBrand.toUpperCase()}</td>
-            </tr>
+                <div style="font-size:13px; color:#777;">
+                    ${moment(booking.bookingDate).format("MM/DD/YY")} 
+                    ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}
+                </div>
 
-            <tr>
-                <td>Receipt Email</td>
-                <td style="text-align:right;">${receiptEmail}</td>
-            </tr>
+                <div style="margin-top:8px; font-size:13px;">
+                    Receipt sent to: <strong>${receiptEmail}</strong>
+                </div>
 
-            <tr>
-                <td>Payment Intent ID</td>
-                <td style="text-align:right; font-size:12px;">${paymentRow?.payment_intent_id}</td>
-            </tr>
-        </table>
+                <div style="font-size:12px; color:#999; margin-top:5px;">
+                    Payment Intent: ${paymentRow?.payment_intent_id}
+                </div>
+            </div>
+
 
         <hr />
 
