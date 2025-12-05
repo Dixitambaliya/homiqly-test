@@ -567,22 +567,22 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             // sendBookingEmail(cart.user_id, { booking_id, receiptUrl });
             // // sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
 
-            // // Generate PDF after 3 seconds (non-blocking)
-            // setTimeout(async () => {
-            //     try {
-            //         const html = await buildBookingInvoiceHTML(booking_id);
-            //         const pdfUrl = await generateBookingPDF(html, booking_id);
+            // Generate PDF after 3 seconds (non-blocking)
+            setTimeout(async () => {
+                try {
+                    const html = await buildBookingInvoiceHTML(booking_id);
+                    const pdfUrl = await generateBookingPDF(html, booking_id);
 
-            //         await db.query(
-            //             `UPDATE payments SET pdf_receipt_url=? WHERE payment_intent_id=?`,
-            //             [pdfUrl, paymentIntentId]
-            //         );
+                    await db.query(
+                        `UPDATE payments SET pdf_receipt_url=? WHERE payment_intent_id=?`,
+                        [pdfUrl, paymentIntentId]
+                    );
 
-            //         console.log("📄 PDF invoice uploaded:", pdfUrl);
-            //     } catch (err) {
-            //         console.error("❌ PDF generation failed:", err.message);
-            //     }
-            // }, 3000);
+                    console.log("📄 PDF invoice uploaded:", pdfUrl);
+                } catch (err) {
+                    console.error("❌ PDF generation failed:", err.message);
+                }
+            }, 3000);
 
 
         } catch (err) {
