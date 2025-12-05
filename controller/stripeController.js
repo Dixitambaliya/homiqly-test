@@ -3,8 +3,8 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { db } = require("../config/db")
 const { sendBookingEmail, sendVendorBookingEmail } = require("../config/utils/email/mailer");
 const { recalculateCartTotals } = require("./cartCalculation")
-// const { buildBookingInvoiceHTML } = require("../config/utils/email/buildBookingInvoiceHTML");
-// const { generateBookingPDF } = require("../config/utils/email/generateBookingPDF");
+const { buildBookingInvoiceHTML } = require("../config/utils/email/buildBookingInvoiceHTML");
+const { generateBookingPDF } = require("../config/utils/email/generateBookingPDF");
 
 
 // 1. Vendor creates Stripe account
@@ -474,7 +474,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                 );
             }
 
-            // Insert booking_totals from cart_totals if present
+            // Insert booking_totals from cart_totals is_usedif present
             const [[totals]] = await connection.query(
                 `SELECT subtotal, discounted_total, promo_discount, tax_amount, final_total FROM cart_totals WHERE cart_id=? LIMIT 1`,
                 [cart.cart_id]
@@ -487,6 +487,59 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     [booking_id, totals.subtotal, totals.discounted_total, totals.promo_discount, totals.tax_amount, totals.final_total]
                 );
             }
+            // --------------------------------------------------
+            // PROMO HANDLING (SYSTEM PROMO FIRST, THEN USER PROMO)
+            // --------------------------------------------------
+            try {
+                let promoApplied = false;
+
+                // 1) CHECK: System Promo (source_type = 'system')
+                const [systemPromo] = await connection.query(
+                    `SELECT system_promo_code_id, usage_count 
+                    FROM system_promo_codes 
+                    WHERE user_id = ? AND template_id IS NOT NULL 
+                    ORDER BY assigned_at DESC LIMIT 1`,
+                    [cart.user_id]
+                );
+
+                if (systemPromo.length > 0) {
+                    // Increase system promo usage count
+                    await connection.query(
+                        `UPDATE system_promo_codes 
+                        SET usage_count = usage_count + 1 
+                        WHERE system_promo_code_id = ?`,
+                        [systemPromo[0].system_promo_code_id]
+                    );
+
+                    console.log("🔄 System promo usage updated:", systemPromo[0].system_promo_code_id);
+                    promoApplied = true;
+                }
+
+                // 2) If NOT a system promo → try user_promo_codes (source_type = 'admin')
+                if (!promoApplied && cart.user_promo_code_id) {
+                    const [userPromo] = await connection.query(
+                        `SELECT user_promo_code_id, usedCount, maxUse 
+                        FROM user_promo_codes 
+                        WHERE user_promo_code_id = ? LIMIT 1`,
+                        [cart.user_promo_code_id]
+                    );
+
+                    if (userPromo.length > 0) {
+                        await connection.query(
+                            `UPDATE user_promo_codes 
+                        SET usedCount = usedCount + 1 
+                        WHERE user_promo_code_id = ?`,
+                            [userPromo[0].user_promo_code_id]
+                        );
+
+                        console.log("🔄 User promo (admin) usage updated:", userPromo[0].user_promo_code_id);
+                    }
+                }
+
+            } catch (promoErr) {
+                console.error("⚠️ Failed to update promo usage:", promoErr.message);
+            }
+
 
             // Finalize payments & booking
             await connection.query(
@@ -512,24 +565,24 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             // Send emails (non-blocking)
             sendBookingEmail(cart.user_id, { booking_id, receiptUrl });
-            sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
+            // sendVendorBookingEmail(cart.vendor_id, { booking_id, receiptUrl });
 
-            // // Generate PDF after 3 seconds (non-blocking)
-            // setTimeout(async () => {
-            //     try {
-            //         const html = await buildBookingInvoiceHTML(booking_id);
-            //         const pdfUrl = await generateBookingPDF(html, booking_id);
+            // Generate PDF after 3 seconds (non-blocking)
+            setTimeout(async () => {
+                try {
+                    const html = await buildBookingInvoiceHTML(booking_id);
+                    const pdfUrl = await generateBookingPDF(html, booking_id);
 
-            //         await db.query(
-            //             `UPDATE payments SET pdf_receipt_url=? WHERE payment_intent_id=?`,
-            //             [pdfUrl, paymentIntentId]
-            //         );
+                    await db.query(
+                        `UPDATE payments SET pdf_receipt_url=? WHERE payment_intent_id=?`,
+                        [pdfUrl, paymentIntentId]
+                    );
 
-            //         console.log("📄 PDF invoice uploaded:", pdfUrl);
-            //     } catch (err) {
-            //         console.error("❌ PDF generation failed:", err.message);
-            //     }
-            // }, 3000);
+                    console.log("📄 PDF invoice uploaded:", pdfUrl);
+                } catch (err) {
+                    console.error("❌ PDF generation failed:", err.message);
+                }
+            }, 3000);
 
 
         } catch (err) {

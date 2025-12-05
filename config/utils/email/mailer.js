@@ -137,7 +137,9 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
 
         if (!user) return console.warn(`⚠️ No user found for user_id ${user_id}`);
 
-        const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Valued Customer";
+        const userName =
+            `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+            "Valued Customer";
 
         // ---------------------------
         // 2) BOOKING MAIN DETAILS
@@ -240,7 +242,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
                 const addonTotal = qty * Number(a.price);
                 receiptRows += `
                     <tr>
-                        <td width="70%" style="padding:2px 0; color:#000;">• ${a.addonName}</td>
+                        <td width="70%" style="padding:2px 0;">• ${a.addonName}</td>
                         <td width="30%" style="text-align:right;">${curSym}${addonTotal.toFixed(2)}</td>
                     </tr>
                 `;
@@ -251,93 +253,102 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
                 const prefTotal = qty * Number(p.preferencePrice);
                 receiptRows += `
                     <tr>
-                        <td width="70%" style="padding:2px 0; color:#000;">• ${p.preferenceValue}</td>
+                        <td width="70%" style="padding:2px 0;">• ${p.preferenceValue}</td>
                         <td width="30%" style="text-align:right;">${curSym}${prefTotal.toFixed(2)}</td>
                     </tr>
                 `;
             }
         }
 
-        // ---------------------------
-        // 7) EMAIL UI (Same UI for user & admin)
-        // ---------------------------
-        const bodyHtml = `
-<div style="background:#fff; font-family:Arial, sans-serif; padding:30px;">
+        // ----------------------------------------------------------------------
+        // 7) SHARED CONTENT BLOCK (receipt, totals)
+        // ----------------------------------------------------------------------
+        const sharedEmailContent = `
+            <p style="font-size: 15px; line-height: 1.6; margin-top: 20px;">
+                ( #${booking_id} )
+            </p>
 
-   <h1 style="font-size: 20px; font-weight: bold; color: #000000; margin: 5px 0 8px;">
-        Hello <strong> ${userName || "Valued Customer"}</strong>, your booking with Homiqly is confirmed!
-   </h1>
+            <table width="100%" style="margin-top:20px;">
+                <tr>
+                    <td style="font-size:20px; font-weight:bold;">Total</td>
+                    <td style="text-align:right; font-size:22px; font-weight:bold;">
+                        ${curSym}${finalTotal.toFixed(2)}
+                    </td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td style="text-align:right; font-size:12px; color:#666;">
+                        You saved ${curSym}${promoDiscount.toFixed(2)} with promos
+                    </td>
+                </tr>
+            </table>
 
-   <p style="font-size: 15px; line-height: 1.6;">
-        We are scheduled to bring the beauty studio to your home on
-        <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>.
-   </p>
+            <hr style="border-top:1px solid #000;" />
 
-   <p style="font-size: 15px; line-height: 1.6; margin-top: 20px;">
-        ( #${booking_id} )
-   </p>
+            <div style="font-size:14px; margin-bottom:12px;">For ${userName}</div>
 
-   <table width="100%" style="margin-top:20px;">
-        <tr>
-            <td style="font-size:20px; font-weight:bold;">Total</td>
-            <td style="text-align:right; font-size:22px; font-weight:bold;">${curSym}${finalTotal.toFixed(2)}</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td style="text-align:right; font-size:12px; color:#666;">
-                You saved ${curSym}${promoDiscount.toFixed(2)} with promos
-            </td>
-        </tr>
-   </table>
+            <table width="100%" cellpadding="5" style="font-size:14px;">
+                ${receiptRows}
+            </table>
 
-   <hr style="border-top:1px solid #000;" />
+            <hr style="border-top:1px solid #000;" />
 
-   <div style="font-size:14px; margin-bottom:12px;">For ${userName}</div>
+            <table width="100%" cellpadding="5" style="font-size:14px;">
+                <tr>
+                    <td>Subtotal</td>
+                    <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
+                </tr>
 
-   <table width="100%" cellpadding="5" style="font-size:14px;">
-        ${receiptRows}
-   </table>
+                ${promoDiscount > 0 ? `
+                <tr>
+                    <td>Promo Discount</td>
+                    <td style="text-align:right; color:red;">
+                        -${curSym}${promoDiscount.toFixed(2)}
+                    </td>
+                </tr>
+                ` : ""}
 
-   <hr style="border-top:1px solid #000;" />
-        <table width="100%" cellpadding="5" style="font-size:14px;">
-            <tr>
-                <td>Subtotal</td>
-                <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
-            </tr>
+                <tr>
+                    <td>Taxes</td>
+                    <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
+                </tr>
 
-            ${promoDiscount > 0 ? `
-            <tr>
-                <td>Promo Discount</td>
-                <td style="text-align:right; color:red;">
-                    -${curSym}${promoDiscount.toFixed(2)}
-                </td>
-            </tr>
-            ` : ""}
+                <tr><td colspan="2"><hr /></td></tr>
 
-            <tr>
-                <td>Taxes</td>
-                <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
-            </tr>
+                <tr>
+                    <td style="font-weight:bold;">Total Charged</td>
+                    <td style="text-align:right; font-weight:bold; font-size:16px;">
+                        ${curSym}${finalTotal.toFixed(2)}
+                    </td>
+                </tr>
+            </table>
+        `;
 
-            <tr><td colspan="2"><hr /></td></tr>
+        // ----------------------------------------------------------------------
+        // 8) USER EMAIL HTML
+        // ----------------------------------------------------------------------
+        const userBodyHtml = `
+            <div style="background:#fff; font-family:Arial, sans-serif; padding:30px;">
+                <h1 style="font-size:20px; font-weight:bold; margin-bottom:12px;">
+                    Hello <strong>${userName}</strong>, your booking with Homiqly is confirmed!
+                </h1>
 
-            <tr>
-                <td style="font-weight:bold;">Total Charged</td>
-                <td style="text-align:right; font-weight:bold; font-size:16px;">
-                    ${curSym}${finalTotal.toFixed(2)}
-                </td>
-            </tr>
-        </table>
-</div>
+                <p style="font-size:15px; line-height:1.6;">
+                    We are scheduled to bring the beauty studio to your home on
+                    <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>.
+                </p>
+
+                ${sharedEmailContent}
+            </div>
         `;
 
         // ---------------------------
-        // 8) SEND EMAIL TO USER
+        // SEND EMAIL TO USER
         // ---------------------------
         await sendMail({
             to: user.email,
             subject: "Your Booking is Confirmed!",
-            bodyHtml,
+            bodyHtml: userBodyHtml,
             layout: "userBookingMail",
             extraData: {
                 booking_id,
@@ -350,16 +361,33 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
 
         console.log(`📧 Booking email sent to USER: ${user.email}`);
 
+        // ----------------------------------------------------------------------
+        // 9) ADMIN EMAIL HTML (DIFFERENT TITLE)
+        // ----------------------------------------------------------------------
+        const adminBodyHtml = `
+            <div style="background:#fff; font-family:Arial, sans-serif; padding:30px;">
+                <h1 style="font-size:20px; font-weight:bold; color:#d32f2f; margin-bottom:12px;">
+                    🔔 New Booking Received (#${booking_id})
+                </h1>
+
+                <p style="font-size:15px; line-height:1.6;">
+                    A new booking has been completed by <strong>${userName}</strong>.
+                </p>
+
+                ${sharedEmailContent}
+            </div>
+        `;
+
         // ---------------------------
-        // 9) SEND SAME EMAIL TO ALL ADMINS
+        // SEND EMAIL TO ALL ADMINS
         // ---------------------------
         const [admins] = await db.query(`SELECT email FROM admin WHERE email IS NOT NULL`);
 
         for (let admin of admins) {
             await sendMail({
                 to: admin.email,
-                subject: `System Get New Confirmed Booking (#${booking_id})`,
-                bodyHtml, // SAME UI — unchanged
+                subject: `New Booking Received (#${booking_id})`,
+                bodyHtml: adminBodyHtml,
                 layout: "userBookingMail",
                 extraData: {
                     booking_id,
@@ -377,6 +405,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         console.error("⚠️ Failed to send booking email:", err.message);
     }
 };
+
 
 
 //done
