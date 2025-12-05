@@ -13,6 +13,7 @@ const {
     likePost,
     editPost,
     getServiceNames,
+    getVendorPostsByVendorId,
     getVendorServiceNames
 } = require('../controller/post');
 
@@ -21,25 +22,24 @@ const { authenticationToken } = require("../middleware/authMiddleware.js")
 
 const multiUpload = upload.any();
 
-router.get('/get-services', authenticationToken, getVendorServices);
-router.get('/servicesName', getServiceNames);
-router.post('/create-post', multiUpload, handleUploads, authenticationToken, createPost);
+//VENDOR
 router.get('/get-post', authenticationToken, getVendorPosts);
-
+router.get('/get-services', authenticationToken, getVendorServices);
+router.post('/create-post', multiUpload, handleUploads, authenticationToken, createPost);
 router.put('/edit-post/:post_id', multiUpload, handleUploads, authenticationToken, editPost);
 
-//USER SIDE
-router.get('/get-posts', getApprovedVendorPosts);
 
+//ADMIN
 router.get('/get-pending-request', authenticationToken, getPendingPosts);
-
 router.patch('/approve-post/:post_id', authenticationToken, approvePost);
-
 router.get('/post-summary', authenticationToken, getPostSummary);
+router.get('/get-post-details/:vendor_id', authenticationToken, getVendorPostsByVendorId);
 
-//USER SIDE
+//USER 
+router.get('/servicesName', getServiceNames);
 router.get('/get-summary', getVendorPostSummary);
 router.get('/get-service-vendor', getVendorServiceNames);
+router.get('/get-posts', getApprovedVendorPosts); 
 router.post('/like-post/:post_id', likePost);
 
 module.exports = router;

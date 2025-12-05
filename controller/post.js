@@ -242,6 +242,95 @@ const getVendorPosts = asyncHandler(async (req, res) => {
     });
 });
 
+const getVendorPostsByVendorId = asyncHandler(async (req, res) => {
+    const vendor_id = req.params.vendor_id;
+    const serviceNameFilter = req.query.serviceName; // OPTIONAL
+
+    if (!vendor_id) {
+        return res.status(400).json({ error: "vendor_id is required" });
+    }
+
+    // 1️⃣ Fetch vendor details
+    const [[vendor]] = await db.query(
+        `
+        SELECT 
+            v.vendor_id,
+            i.name AS vendorName,
+            i.profileImage AS vendorImage,
+            i.expertise,
+            i.aboutMe
+        FROM vendors v
+        LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
+        WHERE v.vendor_id = ?
+        `,
+        [vendor_id]
+    );
+
+    if (!vendor) {
+        return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    // 2️⃣ Fetch approved posts
+    const [vendorPosts] = await db.query(
+        `
+        SELECT 
+            p.post_id,
+            s.serviceName,
+            p.title,
+            p.shortDescription
+        FROM posts p
+        JOIN services s ON p.service_id = s.service_id
+        WHERE p.vendor_id = ?
+        ${serviceNameFilter ? "AND s.serviceName LIKE ?" : ""}
+        ORDER BY p.post_id DESC
+        `,
+        serviceNameFilter
+            ? [vendor_id, `%${serviceNameFilter}%`]
+            : [vendor_id]
+    );
+
+    if (vendorPosts.length === 0) {
+        return res.status(404).json({
+            error: "No approved posts found for this vendor"
+        });
+    }
+    // 5️⃣ Fetch images for posts
+    const postIds = vendorPosts.map(p => p.post_id);
+
+    const [images] = await db.query(
+        `SELECT post_id, image FROM post_images WHERE post_id IN (?)`,
+        [postIds]
+    );
+
+    // 6️⃣ Likes for each post
+    const [likes] = await db.query(
+        `
+        SELECT post_id, COUNT(*) AS totalLikes
+        FROM post_likes
+        WHERE post_id IN (?)
+        GROUP BY post_id
+        `,
+        [postIds]
+    );
+
+    const likesMap = {};
+    likes.forEach(l => {
+        likesMap[l.post_id] = l.totalLikes;
+    });
+
+    // 7️⃣ Merge posts with images + likes
+    const postsWithImages = vendorPosts.map(post => ({
+        ...post,
+        images: images.filter(img => img.post_id === post.post_id).map(img => img.image),
+        totalLikes: likesMap[post.post_id] || 0
+    }));
+
+    // 8️⃣ Final response
+    return res.json({
+        vendor,
+        posts: postsWithImages
+    });
+});
 
 
 const getApprovedVendorPosts = asyncHandler(async (req, res) => {
@@ -427,21 +516,22 @@ const getVendorServiceNames = asyncHandler(async (req, res) => {
 });
 
 
-
-
 const getPendingPosts = asyncHandler(async (req, res) => {
     const [posts] = await db.query(
         `
         SELECT 
             p.post_id,
             p.vendor_id,
+            id.name,
+            id.email,
             s.serviceName,
             p.title,
-            p.shortDescription,
+            p.shortDescription AS short_description,
             p.is_approved,
             p.created_at
         FROM posts p
         LEFT JOIN services s ON p.service_id = s.service_id
+        JOIN individual_details id ON p.vendor_id = id.vendor_id
         WHERE p.is_approved = 0
         ORDER BY p.created_at DESC
         `
@@ -701,5 +791,6 @@ module.exports = {
     likePost,
     editPost,
     getServiceNames,
-    getVendorServiceNames
+    getVendorServiceNames,
+    getVendorPostsByVendorId
 };  
