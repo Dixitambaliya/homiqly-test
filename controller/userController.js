@@ -248,20 +248,27 @@ const getServicestypes = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
     try {
-        const results = await db.query(userGetQueries.getUsersData, [user_id]);
+        // 🔹 Update last activity timestamp
+        await db.query(
+            `UPDATE users SET last_active = NOW() WHERE user_id = ?`,
+            [user_id]
+        );
+
+        // 🔹 Fetch user data
+        const [results] = await db.query(userGetQueries.getUsersData, [user_id]);
 
         if (!results || results.length === 0) {
             return res.status(404).json({ message: "User data not found" });
         }
 
-        // Just take the first result row
-        const userData = results[0];
+        const userData = results;
 
-        // Replace null values with empty strings
+        // 🔹 Replace null values with empty string
         Object.keys(userData).forEach(key => {
             if (userData[key] === null) {
                 userData[key] = "";
@@ -270,7 +277,7 @@ const getUserData = asyncHandler(async (req, res) => {
 
         res.status(200).json({
             message: "User data fetched successfully",
-            data: userData // single object, not array
+            data: userData
         });
 
     } catch (err) {
@@ -278,6 +285,8 @@ const getUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
+
 
 const addCity = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

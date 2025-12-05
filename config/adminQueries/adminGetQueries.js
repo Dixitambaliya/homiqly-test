@@ -211,6 +211,7 @@ SELECT
         is_approved,
         city,
         postalcode,
+        last_active,
         created_at
             FROM users
             ORDER BY created_at DESC
