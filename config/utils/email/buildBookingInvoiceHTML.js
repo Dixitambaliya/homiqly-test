@@ -1,5 +1,6 @@
 const { db } = require("../../db");
 const moment = require("moment");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const buildBookingInvoiceHTML = async (booking_id) => {
 
@@ -20,7 +21,8 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     // 2) USER
     // --------------------------
     const [[user]] = await db.query(`
-        SELECT firstName, lastName FROM users WHERE user_id=? LIMIT 1
+        SELECT firstName, lastName, email 
+        FROM users WHERE user_id=? LIMIT 1
     `, [booking.user_id]);
 
     const userName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Customer";
@@ -48,7 +50,7 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     const finalTotal = Number(totals?.final_total || 0);
 
     // --------------------------
-    // 5) CURRENCY DETECTION
+    // 5) CURRENCY
     // --------------------------
     const [[payoutRow]] = await db.query(`
         SELECT currency FROM vendor_payouts WHERE booking_id = ? LIMIT 1
@@ -93,8 +95,51 @@ const buildBookingInvoiceHTML = async (booking_id) => {
         WHERE bp.booking_id = ?
     `, [booking_id]);
 
+    // ---------------------------------------------------------
+    // 9) FETCH STRIPE PAYMENT DETAILS
+    // ---------------------------------------------------------
+    const [[paymentRow]] = await db.query(`
+        SELECT payment_intent_id 
+        FROM payments 
+        WHERE payment_intent_id IS NOT NULL AND booking_id = ? 
+        LIMIT 1
+    `, [booking_id]);
+
+    let cardBrand = "N/A";
+    let last4 = "****";
+    let receiptEmail = user.email || "N/A";
+
+    if (paymentRow?.payment_intent_id) {
+        try {
+            const charges = await stripe.charges.list({
+                payment_intent: paymentRow.payment_intent_id,
+                limit: 1,
+            });
+
+            const charge = charges.data?.[0];
+
+            if (charge) {
+                cardBrand = charge?.payment_method_details?.card?.brand || "N/A";
+                last4 = charge?.payment_method_details?.card?.last4 || "****";
+                receiptEmail = charge?.billing_details?.email || receiptEmail;
+            }
+        } catch (err) {
+            console.log("Stripe fetch failed:", err.message);
+        }
+    }
+
+    // Card brand logos
+    const brandLogo = {
+        visa: "https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png",
+        mastercard: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg",
+        amex: "https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg",
+        discover: "https://upload.wikimedia.org/wikipedia/commons/5/5f/Discover_Card_logo.svg",
+    };
+
+    const cardLogoUrl = brandLogo[cardBrand?.toLowerCase()] || null;
+
     // --------------------------
-    // 9) BUILD FULL RECEIPT ROWS
+    // 10) BUILD RECEIPT ROWS
     // --------------------------
     let receiptRows = "";
 
@@ -113,11 +158,9 @@ const buildBookingInvoiceHTML = async (booking_id) => {
             </tr>
         `;
 
-        // ADDONS under this package
         const pkgAddons = addons.filter(a => a.sub_package_id === pkg.sub_package_id);
         for (let a of pkgAddons) {
             const addonTotal = qty * Number(a.price);
-
             receiptRows += `
                 <tr>
                     <td style="padding:3px 0; color:#444;">• ${a.addonName}</td>
@@ -126,11 +169,9 @@ const buildBookingInvoiceHTML = async (booking_id) => {
             `;
         }
 
-        // PREFERENCES under this package
         const pkgPrefs = prefs.filter(p => p.sub_package_id === pkg.sub_package_id);
         for (let p of pkgPrefs) {
             const prefTotal = qty * Number(p.preferencePrice);
-
             receiptRows += `
                 <tr>
                     <td style="padding:3px 0; color:#444;">• ${p.preferenceValue}</td>
@@ -141,12 +182,11 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     }
 
     // --------------------------
-    // 10) FINAL HTML TEMPLATE
+    // 11) FINAL INVOICE HTML
     // --------------------------
     return `
 <div style="background:#f7f7f7; padding:20px; font-family:Arial, sans-serif;">
     <div style="width:650px; margin:0 auto; background:#fff; padding:30px; border-radius:6px;">
-
 
         <!-- HEADER -->
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -165,7 +205,8 @@ const buildBookingInvoiceHTML = async (booking_id) => {
             </div>
         </div>
 
-        <!-- BREAKDOWN -->
+        <!-- PRICE BREAKDOWN -->
+        <h3>Pricing Summary</h3>
         <table width="100%" style="font-size:14px; margin-bottom:20px;">
             <tr>
                 <td>Subtotal</td>
@@ -185,7 +226,7 @@ const buildBookingInvoiceHTML = async (booking_id) => {
             </tr>
         </table>
 
-        <!-- ITEMS -->
+        <!-- SERVICES -->
         <h3>Services Type</h3>
         <table width="100%" style="font-size:14px;">
             ${receiptRows}
@@ -193,6 +234,40 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
         <hr />
 
+        <!-- PAYMENT DETAILS -->
+        <h3 style="margin-top:25px;">Payment Details</h3>
+
+        <table width="100%" style="font-size:14px; margin-bottom:20px;">
+            <tr>
+                <td>Payment Method</td>
+                <td style="text-align:right;">
+                    ${cardLogoUrl
+            ? `<img src="${cardLogoUrl}" style="height:20px; vertical-align:middle; margin-right:6px;" />`
+            : ""
+        }
+                    **** ${last4}
+                </td>
+            </tr>
+
+            <tr>
+                <td>Card Brand</td>
+                <td style="text-align:right;">${cardBrand.toUpperCase()}</td>
+            </tr>
+
+            <tr>
+                <td>Receipt Email</td>
+                <td style="text-align:right;">${receiptEmail}</td>
+            </tr>
+
+            <tr>
+                <td>Payment Intent ID</td>
+                <td style="text-align:right; font-size:12px;">${paymentRow?.payment_intent_id}</td>
+            </tr>
+        </table>
+
+        <hr />
+
+        <!-- FOOTER -->
         <p style="font-size:13px; color:#777;">
             Booking ID: <strong>#${booking_id}</strong><br>
             Professional: <strong>${vendorName}</strong><br>

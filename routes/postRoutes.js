@@ -40,6 +40,6 @@ router.get('/servicesName', getServiceNames);
 router.get('/get-summary', getVendorPostSummary);
 router.get('/get-service-vendor', getVendorServiceNames);
 router.get('/get-posts', getApprovedVendorPosts); 
-router.post('/like-post/:post_id', likePost);
+router.post('/like-post/:post_id',authenticationToken, likePost);
 
 module.exports = router;
