@@ -472,7 +472,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            booking.receiptUrl = booking.pdf_receipt_url || booking.receipt_url || null;
+            booking.receipt_url = booking.pdf_receipt_url || booking.receipt_url || null;
             delete booking.pdf_receipt_url;
             delete booking.receipt_url;
 

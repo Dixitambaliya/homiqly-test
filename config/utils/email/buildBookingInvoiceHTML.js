@@ -245,7 +245,7 @@ const buildBookingInvoiceHTML = async (booking_id) => {
                 <div style="display:flex; align-items:center; justify-content:space-between; font-size:14px; margin-bottom:10px;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         ${cardLogoUrl
-            ? `<img src="${cardLogoUrl}" style="height:19px;" />`
+            ? `<img src="${cardLogoUrl}" style="height:21px;" />`
             : ""
         }
                         <span style="text-transform:capitalize;">${cardBrand}</span>

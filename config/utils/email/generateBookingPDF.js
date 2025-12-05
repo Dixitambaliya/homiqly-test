@@ -23,10 +23,15 @@ const generateBookingPDF = async (html, booking_id) => {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     const pdfBuffer = await page.pdf({
+        format: "A4",
         printBackground: true,
-        width: "650px",
-        margin: { top: "20px", bottom: "20px" },
-        preferCSSPageSize: true
+        margin: {
+            top: "0px",
+            right: "0px",
+            bottom: "0px",
+            left: "0px"
+        },
+        scale: 0.9
     });
 
     await browser.close();
