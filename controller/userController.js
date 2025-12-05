@@ -191,8 +191,6 @@ const getServiceByCategory = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getServiceTypesByServiceId = asyncHandler(async (req, res) => {
     const service_id = req.params.service_id
 
@@ -248,7 +246,6 @@ const getServicestypes = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserData = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -285,8 +282,6 @@ const getUserData = asyncHandler(async (req, res) => {
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
-
-
 
 const addCity = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;

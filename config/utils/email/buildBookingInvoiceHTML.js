@@ -4,13 +4,13 @@ const moment = require("moment");
 const buildBookingInvoiceHTML = async (booking_id) => {
 
     // --------------------------
-    // 1) BOOKING MAIN ROW
+    // 1) BOOKING MAIN DETAILS
     // --------------------------
     const [[booking]] = await db.query(`
         SELECT user_id, bookingDate, bookingTime, vendor_id
         FROM service_booking WHERE booking_id=? LIMIT 1
     `, [booking_id]);
-        
+
     if (!booking) return "<div>Booking not found</div>";
 
     const bookingDateFormatted = moment(booking.bookingDate).format("MMM DD, YYYY");
@@ -26,16 +26,16 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     const userName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Customer";
 
     // --------------------------
-    // 3) PROFESSIONAL (Vendor)
+    // 3) VENDOR
     // --------------------------
     const [[vendor]] = await db.query(`
         SELECT name FROM individual_details WHERE vendor_id=? LIMIT 1
     `, [booking.vendor_id]);
 
     const vendorName = vendor?.name || "Assigned Professional";
-    
+
     // --------------------------
-    // 4) TOTALS
+    // 4) FETCH TOTALS
     // --------------------------
     const [[totals]] = await db.query(`
         SELECT subtotal, promo_discount, tax_amount, final_total
@@ -48,17 +48,23 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     const finalTotal = Number(totals?.final_total || 0);
 
     // --------------------------
-    // 5) Currency (fallback: CAD)
+    // 5) CURRENCY DETECTION
     // --------------------------
+    const [[payoutRow]] = await db.query(`
+        SELECT currency FROM vendor_payouts WHERE booking_id = ? LIMIT 1
+    `, [booking_id]);
+
+    const currency = (payoutRow?.currency || "CAD").toUpperCase();
+
     const currencySymbol = (cur) => {
         const map = { INR: "₹", USD: "$", CAD: "CA$", EUR: "€", GBP: "£" };
         return map[cur] || cur + " ";
     };
 
-    const curSym = currencySymbol("CAD"); // or fetch from vendor_payouts if needed
+    const curSym = currencySymbol(currency);
 
     // --------------------------
-    // 6) ITEMS
+    // 6) PACKAGES
     // --------------------------
     const [packages] = await db.query(`
         SELECT sbs.sub_package_id, sbs.quantity, sbs.price, pi.itemName
@@ -67,110 +73,133 @@ const buildBookingInvoiceHTML = async (booking_id) => {
         WHERE booking_id=?
     `, [booking_id]);
 
+    // --------------------------
+    // 7) ADDONS
+    // --------------------------
+    const [addons] = await db.query(`
+        SELECT sba.sub_package_id, sba.addon_id, sba.price, pa.addonName
+        FROM service_booking_addons sba
+        JOIN package_addons pa ON sba.addon_id = pa.addon_id
+        WHERE sba.booking_id = ?
+    `, [booking_id]);
+
+    // --------------------------
+    // 8) PREFERENCES
+    // --------------------------
+    const [prefs] = await db.query(`
+        SELECT bp.sub_package_id, pm.preferencePrice, pm.preferenceValue
+        FROM service_booking_preferences bp
+        JOIN booking_preferences pm ON bp.preference_id = pm.preference_id
+        WHERE bp.booking_id = ?
+    `, [booking_id]);
+
+    // --------------------------
+    // 9) BUILD FULL RECEIPT ROWS
+    // --------------------------
     let receiptRows = "";
 
     for (let pkg of packages) {
-        const total = pkg.price * pkg.quantity;
+        const qty = Number(pkg.quantity);
+        const pkgTotal = qty * Number(pkg.price);
 
         receiptRows += `
             <tr>
-                <td style="padding:4px 0;">${pkg.itemName} × ${pkg.quantity}</td>
-                <td style="text-align:right; padding:4px 0;">${curSym}${total.toFixed(2)}</td>
+                <td style="padding:6px 0; font-weight:bold;">
+                    ${pkg.itemName} × ${qty}
+                </td>
+                <td style="text-align:right; font-weight:bold;">
+                    ${curSym}${pkgTotal.toFixed(2)}
+                </td>
             </tr>
         `;
+
+        // ADDONS under this package
+        const pkgAddons = addons.filter(a => a.sub_package_id === pkg.sub_package_id);
+        for (let a of pkgAddons) {
+            const addonTotal = qty * Number(a.price);
+
+            receiptRows += `
+                <tr>
+                    <td style="padding:3px 0; color:#444;">• ${a.addonName}</td>
+                    <td style="text-align:right;">${curSym}${addonTotal.toFixed(2)}</td>
+                </tr>
+            `;
+        }
+
+        // PREFERENCES under this package
+        const pkgPrefs = prefs.filter(p => p.sub_package_id === pkg.sub_package_id);
+        for (let p of pkgPrefs) {
+            const prefTotal = qty * Number(p.preferencePrice);
+
+            receiptRows += `
+                <tr>
+                    <td style="padding:3px 0; color:#444;">• ${p.preferenceValue}</td>
+                    <td style="text-align:right;">${curSym}${prefTotal.toFixed(2)}</td>
+                </tr>
+            `;
+        }
     }
 
     // --------------------------
-    // 7) FINAL HTML TEMPLATE
+    // 10) FINAL HTML TEMPLATE
     // --------------------------
     return `
 <div style="background:#f7f7f7; padding:20px; font-family:Arial, sans-serif;">
+    <div style="max-width:650px; margin:0 auto; background:#fff; padding:30px; border-radius:6px;">
 
-    <div style="max-width:650px; margin:0 auto; background:#ffffff; padding:30px; border-radius:6px;">
-
-        <!-- Header -->
-        <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:15px;">
-            <img 
-                src="https://www.homiqly.codegrin.com/public/homiqly.png" 
-                alt="Homiqly Logo"
-                style="width:150px; height:auto; display:block;"
-            />
-            <div style="color:#666; font-size:14px;">${bookingDateFormatted}</div>
+        <!-- HEADER -->
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <img src="https://www.homiqly.codegrin.com/public/homiqly.png" style="width:150px;" />
+            <div style="font-size:14px; color:#666;">${bookingDateFormatted}</div>
         </div>
 
-        <hr style="border:none; border-top:1px solid #ddd; margin:25px 0 30px 0;" />
-
-        <h2 style="font-size:20px; margin:0 0 8px 0; color:#000;">
-            Here’s your receipt for your booking, ${userName}
-        </h2>
-
-        <p style="color:#666; font-size:14px; margin:0 0 25px 0;">
-            We hope you enjoy your service experience.
-        </p>
+        <h2 style="margin-top:20px;">Your Booking Receipt</h2>
+        <p>Hello <strong>${userName}</strong>, here are the details of your booking.</p>
 
         <!-- TOTAL -->
-        <div style="margin-top:15px; padding:18px 0; border-top:1px solid #ccc; border-bottom:1px solid #ccc;">
+        <div style="margin:20px 0; border-top:1px solid #ddd; border-bottom:1px solid #ddd; padding:15px 0;">
             <div style="display:flex; justify-content:space-between; font-size:22px; font-weight:bold;">
                 <span>Total</span>
                 <span>${curSym}${finalTotal.toFixed(2)}</span>
             </div>
         </div>
 
-        <div style="height:28px;"></div>
-
-        <table width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 25px 0; font-size:14px;">
+        <!-- BREAKDOWN -->
+        <table width="100%" style="font-size:14px; margin-bottom:20px;">
             <tr>
-                <td style="padding:6px 0;">Service Charges</td>
+                <td>Subtotal</td>
                 <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
             </tr>
 
             ${promoDiscount > 0 ? `
             <tr>
-                <td style="padding:6px 0;">Promo Discount</td>
+                <td>Promo Discount</td>
                 <td style="text-align:right; color:green;">-${curSym}${promoDiscount.toFixed(2)}</td>
-            </tr>` : ""}
+            </tr>
+            ` : ""}
 
             <tr>
-                <td style="padding:6px 0;">Taxes</td>
+                <td>Taxes</td>
                 <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
             </tr>
         </table>
 
-        <hr style="border:none; border-top:1px solid #ddd; margin:25px 0;" />
-
-        <h3 style="font-size:16px; margin:0 0 12px 0; color:#000;">Services</h3>
-
-        <table width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;">
+        <!-- ITEMS -->
+        <h3>Services Type</h3>
+        <table width="100%" style="font-size:14px;">
             ${receiptRows}
         </table>
 
-        <hr style="border:none; border-top:1px solid #ddd; margin:28px 0;" />
+        <hr />
 
-        <h3 style="font-size:16px; margin:0 0 12px 0; color:#000;">Payment</h3>
-
-        <table width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;">
-            <tr>
-                <td>Paid via</td>
-                <td style="text-align:right; font-weight:bold;">${curSym}${finalTotal.toFixed(2)}</td>
-            </tr>
-        </table>
-
-        <p style="margin-top:20px; font-size:13px; color:#777; line-height:1.6;">
-            Booking ID: <strong>#${booking_id}</strong><br/>
-            Professional: <strong>${vendorName}</strong><br/>
+        <p style="font-size:13px; color:#777;">
+            Booking ID: <strong>#${booking_id}</strong><br>
+            Professional: <strong>${vendorName}</strong><br>
             Scheduled on: <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>
         </p>
 
-        <hr style="border:none; border-top:1px solid #ddd; margin:28px 0;" />
-
-        <p style="font-size:12px; color:#999; line-height:1.5;">
-            Thank you for choosing Homiqly.<br/>
-            If you have questions about your charges, please contact our support team.
-        </p>
-
     </div>
-</div>
-    `;
+</div>`;
 };
 
 module.exports = { buildBookingInvoiceHTML };

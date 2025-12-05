@@ -5,6 +5,7 @@ const moment = require("moment-timezone");
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
+    
     // 🚫 Restrict user if not approved
     const [[approvalRow]] = await db.query(
         `SELECT is_approved FROM users WHERE user_id = ? LIMIT 1`,

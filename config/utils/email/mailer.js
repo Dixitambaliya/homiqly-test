@@ -196,126 +196,91 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
         // ---------------------------
         // 5) FETCH PACKAGES + ADDONS + PREFS
         // ---------------------------
-
-        // PACKAGES (sub-packages)
-        const [packages] = await db.query(
-            `
-            SELECT
-                sbs.sub_package_id,
-                sbs.quantity,
-                sbs.price,
-                pi.itemName
+        const [packages] = await db.query(`
+            SELECT sbs.sub_package_id, sbs.quantity, sbs.price, pi.itemName
             FROM service_booking_sub_packages sbs
             JOIN package_items pi ON sbs.sub_package_id = pi.item_id
             WHERE sbs.booking_id = ?
-            `,
-            [booking_id]
-        );
+        `, [booking_id]);
 
-        // ADDONS linked via sub_package_id
-        const [addons] = await db.query(
-            `
-            SELECT
-                sba.sub_package_id,
-                sba.addon_id,
-                sba.price,
-                pa.addonName
+        const [addons] = await db.query(`
+            SELECT sba.sub_package_id, sba.addon_id, sba.price, pa.addonName
             FROM service_booking_addons sba
             JOIN package_addons pa ON sba.addon_id = pa.addon_id
             WHERE sba.booking_id = ?
-            `,
-            [booking_id]
-        );
+        `, [booking_id]);
 
-        // PREFS linked via sub_package_id
-        const [prefs] = await db.query(
-            `
-            SELECT
-                bp.sub_package_id,
-                pm.preferencePrice,
-                pm.preferenceValue
+        const [prefs] = await db.query(`
+            SELECT bp.sub_package_id, pm.preferencePrice, pm.preferenceValue
             FROM service_booking_preferences bp
             JOIN booking_preferences pm ON bp.preference_id = pm.preference_id
             WHERE bp.booking_id = ?
-            `,
-            [booking_id]
-        );
+        `, [booking_id]);
 
         // ---------------------------
-        // 6) BUILD RECEIPT ROWS (MULTIPLIED)
+        // 6) BUILD RECEIPT ROWS
         // ---------------------------
-
         let receiptRows = "";
 
         for (let pkg of packages) {
-            const pkgQty = Number(pkg.quantity);
-            const pkgTotal = pkgQty * Number(pkg.price);
+            const qty = Number(pkg.quantity);
+            const pkgTotal = qty * Number(pkg.price);
 
-            // package row
             receiptRows += `
                 <tr>
-                    <td width="70%" style="padding:4px 0;">${pkg.itemName} ×${pkgQty}</td>
+                    <td width="70%" style="padding:4px 0;">${pkg.itemName} ×${qty}</td>
                     <td width="30%" style="text-align:right; font-weight:600;">
                         ${curSym}${pkgTotal.toFixed(2)}
                     </td>
                 </tr>
             `;
 
-            // ADDONS under this package
             const pkgAddons = addons.filter(a => a.sub_package_id === pkg.sub_package_id);
             for (let a of pkgAddons) {
-                const addonTotal = pkgQty * Number(a.price);
+                const addonTotal = qty * Number(a.price);
                 receiptRows += `
                     <tr>
                         <td width="70%" style="padding:2px 0; color:#000;">• ${a.addonName}</td>
-                        <td width="30%" style="text-align:right;">
-                            ${curSym}${addonTotal.toFixed(2)}
-                        </td>
+                        <td width="30%" style="text-align:right;">${curSym}${addonTotal.toFixed(2)}</td>
                     </tr>
                 `;
             }
 
-            // PREFS under this package
             const pkgPrefs = prefs.filter(p => p.sub_package_id === pkg.sub_package_id);
             for (let p of pkgPrefs) {
-                const prefTotal = pkgQty * Number(p.preferencePrice);
+                const prefTotal = qty * Number(p.preferencePrice);
                 receiptRows += `
                     <tr>
                         <td width="70%" style="padding:2px 0; color:#000;">• ${p.preferenceValue}</td>
-                        <td width="30%" style="text-align:right;">
-                            ${curSym}${prefTotal.toFixed(2)}
-                        </td>
+                        <td width="30%" style="text-align:right;">${curSym}${prefTotal.toFixed(2)}</td>
                     </tr>
                 `;
             }
         }
 
         // ---------------------------
-        // 7) EMAIL UI (Apple style)
+        // 7) EMAIL UI (Same UI for user & admin)
         // ---------------------------
         const bodyHtml = `
 <div style="background:#fff; font-family:Arial, sans-serif; padding:30px;">
 
-   <!-- Main Heading -->
-            <h1 style="font-size: 20px; font-weight: bold; color: #000000; margin: 5px 0 8px; line-height: 1.3;">
-                Hello <strong> ${userName || "Valued Customer"}</strong>, your booking with Homiqly is confirmed!
-            </h1>
+   <h1 style="font-size: 20px; font-weight: bold; color: #000000; margin: 5px 0 8px;">
+        Hello <strong> ${userName || "Valued Customer"}</strong>, your booking with Homiqly is confirmed!
+   </h1>
 
-            <p style="color: #000000; font-size: 15px; line-height: 1.6; margin: 0;">
-                We are scheduled to bring the beauty studio to your home on
-            </p>
-            <span>${bookingDateFormatted} at ${bookingTimeFormatted}.</span>
-            <p style="color: #000000; font-size: 15px; line-height: 1.6; margin-top: 20px;">
-               <span>( #${booking_id || " "} )</span>
-             </p>
+   <p style="font-size: 15px; line-height: 1.6;">
+        We are scheduled to bring the beauty studio to your home on
+        <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>.
+   </p>
 
-    <!-- TOP TOTAL -->
-    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;">
+   <p style="font-size: 15px; line-height: 1.6; margin-top: 20px;">
+        ( #${booking_id} )
+   </p>
+
+   <table width="100%" style="margin-top:20px;">
         <tr>
             <td style="font-size:20px; font-weight:bold;">Total</td>
-            <td style="text-align:right; font-size:22px; font-weight:bold;">
-                ${curSym}${finalTotal.toFixed(2)}
-            </td>
+            <td style="text-align:right; font-size:22px; font-weight:bold;">${curSym}${finalTotal.toFixed(2)}</td>
         </tr>
         <tr>
             <td></td>
@@ -323,57 +288,51 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
                 You saved ${curSym}${promoDiscount.toFixed(2)} with promos
             </td>
         </tr>
-    </table>
+   </table>
 
-    <hr style="border:none; border-top:1px solid #000; margin:10px 0;" />
+   <hr style="border-top:1px solid #000;" />
 
-    <div style="font-size:14px; margin-bottom:12px;">For ${userName}</div>
+   <div style="font-size:14px; margin-bottom:12px;">For ${userName}</div>
 
-    <!-- ITEMS + ADDONS + PREFS -->
-    <table width="100%" cellspacing="0" cellpadding="5" style="font-size:14px;">
+   <table width="100%" cellpadding="5" style="font-size:14px;">
         ${receiptRows}
-    </table>
+   </table>
 
-    <hr style="border:none; border-top:1px solid #000; margin:15px 0;" />
+   <hr style="border-top:1px solid #000;" />
+        <table width="100%" cellpadding="5" style="font-size:14px;">
+            <tr>
+                <td>Subtotal</td>
+                <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
+            </tr>
 
-    <!-- FINAL BREAKDOWN -->
-    <table width="100%" cellspacing="0" cellpadding="5" style="font-size:14px;">
-        <tr>
-            <td width="70%">Subtotal</td>
-            <td width="30%" style="text-align:right; font-weight:600;">
-                ${curSym}${subtotal.toFixed(2)}
-            </td>
-        </tr>
+            ${promoDiscount > 0 ? `
+            <tr>
+                <td>Promo Discount</td>
+                <td style="text-align:right; color:red;">
+                    -${curSym}${promoDiscount.toFixed(2)}
+                </td>
+            </tr>
+            ` : ""}
 
-        <tr>
-            <td width="70%">Promo Discount</td>
-            <td width="30%" style="text-align:right; font-weight:600; color:red;">
-                -${curSym}${promoDiscount.toFixed(2)}
-            </td>
-        </tr>
+            <tr>
+                <td>Taxes</td>
+                <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
+            </tr>
 
-        <tr>
-            <td width="70%">Taxes</td>
-            <td width="30%" style="text-align:right; font-weight:600;">
-                ${curSym}${taxAmount.toFixed(2)}
-            </td>
-        </tr>
+            <tr><td colspan="2"><hr /></td></tr>
 
-        <tr><td colspan="2"><hr style="border:none; border-top:1px solid #ccc;" /></td></tr>
-
-        <tr>
-            <td width="70%" style="font-weight:bold;">Total Charged</td>
-            <td width="30%" style="text-align:right; font-weight:bold; font-size:16px;">
-                ${curSym}${finalTotal.toFixed(2)}
-            </td>
-        </tr>
-    </table>
-
+            <tr>
+                <td style="font-weight:bold;">Total Charged</td>
+                <td style="text-align:right; font-weight:bold; font-size:16px;">
+                    ${curSym}${finalTotal.toFixed(2)}
+                </td>
+            </tr>
+        </table>
 </div>
         `;
 
         // ---------------------------
-        // 8) SEND EMAIL
+        // 8) SEND EMAIL TO USER
         // ---------------------------
         await sendMail({
             to: user.email,
@@ -389,11 +348,36 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
             },
         });
 
-        console.log(`📧 Booking email sent to ${user.email} for booking #${booking_id}`);
+        console.log(`📧 Booking email sent to USER: ${user.email}`);
+
+        // ---------------------------
+        // 9) SEND SAME EMAIL TO ALL ADMINS
+        // ---------------------------
+        const [admins] = await db.query(`SELECT email FROM admin WHERE email IS NOT NULL`);
+
+        for (let admin of admins) {
+            await sendMail({
+                to: admin.email,
+                subject: `System Get New Confirmed Booking (#${booking_id})`,
+                bodyHtml, // SAME UI — unchanged
+                layout: "userBookingMail",
+                extraData: {
+                    booking_id,
+                    userName,
+                    bookingDateFormatted,
+                    bookingTimeFormatted,
+                    receiptUrl
+                },
+            });
+
+            console.log(`📧 Booking email also sent to ADMIN: ${admin.email}`);
+        }
+
     } catch (err) {
         console.error("⚠️ Failed to send booking email:", err.message);
     }
 };
+
 
 //done
 const sendVendorBookingEmail = async (vendor_id, { booking_id }) => {
