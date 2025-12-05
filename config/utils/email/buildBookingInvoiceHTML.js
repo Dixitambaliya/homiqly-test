@@ -130,10 +130,10 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
     // Card brand logos
     const brandLogo = {
-        visa: "/public/cards/visa.svg",
-        mastercard: "/public/cards/mastercard.svg",
-        amex: "/public/cards/amex.svg",
-        unionpay: "/public/cards/unionpay.svg",
+        visa: "/public/assets/visa.svg",
+        mastercard: "/public/assets/mastercard.svg",
+        amex: "/public/assets/amex.svg",
+        unionpay: "/public/assets/unionpay.svg",
     };
 
     console.log(brandLogo);
