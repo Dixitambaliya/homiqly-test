@@ -457,7 +457,8 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 IF(v.vendorType = 'company', cdet.profileImage, idet.profileImage) AS vendorProfileImage,
                 p.payment_intent_id,
                 p.amount AS paymentAmount,
-                p.receipt_url
+                p.receipt_url,
+                p.pdf_receipt_url
             FROM service_booking sb
             LEFT JOIN vendors v ON sb.vendor_id = v.vendor_id
             LEFT JOIN individual_details idet ON v.vendor_id = idet.vendor_id
@@ -470,6 +471,10 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
+
+            booking.receiptUrl = booking.pdf_receipt_url || booking.receipt_url || null;
+            delete booking.pdf_receipt_url;
+            delete booking.receipt_url;
 
             // 2️⃣ Fetch sub-packages (items with package + service type details)
             const [subPackages] = await db.query(`
@@ -626,6 +631,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
+
         }
 
         res.status(200).json({

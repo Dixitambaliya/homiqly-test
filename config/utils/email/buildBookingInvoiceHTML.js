@@ -129,14 +129,15 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     }
 
     // Card brand logos
+    const BASE_URL = "https://www.homiqly.codegrin.com";
+
     const brandLogo = {
-        visa: "/public/assets/visa.svg",
-        mastercard: "/public/assets/mastercard.svg",
-        amex: "/public/assets/amex.svg",
-        unionpay: "/public/assets/unionpay.svg",
+        visa: `${BASE_URL}/public/assets/visa.svg`,
+        mastercard: `${BASE_URL}/public/assets/mastercard.svg`,
+        amex: `${BASE_URL}/public/assets/amex.svg`,
+        unionpay: `${BASE_URL}/public/assets/unionpay.svg`,
     };
 
-    console.log(brandLogo);
 
     const cardLogoUrl = brandLogo[cardBrand?.toLowerCase()] || null;
 
@@ -241,13 +242,13 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
             <div style="border-top:1px solid #ddd; padding-top:15px; margin-top:10px;">
 
-                <div style="display:flex; align-items:center; justify-content:space-between; font-size:16px; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:14px; margin-bottom:10px;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         ${cardLogoUrl
-            ? `<img src="${cardLogoUrl}" style="height:22px;" />`
+            ? `<img src="${cardLogoUrl}" style="height:19px;" />`
             : ""
         }
-                        <span style="font-weight:bold; text-transform:capitalize;">${cardBrand}</span>
+                        <span style="text-transform:capitalize;">${cardBrand}</span>
                         <span>•••• ${last4}</span>
                     </div>
                     <div style="font-weight:bold;">
@@ -262,10 +263,6 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
                 <div style="margin-top:8px; font-size:13px;">
                     Receipt sent to: <strong>${receiptEmail}</strong>
-                </div>
-
-                <div style="font-size:12px; color:#999; margin-top:5px;">
-                    Payment Intent: ${paymentRow?.payment_intent_id}
                 </div>
             </div>
 
