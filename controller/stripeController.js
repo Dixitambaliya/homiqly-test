@@ -361,7 +361,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
 
             // Fetch cart + service_cart details
             const [cartRows] = await connection.query(
-                `SELECT sc.cart_id, sc.service_id, sc.user_id, sc.bookingDate, sc.bookingTime, sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
+                `SELECT sc.cart_id, sc.service_id, sc.user_id, sc.bookingDate, sc.totalTime, sc.bookingTime, sc.vendor_id, sc.notes, sc.bookingMedia, sc.user_promo_code_id
          FROM service_cart sc
          WHERE sc.cart_id = ? LIMIT 1`,
                 [paymentRow.cart_id]
@@ -403,8 +403,8 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
             // Create booking row
             const [insertBooking] = await connection.query(
                 `INSERT INTO service_booking
-         (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, user_promo_code_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?, NOW())`,
+         (user_id, service_id, bookingDate, bookingTime, vendor_id, notes, bookingMedia, bookingStatus, payment_status, payment_intent_id, totalTime, user_promo_code_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?, ?, NOW())`,
                 [
                     cart.user_id,
                     cart.service_id,
@@ -414,6 +414,7 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
                     cart.notes,
                     cart.bookingMedia,
                     paymentIntentId,
+                    cart.totalTime,
                     cart.user_promo_code_id || null
                 ]
             );

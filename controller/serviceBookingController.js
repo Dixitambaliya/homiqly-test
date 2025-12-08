@@ -237,6 +237,7 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -439,6 +440,7 @@ const getVendorBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
