@@ -49,15 +49,15 @@ const generateBookingPDF = async (html, booking_id) => {
 
     // ---- 6. Generate the PDF with SAFE margins and NO scale ----
     const pdfBuffer = await page.pdf({
-        format: "A4",
         printBackground: true,
-        scale: 1,  // prevent stretching
+        width: "480px",   // MATCH YOUR .invoice-wrapper WIDTH
+        height: "auto",
         margin: {
-            top: "20px",
-            right: "20px",
-            bottom: "20px",
-            left: "20px"
-        }
+            top: "0px",
+            bottom: "0px",
+            left: "0px",
+            right: "0px",
+        },
     });
 
     await browser.close();
