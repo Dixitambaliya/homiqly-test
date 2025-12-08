@@ -8,7 +8,7 @@ const { bookService,
     getEligiblevendors,
     approveOrAssignBooking,
     getAvailableVendors,
-    getVendorDetailsByBookingId
+    getVendorDetailsByBookingId,
 } = require('../controller/serviceBookingController');
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { upload, handleUploads } = require("../middleware/upload");

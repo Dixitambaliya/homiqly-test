@@ -775,6 +775,34 @@ const deleteServiceCity = asyncHandler(async (req, res) => {
     }
 })
 
+const getTopPicks = asyncHandler(async (req, res) => {
+    try {
+        const packageId = 127; // your fixed package ID
+
+        const [rows] = await db.query(
+            userGetQueries.getPackageItemsByPackageId,
+            [packageId]
+        );
+
+        const packages = rows.map(row => ({
+            service_type_id: row.service_type_id,
+            itemName: row.itemName,
+            itemMedia: row.itemMedia
+        }));
+
+        res.status(200).json({
+            message: "Package items fetched successfully",
+            packages
+        });
+
+    } catch (err) {
+        console.error("Error fetching packages:", err);
+        res.status(500).json({ error: "Database error", details: err.message });
+    }
+});
+
+
+
 module.exports = {
     addService,
     getcity,
@@ -796,5 +824,6 @@ module.exports = {
     updateServiceFilter,
     deleteServiceFilter,
     getAdminServicesWithfilter,
-    searchService
+    searchService,
+    getTopPicks
 }

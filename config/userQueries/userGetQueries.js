@@ -65,6 +65,17 @@ FROM service_type st
 WHERE st.service_id = ?
 ORDER BY st.service_type_id DESC`,
 
+getPackageItemsByPackageId: `
+    SELECT 
+        st.service_type_id,
+        pi.itemName,
+        pi.itemMedia
+    FROM package_items pi
+    JOIN packages p ON pi.package_id = p.package_id
+    JOIN service_type st ON p.service_type_id = st.service_type_id
+    WHERE p.package_id = ?
+    ORDER BY pi.item_id DESC`
+
 
 }
 

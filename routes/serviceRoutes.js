@@ -20,7 +20,8 @@ const { addService,
     updateServiceFilter,
     deleteServiceFilter,
     getAdminServicesWithfilter,
-    searchService
+    searchService,
+    getTopPicks
 } = require("../controller/serviceController")
 const { upload, handleUploads } = require("../middleware/upload");
 
@@ -32,6 +33,7 @@ router.post("/addservice", multiUpload, handleUploads, authenticationToken, addS
 router.put("/editService", multiUpload, handleUploads, editService);
 router.post("/addservicefilter", multiUpload, handleUploads, addServiceFilter);
 router.get("/getservicefilter", authenticationToken, getServiceFilters);
+router.get("/get-top-pickes", getTopPicks);
 router.put("/updateservicefilter/:service_filter_id", authenticationToken, updateServiceFilter);
 router.delete("/deleteservicefilter/:service_filter_id", authenticationToken, deleteServiceFilter);
 router.post("/addservicetype", multiUpload, handleUploads, authenticationToken, addServiceType)
