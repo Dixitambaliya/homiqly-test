@@ -155,7 +155,7 @@ const sendBookingEmail = async (user_id, { booking_id, receiptUrl }) => {
 
         if (!booking) return console.warn(`⚠️ No booking found for booking_id ${booking_id}`);
 
-        const bookingDateFormatted = moment(booking.bookingDate).format("MMM DD, YYYY");
+        const bookingDateFormatted = moment(booking.bookingDate, "YYYY-MM-DD").format("MMM DD, YYYY");
         const bookingTimeFormatted = moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A");
 
         // ---------------------------
