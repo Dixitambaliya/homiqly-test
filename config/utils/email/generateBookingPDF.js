@@ -51,7 +51,6 @@ const generateBookingPDF = async (html, booking_id) => {
     const pdfBuffer = await page.pdf({
         printBackground: true,
         width: "480px",   // MATCH YOUR .invoice-wrapper WIDTH
-        height: "auto",
         margin: {
             top: "0px",
             bottom: "0px",
