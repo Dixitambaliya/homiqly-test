@@ -188,96 +188,163 @@ const buildBookingInvoiceHTML = async (booking_id) => {
     // 11) FINAL INVOICE HTML
     // --------------------------
     return `
-<div style="background:#f7f7f7; padding:20px; font-family:Arial, sans-serif;">
-    <div style="max-width:650px; width:100%; margin:0 auto; background:#fff; padding:30px; border-radius:6px;">
+<style>
+    @page {
+        size: A4;
+        margin: 20px;
+    }
 
-        <!-- HEADER -->
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <img src="https://www.homiqly.codegrin.com/public/homiqly.png" style="width:150px;" />
-            <div style="font-size:14px; color:#666;">${bookingDateFormatted}</div>
-        </div>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f7f7f7;
+        margin: 0;
+        padding: 0;
+    }
 
-        <h2 style="margin-top:40px;">Your Booking Receipt</h2>
-        <p>Hello <strong>${userName}</strong>, here are the details of your booking.</p>
+    .invoice-wrapper {
+        width: 480px;
+        margin: 30px auto 0 auto; 
+        background: #ffffff;
+        padding: 25px;
+        border-radius: 8px;
+    }
 
-        <!-- TOTAL -->
-        <div style="margin:20px 0; border-top:1px solid #ddd; border-bottom:1px solid #ddd; padding:15px 0;">
-            <div style="display:flex; justify-content:space-between; font-size:22px; font-weight:bold;">
-                <span>Total</span>
-                <span>${curSym}${finalTotal.toFixed(2)}</span>
-            </div>
-        </div>
+    h2, h3 {
+        margin: 15px 0 10px;
+        font-weight: bold;
+    }
 
-        <!-- PRICE BREAKDOWN -->
-        <h3>Pricing Summary</h3>
-        <table width="100%" style="font-size:14px; margin-bottom:20px;">
-            <tr>
-                <td>Subtotal</td>
-                <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
-            </tr>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
 
-            ${promoDiscount > 0 ? `
-            <tr>
-                <td>Promo Discount</td>
-                <td style="text-align:right; color:green;">-${curSym}${promoDiscount.toFixed(2)}</td>
-            </tr>
-            ` : ""}
+    td {
+        padding: 4px 0;
+    }
 
-            <tr>
-                <td>Taxes</td>
-                <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
-            </tr>
-        </table>
+    hr {
+        border: 0;
+        border-top: 1px solid #ddd;
+        margin: 16px 0;
+    }
 
-        <!-- SERVICES -->
-        <h3>Services Type</h3>
-        <table width="100%" style="font-size:14px;">
-            ${receiptRows}
-        </table>
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 35px;
+    }
 
-        <hr />
+    .total-box {
+        border-top: 1px solid #ddd;
+        border-bottom: 1px solid #ddd;
+        padding: 12px 0;
+        margin: 20px 0;
+        font-size: 20px;
+        font-weight: bold;
+    }
 
-       <!-- PAYMENT DETAILS -->
-            <h3 style="margin-top:25px;">Payments</h3>
+    .payment-section {
+        border-top: 1px solid #ddd;
+        padding-top: 12px;
+    }
 
-            <div style="border-top:1px solid #ddd; padding-top:15px; margin-top:10px;">
+    .payment-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
 
-                <div style="display:flex; align-items:center; justify-content:space-between; font-size:14px; margin-bottom:10px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        ${cardLogoUrl
-            ? `<img src="${cardLogoUrl}" style="height:21px;" />`
-            : ""
-        }
-                        <span style="text-transform:capitalize;">${cardBrand}</span>
-                        <span>•••• ${last4}</span>
-                    </div>
-                    <div style="font-weight:bold;">
-                        ${curSym}${finalTotal.toFixed(2)}
-                    </div>
-                </div>
+    .card-icon {
+        height: 20px;
+        margin-right: 8px;
+    }
 
-                <div style="font-size:13px; color:#777;">
-                    ${moment(booking.bookingDate).format("MM/DD/YY")} 
-                    ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}
-                </div>
+</style>
 
-                <div style="margin-top:8px; font-size:13px;">
-                    Receipt sent to: <strong>${receiptEmail}</strong>
-                </div>
-            </div>
+<div class="invoice-wrapper">
 
-
-        <hr />
-
-        <!-- FOOTER -->
-        <p style="font-size:13px; color:#777;">
-            Booking ID: <strong>#${booking_id}</strong><br>
-            Professional: <strong>${vendorName}</strong><br>
-            Scheduled on: <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>
-        </p>
-
+    <!-- HEADER -->
+    <div class="header">
+        <img src="https://www.homiqly.codegrin.com/public/homiqly.png" style="width:140px;" />
+        <div style="color:#666; font-size:14px;">${bookingDateFormatted}</div>
     </div>
-</div>`;
+
+    <h2>Your Booking Receipt</h2>
+    <p>Hello <strong>${userName}</strong>, here are the details of your booking.</p>
+
+    <!-- TOTAL SUMMARY -->
+    <div class="total-box">
+        <span>Total</span>
+        <span>${curSym}${finalTotal.toFixed(2)}</span>
+    </div>
+
+    <!-- PRICE BREAKDOWN -->
+    <h3>Pricing Summary</h3>
+    <table>
+        <tr>
+            <td>Subtotal</td>
+            <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
+        </tr>
+
+        ${promoDiscount > 0 ? `
+        <tr>
+            <td>Promo Discount</td>
+            <td style="text-align:right; color:green;">-${curSym}${promoDiscount.toFixed(2)}</td>
+        </tr>` : ""}
+
+        <tr>
+            <td>Taxes</td>
+            <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
+        </tr>
+    </table>
+
+    <!-- SERVICES -->
+    <h3>Service Details</h3>
+    <table>
+        ${receiptRows}
+    </table>
+
+    <hr />
+
+    <!-- PAYMENT DETAILS -->
+    <h3>Payment Details</h3>
+
+    <div class="payment-section">
+        <div class="payment-row">
+            <div style="display:flex; align-items:center;">
+                ${cardLogoUrl ? `<img src="${cardLogoUrl}" class="card-icon" />` : ""}
+                <span style="text-transform:capitalize;">${cardBrand}</span> •••• ${last4}
+            </div>
+            <strong>${curSym}${finalTotal.toFixed(2)}</strong>
+        </div>
+
+        <div style="font-size:13px; color:#777;">
+            ${moment(booking.bookingDate).format("MM/DD/YY")} 
+            ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}
+        </div>
+
+        <div style="font-size:13px; margin-top:5px;">
+            Receipt sent to: <strong>${receiptEmail}</strong>
+        </div>
+    </div>
+
+    <hr />
+
+    <!-- FOOTER -->
+    <p style="font-size:13px; color:#777;">
+        Booking ID: <strong>#${booking_id}</strong><br>
+        Professional: <strong>${vendorName}</strong><br>
+        Scheduled on: <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>
+    </p>
+
+</div>
+`;
+
 };
 
 module.exports = { buildBookingInvoiceHTML };
