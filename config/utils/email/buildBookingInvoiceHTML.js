@@ -203,11 +203,9 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 
     .invoice-wrapper {
         width: 480px;
-        margin: 30px auto 0 auto; 
-        background: #ffffff;
-        padding: 25px;
-        border-radius: 8px;
+        margin: 0 auto;
     }
+
 
     h2, h3 {
         margin: 15px 0 10px;
