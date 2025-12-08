@@ -6,7 +6,6 @@ const generateBookingPDF = async (html, booking_id) => {
     const fileName = `invoices/invoice-${booking_id}.pdf`;
     const file = bucket.file(fileName);
 
-    // ---- 1. Launch Puppeteer ----
     const browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -15,59 +14,42 @@ const generateBookingPDF = async (html, booking_id) => {
 
     const page = await browser.newPage();
 
-    // ---- 2. Force viewport to prevent stretching ----
-    await page.setViewport({
-        width: 600,     // fixed width prevents horizontal stretching
-        height: 1200,   // not important but required
-        deviceScaleFactor: 1,
+    await page.emulateMediaType("screen");
+
+    // Load content
+    await page.setContent(html, {
+        waitUntil: "networkidle0",
     });
 
-    // ---- 3. Inject a <meta viewport> to prevent scaling/stretching ----
-    const htmlWithMeta = `
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-        </head>
-        ${html}
-    `;
-
-    // ---- 4. Load HTML into Puppeteer safely ----
-    await page.setContent(htmlWithMeta, {
-        waitUntil: "domcontentloaded",
-        timeout: 0
-    });
-
-    // ---- 5. Wait for ALL images to fully load (prevents stretched logos) ----
+    // Wait for images
     await page.evaluate(async () => {
         const imgs = Array.from(document.images);
         await Promise.all(
-            imgs.map(img => {
-                if (img.complete) return Promise.resolve();
-                return new Promise(resolve => img.addEventListener("load", resolve));
-            })
+            imgs.map(img =>
+                img.complete ? Promise.resolve() : new Promise(res => img.onload = res)
+            )
         );
     });
 
-    // ---- 6. Generate the PDF with SAFE margins and NO scale ----
+    // Generate PDF with exact A4 width matching CSS layout
     const pdfBuffer = await page.pdf({
-        format: "A4",
         printBackground: true,
-        scale: 1, // prevents stretch
+        preferCSSPageSize: true,
+        width: "794px", // EXACT A4 print width
         margin: {
             top: "20px",
             bottom: "20px",
             left: "20px",
-            right: "20px",
+            right: "20px"
         }
     });
 
-
     await browser.close();
 
-    // ---- 7. Upload PDF to Firebase Storage ----
     await file.save(pdfBuffer, {
         metadata: { contentType: "application/pdf" },
         public: true,
-        validation: "md5"
+        validation: "md5",
     });
 
     return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
