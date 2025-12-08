@@ -1202,15 +1202,26 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
 
         // ✅ Restrict start service window (10 min before start)
         if (status === 3) {
-            const bookingDateTime = new Date(`${bookingDate} ${bookingTime}`);
-            const now = new Date();
-            const startWindow = new Date(bookingDateTime.getTime() - 10 * 60000);
-            if (now < startWindow) {
+            // Convert booking date+time to Mountain Time
+            const bookingDateTimeMT = moment.tz(
+                `${bookingDate} ${bookingTime}`,
+                "YYYY-MM-DD HH:mm:ss",
+                "America/Edmonton"
+            );
+
+            // Vendor current time in Mountain Time
+            const nowMT = moment.tz("America/Edmonton");
+
+            // Start window = 10 minutes before booking time
+            const startWindowMT = bookingDateTimeMT.clone().subtract(10, "minutes");
+
+            if (nowMT.isBefore(startWindowMT)) {
                 return res.status(400).json({
-                    message: "You can only start the service within 10 minutes of the booking time."
+                    message: "You can only start the service within 10 minutes of the booking time (Mountain Time)."
                 });
             }
         }
+
 
         // ✅ Update service booking record
         const completed_flag = status === 4 ? 1 : 0;
@@ -1386,6 +1397,7 @@ const updateBookingStatusByVendor = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const getVendorDashboardStats = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
