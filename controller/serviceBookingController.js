@@ -656,7 +656,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     SELECT 
                         s.serviceName AS serviceName,
                         s.serviceImage AS serviceImage,
-                        u.address AS userAddress
+                        u.address 
                     FROM service_booking sb
                     JOIN services s ON sb.service_id = s.service_id
                     JOIN users u ON sb.user_id = u.user_id

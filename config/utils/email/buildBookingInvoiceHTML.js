@@ -191,23 +191,35 @@ const buildBookingInvoiceHTML = async (booking_id) => {
 <style>
     @page {
         size: A4;
-        margin: 20px;
+        margin: 0;            /* NO auto margins from browser */
     }
 
-    body {
-        font-family: Arial, sans-serif;
-        background: #f7f7f7;
+    html, body {
         margin: 0;
-        padding: 40px 0 0 0 !important; /* Prevent top touching */
+        padding: 0;
+        background: #f7f7f7 !important;  /* FULL PAGE background */
+        height: 100%;
+        width: 100%;
+    }
+
+    .page-bg {
+        width: 100%;
+        min-height: 100vh;
+        background: #f7f7f7;
+        padding: 40px 0;           /* Top/Bottom spacing */
+        box-sizing: border-box;
+        display: flex;
+        justify-content: center;
     }
 
     .invoice-wrapper {
         width: 480px;
-        max-width: 480px;       /* Prevent stretching */
-        margin: 0 auto;
+        max-width: 480px;
         background: #ffffff;
+        padding: 25px;
+        border-radius: 8px;
+        box-sizing: border-box;
     }
-
 
     h2, h3 {
         margin: 15px 0 10px;
@@ -263,85 +275,78 @@ const buildBookingInvoiceHTML = async (booking_id) => {
         height: 20px;
         margin-right: 8px;
     }
-
 </style>
 
-<div class="invoice-wrapper">
+<div class="page-bg">
+    <div class="invoice-wrapper">
 
-    <!-- HEADER -->
-    <div class="header">
-        <img src="https://www.homiqly.codegrin.com/public/homiqly.png" style="width:140px;" />
-        <div style="color:#666; font-size:14px;">${bookingDateFormatted}</div>
-    </div>
+        <div class="header">
+            <img src="https://www.homiqly.codegrin.com/public/homiqly.png" style="width:140px;" />
+            <div style="color:#666; font-size:14px;">${bookingDateFormatted}</div>
+        </div>
 
-    <h2>Your Booking Receipt</h2>
-    <p>Hello <strong>${userName}</strong>, here are the details of your booking.</p>
+        <h2>Your Booking Receipt</h2>
+        <p>Hello <strong>${userName}</strong>, here are the details of your booking.</p>
 
-    <!-- TOTAL SUMMARY -->
-    <div class="total-box">
-        <span>Total</span>
-        <span>${curSym}${finalTotal.toFixed(2)}</span>
-    </div>
+        <div class="total-box">
+            <span>Total</span>
+            <span>${curSym}${finalTotal.toFixed(2)}</span>
+        </div>
 
-    <!-- PRICE BREAKDOWN -->
-    <h3>Pricing Summary</h3>
-    <table>
-        <tr>
-            <td>Subtotal</td>
-            <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
-        </tr>
+        <h3>Pricing Summary</h3>
+        <table>
+            <tr>
+                <td>Subtotal</td>
+                <td style="text-align:right;">${curSym}${subtotal.toFixed(2)}</td>
+            </tr>
 
-        ${promoDiscount > 0 ? `
-        <tr>
-            <td>Promo Discount</td>
-            <td style="text-align:right; color:green;">-${curSym}${promoDiscount.toFixed(2)}</td>
-        </tr>` : ""}
+            ${promoDiscount > 0 ? `
+            <tr>
+                <td>Promo Discount</td>
+                <td style="text-align:right; color:green;">-${curSym}${promoDiscount.toFixed(2)}</td>
+            </tr>` : ""}
 
-        <tr>
-            <td>Taxes</td>
-            <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
-        </tr>
-    </table>
+            <tr>
+                <td>Taxes</td>
+                <td style="text-align:right;">${curSym}${taxAmount.toFixed(2)}</td>
+            </tr>
+        </table>
 
-    <!-- SERVICES -->
-    <h3>Service Details</h3>
-    <table>
-        ${receiptRows}
-    </table>
+        <h3>Service Details</h3>
+        <table>${receiptRows}</table>
 
-    <hr />
+        <hr />
 
-    <!-- PAYMENT DETAILS -->
-    <h3>Payment Details</h3>
+        <h3>Payment Details</h3>
 
-    <div class="payment-section">
-        <div class="payment-row">
-            <div style="display:flex; align-items:center;">
-                ${cardLogoUrl ? `<img src="${cardLogoUrl}" class="card-icon" />` : ""}
-                <span style="text-transform:capitalize;">${cardBrand}</span> •••• ${last4}
+        <div class="payment-section">
+            <div class="payment-row">
+                <div style="display:flex; align-items:center;">
+                    ${cardLogoUrl ? `<img src="${cardLogoUrl}" class="card-icon" />` : ""}
+                    <span style="text-transform:capitalize;">${cardBrand}</span> •••• ${last4}
+                </div>
+                <strong>${curSym}${finalTotal.toFixed(2)}</strong>
             </div>
-            <strong>${curSym}${finalTotal.toFixed(2)}</strong>
+
+            <div style="font-size:13px; color:#777;">
+                ${moment(booking.bookingDate).format("MM/DD/YY")} 
+                ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}
+            </div>
+
+            <div style="font-size:13px; margin-top:5px;">
+                Receipt sent to: <strong>${receiptEmail}</strong>
+            </div>
         </div>
 
-        <div style="font-size:13px; color:#777;">
-            ${moment(booking.bookingDate).format("MM/DD/YY")} 
-            ${moment(booking.bookingTime, "HH:mm:ss").format("hh:mm A")}
-        </div>
+        <hr />
 
-        <div style="font-size:13px; margin-top:5px;">
-            Receipt sent to: <strong>${receiptEmail}</strong>
-        </div>
+        <p style="font-size:13px; color:#777;">
+            Booking ID: <strong>#${booking_id}</strong><br>
+            Professional: <strong>${vendorName}</strong><br>
+            Scheduled on: <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>
+        </p>
+
     </div>
-
-    <hr />
-
-    <!-- FOOTER -->
-    <p style="font-size:13px; color:#777;">
-        Booking ID: <strong>#${booking_id}</strong><br>
-        Professional: <strong>${vendorName}</strong><br>
-        Scheduled on: <strong>${bookingDateFormatted} at ${bookingTimeFormatted}</strong>
-    </p>
-
 </div>
 `;
 
