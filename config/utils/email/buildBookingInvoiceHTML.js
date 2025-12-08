@@ -197,7 +197,7 @@ const buildBookingInvoiceHTML = async (booking_id) => {
             <div style="font-size:14px; color:#666;">${bookingDateFormatted}</div>
         </div>
 
-        <h2 style="margin-top:20px;">Your Booking Receipt</h2>
+        <h2 style="margin-top:40px;">Your Booking Receipt</h2>
         <p>Hello <strong>${userName}</strong>, here are the details of your booking.</p>
 
         <!-- TOTAL -->
