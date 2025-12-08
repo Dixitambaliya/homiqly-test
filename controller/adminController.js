@@ -729,7 +729,6 @@ const getBookings = asyncHandler(async (req, res) => {
         let filters = " WHERE 1=1 ";
         const params = [];
 
-        // ===== Search by booking ID, user, email, or service name =====
         if (search && search.trim() !== "") {
             const searchPattern = `%${search.trim()}%`;
             if (!isNaN(search.trim())) {
@@ -750,13 +749,11 @@ const getBookings = asyncHandler(async (req, res) => {
             }
         }
 
-        // ===== Filter by booking status =====
         if (status && [1, 3, 4].includes(Number(status))) {
             filters += ` AND sb.bookingStatus = ?`;
             params.push(status);
         }
 
-        // ===== Filter by date range =====
         if (start_date && end_date) {
             filters += ` AND DATE(sb.bookingDate) BETWEEN ? AND ?`;
             params.push(start_date, end_date);
@@ -768,7 +765,6 @@ const getBookings = asyncHandler(async (req, res) => {
             params.push(end_date);
         }
 
-        // ===== Count total records =====
         const [[{ total }]] = await db.query(
             `SELECT COUNT(DISTINCT sb.booking_id) AS total
        FROM service_booking sb
@@ -788,7 +784,6 @@ const getBookings = asyncHandler(async (req, res) => {
             });
         }
 
-        // ===== Fetch main booking data (permanent DESC order) =====
         const [bookings] = await db.query(`
       SELECT
         sb.booking_id,
@@ -799,6 +794,7 @@ const getBookings = asyncHandler(async (req, res) => {
         sb.bookingMedia,
         sb.payment_intent_id,
         sb.payment_status,
+        sb.user_promo_code_id,   
 
         u.user_id,
         CONCAT(u.firstName, ' ', u.lastName) AS userName,
@@ -828,11 +824,10 @@ const getBookings = asyncHandler(async (req, res) => {
       LEFT JOIN payments p ON p.payment_intent_id = sb.payment_intent_id
       ${filters}
       ORDER BY sb.booking_id DESC
-      LIMIT ? OFFSET ?
-    `, [...params, limit, offset]);
+      LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
 
-        // ===== Fetch related data =====
-        // ===== Fetch related data (fixed for proper IN expansion) =====
         const bookingIds = bookings.map(b => b.booking_id);
 
         const [subPackages] = await db.query(
@@ -848,7 +843,6 @@ const getBookings = asyncHandler(async (req, res) => {
             bookingGetQueries.getBoookedConsentsMulti.replace("IN (?)", `IN (${bookingIds.join(",")})`)
         );
 
-        // ===== Helper function to group by booking_id =====
         const groupBy = (arr) => arr.reduce((acc, cur) => {
             if (!acc[cur.booking_id]) acc[cur.booking_id] = [];
             acc[cur.booking_id].push(cur);
@@ -862,7 +856,6 @@ const getBookings = asyncHandler(async (req, res) => {
 
         const bookingMap = {};
 
-        // ===== Combine all related data =====
         for (const b of bookings) {
             const subList = groupedSub[b.booking_id] || [];
             const addonsList = groupedAddons[b.booking_id] || [];
@@ -914,7 +907,45 @@ const getBookings = asyncHandler(async (req, res) => {
                 return acc;
             }, {});
 
-            bookingMap[b.booking_id] = { ...b, sub_packages: Object.values(groupedByPackage) };
+
+            // ⭐ ADDED: Fetch promo code info ⭐
+            let promo = null;
+            if (b.user_promo_code_id) {
+                const [[userPromo]] = await db.query(`
+                    SELECT 
+                        upc.user_promo_code_id AS promo_id,
+                        pc.code AS promoCode,
+                        pc.discountValue,
+                        pc.discount_type AS discountType
+                    FROM user_promo_codes upc
+                    LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+                    WHERE upc.user_promo_code_id = ?
+                `, [b.user_promo_code_id]);
+
+                if (userPromo) {
+                    promo = { ...userPromo };
+                } else {
+                    const [[systemPromo]] = await db.query(`
+                        SELECT
+                            spc.system_promo_code_id AS promo_id,
+                            spt.code AS promoCode,
+                            spt.discount_type AS discountType,
+                            spt.discountValue
+                        FROM system_promo_codes spc
+                        LEFT JOIN system_promo_code_templates spt 
+                            ON spc.template_id = spt.system_promo_code_template_id
+                        WHERE spc.system_promo_code_id = ?
+                    `, [b.user_promo_code_id]);
+
+                    if (systemPromo) promo = { ...systemPromo };
+                }
+            }
+
+            bookingMap[b.booking_id] = {
+                ...b,
+                promo,              // ⭐ added promo details here
+                sub_packages: Object.values(groupedByPackage)
+            };
         }
 
         const totalPages = Math.ceil(total / limit);

@@ -1,4 +1,7 @@
+const asyncHandler = require('express-async-handler');
+const { buildBookingInvoiceHTML } = require('../config/utils/email/buildBookingInvoiceHTML');
 // controllers/authController.js
+
 const getMe = (req, res) => {
     // You can replace this static object with DB data based on req.user if needed
     const user = {
@@ -21,6 +24,26 @@ const getMe = (req, res) => {
     res.status(200).json({ user });
 };
 
+const testInvoice = asyncHandler(async (req, res) => {
+    try {
+        const { booking_id } = req.query;
+
+        if (!booking_id) {
+            return res.status(400).json({ message: "booking_id is required" });
+        }
+
+        const html = await buildBookingInvoiceHTML(booking_id);
+
+        // Return HTML as plain text so you can inspect it live
+        res.status(200).send(html);
+
+    } catch (err) {
+        console.error("Test invoice error:", err);
+        res.status(500).json({ message: "Error generating invoice", error: err.message });
+    }
+});
 
 
-module.exports = { getMe }
+
+
+module.exports = { getMe, testInvoice }

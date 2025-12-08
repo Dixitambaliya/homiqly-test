@@ -237,7 +237,6 @@ const bookService = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getVendorBookings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
@@ -441,12 +440,24 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
+    // ⭐ PAGINATION ADDED HERE ⭐
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 5;
+    const offset = (page - 1) * limit;
+
     try {
-        // 1️⃣ Fetch all bookings for the user, include payment info
+
+        // ⭐ Get total booking count
+        const [[{ total }]] = await db.query(`
+            SELECT COUNT(*) AS total
+            FROM service_booking
+            WHERE user_id = ?
+        `, [user_id]);
+
+        // 1️⃣ Fetch all bookings for the user, include payment info — WITH LIMIT/OFFSET
         const [userBookings] = await db.query(
             `SELECT
                 sb.*,
@@ -467,8 +478,9 @@ const getUserBookings = asyncHandler(async (req, res) => {
             LEFT JOIN company_details cdet ON v.vendor_id = cdet.vendor_id
             LEFT JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
             WHERE sb.user_id = ?
-            ORDER BY sb.created_at DESC`,
-            [user_id]
+            ORDER BY sb.created_at DESC
+            LIMIT ? OFFSET ?`,
+            [user_id, limit, offset]
         );
 
         for (const booking of userBookings) {
@@ -476,17 +488,11 @@ const getUserBookings = asyncHandler(async (req, res) => {
 
             const mergedUrl = booking.pdf_receipt_url || booking.receipt_url || null;
 
-            // Set final field
             booking.receipt_url = mergedUrl;
-
-            // Remove unwanted old fields
             delete booking.pdf_receipt_url;
-            delete booking.receipt_url; // old DB one
-
-            // note: set after deletion
+            delete booking.receipt_url;
             booking.receipt_url = mergedUrl;
 
-            // 2️⃣ Fetch sub-packages (items with package + service type details)
             const [subPackages] = await db.query(`
                 SELECT
                     sbsp.sub_package_id,
@@ -505,7 +511,6 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 [bookingId]
             );
 
-            // 3️⃣ Fetch related data
             const [bookingAddons] = await db.query(`
                 SELECT
                     sba.sub_package_id,
@@ -544,7 +549,6 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 [bookingId]
             );
 
-            // 4️⃣ Fetch promo code info (user or system promo)
             let promo = null;
             if (booking.user_promo_code_id) {
                 const [[userPromo]] = await db.query(`
@@ -578,7 +582,6 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 }
             }
 
-            // 5️⃣ Fetch Ratings for this booking
             const [ratings] = await db.query(`
                 SELECT
                     rating_id,
@@ -590,9 +593,8 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 WHERE booking_id = ?`,
                 [bookingId]
             );
-            booking.ratings = ratings.length ? ratings : []; // if no rating, empty array
+            booking.ratings = ratings.length ? ratings : [];
 
-            // 6️⃣ Group sub-packages by service_type_id
             const groupedByServiceType = subPackages.reduce((acc, sp) => {
                 const serviceTypeId = sp.service_type_id;
 
@@ -606,7 +608,6 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     };
                 }
 
-                // Addons, consents, prefs for this item
                 const addons = bookingAddons
                     .filter(a => a.sub_package_id === sp.sub_package_id)
                     .map(({ sub_package_id, ...rest }) => rest);
@@ -637,16 +638,60 @@ const getUserBookings = asyncHandler(async (req, res) => {
             booking.subPackages = Object.values(groupedByServiceType);
             if (promo) booking.promo = promo;
 
-            // 7️⃣ Clean null values
             Object.keys(booking).forEach(key => {
                 if (booking[key] === null) delete booking[key];
             });
 
         }
 
+        // Find latest unviewed booking for confirmation screen
+        let latestBooking = null;
+
+        if (userBookings.length > 0) {
+            const b = userBookings[0];
+
+            if (b.confirmation_viewed === 0) {
+
+                const [[serviceInfo]] = await db.query(`
+                    SELECT 
+                        s.serviceName AS serviceName,
+                        s.serviceImage AS serviceImage,
+                        u.address AS userAddress
+                    FROM service_booking sb
+                    JOIN services s ON sb.service_id = s.service_id
+                    JOIN users u ON sb.user_id = u.user_id
+                    WHERE sb.booking_id = ?
+                    LIMIT 1
+                `, [b.booking_id]);
+
+                latestBooking = {
+                    booking_id: b.booking_id,
+                    serviceName: serviceInfo?.serviceName || null,
+                    serviceImage: serviceInfo?.serviceImage || null,
+                    userAddress: serviceInfo?.address || null,
+                };
+
+                await db.query(`
+                    UPDATE service_booking
+                    SET confirmation_viewed = 1
+                    WHERE booking_id = ?
+                `, [b.booking_id]);
+            }
+        }
+
+        // ⭐ Pagination info added here
+        const pagination = {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        };
+
         res.status(200).json({
             message: "User bookings fetched successfully",
-            bookings: userBookings
+            latestBooking,
+            bookings: userBookings,
+            pagination
         });
 
     } catch (error) {
@@ -1359,8 +1404,6 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
 
@@ -1468,7 +1511,6 @@ const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
         });
     }
 });
-
 
 module.exports = {
     bookService,
