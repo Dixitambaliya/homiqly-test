@@ -198,12 +198,14 @@ const buildBookingInvoiceHTML = async (booking_id) => {
         font-family: Arial, sans-serif;
         background: #f7f7f7;
         margin: 0;
-        padding: 0;
+        padding: 40px 0 0 0 !important; /* Prevent top touching */
     }
 
     .invoice-wrapper {
         width: 480px;
+        max-width: 480px;       /* Prevent stretching */
         margin: 0 auto;
+        background: #ffffff;
     }
 
 
