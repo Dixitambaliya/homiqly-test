@@ -440,7 +440,6 @@ const getVendorBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUserBookings = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -487,25 +486,12 @@ const getUserBookings = asyncHandler(async (req, res) => {
         for (const booking of userBookings) {
             const bookingId = booking.booking_id;
 
-            let finalReceiptUrl = null;
+            const mergedUrl = booking.pdf_receipt_url || booking.receipt_url || null;
 
-            // 1️⃣ Prefer YOUR generated PDF always
-            if (booking.pdf_receipt_url && booking.pdf_receipt_url !== "") {
-                finalReceiptUrl = booking.pdf_receipt_url;
-            }
-            // 2️⃣ If not available → use Stripe receipt
-            else if (booking.receipt_url && booking.receipt_url !== "") {
-                finalReceiptUrl = booking.receipt_url;
-            }
-
-            // 3️⃣ Replace both fields with a single consistent one
-            booking.receipt_url = finalReceiptUrl;
-
-            // Remove internal columns from API response
+            booking.receipt_url = mergedUrl;
             delete booking.pdf_receipt_url;
             delete booking.receipt_url;
-            booking.receipt_url = finalReceiptUrl;
-
+            booking.receipt_url = mergedUrl;
 
             const [subPackages] = await db.query(`
                 SELECT
