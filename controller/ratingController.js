@@ -273,6 +273,7 @@ const getPackageRatings = asyncHandler(async (req, res) => {
             `SELECT
                 r.rating_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
+                u.profileImage,
                 r.rating,
                 r.review,
                 r.created_at,
