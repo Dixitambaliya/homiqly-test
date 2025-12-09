@@ -238,11 +238,6 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
             message: "Payment intent created successfully",
             clientSecret: paymentIntent.client_secret,
             paymentIntentId: paymentIntent.id,
-            amount: finalTotal,
-            subtotal,
-            discountedSubtotal,
-            promoDiscount,
-            taxAmount
         });
 
     } catch (err) {

@@ -206,7 +206,6 @@ const addRatingToBooking = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getBookedPackagesForRating = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
 
@@ -274,28 +273,22 @@ const getPackageRatings = asyncHandler(async (req, res) => {
             `SELECT
                 r.rating_id,
                 CONCAT(u.firstName, ' ', u.lastName) AS userName,
-                r.package_id,
-                p.packageName,
                 r.rating,
-                r.vendor_id,
                 r.review,
                 r.created_at,
+                r.is_selected,
 
+                COALESCE(id.name, cd.companyName) AS vendor_name
 
-                COALESCE(id.name, cd.companyName) AS vendor_name,
-                COALESCE(id.email, cd.companyEmail) AS vendor_email,
-                COALESCE(id.phone, cd.companyPhone) AS vendor_phone
-
-            FROM ratings r
+            FROM vendor_service_ratings r
             LEFT JOIN users u ON r.user_id = u.user_id
-            LEFT JOIN packages p ON r.package_id = p.package_id
             LEFT JOIN vendors v ON r.vendor_id = v.vendor_id
             LEFT JOIN individual_details id ON r.vendor_id = id.vendor_id
             LEFT JOIN company_details cd ON r.vendor_id = cd.vendor_id
 
             ORDER BY r.created_at DESC`
         );
-        
+
         res.status(200).json({
             message: "Package ratings fetched successfully",
             rating: ratings,
@@ -408,6 +401,62 @@ const getAllVendorRatings = asyncHandler(async (req, res) => {
     }
 });
 
+const selectRating = asyncHandler(async (req, res) => {
+    try {
+        const { rating_id } = req.params
+        const { is_selected } = req.body;
+
+        if (rating_id === undefined) {
+            return res.status(400).json({ message: "rating_id is required" });
+        }
+
+        if (is_selected !== 0 && is_selected !== 1) {
+            return res.status(400).json({
+                message: "is_selected must be either 0 (unselected) or 1 (selected)"
+            });
+        }
+
+        // Update DB
+        await db.query(`
+            UPDATE vendor_service_ratings
+            SET is_selected = ?
+            WHERE rating_id = ?
+        `, [is_selected, rating_id]);
+
+        res.status(200).json({
+            message: `Rating ${is_selected === 1 ? "selected" : "unselected"} successfully`,
+        });
+
+    } catch (error) {
+        console.error("Error selecting rating:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
+const getPublicRatings = asyncHandler(async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+                vsr.rating,
+                vsr.review
+            FROM vendor_service_ratings vsr
+            JOIN users u ON vsr.user_id = u.user_id
+            WHERE vsr.is_selected = 1
+            ORDER BY vsr.created_at DESC
+        `);
+
+        res.status(200).json({
+            message: "Public ratings fetched successfully",
+            ratings: rows
+        });
+    } catch (error) {
+        console.error("Error fetching public ratings:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 
 module.exports = {
     getVendorRatings,
@@ -419,5 +468,7 @@ module.exports = {
     getVendorServicesForReview,
     getPackageRatings,
     getPackageAverageRating,
-    getAllVendorRatings
+    getAllVendorRatings,
+    selectRating,
+    getPublicRatings
 };

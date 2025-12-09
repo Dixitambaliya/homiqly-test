@@ -2,10 +2,11 @@ const { db } = require('../config/db');
 const asyncHandler = require('express-async-handler');
 const { recalculateCartTotals } = require("./cartCalculation")
 const moment = require("moment-timezone");
+const { encryptResponse } = require("../config/utils/email/encryption");
 
 const addToCartService = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
-    
+
     // 🚫 Restrict user if not approved
     const [[approvalRow]] = await db.query(
         `SELECT is_approved FROM users WHERE user_id = ? LIMIT 1`,
@@ -821,11 +822,14 @@ const getUserCart = asyncHandler(async (req, res) => {
         }
 
         // ✅ Final API response
-        res.status(200).json({
+        const encrypted = encryptResponse({
             message: "Cart retrieved successfully",
             carts: allCarts,
             promos
         });
+
+        res.status(200).json(encrypted);
+
     } catch (err) {
         console.error("💥 Error retrieving cart:", err);
         res.status(500).json({ message: "Internal server error", error: err.message });
