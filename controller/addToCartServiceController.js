@@ -4,7 +4,7 @@ const { recalculateCartTotals } = require("./cartCalculation")
 const moment = require("moment-timezone");
 const { encryptResponse } = require("../config/utils/email/encryption");
 
-const addToCartService = asyncHandler(async (req, res) => {
+const addToCartService = (async (req, res) => {
     const user_id = req.user.user_id;
 
     // 🚫 Restrict user if not approved
@@ -215,7 +215,7 @@ const addToCartService = asyncHandler(async (req, res) => {
     }
 });
 
-const updateCartDetails = asyncHandler(async (req, res) => {
+const updateCartDetails = (async (req, res) => {
     const { cart_id } = req.params;
     const user_id = req.user.user_id;
 
@@ -911,7 +911,6 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
     const { service_type_id } = req.params;
@@ -1119,7 +1118,6 @@ const getCartByServiceTypeId = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getCartDetails = asyncHandler(async (req, res) => {
     const { cart_id } = req.params;
 
@@ -1158,7 +1156,7 @@ const getCartDetails = asyncHandler(async (req, res) => {
     }
 });
 
-const deleteCartItem = asyncHandler(async (req, res) => {
+const deleteCartItem = (async (req, res) => {
     const user_id = req.user.user_id;
     const { cart_id } = req.params;
 

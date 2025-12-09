@@ -406,28 +406,30 @@ const getAllVendorRatings = asyncHandler(async (req, res) => {
 
 const selectRating = asyncHandler(async (req, res) => {
     try {
-        const { rating_id } = req.params
-        const { is_selected } = req.body;
+        const { rating_id, is_selected } = req.body;
 
-        if (rating_id === undefined) {
-            return res.status(400).json({ message: "rating_id is required" });
+        // Validate ids
+        if (!Array.isArray(rating_id) || rating_id.length === 0) {
+            return res.status(400).json({ message: "rating_id must be a non-empty array" });
         }
 
+        // Validate selection value
         if (is_selected !== 0 && is_selected !== 1) {
             return res.status(400).json({
                 message: "is_selected must be either 0 (unselected) or 1 (selected)"
             });
         }
 
-        // Update DB
+        // Update multiple IDs
         await db.query(`
             UPDATE vendor_service_ratings
             SET is_selected = ?
-            WHERE rating_id = ?
+            WHERE rating_id IN (?)
         `, [is_selected, rating_id]);
 
         res.status(200).json({
-            message: `Rating ${is_selected === 1 ? "selected" : "unselected"} successfully`,
+            message: `Ratings ${is_selected ? "selected" : "unselected"} successfully`,
+            updated_ids: rating_id
         });
 
     } catch (error) {
@@ -435,6 +437,7 @@ const selectRating = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 });
+
 
 const getPublicRatings = asyncHandler(async (req, res) => {
     try {
