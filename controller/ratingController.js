@@ -382,7 +382,8 @@ const getAllVendorRatings = asyncHandler(async (req, res) => {
 
             CONCAT_WS(' ', id.name, cd.companyName) AS vendor_name,
             CONCAT_WS(' ', id.email, cd.companyEmail) AS vendor_email,
-            CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone
+            CONCAT_WS(' ', id.phone, cd.companyPhone) AS vendor_phone,
+            CONCAT_WS(' ', id.profileImage, cd.profileImage) AS profile_image
 
 
         FROM vendor_service_ratings vsr
