@@ -277,17 +277,20 @@ const getPackageRatings = asyncHandler(async (req, res) => {
                 r.review,
                 r.created_at,
                 r.is_selected,
-
-                COALESCE(id.name, cd.companyName) AS vendor_name
+                COALESCE(id.name, cd.companyName) AS vendor_name,
+                p.packageName 
 
             FROM vendor_service_ratings r
             LEFT JOIN users u ON r.user_id = u.user_id
             LEFT JOIN vendors v ON r.vendor_id = v.vendor_id
             LEFT JOIN individual_details id ON r.vendor_id = id.vendor_id
             LEFT JOIN company_details cd ON r.vendor_id = cd.vendor_id
+            LEFT JOIN service_booking sb ON r.booking_id = sb.booking_id
+            LEFT JOIN packages p ON sb.package_id = p.package_id
 
             ORDER BY r.created_at DESC`
         );
+
 
         res.status(200).json({
             message: "Package ratings fetched successfully",
@@ -439,6 +442,7 @@ const getPublicRatings = asyncHandler(async (req, res) => {
         const [rows] = await db.query(`
             SELECT 
                 CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+                u.profileImage,
                 vsr.rating,
                 vsr.review
             FROM vendor_service_ratings vsr
