@@ -806,7 +806,6 @@ const selectTopPick = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getTopPicks = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`

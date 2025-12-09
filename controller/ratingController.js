@@ -467,11 +467,9 @@ const getAllRatingsUser = asyncHandler(async (req, res) => {
                 CONCAT(u.firstName, ' ', u.lastName) AS user_name,
                 u.profileImage,
                 vsr.rating,
-                vsr.review,
-                vsr.is_selected,
-                vsr.created_at
+                vsr.review
             FROM vendor_service_ratings vsr
-            JOIN users u ON vsr.user_id = u.user_id
+            LEFT JOIN users u ON vsr.user_id = u.user_id
             ORDER BY vsr.created_at DESC
         `);
 
