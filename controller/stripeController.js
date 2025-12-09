@@ -123,7 +123,7 @@ exports.adminGetVendorStripeInfo = asyncHandler(async (req, res) => {
     res.json(rows);
 });
 
-exports.createPaymentIntent = asyncHandler(async (req, res) => {
+exports.createPaymentIntent = (async (req, res) => {
     const { cart_id } = req.body;
     const user_id = req.user.user_id;
 
@@ -250,7 +250,7 @@ exports.createPaymentIntent = asyncHandler(async (req, res) => {
 
 
 // ✅ stripeWebhook.js
-exports.stripeWebhook = asyncHandler(async (req, res) => {
+exports.stripeWebhook = (async (req, res) => {
     let event;
 
     // 1) Verify signature and return 400 on failure
