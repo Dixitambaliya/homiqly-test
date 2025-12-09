@@ -36,7 +36,7 @@ router.post("/addservicefilter", multiUpload, handleUploads, addServiceFilter);
 router.get("/getservicefilter", authenticationToken, getServiceFilters);
 
 router.get("/get-top-pickes", getTopPicks);
-router.post("/select-top-pickes/:sub_package_id", authenticationToken, selectTopPick);
+router.post("/select-top-picks/:sub_package_id", authenticationToken, selectTopPick);
 
 router.put("/updateservicefilter/:service_filter_id", authenticationToken, updateServiceFilter);
 router.delete("/deleteservicefilter/:service_filter_id", authenticationToken, deleteServiceFilter);
