@@ -422,7 +422,7 @@ const selectRating = asyncHandler(async (req, res) => {
 
         // Update multiple IDs
         await db.query(`
-            UPDATE vendor_service_ratings
+            UPDATE ratings
             SET is_selected = ?
             WHERE rating_id IN (?)
         `, [is_selected, rating_id]);
