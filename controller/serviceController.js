@@ -775,31 +775,71 @@ const deleteServiceCity = asyncHandler(async (req, res) => {
     }
 })
 
+const selectTopPick = asyncHandler(async (req, res) => {
+    try {
+        const { sub_package_id } = req.params
+        const { is_top_pick } = req.body;
+
+        if (!sub_package_id) {
+            return res.status(400).json({ message: "sub_package_id is required" });
+        }
+
+        if (is_top_pick !== 0 && is_top_pick !== 1) {
+            return res.status(400).json({
+                message: "is_top_pick must be either 0 (unselect) or 1 (select)"
+            });
+        }
+
+        await db.query(`
+            UPDATE package_items
+            SET is_top_pick = ?
+            WHERE item_id = ?
+        `, [is_top_pick, sub_package_id]);
+
+        res.status(200).json({
+            message: `Item ${is_top_pick ? "selected" : "unselected"} for top picks`
+        });
+
+    } catch (error) {
+        console.error("Error selecting top pick:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
 const getTopPicks = asyncHandler(async (req, res) => {
     try {
-        const packageId = 127; // your fixed package ID
-
-        const [rows] = await db.query(
-            userGetQueries.getPackageItemsByPackageId,
-            [packageId]
-        );
+        const [rows] = await db.query(`
+            SELECT 
+                pi.item_id,
+                p.service_type_id,
+                pi.itemName,
+                pi.itemMedia
+            FROM package_items pi
+            JOIN packages p ON pi.package_id = p.package_id
+            JOIN service_type st ON p.service_type_id = st.service_type_id
+            WHERE pi.is_top_pick = 1
+            ORDER BY pi.item_id DESC
+        `);
 
         const packages = rows.map(row => ({
+            item_id: row.item_id,
             service_type_id: row.service_type_id,
             itemName: row.itemName,
             itemMedia: row.itemMedia
         }));
 
         res.status(200).json({
-            message: "Package items fetched successfully",
+            message: "Top pick items fetched successfully",
             packages
         });
 
     } catch (err) {
-        console.error("Error fetching packages:", err);
+        console.error("Error fetching top picks:", err);
         res.status(500).json({ error: "Database error", details: err.message });
     }
 });
+
 
 
 
@@ -825,5 +865,6 @@ module.exports = {
     deleteServiceFilter,
     getAdminServicesWithfilter,
     searchService,
-    getTopPicks
+    getTopPicks,
+    selectTopPick
 }

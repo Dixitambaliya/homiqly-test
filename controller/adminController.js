@@ -1193,6 +1193,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                 pi.price AS sub_price,
                 pi.timeRequired AS sub_time_required,
                 pi.itemMedia AS item_media,
+                pi.is_top_pick,
 
                 pa.addon_id,
                 pa.addonName AS addon_name,
@@ -1254,6 +1255,7 @@ const getPackageDetails = asyncHandler(async (req, res) => {
                         price: row.sub_price,
                         time_required: row.sub_time_required,
                         item_media: row.item_media,
+                        is_top_pick: row.is_top_pick,
                         serviceLocation,
                         addons: [],
                         preferences: {},
