@@ -471,7 +471,7 @@ const getAllRatingsUser = asyncHandler(async (req, res) => {
                 u.profileImage,
                 vsr.rating,
                 vsr.review
-            FROM vendor_service_ratings vsr
+            FROM ratings vsr
             LEFT JOIN users u ON vsr.user_id = u.user_id
             ORDER BY vsr.created_at DESC
         `);
