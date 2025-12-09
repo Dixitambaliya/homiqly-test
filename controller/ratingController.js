@@ -285,7 +285,7 @@ const getPackageRatings = asyncHandler(async (req, res) => {
             LEFT JOIN vendors v ON r.vendor_id = v.vendor_id
             LEFT JOIN individual_details id ON r.vendor_id = id.vendor_id
             LEFT JOIN company_details cd ON r.vendor_id = cd.vendor_id
-            LEFT JOIN service_booking sb ON r.booking_id = sb.booking_id
+            LEFT JOIN service_booking_packages sb ON r.booking_id = sb.booking_id
             LEFT JOIN packages p ON sb.package_id = p.package_id
 
             ORDER BY r.created_at DESC`
