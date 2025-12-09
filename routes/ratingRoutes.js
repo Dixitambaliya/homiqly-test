@@ -12,7 +12,8 @@ const {
     getPackageAverageRating,
     getAllVendorRatings,
     selectRating,
-    getPublicRatings
+    getPublicRatings,
+    getAllRatingsUser
 } = require('../controller/ratingController');
 const { authenticationToken } = require('../middleware/authMiddleware');
 
@@ -24,7 +25,8 @@ router.post('/select-rating/:rating_id', authenticationToken, selectRating);
 // Vendor routes
 router.get('/getrating', authenticationToken, getVendorRatings);
 
-router.get('/get-public-rating', authenticationToken, getPublicRatings);
+router.get('/get-public-rating', getPublicRatings);
+router.get('/get-all-rating', getAllRatingsUser);
 
 // Admin routes
 router.get('/all', authenticationToken, getAllRatings);

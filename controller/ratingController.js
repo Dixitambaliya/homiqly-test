@@ -436,7 +436,6 @@ const selectRating = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getPublicRatings = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -448,6 +447,31 @@ const getPublicRatings = asyncHandler(async (req, res) => {
             FROM vendor_service_ratings vsr
             JOIN users u ON vsr.user_id = u.user_id
             WHERE vsr.is_selected = 1
+            ORDER BY vsr.created_at DESC
+        `);
+
+        res.status(200).json({
+            message: "Public ratings fetched successfully",
+            ratings: rows
+        });
+    } catch (error) {
+        console.error("Error fetching public ratings:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+const getAllRatingsUser = asyncHandler(async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                CONCAT(u.firstName, ' ', u.lastName) AS user_name,
+                u.profileImage,
+                vsr.rating,
+                vsr.review,
+                vsr.is_selected,
+                vsr.created_at
+            FROM vendor_service_ratings vsr
+            JOIN users u ON vsr.user_id = u.user_id
             ORDER BY vsr.created_at DESC
         `);
 
@@ -474,5 +498,6 @@ module.exports = {
     getPackageAverageRating,
     getAllVendorRatings,
     selectRating,
-    getPublicRatings
+    getPublicRatings,
+    getAllRatingsUser
 };
