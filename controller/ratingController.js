@@ -280,7 +280,7 @@ const getPackageRatings = asyncHandler(async (req, res) => {
                 COALESCE(id.name, cd.companyName) AS vendor_name,
                 p.packageName 
 
-            FROM vendor_service_ratings r
+            FROM ratings r
             LEFT JOIN users u ON r.user_id = u.user_id
             LEFT JOIN vendors v ON r.vendor_id = v.vendor_id
             LEFT JOIN individual_details id ON r.vendor_id = id.vendor_id
