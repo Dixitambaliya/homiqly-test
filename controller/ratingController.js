@@ -449,7 +449,7 @@ const getPublicRatings = asyncHandler(async (req, res) => {
                 u.profileImage,
                 vsr.rating,
                 vsr.review
-            FROM vendor_service_ratings vsr
+            FROM ratings vsr
             JOIN users u ON vsr.user_id = u.user_id
             WHERE vsr.is_selected = 1
             ORDER BY vsr.created_at DESC
