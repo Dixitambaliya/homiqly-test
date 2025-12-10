@@ -135,7 +135,7 @@ exports.createPaymentIntent = (async (req, res) => {
 
     try {
         // 🔄 Ensure totals are up-to-date before payment
-        await recalculateCartTotals(cart_id, user_id);
+        // await recalculateCartTotals(cart_id, user_id);
 
         await conn.beginTransaction();
 
@@ -271,21 +271,41 @@ exports.stripeWebhook = (async (req, res) => {
         const type = event.type;
         console.log(`📌 Processing event (async): ${type}`);
 
-        // Only interested in payment_intent.succeeded here
-        if (type !== "payment_intent.succeeded") {
-            console.log("⏭ Ignored stripe event:", type);
-            return;
-        }
-
         const paymentIntent = event.data.object;
         const paymentIntentId = paymentIntent?.id;
+
         if (!paymentIntentId) {
             console.error("❌ No payment_intent.id in event.data.object, aborting.");
             return;
         }
 
-        if (paymentIntent.status !== "succeeded") {
-            console.log("ℹ PaymentIntent not in succeeded state, skipping.");
+        // 🚫 Stop early if PI status is invalid or expired
+        const blockedStatuses = [
+            "canceled",
+            "requires_payment_method",
+            "requires_confirmation",
+            "requires_action",
+            "processing",
+            "requires_capture",
+            "payment_failed"
+        ];
+
+        if (blockedStatuses.includes(paymentIntent.status)) {
+            console.log(`⛔ Ignoring expired/invalid PaymentIntent (${paymentIntent.status}): ${paymentIntentId}`);
+
+            try {
+                await db.query(
+                    `UPDATE payments SET status='invalid_pi_state', notes=? WHERE payment_intent_id=?`,
+                    [`PI in status ${paymentIntent.status}`, paymentIntentId]
+                );
+            } catch { }
+
+            return;
+        }
+
+        // ✔ Now process ONLY succeeded events
+        if (type !== "payment_intent.succeeded") {
+            console.log("⏭ Ignored stripe event:", type);
             return;
         }
 
