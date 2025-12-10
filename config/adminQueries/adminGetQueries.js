@@ -213,10 +213,8 @@ SELECT
         postalcode,
         last_active,
         created_at
-            FROM users
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-`,
+            FROM users u
+            `,
 
     getAllBookings: `
 SELECT
