@@ -459,7 +459,7 @@ const getPublicRatings = asyncHandler(async (req, res) => {
             message: "Public ratings fetched successfully",
             ratings: rows
         });
-    } catch (error) {
+    } catch (error) {   
         console.error("Error fetching public ratings:", error);
         res.status(500).json({ message: "Internal server error" });
     }
@@ -475,6 +475,7 @@ const getAllRatingsUser = asyncHandler(async (req, res) => {
                 vsr.review
             FROM ratings vsr
             LEFT JOIN users u ON vsr.user_id = u.user_id
+            WHERE vsr.is_selected = 1
             ORDER BY vsr.created_at DESC
         `);
 
