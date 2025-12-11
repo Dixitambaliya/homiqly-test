@@ -1,7 +1,7 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
-const { encryptResponse } = require("../config/utils/email/encryption");
+const { encryptResponse, decryptRequest } = require("../config/utils/email/encryption");
 
 const setAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
