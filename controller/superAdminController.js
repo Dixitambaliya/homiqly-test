@@ -45,7 +45,7 @@ const getAdminCode = asyncHandler(async (req, res) => {
 
     // Do NOT return the hashed code for security
     const responseData = {
-        hasCode: admin.admin_code ? true : false
+        admin_code: admin.admin_code
     };
 
     const encrypted = encryptResponse(responseData);
