@@ -756,6 +756,15 @@ const getBookings = asyncHandler(async (req, res) => {
 
         let filters = " WHERE 1=1 ";
         const params = [];
+        // Default: fetch only active bookings
+        let is_trashed = req.query.is_trashed;
+
+        if (is_trashed === "1") {
+            filters += " AND sb.is_trashed = 1 ";
+        } else {
+            // default OR ?is_trashed=0
+            filters += " AND sb.is_trashed = 0 ";
+        }
 
         if (search && search.trim() !== "") {
             const searchPattern = `%${search.trim()}%`;
@@ -995,6 +1004,39 @@ const getBookings = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
+
+const trashBookingByAdmin = asyncHandler(async (req, res) => {
+    const { booking_id } = req.params;
+
+    if (!booking_id) {
+        return res.status(400).json({ error: "Booking ID is required" });
+    }
+
+    // Check if booking exists
+    const [existing] = await db.query(
+        "SELECT booking_id FROM service_booking WHERE booking_id = ?",
+        [booking_id]
+    );
+
+    if (existing.length === 0) {
+        return res.status(404).json({ error: `Booking with ID ${booking_id} not found` });
+    }
+
+    // Update trash flag
+    await db.query(
+        `UPDATE service_booking SET is_trashed = 1 WHERE booking_id = ?`,
+        [booking_id]
+    );
+
+    return res.status(200).json({
+        message: `Booking ${booking_id} moved to trash successfully`,
+        trashed: true
+    });
+});
+
+
 
 //----------
 const createPackageByAdmin = asyncHandler(async (req, res) => {
@@ -2889,5 +2931,6 @@ module.exports = {
     getNewVendors,
     getUserBookings,
     updateVendorProfileByAdmin,
-    restrictUser
+    restrictUser,
+    trashBookingByAdmin
 };

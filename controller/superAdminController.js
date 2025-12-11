@@ -1,45 +1,21 @@
 const { db } = require("../config/db");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
-const { encryptResponse, decryptRequest } = require("../config/utils/email/encryption");
+const { encryptResponse } = require("../config/utils/email/encryption");
 
 const setAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
+    let { admin_code } = req.body;
 
-    const { iv, payload } = req.body;
-
-    // 🛑 If body missing — only case where plain JSON is acceptable
-    if (!iv || !payload) {
-        return res.status(400).json(
-            encryptResponse({
-                error: "data missing"
-            })
-        );
-    }
-
-    let decryptedData;
-    try {
-        decryptedData = decryptRequest(payload, iv);
-    } catch (err) {
-        return res.status(400).json(
-            encryptResponse({
-                error: "Invalid encrypted data"
-            })
-        );
-    }
-
-    let { admin_code } = decryptedData;
-
+    // 1️⃣ Convert ANY input to string safely
     admin_code = String(admin_code).trim();
 
+    // 2️⃣ Validate 6 digits ONLY
     if (!/^\d{6}$/.test(admin_code)) {
-        return res.status(400).json(
-            encryptResponse({
-                error: "Admin code must be exactly 6 digits"
-            })
-        );
+        return res.status(400).json({ error: "code must be exactly 6 digits" });
     }
 
+    // 3️⃣ Hash and store
     const hashedCode = await bcrypt.hash(admin_code, 10);
 
     await db.query(
@@ -47,13 +23,10 @@ const setAdminCode = asyncHandler(async (req, res) => {
         [hashedCode, admin_id]
     );
 
-    return res.status(200).json(
-        encryptResponse({
-            message: "Admin verification code created successfully"
-        })
-    );
+    res.status(200).json({
+        message: "verification code created successfully"
+    });
 });
-
 
 const getAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
@@ -80,4 +53,4 @@ const getAdminCode = asyncHandler(async (req, res) => {
     res.status(200).json(encrypted);
 });
 
-module.exports = { setAdminCode, getAdminCode };
+module.exports = { setAdminCode, getAdminCode }
