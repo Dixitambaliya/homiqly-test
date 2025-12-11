@@ -7,20 +7,20 @@ const setAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
     let { admin_code } = req.body;
 
-    // 1️⃣ Convert ANY input to string safely
+    // 1️⃣ Ensure string
     admin_code = String(admin_code).trim();
 
-    // 2️⃣ Validate 6 digits ONLY
+    // 2️⃣ Validate 6 digits
     if (!/^\d{6}$/.test(admin_code)) {
-        return res.status(400).json({ error: "code must be exactly 6 digits" });
+        return res.status(400).json({
+            error: "code must be exactly 6 digits"
+        });
     }
 
-    // 3️⃣ Hash and store
-    const hashedCode = await bcrypt.hash(admin_code, 10);
-
+    // 3️⃣ Store raw code (NOT hashed)
     await db.query(
         `UPDATE admin SET admin_code = ? WHERE admin_id = ?`,
-        [hashedCode, admin_id]
+        [admin_code, admin_id]
     );
 
     res.status(200).json({
@@ -31,7 +31,6 @@ const setAdminCode = asyncHandler(async (req, res) => {
 const getAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
 
-    // Fetch hashed admin code
     const [[admin]] = await db.query(
         "SELECT admin_code FROM admin WHERE admin_id = ?",
         [admin_id]
@@ -43,15 +42,13 @@ const getAdminCode = asyncHandler(async (req, res) => {
         }));
     }
 
-    // Do NOT return the hashed code for security
-    const responseData = {
-        admin_code: admin.admin_code
-    };
-
-    const encrypted = encryptResponse(responseData);
+    const encrypted = encryptResponse({
+        admin_code: admin.admin_code // raw code from DB
+    });
 
     res.status(200).json(encrypted);
 });
+
 
 const editAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
