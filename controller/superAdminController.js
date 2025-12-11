@@ -6,31 +6,32 @@ const { encryptResponse, decryptRequest } = require("../config/utils/email/encry
 const setAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
 
-    // 🔐 1️⃣ Decrypt incoming payload
     const { iv, payload } = req.body;
 
+    // 🛑 If body missing — only case where plain JSON is acceptable
     if (!iv || !payload) {
-        return res.status(400).json({
-            error: "data missing"
-        });
+        return res.status(400).json(
+            encryptResponse({
+                error: "data missing"
+            })
+        );
     }
 
     let decryptedData;
     try {
         decryptedData = decryptRequest(payload, iv);
     } catch (err) {
-        return res.status(400).json({
-            error: "Invalid encrypted data",
-            details: err.message
-        });
+        return res.status(400).json(
+            encryptResponse({
+                error: "Invalid encrypted data"
+            })
+        );
     }
 
     let { admin_code } = decryptedData;
 
-    // 2️⃣ Convert ANY input to string safely
     admin_code = String(admin_code).trim();
 
-    // 3️⃣ Validate: exactly 6 digits
     if (!/^\d{6}$/.test(admin_code)) {
         return res.status(400).json(
             encryptResponse({
@@ -39,7 +40,6 @@ const setAdminCode = asyncHandler(async (req, res) => {
         );
     }
 
-    // 4️⃣ Hash and store
     const hashedCode = await bcrypt.hash(admin_code, 10);
 
     await db.query(
@@ -47,13 +47,13 @@ const setAdminCode = asyncHandler(async (req, res) => {
         [hashedCode, admin_id]
     );
 
-    // 5️⃣ Encrypted response
-    const encrypted = encryptResponse({
-        message: "Admin verification code created successfully"
-    });
-
-    res.status(200).json(encrypted);
+    return res.status(200).json(
+        encryptResponse({
+            message: "Admin verification code created successfully"
+        })
+    );
 });
+
 
 const getAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
