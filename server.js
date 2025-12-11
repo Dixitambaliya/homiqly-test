@@ -49,6 +49,7 @@ const vendorTemporaryRoutes = require("./routes/vendorTemporaryRoutes")
 const vendorAvailabilityRoutes = require("./routes/vendorAvailabilityRoutes")
 const blogRoutes = require("./routes/blogRoutes")
 const postRoutes = require("./routes/postRoutes")
+const superAdminRoutes = require("./routes/superAdminRoutes")
 
 const PORT = process.env.PORT || 8000
 
@@ -89,6 +90,7 @@ app.use("/api/vendor", vendorTemporaryRoutes)
 app.use("/api/vendor", vendorAvailabilityRoutes)
 app.use("/api/blog", blogRoutes)
 app.use("/api/posts", postRoutes);
+app.use("/api/superadmin", superAdminRoutes);
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));

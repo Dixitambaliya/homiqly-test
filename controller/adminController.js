@@ -618,7 +618,6 @@ const getAllServiceType = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getUsers = asyncHandler(async (req, res) => {
     try {
         let { page = 1, limit = 10, search = "" } = req.query;
@@ -677,8 +676,6 @@ const getUsers = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
-
-
 
 const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
     try {
