@@ -670,8 +670,10 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     SELECT 
                         s.serviceName AS serviceName,
                         s.serviceImage AS serviceImage,
+                        p.amount AS paymentAmount,
                         u.address 
                     FROM service_booking sb
+                    JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
                     JOIN services s ON sb.service_id = s.service_id
                     JOIN users u ON sb.user_id = u.user_id
                     WHERE sb.booking_id = ?
@@ -683,6 +685,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
                     serviceName: serviceInfo?.serviceName || null,
                     serviceImage: serviceInfo?.serviceImage || null,
                     userAddress: serviceInfo?.address || null,
+                    paymentAmount: serviceInfo?.paymentAmount || null,
                 };
 
                 await db.query(`
