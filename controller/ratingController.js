@@ -54,7 +54,7 @@ const vendorRatesUser = asyncHandler(async (req, res) => {
 
 const getVendorRatings = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-
+    
     try {
         // Fetch detailed service ratings
         const [ratings] = await db.query(ratingGetQueries.getServiceRatings, [vendor_id]);

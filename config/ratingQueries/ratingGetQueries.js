@@ -5,19 +5,18 @@ const ratingGetQueries = {
             vsr.booking_id,
             vsr.user_id,
             vsr.vendor_id,
-            vsr.service_id,
+            s.service_id,
             vsr.rating,
             vsr.review,
             vsr.created_at,
 
             CONCAT(u.firstName, ' ', u.lastName) AS user_name,
-            s.serviceName,
-            sc.serviceCategory
+            s.serviceName
 
-        FROM vendor_service_ratings vsr
+        FROM ratings vsr
         JOIN users u ON vsr.user_id = u.user_id
-        JOIN services s ON vsr.service_id = s.service_id
-        JOIN service_categories sc ON s.service_categories_id = sc.service_categories_id
+        JOIN service_booking sb ON vsr.booking_id = sb.booking_id
+        JOIN services s ON sb.service_id = s.service_id
 
         WHERE vsr.vendor_id = ?
         ORDER BY vsr.created_at DESC`,
@@ -27,7 +26,7 @@ const ratingGetQueries = {
                 vendor_id,
                 AVG(rating) as average_rating,
                 COUNT(*) as total_reviews
-            FROM vendor_service_ratings
+            FROM ratings
             WHERE vendor_id = ?
             GROUP BY vendor_id`,
 

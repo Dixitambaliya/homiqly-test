@@ -1005,8 +1005,6 @@ const getBookings = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const trashBookingByAdmin = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
 
@@ -1035,8 +1033,6 @@ const trashBookingByAdmin = asyncHandler(async (req, res) => {
         trashed: true
     });
 });
-
-
 
 //----------
 const createPackageByAdmin = asyncHandler(async (req, res) => {
