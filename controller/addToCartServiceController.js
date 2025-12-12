@@ -887,7 +887,7 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
         );
 
         if (deleteResult.affectedRows === 0) {
-            return res.status(404).json({ message: "Sub-package not found in cart" });
+            return res.status(404).json({ message: "Cart not found in cart" });
         }
 
         // 🔎 Check if there are any sub-packages left in this cart
@@ -901,7 +901,7 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
             await db.query(`DELETE FROM service_cart WHERE cart_id = ?`, [cart_id]);
 
             return res.status(200).json({
-                message: "Last sub-package removed. Cart deleted.",
+                message: "Cart removed.",
                 cart_id,
                 cart_package_items_id
             });
@@ -909,12 +909,12 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
 
         // ✅ If still has sub-packages
         res.status(200).json({
-            message: "Sub-package deleted successfully",
+            message: "Cart deleted successfully",
             cart_id,
             cart_package_items_id
         });
     } catch (error) {
-        console.error("Error deleting sub-package:", error);
+        console.error("Error deleting Cart:", error);
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
