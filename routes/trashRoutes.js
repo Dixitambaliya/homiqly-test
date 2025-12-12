@@ -5,5 +5,5 @@ const { verifyAdminCode } = require("../middleware/verifyAdminCode");
 const { authenticationToken } = require("../middleware/authMiddleware")
 const { trashBookingByAdmin } = require("../controller/trashController");
 
-router.patch("/bookings/:booking_id", authenticationToken, verifyAdminCode, trashBookingByAdmin)
+router.patch("/bookings", authenticationToken, verifyAdminCode, trashBookingByAdmin)
 module.exports = router;
