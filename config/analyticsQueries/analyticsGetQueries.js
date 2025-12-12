@@ -1,21 +1,32 @@
 const analyticsGetQueries = {
 
     getDashboardStats: `
-    SELECT
-        (SELECT COUNT(*) FROM users) AS total_users,
-        (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) AS total_vendors,
-        (SELECT COUNT(*) FROM contractors WHERE is_active = 1) AS total_contractors,
-        (SELECT COUNT(*)
-         FROM service_booking
-         WHERE bookingStatus = 1 AND completed_flag = 1) AS completed_bookings,
-        (SELECT COUNT(*)
-         FROM service_booking
-         WHERE bookingStatus = 1 AND completed_flag = 0) AS pending_bookings,
-        (SELECT IFNULL(SUM(p.amount), 0)
-         FROM payments p
-         INNER JOIN service_booking sb
-             ON sb.payment_intent_id = p.payment_intent_id
-         WHERE p.status = 'completed') AS total_revenue
+   SELECT
+    (SELECT COUNT(*) FROM users) AS total_users,
+
+    (SELECT COUNT(*) FROM vendors WHERE is_authenticated = 1) AS total_vendors,
+
+    (SELECT COUNT(*) FROM contractors WHERE is_active = 1) AS total_contractors,
+
+    (SELECT COUNT(*)
+     FROM service_booking
+     WHERE bookingStatus = 1
+       AND completed_flag = 1
+       AND is_trashed = 0) AS completed_bookings,
+
+    (SELECT COUNT(*)
+     FROM service_booking
+     WHERE bookingStatus = 1
+       AND completed_flag = 0
+       AND is_trashed = 0) AS pending_bookings,
+
+    (SELECT IFNULL(SUM(p.amount), 0)
+     FROM payments p
+     INNER JOIN service_booking sb
+         ON sb.payment_intent_id = p.payment_intent_id
+     WHERE p.status = 'completed'
+       AND sb.is_trashed = 0) AS total_revenue;
+
     `,
 
 
