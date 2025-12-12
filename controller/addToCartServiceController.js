@@ -887,7 +887,7 @@ const deleteCartSubPackage = asyncHandler(async (req, res) => {
         );
 
         if (deleteResult.affectedRows === 0) {
-            return res.status(404).json({ message: "Cart not found in cart" });
+            return res.status(404).json({ message: "Cart not found" });
         }
 
         // 🔎 Check if there are any sub-packages left in this cart
