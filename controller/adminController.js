@@ -2033,7 +2033,6 @@ const getAllPackages = asyncHandler(async (req, res) => {
     }
 });
 
-
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
         // ✅ Pagination params
@@ -2188,8 +2187,6 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     }
 });
 
-
-
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
@@ -2306,9 +2303,6 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
         });
     }
 });
-
-
-
 
 const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
