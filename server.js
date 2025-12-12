@@ -50,6 +50,7 @@ const vendorAvailabilityRoutes = require("./routes/vendorAvailabilityRoutes")
 const blogRoutes = require("./routes/blogRoutes")
 const postRoutes = require("./routes/postRoutes")
 const superAdminRoutes = require("./routes/superAdminRoutes")
+const trashRoutes = require("./routes/trashRoutes")
 
 const PORT = process.env.PORT || 8000
 
@@ -91,6 +92,7 @@ app.use("/api/vendor", vendorAvailabilityRoutes)
 app.use("/api/blog", blogRoutes)
 app.use("/api/posts", postRoutes);
 app.use("/api/superadmin", superAdminRoutes);
+app.use("/api/add-to-trash", trashRoutes);
 
 // Serve Vite build
 app.use(express.static(path.join(__dirname, 'client/dist')));

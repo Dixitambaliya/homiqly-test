@@ -29,11 +29,8 @@ const {
     getUserBookings,
     updateVendorProfileByAdmin,
     restrictUser,
-    trashBookingByAdmin
-
 } = require("../controller/adminController")
 const { upload, handleUploads } = require("../middleware/upload");
-const { verifyAdminCode } = require("../middleware/verifyAdminCode");
 const { authenticationToken } = require("../middleware/authMiddleware")
 
 const multiUpload = upload.any();
@@ -64,8 +61,6 @@ router.patch("/update-vendor-profile/:vendor_id", authenticationToken, updateVen
 router.delete("/removepackage/:vendor_packages_id", authenticationToken, removeVendorPackageByAdmin)
 
 router.delete("/deleteusers/:user_id", authenticationToken, deleteUserByAdmin)
-
-router.patch("/add-to-trash/:booking_id", authenticationToken, verifyAdminCode, trashBookingByAdmin)
 
 router.put("/editemployees/:employee_id", authenticationToken, multiUpload, handleUploads, editEmployeeProfileByAdmin)
 router.delete("/delete-employee/:employee_id", authenticationToken, deleteEmployeeProfileByAdmin)

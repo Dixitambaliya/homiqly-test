@@ -1,5 +1,4 @@
 const asyncHandler = require("express-async-handler");
-const bcrypt = require("bcryptjs");
 const { db } = require("../config/db");
 
 const verifyAdminCode = asyncHandler(async (req, res, next) => {
@@ -24,20 +23,21 @@ const verifyAdminCode = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ error: "code must be specified length" });
     }
 
-    // Fetch hashed admin code
+    // Fetch raw admin code from DB
     const [[admin]] = await db.query(
         "SELECT admin_code FROM admin WHERE admin_id = ?",
         [admin_id]
     );
 
-    if (!admin || !admin.admin_code) {
+    if (!admin || admin.admin_code == null) {
         return res.status(400).json({ error: "code not set" });
     }
 
-    // Compare input code with hashed code
-    const isValid = await bcrypt.compare(admin_code, admin.admin_code);
-    
-    if (!isValid) {
+    // Convert DB value to string to avoid type mismatch
+    const storedCode = String(admin.admin_code).trim();
+
+    // Plain comparison (NO bcrypt)
+    if (admin_code !== storedCode) {
         return res.status(403).json({ error: "Invalid code" });
     }
 
