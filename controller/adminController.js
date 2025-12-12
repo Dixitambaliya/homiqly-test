@@ -2033,6 +2033,7 @@ const getAllPackages = asyncHandler(async (req, res) => {
     }
 });
 
+
 const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     try {
         // ✅ Pagination params
@@ -2187,13 +2188,15 @@ const getAllVendorPackageRequests = asyncHandler(async (req, res) => {
     }
 });
 
+
+
 const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
         const { application_id } = req.params;
-        const { status } = req.body; // 1 = approved, 2 = rejected
+        const { status } = req.body; // 0 = pending, 1 = approved, 2 = rejected
 
         if (!application_id || status === undefined) {
             return res.status(400).json({ message: "application_id and status are required" });
@@ -2203,7 +2206,7 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid status. Use 0 (pending), 1 (approved), or 2 (rejected)." });
         }
 
-        // ✅ Update the application status
+        // Update status first
         const [updateResult] = await connection.query(
             `
             UPDATE vendor_package_applications
@@ -2220,9 +2223,10 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Application not found" });
         }
 
-        // ✅ If approved, transfer data into flattened table
+        // =====================================================
+        // ✅ If APPROVED → Transfer data → Delete application
+        // =====================================================
         if (Number(status) === 1) {
-            // Get application details
             const [appRows] = await connection.query(
                 `SELECT vendor_id, package_id FROM vendor_package_applications WHERE application_id = ?`,
                 [application_id]
@@ -2231,13 +2235,11 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
 
             const { vendor_id, package_id } = appRows[0];
 
-            // Get sub-package items from vendor_package_item_application
             const [subPkgRows] = await connection.query(
                 `SELECT package_item_id FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
             );
 
-            // Insert into flattened table
             const flattenedData = subPkgRows.map(sp => [
                 vendor_id,
                 package_id,
@@ -2251,7 +2253,6 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
                     [flattenedData]
                 );
             } else {
-                // If no sub-packages, still insert the package with null/0 sub-package
                 await connection.query(
                     `INSERT INTO vendor_package_items_flat (vendor_id, package_id, package_item_id)
                      VALUES (?, ?, ?)`,
@@ -2259,11 +2260,26 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
                 );
             }
 
-            // ✅ Delete application entries
+            // Delete related rows
             await connection.query(
                 `DELETE FROM vendor_package_item_application WHERE application_id = ?`,
                 [application_id]
             );
+            await connection.query(
+                `DELETE FROM vendor_package_applications WHERE application_id = ?`,
+                [application_id]
+            );
+
+        }
+        // ================================================
+        // ❌ If REJECTED (status = 2) → Delete all records
+        // ================================================
+        else if (Number(status) === 2) {
+            await connection.query(
+                `DELETE FROM vendor_package_item_application WHERE application_id = ?`,
+                [application_id]
+            );
+
             await connection.query(
                 `DELETE FROM vendor_package_applications WHERE application_id = ?`,
                 [application_id]
@@ -2274,7 +2290,10 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
         connection.release();
 
         res.status(200).json({
-            message: `Application ${application_id} status updated to ${status} successfully and data transferred to flattened table.`
+            message:
+                Number(status) === 2
+                    ? `Application ${application_id} rejected successfully.`
+                    : `Application ${application_id} approved successfully.`
         });
 
     } catch (err) {
@@ -2287,6 +2306,9 @@ const updateVendorPackageRequestStatus = asyncHandler(async (req, res) => {
         });
     }
 });
+
+
+
 
 const toggleManualVendorAssignmentByAdmin = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;

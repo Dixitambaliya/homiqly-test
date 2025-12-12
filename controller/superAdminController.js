@@ -49,7 +49,6 @@ const getAdminCode = asyncHandler(async (req, res) => {
     res.status(200).json(encrypted);
 });
 
-
 const editAdminCode = asyncHandler(async (req, res) => {
     const admin_id = req.user.admin_id;
 
