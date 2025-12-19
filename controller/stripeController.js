@@ -248,7 +248,6 @@ exports.createPaymentIntent = (async (req, res) => {
     }
 });
 
-
 // ✅ stripeWebhook.js
 exports.stripeWebhook = (async (req, res) => {
     let event;

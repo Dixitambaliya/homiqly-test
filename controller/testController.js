@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const { buildBookingInvoiceHTML } = require('../config/utils/email/buildBookingInvoiceHTML');
+const { db } = require("../config/db")
 // controllers/authController.js
 
 const getMe = (req, res) => {
@@ -43,7 +44,30 @@ const testInvoice = asyncHandler(async (req, res) => {
     }
 });
 
+const addQuestion = asyncHandler(async (req, res) => {
+    const { question } = req.body;
+
+    if (!question || question.trim() === "") {
+        return res.status(400).json({ error: "Question is required" });
+    }
+
+    try {
+        const [insertResult] = await db.query(
+            `INSERT INTO questions (question) VALUES (?)`,
+            [question]
+        );
+
+        return res.status(201).json();
+
+    } catch (err) {
+        console.error("❌ Error saving question:", err.message);
+        return res.status(500).json({
+            error: "Server error",
+            details: err.message
+        });
+    }
+});
 
 
 
-module.exports = { getMe, testInvoice }
+module.exports = { getMe, testInvoice, addQuestion }
