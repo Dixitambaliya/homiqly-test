@@ -5,6 +5,7 @@ const { sendBookingEmail, sendVendorBookingEmail } = require("../config/utils/em
 const { recalculateCartTotals } = require("./cartCalculation")
 const { buildBookingInvoiceHTML } = require("../config/utils/email/buildBookingInvoiceHTML");
 const { generateBookingPDF } = require("../config/utils/email/generateBookingPDF");
+const { checkVendorOverlap } = require("../config/utils/email/oberLapCheck");
 
 
 // 1. Vendor creates Stripe account
@@ -374,12 +375,36 @@ exports.stripeWebhook = (async (req, res) => {
 
             const cart = cartRows[0];
 
+
+            const overlap = await checkVendorOverlap(
+                connection,
+                cart.vendor_id,
+                cart.bookingDate,
+                cart.bookingTime,
+                cart.totalTime
+            );
+
+            if (overlap) {
+                console.error("❌ Double booking prevented for vendor:", cart.vendor_id);
+
+                await connection.rollback();
+
+                // Mark payment as failed due to booking conflict
+                await connection.query(
+                    `UPDATE payments SET status='double_booking_error', notes='Vendor already booked for this time slot' 
+                WHERE payment_intent_id=?`,
+                    [paymentIntentId]
+                );
+
+                return; // Stop here—DO NOT create booking
+            }
+
             // Load cart items
             const [cartPackages] = await connection.query(
                 `SELECT cpi.sub_package_id, cpi.price, cpi.quantity, cpi.package_id, p.service_type_id
-         FROM cart_package_items cpi
-         JOIN packages p ON cpi.package_id = p.package_id
-         WHERE cpi.cart_id = ?`,
+                    FROM cart_package_items cpi
+                    JOIN packages p ON cpi.package_id = p.package_id
+                    WHERE cpi.cart_id = ?`,
                 [cart.cart_id]
             );
 
