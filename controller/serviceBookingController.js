@@ -1364,7 +1364,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             ]);
 
             if (isBooked.overlap > 0) continue;
-// 🔥 NEW — get vendor cities from vendor_service_locations
+            // 🔥 NEW — get vendor cities from vendor_service_locations
             const [vendorCities] = await db.query(`
                 SELECT LOWER(TRIM(city)) AS city
                 FROM vendor_service_locations
@@ -1402,6 +1402,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             availableVendors.push({
                 ...v.vendor,
+                cities: vendorCities.map(c => c.city),  // 👈 ADD THIS
                 avgRating: Number(ratingSummary.avgRating),
                 totalReviews: ratingSummary.totalReviews,
                 reviews: ratingRows
