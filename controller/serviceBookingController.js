@@ -667,11 +667,11 @@ const getUserBookings = asyncHandler(async (req, res) => {
             if (b.confirmation_viewed === 0) {
 
                 const [[serviceInfo]] = await db.query(`
-                    SELECT 
+                    SELECT
                         s.serviceName AS serviceName,
                         s.serviceImage AS serviceImage,
                         p.amount AS paymentAmount,
-                        u.address 
+                        u.address
                     FROM service_booking sb
                     JOIN payments p ON sb.payment_intent_id = p.payment_intent_id
                     JOIN services s ON sb.service_id = s.service_id
@@ -1348,11 +1348,11 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
                 AND bookingDate = ?
                 AND (
                     STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s')
-                        < DATE_ADD(STR_TO_DATE(CONCAT(bookingDate, ' ', bookingTime), '%Y-%m-%d %H:%i:%s'), 
+                        < DATE_ADD(STR_TO_DATE(CONCAT(bookingDate, ' ', bookingTime), '%Y-%m-%d %H:%i:%s'),
                                    INTERVAL totalTime + ${vendorBreakMinutes} MINUTE)
                     AND
                     STR_TO_DATE(CONCAT(bookingDate, ' ', bookingTime), '%Y-%m-%d %H:%i:%s')
-                        < DATE_ADD(STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s'), 
+                        < DATE_ADD(STR_TO_DATE(CONCAT(?, ' ', ?), '%Y-%m-%d %H:%i:%s'),
                                    INTERVAL ? + ${vendorBreakMinutes} MINUTE)
                 )
             `, [
@@ -1364,26 +1364,24 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
             ]);
 
             if (isBooked.overlap > 0) continue;
-
-            // ✅ NEW — get vendor city based on vendor type
-            const [[vendorLoc]] = await db.query(`
-                SELECT LOWER(TRIM(
-                    IF(v.vendorType = 'company', cdet.serviceLocation, idet.serviceLocation)
-                )) AS city
-                FROM vendors v
-                LEFT JOIN individual_details idet ON idet.vendor_id = v.vendor_id
-                LEFT JOIN company_details cdet ON cdet.vendor_id = v.vendor_id
-                WHERE v.vendor_id = ?
+// 🔥 NEW — get vendor cities from vendor_service_locations
+            const [vendorCities] = await db.query(`
+                SELECT LOWER(TRIM(city)) AS city
+                FROM vendor_service_locations
+                WHERE vendor_id = ?
             `, [vendorId]);
 
-            // ✅ NEW — skip if vendor city does not match user city
-            if (!vendorLoc || !vendorLoc.city || vendorLoc.city !== userCity) {
-                continue;
-            }
+            // No city found → skip vendor
+            if (!vendorCities.length) continue;
+
+            // Check if any vendor city matches user city
+            const hasCityMatch = vendorCities.some(v => v.city === userCity);
+
+            if (!hasCityMatch) continue;
 
             // ⭐ Get all reviews
             const [ratingRows] = await db.query(`
-                SELECT 
+                SELECT
                     r.rating AS stars,
                     r.review,
                     CONCAT(u.firstName, ' ', u.lastName) AS userName
@@ -1395,7 +1393,7 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             // ⭐ Get rating summary
             const [[ratingSummary]] = await db.query(`
-                SELECT 
+                SELECT
                     IFNULL(AVG(r.rating), 0) AS avgRating,
                     COUNT(r.rating_id) AS totalReviews
                 FROM ratings r
@@ -1421,6 +1419,8 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: err.message });
     }
 });
+
+
 
 const getVendorDetailsByBookingId = asyncHandler(async (req, res) => {
     const { booking_id } = req.params;
