@@ -1402,7 +1402,6 @@ const getAvailableVendors = asyncHandler(async (req, res) => {
 
             availableVendors.push({
                 ...v.vendor,
-                cities: vendorCities.map(c => c.city),  // 👈 ADD THIS
                 avgRating: Number(ratingSummary.avgRating),
                 totalReviews: ratingSummary.totalReviews,
                 reviews: ratingRows
