@@ -19,7 +19,9 @@ const adminGetQueries = {
         i.aboutMe AS individual_aboutMe,
         i.policeClearance AS policeClearance,
         i.certificateOfExpertise AS certificateOfExpertise,
+        i.certificateOfExpertiseExpireDate AS certificateOfExpertiseExpireDate,
         i.businessLicense AS businessLicense,
+        i.businessLicenseExpireDate AS businessLicenseExpireDate,
         i.profileImage AS profile_image,
         i.dob AS individual_dob,
 
