@@ -9,12 +9,12 @@ const userGetQueries = require("../config/userQueries/userGetQueries");
 
 const generateSlug = (text) => {
     return text
-        .toString()
-        .toLowerCase()
         .trim()
-        .replace(/\s+/g, '-')       // Replace spaces with -
-        .replace(/[^\w\-]+/g, '')   // Remove all non-word characters
-        .replace(/\-\-+/g, '-');    // Replace multiple - with single -
+        .toLowerCase()
+        .replace(/\s+/g, '-')          // spaces → hyphens
+        .replace(/[^a-z0-9-]/g, '')    // remove everything except a–z, 0–9, and -
+        .replace(/--+/g, '-')          // remove repeated hyphens
+        .replace(/^-+|-+$/g, '');      // trim starting/ending hyphens
 };
 
 const addCategory = asyncHandler(async (req, res) => {

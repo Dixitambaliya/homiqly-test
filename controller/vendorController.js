@@ -351,7 +351,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
 
     try {
-        // ✅ Update last access timestamp in Mountain Time
+        // Update last access timestamp in Mountain Time
         const mountainTime = moment()
             .tz("America/Denver")
             .format("YYYY-MM-DD HH:mm:ss");
@@ -361,20 +361,14 @@ const getProfileVendor = asyncHandler(async (req, res) => {
             [mountainTime, vendor_id]
         );
 
-        // ✅ Step 1: Fetch vendor profile
+        // Step 1: Fetch vendor profile
         const [rows] = await db.query(vendorGetQueries.getProfileVendor, [vendor_id]);
 
         if (!rows || rows.length === 0) {
             return res.status(404).json({ message: "Vendor profile not found" });
         }
 
-        // ✅ Step 2: Fetch certificates
-        const [certificatesRaw] = await db.query(
-            vendorGetQueries.getCertificate,
-            [vendor_id]
-        );
-
-        // ✅ Step 3: Fetch multiple service locations
+        // Step 2: Fetch multiple service locations
         const [locationRows] = await db.query(
             `SELECT city FROM vendor_service_locations WHERE vendor_id = ?`,
             [vendor_id]
@@ -382,7 +376,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
 
         const serviceLocation = locationRows.map(loc => loc.city);
 
-        // ✅ Step 4: Clean profile (remove nulls)
+        // Step 3: Clean profile (remove nulls)
         const profile = {};
         for (const key in rows[0]) {
             if (rows[0][key] !== null) {
@@ -390,18 +384,11 @@ const getProfileVendor = asyncHandler(async (req, res) => {
             }
         }
 
-        // ✅ Step 5: Format certificates
-        const certificates = (certificatesRaw || []).map(cert => ({
-            certificateName: cert.certificateName,
-            certificateFile: cert.certificateFile
-        }));
-
-        // ✅ Step 6: Attach data to profile
-        profile.certificates = certificates;
-        profile.serviceLocation = serviceLocation; // ✅ NEW
+        // Step 4: Attach data (NO certificates now)
+        profile.serviceLocation = serviceLocation;
         profile.last_access = mountainTime;
 
-        // ✅ Step 7: Send response
+        // Step 5: Send response
         res.status(200).json({
             message: "Vendor profile fetched successfully",
             profile
@@ -415,6 +402,7 @@ const getProfileVendor = asyncHandler(async (req, res) => {
         });
     }
 });
+
 
 const updateProfileVendor = asyncHandler(async (req, res) => {
     const { vendor_id, vendor_type } = req.user;
