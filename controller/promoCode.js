@@ -291,7 +291,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 pc.start_date,
                 pc.end_date
             FROM user_promo_codes upc
-            LEFT JOIN promo_codes pc 
+            JOIN promo_codes pc 
                 ON upc.promo_id = pc.promo_id
             WHERE upc.user_id = ?`,
             [user_id]
@@ -310,7 +310,7 @@ const getUserPromoCodes = asyncHandler(async (req, res) => {
                 spc.usage_count AS usedCount,
                 spct.discountValue AS userDiscountValue
             FROM system_promo_codes spc
-            LEFT JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
+            JOIN system_promo_code_templates spct ON spc.template_id = spct.system_promo_code_template_id 
             WHERE user_id = ?`,
             [user_id]
         );
@@ -434,7 +434,7 @@ const getLatestUserPromo = asyncHandler(async (req, res) => {
             pc.maxUse AS promoMaxUse,
             upc.usedCount
         FROM user_promo_codes upc
-        LEFT JOIN promo_codes pc ON upc.promo_id = pc.promo_id
+        JOIN promo_codes pc ON upc.promo_id = pc.promo_id
         WHERE upc.user_id = ?
         ORDER BY upc.assigned_at DESC
         LIMIT 1
@@ -454,7 +454,7 @@ const getLatestUserPromo = asyncHandler(async (req, res) => {
             spct.maxUse AS promoMaxUse,
             spc.usage_count AS usedCount
         FROM system_promo_codes spc
-        LEFT JOIN system_promo_code_templates spct
+        JOIN system_promo_code_templates spct
         ON spc.template_id = spct.system_promo_code_template_id
         WHERE spc.user_id = ?
         ORDER BY spc.assigned_at DESC
