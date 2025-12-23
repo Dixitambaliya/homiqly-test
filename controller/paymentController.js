@@ -4,6 +4,7 @@ const vendorGetQueries = require("../config/vendorQueries/vendorGetQueries");
 
 const registerBankAccount = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+
     let {
         account_holder_name,
         bank_name,
@@ -13,8 +14,8 @@ const registerBankAccount = asyncHandler(async (req, res) => {
         bank_address = null,
         email = null,
         legal_name = null,
-        dob = null, // for individual
-        business_name = null, // for business
+        dob = null,          // individual
+        business_name = null,// business
         preferred_transfer_type = "bank_transfer",
         interac_email,
         interac_phone
@@ -22,46 +23,64 @@ const registerBankAccount = asyncHandler(async (req, res) => {
 
     const government_id = req.uploadedFiles?.government_id?.[0]?.url || null;
 
-    // 🧹 Trim inputs
+    // Trim fields
     account_holder_name = account_holder_name?.trim();
     bank_name = bank_name?.trim();
     institution_number = institution_number?.trim();
     transit_number = transit_number?.trim();
     account_number = account_number?.trim();
 
-    // 🧩 Validation
-    if (
-        !account_holder_name ||
-        !bank_name ||
-        !institution_number ||
-        !transit_number ||
-        !account_number ||
-        !preferred_transfer_type
-    ) {
-        return res.status(400).json({ message: "All required fields must be provided." });
+    // ---------------------------
+    // CONDITIONAL VALIDATION
+    // ---------------------------
+
+    // 👉 Validation for BANK TRANSFER (Direct Deposit)
+    if (preferred_transfer_type === "bank_transfer") {
+        if (
+            !account_holder_name ||
+            !bank_name ||
+            !institution_number ||
+            !transit_number ||
+            !account_number
+        ) {
+            return res.status(400).json({
+                message:
+                    "Bank Transfer requires: account_holder_name, bank_name, institution_number, transit_number, and account_number."
+            });
+        }
+
+        const digitOnly = /^\d+$/;
+
+        if (!digitOnly.test(institution_number) || institution_number.length !== 3) {
+            return res.status(400).json({ message: "Institution Number must be a 3-digit number." });
+        }
+
+        if (!digitOnly.test(transit_number) || transit_number.length !== 5) {
+            return res.status(400).json({ message: "Transit Number must be a 5-digit number." });
+        }
+
+        if (!digitOnly.test(account_number) || account_number.length < 7 || account_number.length > 12) {
+            return res.status(400).json({ message: "Account Number must be 7–12 digits." });
+        }
     }
 
-    const digitOnly = /^\d+$/;
-
-    if (!digitOnly.test(institution_number) || institution_number.length !== 3) {
-        return res.status(400).json({ message: "Institution Number must be a 3-digit numeric code." });
+    // 👉 Validation for INTERAC E-TRANSFER
+    if (preferred_transfer_type === "e_transfer") {
+        if (!interac_email && !interac_phone) {
+            return res.status(400).json({
+                message: "E-Transfer requires interac_email or interac_phone."
+            });
+        }
     }
 
-    if (!digitOnly.test(transit_number) || transit_number.length !== 5) {
-        return res.status(400).json({ message: "Transit Number must be a 5-digit numeric code." });
-    }
-
-    if (!digitOnly.test(account_number) || account_number.length < 7 || account_number.length > 12) {
-        return res.status(400).json({ message: "Account Number must be between 7 and 12 digits." });
-    }
-
-    // 🧩 Insert new record
     try {
         await db.query(
             `INSERT INTO vendor_bank_accounts
              (vendor_id, account_holder_name, bank_name, institution_number, transit_number, account_number,
-              bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type,interac_email, interac_phone)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,? , ?)`,
+              bank_address, email, legal_name, dob, business_name, government_id, preferred_transfer_type,
+              interac_email, interac_phone)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+
             [
                 vendor_id,
                 account_holder_name,
@@ -132,53 +151,92 @@ const editBankAccount = asyncHandler(async (req, res) => {
         email = null,
         legal_name,
         dob,
-        business_name = null, // for business
+        business_name = null,
         preferred_transfer_type = "bank_transfer",
         interac_email,
         interac_phone
     } = req.body;
 
-    // ✅ Check all required fields
-    const requiredFields = {
-        account_holder_name,
-        bank_name,
-        institution_number,
-        transit_number,
-        account_number,
-        bank_address,
-        email,
-        legal_name,
-        dob,
-        preferred_transfer_type,
-        interac_email,
-        interac_phone
-    };
+    // Trim fields
+    account_holder_name = account_holder_name?.trim();
+    bank_name = bank_name?.trim();
+    institution_number = institution_number?.trim();
+    transit_number = transit_number?.trim();
+    account_number = account_number?.trim();
 
-    for (const [key, value] of Object.entries(requiredFields)) {
-        if (value === undefined || value === null || value === "") {
+    // -----------------------------------
+    // CONDITIONAL VALIDATION (IMPORTANT)
+    // -----------------------------------
+
+    // 👉 BANK TRANSFER REQUIREMENTS
+    if (preferred_transfer_type === "bank_transfer") {
+        if (
+            !account_holder_name ||
+            !bank_name ||
+            !institution_number ||
+            !transit_number ||
+            !account_number
+        ) {
             return res.status(400).json({
-                message: `Field '${key}' is required.`
+                message:
+                    "Bank Transfer requires: account_holder_name, bank_name, institution_number, transit_number, and account_number."
+            });
+        }
+
+        const digitOnly = /^\d+$/;
+
+        if (!digitOnly.test(institution_number) || institution_number.length !== 3) {
+            return res.status(400).json({
+                message: "Institution Number must be a 3-digit number."
+            });
+        }
+
+        if (!digitOnly.test(transit_number) || transit_number.length !== 5) {
+            return res.status(400).json({
+                message: "Transit Number must be a 5-digit number."
+            });
+        }
+
+        if (
+            !digitOnly.test(account_number) ||
+            account_number.length < 7 ||
+            account_number.length > 12
+        ) {
+            return res.status(400).json({
+                message: "Account Number must be 7–12 digits."
             });
         }
     }
 
+    // 👉 INTERAC E-TRANSFER REQUIREMENTS
+    if (preferred_transfer_type === "e_transfer") {
+        if (!interac_email && !interac_phone) {
+            return res.status(400).json({
+                message: "E-Transfer requires either interac_email or interac_phone."
+            });
+        }
+    }
 
-    // 🔍 Check if account exists
+    // -------------------------
+    // CHECK IF ACCOUNT EXISTS
+    // -------------------------
     const [rows] = await db.query(
         "SELECT vendor_bank_account_id, government_id FROM vendor_bank_accounts WHERE vendor_id = ?",
         [vendor_id]
     );
 
     if (rows.length === 0) {
-        return res.status(404).json({ message: "Bank account not found" });
+        return res.status(404).json({ message: "Bank account not found." });
     }
 
-    // ✅ Preserve government_id if not re-uploaded
+    // Preserve old government ID if not re-uploaded
     const existingAccount = rows[0];
     const government_id =
         req.uploadedFiles?.government_id?.[0]?.url || existingAccount.government_id || null;
 
-    // 🛠️ Perform update
+    // -------------------------
+    // PERFORM UPDATE
+    // -------------------------
     const [result] = await db.query(
         `UPDATE vendor_bank_accounts
          SET
@@ -212,7 +270,7 @@ const editBankAccount = asyncHandler(async (req, res) => {
             preferred_transfer_type,
             interac_email,
             interac_phone,
-            vendor_id,
+            vendor_id
         ]
     );
 
@@ -220,7 +278,7 @@ const editBankAccount = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "No changes were made to the bank account." });
     }
 
-    res.json({ message: "Bank account edited successfully." });
+    res.json({ message: "Bank account updated successfully." });
 });
 
 const getAllVendorsBankAccounts = asyncHandler(async (req, res) => {
