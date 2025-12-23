@@ -14,19 +14,9 @@ const transporter = nodemailer.createTransport({
 // 🔹 Main mail sending function
 const sendMail = async ({ to, subject, bodyHtml, layout = "default", extraData = {} }) => {
     const {
-        userName = "",
-        receiptUrl = "",
-        usersName = "",
         code = "",
-        vendorName = "",
-        bookingDateFormatted = "",
-        bookingTimeFormatted = "",
-        bookingTime = "",
-        booking_id = "",
         promoCode = "",
-        description = "",
-        discountValue = "",
-        maxUse = "",
+        description = ""
     } = extraData || {};
 
     let headerHtml = "";

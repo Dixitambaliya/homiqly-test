@@ -5,7 +5,7 @@ const { db, testConnection } = require("./config/db")
 const bodyParser = require("body-parser");
 const app = express();
 const stripeController = require("./controller/stripeController");
-require("./controller/reminder")
+// require("./controller/reminder")
 
 
 // 🟢 Stripe webhook (must come FIRST and use raw parser)
