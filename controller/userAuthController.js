@@ -365,11 +365,10 @@ const sendOtp = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Either phone or email is required" });
     }
 
-    // 1️⃣ Lookup phone & email separately
+    // ✅ 1. Lookup phone & email separately
     let [byPhone] = phone
         ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE phone = ?", [phone])
         : [[]];
-
     let [byEmail] = email
         ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE email = ?", [email])
         : [[]];
@@ -377,7 +376,7 @@ const sendOtp = asyncHandler(async (req, res) => {
     const phoneExists = byPhone.length > 0;
     const emailExists = byEmail.length > 0;
 
-    // 2️⃣ Determine correct user
+    // ✅ 2. Determine final user (if both exist and same user_id)
     let user = null;
     if (phone && email) {
         if (phoneExists && emailExists && byPhone[0].user_id === byEmail[0].user_id) {
@@ -398,85 +397,86 @@ const sendOtp = asyncHandler(async (req, res) => {
 
     const is_registered = phoneExists || emailExists;
 
-    // 🚫 Restrict blocked users
+    // 🚫 **BLOCK RESTRICTED USERS IMMEDIATELY**
     if (user && Number(user.is_approved) === 2) {
         return res.status(403).json({
             message: "Your account has been restricted."
         });
     }
 
-    // 3️⃣ SMS OTP Logic
-    let otp = null;
-    let token = null;
+    // 🔢 3. Generate OTP
+    const otp = generateOTP();
 
+    // 🔐 4. Create JWT (valid 30 min)
+    const tokenPayload = { otp };
+    if (phone) tokenPayload.phone = phone;
+    if (email) tokenPayload.email = email;
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "30m" });
+
+    // 📱 5. Send OTP via SMS (async)
     if (phone) {
         try {
-            const twilioConfigured =
-                client &&
-                process.env.TWILIO_PHONE_NUMBER &&
-                process.env.TWILIO_AUTH_TOKEN &&
-                process.env.TWILIO_SID;
+            const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-            if (twilioConfigured) {
-                otp = generateOTP();
+        } catch (error) {
+            console.error("❌ Failed to send SMS OTP:", error.message);
 
-                const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
-
-            } else {
-                otp = null;
-            }
-            if (otp) {
-                const tokenPayload = { otp, phone };
-                if (email) tokenPayload.email = email;
-
-                token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-                    expiresIn: "30m",
+            // Optionally handle Twilio errors properly:
+            if (
+                error.message.includes("cannot be a landline") ||
+                error.code === 21614 ||
+                error.code === 21211
+            ) {
+                return res.status(400).json({
+                    message: "Invalid or unsupported phone number. Please use a valid mobile number.",
+                    error: error.message,
                 });
             }
 
-        } catch (error) {
-            console.error("❌ SMS failed:", error.message);
             return res.status(500).json({
-                message: "Failed to send OTP via SMS",
+                message: "Failed to send OTP via SMS. Please try again later.",
+                error: error.message,
             });
         }
     }
 
-
-
-    // 4️⃣ EMAIL OTP (optional)
+    // 📧 6. Send OTP via Email (async)
     if (email) {
         (async () => {
             try {
-                const emailOtp = otp || generateOTP(); // fallback if no SMS
                 await sendUserVerificationMail({
                     userEmail: email,
-                    code: emailOtp,
-                    subject: is_registered ? "Welcome back to Homiqly" : "Welcome to Homiqly",
+                    code: otp,
+                    subject: is_registered
+                        ? "Welcome back to Homiqly"
+                        : "Welcome to Homiqly",
                 });
 
                 console.log(`📧 OTP email sent to ${email}`);
             } catch (error) {
-                console.error("❌ Email OTP Error:", error.message);
+                console.error("❌ Failed to send email OTP:", error.message);
             }
         })();
     }
 
-    // 5️⃣ Build final response
+    // ✅ 7. Build response
     const responseMsg = is_registered
         ? `Welcome back${user?.firstName ? `, ${user.firstName}` : ""}! We've sent your OTP.`
         : "OTP sent successfully. Please continue registration.";
 
-    return res.status(200).json({
+    res.status(200).json({
         message: responseMsg,
         token,
         is_registered,
+        // ✅ FINAL LOGIC:
+        // if email provided AND it's new → true
+        // if only phone is provided and new → false
         is_email_registered: email && !emailExists ? true : false,
         firstName: user?.firstName || null,
         lastName: user?.lastName || null,
     });
 });
-
 
 
 function normalizePhone(phone) {

@@ -10,84 +10,118 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
 // ---- Send OTP via SMS ----
 const sendOtp = asyncHandler(async (req, res) => {
-    const user_id = req.user.user_id;
-    const { phone } = req.body;
+    const { phone, email } = req.body;
 
-    if (!phone) {
-        return res.status(400).json({ message: "Phone is required" });
+    if (!phone && !email) {
+        return res.status(400).json({ message: "Either phone or email is required" });
     }
 
-    try {
-        // 1️⃣ Get current user data
-        const [[currentUser]] = await db.query(
-            "SELECT phone FROM users WHERE user_id = ?",
-            [user_id]
-        );
+    // 1️⃣ Lookup phone & email separately
+    let [byPhone] = phone
+        ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE phone = ?", [phone])
+        : [[]];
 
-        if (!currentUser) {
-            return res.status(404).json({ message: "User not found" });
-        }
+    let [byEmail] = email
+        ? await db.query("SELECT user_id, firstName, lastName, phone, email, is_approved FROM users WHERE email = ?", [email])
+        : [[]];
 
-        // 2️⃣ Check if phone belongs to another user
-        const [rows] = await db.query(
-            "SELECT user_id FROM users WHERE phone = ? AND user_id != ?",
-            [phone, user_id]
-        );
+    const phoneExists = byPhone.length > 0;
+    const emailExists = byEmail.length > 0;
 
-        if (rows.length > 0) {
+    // 2️⃣ Determine correct user
+    let user = null;
+    if (phone && email) {
+        if (phoneExists && emailExists && byPhone[0].user_id === byEmail[0].user_id) {
+            user = byPhone[0];
+        } else if (phoneExists && !emailExists) {
+            user = byPhone[0];
+        } else if (emailExists && !phoneExists) {
+            user = byEmail[0];
+        } else if (phoneExists && emailExists && byPhone[0].user_id !== byEmail[0].user_id) {
             return res.status(400).json({
-                message: "This phone number is already registered with another account.",
+                message: "Phone and email belong to different accounts. Please use only one to log in.",
+                conflict: true,
             });
         }
+    } else {
+        user = phoneExists ? byPhone[0] : byEmail[0];
+    }
 
-        // 3️⃣ If phone changed, update & reset approval
-        if (phone !== currentUser.phone) {
-            await db.query(
-                "UPDATE users SET phone = ?, is_approved = 0 WHERE user_id = ?",
-                [phone, user_id]
-            );
-        }
+    const is_registered = phoneExists || emailExists;
 
-        const twilioConfigured =
-            client &&
-            process.env.TWILIO_SID &&
-            process.env.TWILIO_AUTH_TOKEN &&
-            process.env.TWILIO_PHONE_NUMBER;
+    // 🚫 Restrict blocked users
+    if (user && Number(user.is_approved) === 2) {
+        return res.status(403).json({
+            message: "Your account has been restricted."
+        });
+    }
 
-        let otp = null;
-        let token = null;
+    // 3️⃣ SMS OTP Logic
+    let otp = null;
+    let token = null;
 
-        if (twilioConfigured) {
+    if (phone) {
+        try {
+            console.log("📤 Sending SMS OTP...");
+
+            // Generate OTP ONLY NOW (NOT BEFORE!)
             otp = generateOTP();
 
             const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
 
-            token = jwt.sign(
-                { phone, otp },
-                process.env.JWT_SECRET,
-                { expiresIn: "5m" }
-            );
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-        } else {
-            token = jwt.sign(
-                { phone },
-                process.env.JWT_SECRET,
-                { expiresIn: "5m" }
-            );
+            // Create token ONLY AFTER SMS SUCCESS
+            const tokenPayload = { otp };
+            if (phone) tokenPayload.phone = phone;
+            if (email) tokenPayload.email = email;
+
+            token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "30m" });
+
+            console.log("✅ SMS OTP sent successfully (simulated).");
+
+        } catch (error) {
+            console.error("❌ Failed to send SMS OTP:", error.message);
+
+            return res.status(500).json({
+                message: "Failed to send OTP via SMS. Please try again later."
+            });
         }
-
-        // 6️⃣ Response
-        return res.json({
-            message:"OTP sent via SMS",
-            token,
-            phoneUpdated: phone !== currentUser.phone,
-        });
-
-    } catch (err) {
-        console.error("SMS sending error:", err);
-        return res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
+
+    // 4️⃣ EMAIL OTP (optional)
+    if (email) {
+        (async () => {
+            try {
+                const emailOtp = otp || generateOTP(); // fallback if no SMS
+                await sendUserVerificationMail({
+                    userEmail: email,
+                    code: emailOtp,
+                    subject: is_registered ? "Welcome back to Homiqly" : "Welcome to Homiqly",
+                });
+
+                console.log(`📧 OTP email sent to ${email}`);
+            } catch (error) {
+                console.error("❌ Email OTP Error:", error.message);
+            }
+        })();
+    }
+
+    // 5️⃣ Build final response
+    const responseMsg = is_registered
+        ? `Welcome back${user?.firstName ? `, ${user.firstName}` : ""}! We've sent your OTP.`
+        : "OTP sent successfully. Please continue registration.";
+
+    return res.status(200).json({
+        message: responseMsg,
+        token,
+        is_registered,
+        is_email_registered: email && !emailExists ? true : false,
+        firstName: user?.firstName || null,
+        lastName: user?.lastName || null,
+    });
 });
+
 
 
 const checkPhoneAvailability = asyncHandler(async (req, res) => {
