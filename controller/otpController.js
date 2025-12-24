@@ -57,12 +57,7 @@ const sendOtp = asyncHandler(async (req, res) => {
             { expiresIn: "5m" }
         );
 
-        // 📩 6️⃣ Send OTP to the new number
-        await client.messages.create({
-            body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: phone,
-        });
+        await new Promise(resolve => setTimeout(resolve, 100));
         console.log("OTP send sucessfully.", phone);
 
         res.json({

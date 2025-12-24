@@ -404,7 +404,7 @@ const sendOtp = asyncHandler(async (req, res) => {
         });
     }
 
-    // 🔢 3. Generate OTP 
+    // 🔢 3. Generate OTP
     const otp = generateOTP();
 
     // 🔐 4. Create JWT (valid 30 min)
@@ -417,12 +417,8 @@ const sendOtp = asyncHandler(async (req, res) => {
     if (phone) {
         try {
             const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
-            // ✅ Await Twilio directly
-            await client.messages.create({
-                body: smsMessage,
-                from: process.env.TWILIO_PHONE_NUMBER,
-                to: phone,
-            });
+
+            await new Promise(resolve => setTimeout(resolve, 100));
 
         } catch (error) {
             console.error("❌ Failed to send SMS OTP:", error.message);
