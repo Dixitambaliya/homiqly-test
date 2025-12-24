@@ -322,7 +322,7 @@ const getNewVendors = asyncHandler(async (req, res) => {
     try {
         // 1️⃣ Fetch NEW vendors (not authenticated)
         const [vendors] = await db.query(`
-            SELECT 
+            SELECT
                 v.vendor_id,
                 v.vendorType,
                 v.is_authenticated,
@@ -632,10 +632,10 @@ const getUsers = asyncHandler(async (req, res) => {
         if (search.trim()) {
             search = `%${search}%`;
             searchQuery = `
-                WHERE 
-                    u.firstName LIKE ? OR 
-                    u.lastName LIKE ? OR 
-                    u.email LIKE ? OR 
+                WHERE
+                    u.firstName LIKE ? OR
+                    u.lastName LIKE ? OR
+                    u.email LIKE ? OR
                     u.phone LIKE ? OR
                     u.city LIKE ?
             `;
@@ -705,7 +705,7 @@ const getAllEmployeesForAdmin = asyncHandler(async (req, res) => {
 
 const updateUserByAdmin = asyncHandler(async (req, res) => {
     const { user_id } = req.params;
-    const { firstName, lastName, email, phone, is_approved } = req.body;
+    const { firstName, lastName, email, phone, is_approved , address , postalcode} = req.body;
 
     try {
         // Check if user exists
@@ -720,6 +720,8 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
         const updatedLastName = lastName?.trim() || existing.lastName;
         const updatedEmail = email?.trim() || existing.email;
         const updatedPhone = phone?.trim() || existing.phone;
+        const updatedAddress = address?.trim() || existing.address;
+        const updatedPostalcode = postalcode?.trim() || existing.postalcode;
         const updatedApproval =
             typeof is_approved === "number" ? is_approved : existing.is_approved;
 
@@ -728,6 +730,8 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
             updatedLastName,
             updatedEmail,
             updatedPhone,
+            updatedAddress,
+            updatedPostalcode,
             updatedApproval,
             user_id,
         ]);
@@ -831,7 +835,7 @@ const getBookings = asyncHandler(async (req, res) => {
         sb.bookingMedia,
         sb.payment_intent_id,
         sb.payment_status,
-        sb.user_promo_code_id,   
+        sb.user_promo_code_id,
 
         u.user_id,
         CONCAT(u.firstName, ' ', u.lastName) AS userName,
@@ -949,7 +953,7 @@ const getBookings = asyncHandler(async (req, res) => {
             let promo = null;
             if (b.user_promo_code_id) {
                 const [[userPromo]] = await db.query(`
-                    SELECT 
+                    SELECT
                         upc.user_promo_code_id AS promo_id,
                         pc.code AS promoCode,
                         pc.discountValue,
@@ -969,7 +973,7 @@ const getBookings = asyncHandler(async (req, res) => {
                             spt.discount_type AS discountType,
                             spt.discountValue
                         FROM system_promo_codes spc
-                        LEFT JOIN system_promo_code_templates spt 
+                        LEFT JOIN system_promo_code_templates spt
                             ON spc.template_id = spt.system_promo_code_template_id
                         WHERE spc.system_promo_code_id = ?
                     `, [b.user_promo_code_id]);

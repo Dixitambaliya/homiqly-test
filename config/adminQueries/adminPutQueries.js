@@ -41,12 +41,12 @@ WHERE preference_id = ? AND package_item_id = ?
 `,
 
   getPreferenceById: `
-     SELECT * FROM booking_preferences 
-    WHERE preference_id = ? 
-    LIMIT 1 
+     SELECT * FROM booking_preferences
+    WHERE preference_id = ?
+    LIMIT 1
 `,
   deleteRemovedPreferences: `
-  DELETE FROM booking_preferences 
+  DELETE FROM booking_preferences
     WHERE package_item_id = ? AND preferenceGroup = ? AND preference_id NOT IN (?)
 `,
 
@@ -55,31 +55,31 @@ WHERE preference_id = ? AND package_item_id = ?
   ,
 
   updateConsentForm: `
-  UPDATE 
-  package_consent_forms 
-  SET question = ?, is_required = ? 
+  UPDATE
+  package_consent_forms
+  SET question = ?, is_required = ?
   WHERE consent_id = ? AND package_id = ?`
   ,
 
   insertConsentForm: `
-  INSERT INTO package_consent_forms 
-    (package_id, question, is_required) 
+  INSERT INTO package_consent_forms
+    (package_id, question, is_required)
     VALUES (?, ?, ?)`
   ,
 
   deleteRemovedConsentForms: `
-  DELETE 
-  FROM package_consent_forms 
+  DELETE
+  FROM package_consent_forms
       WHERE package_id = ? AND consent_id NOT IN (?)`
   ,
 
   updateUserById: `
     UPDATE users
-    SET firstName = ?, lastName = ?, email = ?, phone = ?, is_approved = ?
+    SET firstName = ?, lastName = ?, email = ?, phone = ?, address = ? , postalcode = ? , is_approved = ?
   WHERE user_id = ?
     `,
   getPackageItemById: `
-  SELECT * FROM package_items WHERE item_id = ? 
+  SELECT * FROM package_items WHERE item_id = ?
   `,
 
   // Update sub-package item
@@ -118,7 +118,7 @@ VALUES(?, ?, ?, ?, ?, ?)
 
   // Insert new preference
   insertPackagePreference: `
-    INSERT INTO booking_preferences (package_item_id, preferenceGroup, preferenceValue, preferencePrice) 
+    INSERT INTO booking_preferences (package_item_id, preferenceGroup, preferenceValue, preferencePrice)
     VALUES (?, ?, ?, ?)
   `,
   toggleManualVendorAssignment: `
