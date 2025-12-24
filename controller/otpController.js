@@ -18,7 +18,7 @@ const sendOtp = asyncHandler(async (req, res) => {
     }
 
     try {
-        // 🔍 1️⃣ Get current user data
+        // 1️⃣ Get current user data
         const [[currentUser]] = await db.query(
             "SELECT phone FROM users WHERE user_id = ?",
             [user_id]
@@ -28,7 +28,7 @@ const sendOtp = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // 🔎 2️⃣ Check if any other user has this phone
+        // 2️⃣ Check if phone belongs to another user
         const [rows] = await db.query(
             "SELECT user_id FROM users WHERE phone = ? AND user_id != ?",
             [phone, user_id]
@@ -40,37 +40,55 @@ const sendOtp = asyncHandler(async (req, res) => {
             });
         }
 
-        // 🔄 3️⃣ If phone changed, reset is_approved = 0 and update phone
+        // 3️⃣ If phone changed, update & reset approval
         if (phone !== currentUser.phone) {
             await db.query(
                 "UPDATE users SET phone = ?, is_approved = 0 WHERE user_id = ?",
                 [phone, user_id]
             );
         }
-        // 🔢 4️⃣ Generate OTP
-        const otp = generateOTP();
 
-        // 🔐 5️⃣ Create JWT containing phone + OTP
-        const token = jwt.sign(
-            { phone, otp },
-            process.env.JWT_SECRET,
-            { expiresIn: "5m" }
-        );
+        const twilioConfigured =
+            client &&
+            process.env.TWILIO_SID &&
+            process.env.TWILIO_AUTH_TOKEN &&
+            process.env.TWILIO_PHONE_NUMBER;
 
-        await new Promise(resolve => setTimeout(resolve, 100));
-        console.log("OTP send sucessfully.", phone);
+        let otp = null;
+        let token = null;
 
-        res.json({
-            message: "OTP sent via SMS",
+        if (twilioConfigured) {
+            otp = generateOTP();
+
+            const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
+
+            token = jwt.sign(
+                { phone, otp },
+                process.env.JWT_SECRET,
+                { expiresIn: "5m" }
+            );
+
+        } else {
+            token = jwt.sign(
+                { phone },
+                process.env.JWT_SECRET,
+                { expiresIn: "5m" }
+            );
+        }
+
+        // 6️⃣ Response
+        return res.json({
+            message:"OTP sent via SMS",
             token,
             phoneUpdated: phone !== currentUser.phone,
         });
 
     } catch (err) {
         console.error("SMS sending error:", err);
-        res.status(500).json({ message: "Failed to send OTP via SMS" });
+        return res.status(500).json({ message: "Failed to send OTP via SMS" });
     }
 });
+
 
 const checkPhoneAvailability = asyncHandler(async (req, res) => {
     const user_id = req.user.user_id;
