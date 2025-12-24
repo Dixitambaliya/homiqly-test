@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const db = require("../config/db");
+const { db } = require("../config/db");
 const moment = require("moment-timezone");
 const { sendMail } = require('../config/utils/email/templates/nodemailer');
 const CRON_EVERY_5_MIN = "*/10 * * * *"; // run every 10 minutes (change as needed)
