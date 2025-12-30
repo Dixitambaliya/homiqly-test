@@ -14,7 +14,11 @@ const {
     editPost,
     getServiceNames,
     getVendorPostsByVendorId,
-    getVendorServiceNames
+    getVendorServiceNames,
+    getVendorFullProfile,
+    getApprovedPosts,
+    getApprovedAllPosts,
+    getFirstPosts
 } = require('../controller/post');
 
 const { upload, handleUploads } = require("../middleware/upload");
@@ -36,11 +40,16 @@ router.patch('/approve-post/:post_id', authenticationToken, approvePost);
 router.get('/post-summary', authenticationToken, getPostSummary);
 router.get('/get-post-details/:vendor_id', authenticationToken, getVendorPostsByVendorId);
 
-//USER 
+//USER
 router.get('/servicesName', getServiceNames);
 router.get('/get-summary', getVendorPostSummary);
 router.get('/get-service-vendor', getVendorServiceNames);
-router.get('/get-posts', optionalAuth, getApprovedVendorPosts);
 router.post('/like-post/:post_id', authenticationToken, likePost);
+router.get('/get-posts', optionalAuth, getApprovedVendorPosts);
+
+
+router.get('/all-posts', optionalAuth, getApprovedPosts);
+router.get('/vendors-posts', optionalAuth, getVendorFullProfile);
+router.get('/random-posts', getFirstPosts);
 
 module.exports = router;
