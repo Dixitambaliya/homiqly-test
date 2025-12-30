@@ -46,7 +46,6 @@ const getServiceNames = asyncHandler(async (req, res) => {
     });
 });
 
-
 const createPost = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
     const { title, short_description, item_id } = req.body;
@@ -158,7 +157,7 @@ const editPost = asyncHandler(async (req, res) => {
 
 const getVendorPosts = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
-    
+
     const { serviceName } = req.query; // optional filter
 
     if (!vendor_id) {
@@ -488,7 +487,6 @@ const getApprovedVendorPosts = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getVendorServiceNames = asyncHandler(async (req, res) => {
     const vendorName = req.query.vendorName;
 
@@ -531,7 +529,6 @@ const getVendorServiceNames = asyncHandler(async (req, res) => {
         serviceNames: services.map(s => s.serviceName)
     });
 });
-
 
 const getPendingPosts = asyncHandler(async (req, res) => {
     const [posts] = await db.query(
@@ -610,6 +607,37 @@ const approvePost = asyncHandler(async (req, res) => {
     });
 });
 
+const deletePost = asyncHandler(async (req, res) => {
+    const post_id = req.params.post_id;
+
+    const admin_id = req.user.admin_id
+
+    if (!admin_id) {
+        return res.status(401).json({ error: "Not authorized" })
+    }
+
+    if (!post_id) {
+        return res.status(400).json({ error: "post_id is required" });
+    }
+
+    const [postRows] = await db.query(
+        `SELECT post_id FROM posts WHERE post_id = ? LIMIT 1`,
+        [post_id]
+    );
+
+    if (postRows.length === 0) {
+        return res.status(404).json({ error: "Post not found" });
+    }
+
+    await db.query(
+        `DELETE FROM posts WHERE post_id = ?`,
+        [post_id]
+    );
+
+    return res.json({
+        message: "Post Deleted"
+    });
+});
 
 const getPostSummary = asyncHandler(async (req, res) => {
     let page = parseInt(req.query.page) || 1;
@@ -654,8 +682,6 @@ const getPostSummary = asyncHandler(async (req, res) => {
         vendors: rows
     });
 });
-
-
 
 const getVendorFullProfile = asyncHandler(async (req, res) => {
     const { vendor_id } = req.query;
@@ -800,10 +826,6 @@ const getVendorFullProfile = asyncHandler(async (req, res) => {
     });
 });
 
-
-
-
-
 const getAllApprovedPosts = asyncHandler(async (req, res) => {
     // detect logged in user (optional)
     const user_id = req.user?.user_id || null;
@@ -896,7 +918,6 @@ const getAllApprovedPosts = asyncHandler(async (req, res) => {
     });
 });
 
-
 const getRendomPosts = asyncHandler(async (req, res) => {
     const { post_id } = req.query;
 
@@ -986,8 +1007,6 @@ const getRendomPosts = asyncHandler(async (req, res) => {
         posts: finalPosts
     });
 });
-
-
 
 const getVendorPostSummary = asyncHandler(async (req, res) => {
     const { serviceName } = req.query;
@@ -1089,7 +1108,6 @@ const getVendorPostSummary = asyncHandler(async (req, res) => {
     });
 });
 
-
 const likePost = asyncHandler(async (req, res) => {
     const post_id = req.params.post_id;
     const user_id = req.user?.user_id;
@@ -1147,7 +1165,6 @@ const likePost = asyncHandler(async (req, res) => {
         liked: action === "liked",
     });
 });
-
 
 const getVendorAllApprovedPosts = asyncHandler(async (req, res) => {
     const { vendor_id } = req.query;
@@ -1238,6 +1255,7 @@ module.exports = {
     createPost,
     getAllApprovedPosts,
     getVendorPosts,
+    deletePost,
     getApprovedVendorPosts,
     getPendingPosts,
     approvePost,

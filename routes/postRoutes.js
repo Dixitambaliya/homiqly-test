@@ -12,6 +12,7 @@ const {
     getVendorPostSummary,
     likePost,
     editPost,
+    deletePost,
     getServiceNames,
     getVendorPostsByVendorId,
     getVendorServiceNames,
@@ -37,6 +38,7 @@ router.put('/edit-post/:post_id', multiUpload, handleUploads, authenticationToke
 //ADMIN
 router.get('/get-pending-request', authenticationToken, getPendingPosts);
 router.patch('/approve-post/:post_id', authenticationToken, approvePost);
+router.delete('/delete-post/:post_id', authenticationToken, deletePost);
 router.get('/post-summary', authenticationToken, getPostSummary);
 router.get('/get-post-details/:vendor_id', authenticationToken, getVendorPostsByVendorId);
 
