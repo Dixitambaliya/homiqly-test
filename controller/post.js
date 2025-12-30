@@ -158,6 +158,7 @@ const editPost = asyncHandler(async (req, res) => {
 
 const getVendorPosts = asyncHandler(async (req, res) => {
     const vendor_id = req.user.vendor_id;
+    
     const { serviceName } = req.query; // optional filter
 
     if (!vendor_id) {
@@ -169,14 +170,14 @@ const getVendorPosts = asyncHandler(async (req, res) => {
         SELECT
             p.post_id,
             p.vendor_id,
-            p.service_id,
-            s.serviceName,
+            pi.item_id AS service_id,
+            pi.itemName AS serviceName,
             p.title,
             p.shortDescription AS short_description,
             p.is_approved,
             p.created_at
         FROM posts p
-        JOIN services s ON p.service_id = s.service_id
+        JOIN package_items pi ON p.item_id = pi.item_id
         WHERE p.vendor_id = ?
     `;
 
@@ -184,7 +185,7 @@ const getVendorPosts = asyncHandler(async (req, res) => {
 
     // 2️⃣ Apply filter if serviceName provided
     if (serviceName) {
-        postQuery += ` AND s.serviceName LIKE ? `;
+        postQuery += ` AND pi.itemName LIKE ? `;
         params.push(`%${serviceName}%`);
     }
 
@@ -274,13 +275,13 @@ const getVendorPostsByVendorId = asyncHandler(async (req, res) => {
         `
         SELECT
             p.post_id,
-            s.serviceName,
+            pi.itemName AS serviceName,
             p.title,
             p.shortDescription
         FROM posts p
-        JOIN services s ON p.service_id = s.service_id
+        JOIN package_items pi ON p.item_id = pi.item_id
         WHERE p.vendor_id = ?
-        ${serviceNameFilter ? "AND s.serviceName LIKE ?" : ""}
+        ${serviceNameFilter ? "AND pi.itemName LIKE ?" : ""}
         ORDER BY p.post_id DESC
         `,
         serviceNameFilter
@@ -289,7 +290,7 @@ const getVendorPostsByVendorId = asyncHandler(async (req, res) => {
     );
 
     if (vendorPosts.length === 0) {
-        return res.status(404).json({
+        return res.status(200).json({
             error: "No approved posts found for this vendor"
         });
     }
@@ -540,13 +541,14 @@ const getPendingPosts = asyncHandler(async (req, res) => {
             p.vendor_id,
             id.name,
             id.email,
-            s.serviceName,
+            s.itemName AS serviceName,
+            s.itemName AS serviceName,
             p.title,
             p.shortDescription AS short_description,
             p.is_approved,
             p.created_at
         FROM posts p
-        LEFT JOIN services s ON p.service_id = s.service_id
+        LEFT JOIN package_items s ON p.item_id = s.item_id
         JOIN individual_details id ON p.vendor_id = id.vendor_id
         WHERE p.is_approved = 0
         ORDER BY p.created_at DESC
@@ -635,6 +637,7 @@ const getPostSummary = asyncHandler(async (req, res) => {
         LEFT JOIN vendors v ON p.vendor_id = v.vendor_id
         LEFT JOIN individual_details i ON v.vendor_id = i.vendor_id
         LEFT JOIN company_details c ON v.vendor_id = c.vendor_id
+        WHERE p.is_approved = '1'
         GROUP BY v.vendor_id
         ORDER BY MAX(p.post_id) DESC
         LIMIT ? OFFSET ?
@@ -801,7 +804,7 @@ const getVendorFullProfile = asyncHandler(async (req, res) => {
 
 
 
-const getApprovedPosts = asyncHandler(async (req, res) => {
+const getAllApprovedPosts = asyncHandler(async (req, res) => {
     // detect logged in user (optional)
     const user_id = req.user?.user_id || null;
 
@@ -814,19 +817,21 @@ const getApprovedPosts = asyncHandler(async (req, res) => {
             description,
             created_at,
             vendor_id,
+            specialty,
             vendorName,
             profileImage,
             likes
         FROM (
             SELECT
                 p.post_id,
-                pi.itemName AS title,
-                pi.itemMedia AS image,
+                p.title,
+                pi.image,
                 p.shortDescription AS description,
                 p.created_at,
                 v.vendor_id,
                 i.name AS vendorName,
                 i.profileImage,
+                i.expertise AS specialty,
 
                 (
                     SELECT COUNT(*)
@@ -835,9 +840,9 @@ const getApprovedPosts = asyncHandler(async (req, res) => {
                 ) AS likes,
 
                 ROW_NUMBER() OVER (PARTITION BY v.vendor_id ORDER BY p.created_at ASC) AS rn
-            FROM package_items pi
-            JOIN posts p ON pi.item_id = p.item_id
+            FROM posts p
             JOIN vendors v ON p.vendor_id = v.vendor_id
+            JOIN post_images pi ON pi.post_id = p.post_id
             LEFT JOIN individual_details i ON i.vendor_id = v.vendor_id
             WHERE p.is_approved = 1
         ) AS x
@@ -892,8 +897,7 @@ const getApprovedPosts = asyncHandler(async (req, res) => {
 });
 
 
-
-const getFirstPosts = asyncHandler(async (req, res) => {
+const getRendomPosts = asyncHandler(async (req, res) => {
     const { post_id } = req.query;
 
     // Optional auth (safe)
@@ -906,13 +910,14 @@ const getFirstPosts = asyncHandler(async (req, res) => {
     // 1️⃣ Fetch ALL approved posts
     const [allPosts] = await db.query(`
         SELECT
-            pi.itemName AS name,
-            pi.itemMedia AS image,
+            p.title AS name,
+            pi.image,
             p.shortDescription AS description,
             p.created_at AS date,
             v.vendor_id,
             i.name AS vendorName,
             i.profileImage,
+            i.expertise AS specialty,
 
             (
                 SELECT COUNT(*)
@@ -921,9 +926,9 @@ const getFirstPosts = asyncHandler(async (req, res) => {
             ) AS likes,
 
             p.post_id
-        FROM package_items pi
-        JOIN posts p ON pi.item_id = p.item_id
+        FROM posts p
         JOIN vendors v ON p.vendor_id = v.vendor_id
+        LEFT JOIN post_images pi ON pi.post_id = p.post_id
         LEFT JOIN individual_details i ON i.vendor_id = v.vendor_id
         WHERE p.is_approved = 1
         ORDER BY p.created_at DESC
@@ -1144,6 +1149,86 @@ const likePost = asyncHandler(async (req, res) => {
 });
 
 
+const getVendorAllApprovedPosts = asyncHandler(async (req, res) => {
+    const { vendor_id } = req.query;
+
+    if (!vendor_id) {
+        return res.status(400).json({ message: "vendor_id is required" });
+    }
+
+    // detect logged-in user
+    const user_id = req.user?.user_id || null;
+
+    // 1️⃣ Fetch ALL approved posts of the vendor
+    const [posts] = await db.query(`
+        SELECT
+            p.post_id,
+            p.title,
+            pi.image,
+            p.shortDescription AS description,
+            p.created_at,
+            v.vendor_id,
+            i.name AS vendorName,
+            i.profileImage,
+            i.expertise AS specialty,
+
+            (
+                SELECT COUNT(*)
+                FROM post_likes pl
+                WHERE pl.post_id = p.post_id
+            ) AS likes
+        FROM posts p
+        LEFT JOIN post_images pi ON pi.post_id = p.post_id
+        JOIN vendors v ON p.vendor_id = v.vendor_id
+        LEFT JOIN individual_details i ON i.vendor_id = v.vendor_id
+        WHERE p.is_approved = 1
+        AND v.vendor_id = ?
+        ORDER BY p.created_at DESC
+    `, [vendor_id]);
+
+    if (posts.length === 0) {
+        return res.json({ count: 0, posts: [] });
+    }
+
+    // extract postIds
+    const postIds = posts.map(p => p.post_id);
+
+    // 2️⃣ USER-SPECIFIC LIKE STATUS
+    let userLikedMap = {};
+    if (user_id) {
+        const [userLikes] = await db.query(
+            `
+            SELECT post_id
+            FROM post_likes
+            WHERE user_id = ? AND post_id IN (?)
+        `,
+            [user_id, postIds]
+        );
+
+        userLikes.forEach(row => {
+            userLikedMap[row.post_id] = true;
+        });
+    }
+
+    // 3️⃣ Format output
+    const formatted = posts.map(post => {
+        const { created_at, ...rest } = post; // remove created_at
+
+        return {
+            ...rest,
+            date: moment(created_at).format("DD MMM YYYY"),
+            vendorInitial: post.vendorName
+                ? post.vendorName.trim().charAt(0).toUpperCase()
+                : "",
+            isLiked: userLikedMap[post.post_id] || false
+        };
+    });
+
+    return res.json({
+        count: formatted.length,
+        posts: formatted
+    });
+});
 
 
 
@@ -1151,7 +1236,7 @@ const likePost = asyncHandler(async (req, res) => {
 module.exports = {
     getVendorServices,
     createPost,
-    getApprovedPosts,
+    getAllApprovedPosts,
     getVendorPosts,
     getApprovedVendorPosts,
     getPendingPosts,
@@ -1164,5 +1249,6 @@ module.exports = {
     getVendorServiceNames,
     getVendorPostsByVendorId,
     getVendorFullProfile,
-    getFirstPosts
+    getRendomPosts,
+    getVendorAllApprovedPosts
 };

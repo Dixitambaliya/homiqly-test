@@ -16,9 +16,9 @@ const {
     getVendorPostsByVendorId,
     getVendorServiceNames,
     getVendorFullProfile,
-    getApprovedPosts,
-    getApprovedAllPosts,
-    getFirstPosts
+    getAllApprovedPosts,
+    getVendorAllApprovedPosts,
+    getRendomPosts
 } = require('../controller/post');
 
 const { upload, handleUploads } = require("../middleware/upload");
@@ -41,15 +41,16 @@ router.get('/post-summary', authenticationToken, getPostSummary);
 router.get('/get-post-details/:vendor_id', authenticationToken, getVendorPostsByVendorId);
 
 //USER
-router.get('/servicesName', getServiceNames);
-router.get('/get-summary', getVendorPostSummary);
-router.get('/get-service-vendor', getVendorServiceNames);
-router.post('/like-post/:post_id', authenticationToken, likePost);
-router.get('/get-posts', optionalAuth, getApprovedVendorPosts);
+// router.get('/servicesName', getServiceNames);
+// router.get('/get-summary', getVendorPostSummary);
+// router.get('/get-service-vendor', getVendorServiceNames);
+// router.get('/get-posts', optionalAuth, getApprovedVendorPosts);
 
 
-router.get('/all-posts', optionalAuth, getApprovedPosts);
+router.get('/all-posts', optionalAuth, getAllApprovedPosts);
+router.get('/all-vendor-post', optionalAuth, getVendorAllApprovedPosts);
 router.get('/vendors-posts', optionalAuth, getVendorFullProfile);
-router.get('/random-posts', getFirstPosts);
+router.post('/like-post/:post_id', authenticationToken, likePost);
+router.get('/random-posts', getRendomPosts);
 
 module.exports = router;
