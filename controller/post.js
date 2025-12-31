@@ -759,11 +759,11 @@ const getVendorFullProfile = asyncHandler(async (req, res) => {
     const [services] = await db.query(`
         SELECT
             p.post_id,
-            p.item_id AS item_id,
-            p.itemName AS name,
-            p.itemMedia AS image,
-            p.description
+            p.title AS name,
+            pi.image,
+            p.shortDescription AS description
         FROM posts p
+        JOIN post_images pi ON p.post_id  = pi.post_id
         WHERE p.vendor_id = ?
         AND p.is_approved = 1
     `, [vendor_id]);
