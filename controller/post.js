@@ -169,14 +169,11 @@ const getVendorPosts = asyncHandler(async (req, res) => {
         SELECT
             p.post_id,
             p.vendor_id,
-            pi.item_id AS service_id,
-            pi.itemName AS serviceName,
             p.title,
             p.shortDescription AS short_description,
             p.is_approved,
             p.created_at
         FROM posts p
-        JOIN package_items pi ON p.item_id = pi.item_id
         WHERE p.vendor_id = ?
     `;
 
@@ -243,7 +240,6 @@ const getVendorPosts = asyncHandler(async (req, res) => {
 
 const getVendorPostsByVendorId = asyncHandler(async (req, res) => {
     const vendor_id = req.params.vendor_id;
-    const serviceNameFilter = req.query.serviceName; // OPTIONAL
 
     if (!vendor_id) {
         return res.status(400).json({ error: "vendor_id is required" });
@@ -274,18 +270,12 @@ const getVendorPostsByVendorId = asyncHandler(async (req, res) => {
         `
         SELECT
             p.post_id,
-            pi.itemName AS serviceName,
             p.title,
             p.shortDescription
         FROM posts p
-        JOIN package_items pi ON p.item_id = pi.item_id
         WHERE p.vendor_id = ?
-        ${serviceNameFilter ? "AND pi.itemName LIKE ?" : ""}
         ORDER BY p.post_id DESC
-        `,
-        serviceNameFilter
-            ? [vendor_id, `%${serviceNameFilter}%`]
-            : [vendor_id]
+        `, [vendor_id]
     );
 
     if (vendorPosts.length === 0) {
@@ -538,14 +528,11 @@ const getPendingPosts = asyncHandler(async (req, res) => {
             p.vendor_id,
             id.name,
             id.email,
-            s.itemName AS serviceName,
-            s.itemName AS serviceName,
             p.title,
             p.shortDescription AS short_description,
             p.is_approved,
             p.created_at
         FROM posts p
-        LEFT JOIN package_items s ON p.item_id = s.item_id
         JOIN individual_details id ON p.vendor_id = id.vendor_id
         WHERE p.is_approved = 0
         ORDER BY p.created_at DESC
