@@ -69,7 +69,12 @@ const sendOtp = asyncHandler(async (req, res) => {
 
             const smsMessage = `Your Homiqly verification code is ${otp}. It expires in 5 minutes. Never share this code.`;
 
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // 📩 6️⃣ Send OTP to the new number
+            await client.messages.create({
+                body: `Your Homiqly code is: ${otp}. It expires in 5 minutes. Never share this code.`,
+                from: process.env.TWILIO_PHONE_NUMBER,
+                to: phone,
+            });
 
             // Create token ONLY AFTER SMS SUCCESS
             const tokenPayload = { otp };

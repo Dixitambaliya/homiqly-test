@@ -683,6 +683,7 @@ const getPostSummary = asyncHandler(async (req, res) => {
     });
 });
 
+
 const getVendorFullProfile = asyncHandler(async (req, res) => {
     const { vendor_id } = req.query;
 
@@ -758,13 +759,11 @@ const getVendorFullProfile = asyncHandler(async (req, res) => {
     const [services] = await db.query(`
         SELECT
             p.post_id,
-            pi.item_id AS item_id,
-            pi.itemName AS name,
-            pi.itemMedia AS image,
-            pi.price,
-            pi.description
-        FROM package_items pi
-        JOIN posts p ON pi.item_id = p.item_id
+            p.item_id AS item_id,
+            p.itemName AS name,
+            p.itemMedia AS image,
+            p.description
+        FROM posts p
         WHERE p.vendor_id = ?
         AND p.is_approved = 1
     `, [vendor_id]);
@@ -825,6 +824,7 @@ const getVendorFullProfile = asyncHandler(async (req, res) => {
         services: servicesWithLikes
     });
 });
+
 
 const getAllApprovedPosts = asyncHandler(async (req, res) => {
     // detect logged in user (optional)
