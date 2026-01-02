@@ -119,8 +119,8 @@ const addService = asyncHandler(async (req, res) => {
 
         // ✅ Insert service with serviceFilter
         await connection.query(
-            `INSERT INTO services 
-            (service_categories_id, serviceName, serviceDescription, serviceImage, slug, serviceFilter) 
+            `INSERT INTO services
+            (service_categories_id, serviceName, serviceDescription, serviceImage, slug, serviceFilter)
             VALUES (?, ?, ?, ?, ?, ?)` ,
             [service_categories_id, serviceName, serviceDescription, serviceImage, slug, serviceFilter]
         );
@@ -391,13 +391,13 @@ const getAdminService = asyncHandler(async (req, res) => {
 const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT 
+            SELECT
                 sc.service_categories_id AS serviceCategoryId,
                 sc.serviceCategory AS categoryName,
                 s.service_id AS serviceId,
                 s.serviceName,
                 -- ✅ Add hasValidPackage column
-                CASE 
+                CASE
                     WHEN EXISTS (
                         SELECT 1
                         FROM service_type st
@@ -405,7 +405,7 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
                         WHERE st.service_id = s.service_id
                           AND p.packageName IS NOT NULL AND p.packageName <> ''
                           AND p.packageMedia IS NOT NULL AND p.packageMedia <> ''
-                    ) 
+                    )
                     THEN 1 ELSE 0
                 END AS hasValidPackage
             FROM services s
@@ -416,7 +416,7 @@ const getAdminServicesWithfilter = asyncHandler(async (req, res) => {
                 FROM service_type st
                 JOIN packages p ON p.service_type_id = st.service_type_id
                 WHERE st.service_id = s.service_id
-                  AND (p.packageName IS NULL OR p.packageName = '' 
+                  AND (p.packageName IS NULL OR p.packageName = ''
                        OR p.packageMedia IS NULL OR p.packageMedia = '')
             )
         `);
@@ -609,10 +609,10 @@ const editService = asyncHandler(async (req, res) => {
 
         // 3. Build dynamic query
         const query = serviceImage
-            ? `UPDATE services 
+            ? `UPDATE services
                SET service_categories_id = ?, serviceName = ?, serviceDescription = ?, serviceImage = ?, serviceFilter = ?
                WHERE service_id = ?`
-            : `UPDATE services 
+            : `UPDATE services
                SET service_categories_id = ?, serviceName = ?, serviceDescription = ?, serviceFilter = ?
                WHERE service_id = ?`;
 
@@ -809,14 +809,16 @@ const selectTopPick = asyncHandler(async (req, res) => {
 const getTopPicks = asyncHandler(async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT 
+            SELECT
                 pi.item_id,
                 p.service_type_id,
                 pi.itemName,
+                s.slug,
                 pi.itemMedia
             FROM package_items pi
             JOIN packages p ON pi.package_id = p.package_id
             JOIN service_type st ON p.service_type_id = st.service_type_id
+            JOIN services s ON st.service_id = s.service_id
             WHERE pi.is_top_pick = 1
             ORDER BY pi.item_id DESC
         `);
@@ -825,6 +827,7 @@ const getTopPicks = asyncHandler(async (req, res) => {
             item_id: row.item_id,
             service_type_id: row.service_type_id,
             itemName: row.itemName,
+            slug: row.slug,
             itemMedia: row.itemMedia
         }));
 
