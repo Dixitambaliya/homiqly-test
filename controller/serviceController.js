@@ -814,7 +814,8 @@ const getTopPicks = asyncHandler(async (req, res) => {
                 p.service_type_id,
                 pi.itemName,
                 s.slug,
-                pi.itemMedia
+                pi.itemMedia,
+                pi.description
             FROM package_items pi
             JOIN packages p ON pi.package_id = p.package_id
             JOIN service_type st ON p.service_type_id = st.service_type_id
@@ -827,6 +828,7 @@ const getTopPicks = asyncHandler(async (req, res) => {
             item_id: row.item_id,
             service_type_id: row.service_type_id,
             itemName: row.itemName,
+            description: row.description,
             slug: row.slug,
             itemMedia: row.itemMedia
         }));
